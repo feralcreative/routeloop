@@ -3,7 +3,7 @@
 //
 // 1. TYPING IN A CUSTOM BOX PICKS CUSTOM. Ziad's call, 2026-09-13. The radio
 //    and the box are one choice, and a rider who has typed a word has made it.
-// 2. THE PICKERS MOVE THE TABLE. Each row's "from your vehicle" mark sits on
+// 2. THE PICKERS MOVE THE TABLE. Each row's "default" mark sits on
 //    whichever option the current preset would use, and a row that was
 //    following the preset keeps following it — so picking Car ticks Trip on
 //    the journey row without a reload. A power term under Pedal is switched
@@ -42,7 +42,7 @@
       if (mark) mark.remove();
       if (word && r.value === word.one) {
         const small = document.createElement("small");
-        small.textContent = " · from your vehicle";
+        small.textContent = " · default";
         r.parentElement.querySelector("span").appendChild(small);
         if (checked && wasFollowing !== null && checked.value === wasFollowing) r.checked = true;
       }

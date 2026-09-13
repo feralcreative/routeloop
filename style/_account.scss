@@ -1133,20 +1133,31 @@
   }
 }
 
+// A GRID, NOT A FLOW. Ziad's call, 2026-09-13: the pills line up in columns
+// down the table, whatever a row offers — three preset slots and a fourth for
+// Custom, which is pinned to the last column so every Custom box is under
+// every other Custom box. A row with one preset word leaves its other slots
+// empty rather than stretching to fill them.
 .jargon-picks {
-  display: flex;
-  flex-wrap: wrap;
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr)) minmax(0, 1.6fr);
   gap: 0.4rem;
+}
+
+.jargon-pick--custom {
+  grid-column: 4;
 }
 
 // A pill: the radio is the whole pill, filled when it is the one. The Custom
 // pill carries its text box inside it, so typing in the box is visibly the
 // same act as picking the pill — jargon.js ticks the radio as the first letter
-// lands.
+// lands. Each fills its grid cell, which is what makes the columns read as
+// columns.
 .jargon-pick {
-  display: inline-flex;
+  display: flex;
   align-items: center;
   gap: 0.35rem;
+  min-width: 0;
   padding: 0.3rem 0.7rem;
   border: 1px solid $grey;
   border-radius: 999px;
@@ -1173,14 +1184,30 @@
   }
 
   input[type="text"] {
-    width: 9rem;
+    flex: 1 1 auto;
+    min-width: 0;
+    width: 0;
     padding: 0.15rem 0.4rem;
     font-size: 0.9rem;
   }
+
+  > span {
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
 }
 
-//@ Phone — the term column stacks over its pills
+//@ Phone — the term column stacks over its pills, and the pills go two-up
 @media (max-width: 640px) {
+  .jargon-picks {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .jargon-pick--custom {
+    grid-column: 1 / -1;
+  }
+
   .jargon-table {
     tr,
     th,

@@ -188,7 +188,7 @@ export async function accountPage(
   const { durationFormat, units, motion, clock, volumeUnits, avoidPlaces, favorPlaces, tips, hideTour, vocab } =
     await prefsFor(user.id)
   // The words the presets alone would give, with no Custom row — what each
-  // jargon row marks as "from your vehicle".
+  // jargon row marks as "default".
   const presetWords = wordsFor({ ...vocab, jargon: {} })
   // The page's own words: the rider's default preset with their Custom rows,
   // which is what every surface with no ride on it reads.
@@ -493,7 +493,7 @@ export async function accountPage(
           <section class="setting setting--wide" id="words">
             <h3>Your words</h3>
             <p class="setting-hint">
-              The first choice on each row follows the pickers above. Pick another, or type your own—a slash gives it a
+              The choice marked default follows the pickers above. Pick another, or type your own—a slash gives it a
               plural, like <code>person/people</code>.
             </p>
             <form method="post" action="/settings/jargon" class="setting-form" data-autosave data-jargon>
@@ -533,7 +533,7 @@ export async function accountPage(
                                   <input type="radio" name={`pick-${t.id}`} value={word} checked={picked === word} />
                                   <span>
                                     {cap(word)}
-                                    {i === 0 && t.axis !== 'regional' ? <small> · from your vehicle</small> : null}
+                                    {i === 0 && t.axis !== 'regional' ? <small> · default</small> : null}
                                   </span>
                                 </label>
                               ))}
