@@ -1,5 +1,7 @@
 // The jargon table (#321): precedence, the pluralizer, and coverage.
 import { describe, expect, it } from 'vitest'
+import { readFileSync } from 'node:fs'
+import { jargonCsv } from '../utils/build-jargon-csv'
 import {
   DEFAULT_VOCAB,
   TERMS,
@@ -70,6 +72,11 @@ describe('vocab', () => {
     expect(toJargon(null)).toEqual({})
     expect(toJargon({ journey: '  Adventure ', bogus: 'x', fuel: '', tank: 7 })).toEqual({ journey: 'adventure' })
     expect(toJargon({ journey: 'x'.repeat(80) }).journey).toHaveLength(40)
+  })
+
+  it('matches docs/jargon.csv, the readable copy of the table', () => {
+    // Regenerate with `npx tsx utils/build-jargon-csv.ts` when the table changes.
+    expect(readFileSync('docs/jargon.csv', 'utf8')).toBe(jargonCsv())
   })
 
   it('power terms mirror POWERS minus pedal', () => {

@@ -1,0 +1,15 @@
+Term,Motorcycle,Car,Bicycle,Gas,Electric,Regional
+journey,ride,trip,ride,—,—,
+travel,riding,driving,pedaling,—,—,
+vehicle,bike,car,bike,—,—,
+person,rider,driver,rider,—,—,
+storage,paddock,garage,shed,—,—,
+curvy,twisty,twisty,twisty,—,—,
+route,route,day,stage,—,—,
+roadbook,roadbook,itinerary,cue sheet,—,—,
+fuel,—,—,—,gas,charge,
+refuel,—,—,—,fill up,charge,
+tank,—,—,—,tank,battery,
+station,—,—,—,gas station,charger,
+dry,—,—,—,runs dry,goes flat,
+highway,—,—,—,—,—,highway / motorway / freeway
