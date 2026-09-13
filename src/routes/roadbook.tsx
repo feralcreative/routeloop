@@ -20,12 +20,13 @@ import { METERS_PER_MILE } from '../maps/kml'
 import { ROLE_META, type Role } from '../maps/roles'
 import { fmtClock, fmtDateLong } from '../views/date-format'
 import { clockFor, dateFormatFor } from '../views/prefs'
-import { page } from '../views/layout'
+import { page, wordsOf } from '../views/layout'
 import { StrandSwitch } from '../views/strand-switch'
 import { viewableRide } from '../access/query'
 import { resolveStrand } from '../subgroups/service'
 import { type Units, distanceFrom, distanceUnit, twistFrom, twistUnit } from '../views/units'
 import { unitsFor } from '../views/prefs'
+import { Wd, wd, wn } from '../views/vocab'
 import { SEP } from '../views/sep'
 
 export const roadbookRoutes = new Hono<AuthEnv>()
@@ -189,27 +190,30 @@ roadbookRoutes.get('/m/:slug/roadbook', async (c) => {
   if (ride.routes.length === 0) return c.text('Not found', 404)
 
   const units = await unitsFor(c)
+  const w = wordsOf({ user, ride: m })
   const totalM = ride.routes.reduce((n, r) => n + r.distanceM, 0)
   const totalS = ride.routes.reduce((n, r) => n + r.durationS, 0)
   const anyClock = ride.routes.some((r) => r.startAt)
 
   return c.html(
     page({
-      title: `${m.title} – roadbook`,
+      title: `${m.title} – ${wd(w, 'roadbook')}`,
       user,
+      words: w,
+      ride: m,
       bodyClass: 'roadbook-page',
       body: (
         <>
           <header class="rb-head">
             <h1>{m.title}</h1>
             <p class="rb-summary">
-              {ride.routes.length} {ride.routes.length === 1 ? 'route' : 'routes'}
+              {ride.routes.length} {wn(w, 'route', ride.routes.length)}
               {SEP}
               {fmtMi(totalM, units)} {distanceUnit(units)}
               {totalS > 0 && (
                 <>
                   {SEP}
-                  {fmtDuration(totalS)} riding
+                  {fmtDuration(totalS)} {wd(w, 'travel')}
                 </>
               )}
             </p>
@@ -220,8 +224,8 @@ roadbookRoutes.get('/m/:slug/roadbook', async (c) => {
             <StrandSwitch strand={strand} base={`/m/${m.slug}/roadbook`} />
             {anyClock && (
               <p class="rb-caveat">
-                Times are estimates: the route’s riding time spread evenly over its distance, plus the time planned at
-                each stop. Traffic, weather, and the way you actually ride are not in&nbsp;them.
+                Times are estimates: the {wd(w, 'route')}’s {wd(w, 'travel')} time spread evenly over its distance, plus
+                the time planned at each stop. Traffic, weather, and the way you actually go are not in&nbsp;them.
               </p>
             )}
           </header>
@@ -232,7 +236,7 @@ roadbookRoutes.get('/m/:slug/roadbook', async (c) => {
               <section class="rb-route">
                 <h2>
                   <span class="rb-route-swatch" style={`background:${r.color}`}></span>
-                  {r.title || `Route ${i + 1}`}
+                  {r.title || `${Wd(w, 'route')} ${i + 1}`}
                 </h2>
                 <p class="rb-route-meta">
                   {r.startAt && (
@@ -245,7 +249,7 @@ roadbookRoutes.get('/m/:slug/roadbook', async (c) => {
                   {r.durationS > 0 && (
                     <>
                       {SEP}
-                      {fmtDuration(r.durationS)} riding
+                      {fmtDuration(r.durationS)} {wd(w, 'travel')}
                     </>
                   )}
                   {/* Converted for display, and the STORED figure stays degrees
