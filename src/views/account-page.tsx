@@ -1,17 +1,22 @@
-// Settings and Profile as ONE page with two tabs (#269).
+// Settings and Profile as ONE page with two tabs (#269) — FOUR since #319:
+// Preferences, Profile, Places and Paddock. Ziad's call, 2026-09-13.
 //
 // They were two pages and two account-menu items, and the split did not answer a
 // question a rider was asking: both are "the things about me I can change", so
 // somebody looking for one had to already know which page it had been filed on.
-// Ziad's call, 2026-09-07.
+// Ziad's call, 2026-09-07. Places and the Paddock were two regions at the foot
+// of the Profile form until #319, which is where a rider with four bikes and
+// thirty saved places scrolled to find them; each is its own tab now, at its own
+// URL, and neither was ever part of that form's submit — every write goes
+// through /api/places and /api/bikes as JSON — so moving them changed nothing
+// about saving.
 //
 // **THE PRECEDENT IS `/riders` AND `/friends`, AND THIS FOLLOWS IT EXACTLY.**
-// Two URLs, one page, each opening its own tab — `/profile` is not redirected,
+// Four URLs, one page, each opening its own tab — `/profile` is not redirected,
 // because it is linked from the account menu and from bookmarks, and a redirect
-// would put a hop in front of a page the rider already had. Both set
-// `navKey: 'settings'`, and the `profile` NavKey is gone under the rule already
-// on that union: a key no NavItem carries is an `aria-current` that is wired and
-// can never fire.
+// would put a hop in front of a page the rider already had. The two new tabs
+// set `navKey: 'settings'` like Preferences; `/profile` keeps its own key for
+// the reason recorded on that union in layout.tsx.
 //
 // **THIS FILE COMPOSES; IT DOES NOT IMPORT EITHER ROUTE MODULE.** The profile
 // panel arrives as an already-rendered string, which is what keeps the imports
@@ -48,7 +53,50 @@ import { fieldHelp, page } from './layout'
 import { tourAssets } from './tour-assets'
 import { asset } from './assets'
 
-export type AccountTab = 'preferences' | 'profile'
+export type AccountTab = 'preferences' | 'profile' | 'places' | 'paddock'
+
+// The Paddock and Places tabs are static markup driven by paddock.js and
+// places.js against their APIs, so they render here rather than arriving from
+// a route module — this file imports neither, per the note above. Each sits in
+// a `.profile-form` div so the fieldset takes the card styling the Profile
+// form's fieldsets have, without being a form.
+//
+// Places are CREATED from the builder ("Save to my places" on a stop), because a
+// place needs a pin and the builder is where the map is. This tab is for
+// organizing what is already there: rename, refile, delete. A create-from-scratch
+// flow here wants the address picker from roadmap item 19 and should wait for it
+// rather than ship a lat/lng text box.
+const placesPanel = (): string =>
+  (
+    <div class="profile-form">
+      <fieldset>
+        <legend>Your places</legend>
+        <p class="field-hint">
+          Save a stop from the ride builder and it turns up here, and in the builder&rsquo;s search box on every ride
+          after&nbsp;that.
+        </p>
+        <div id="places-manager" data-places-manager>
+          <p class="field-hint">Loading&hellip;</p>
+        </div>
+      </fieldset>
+    </div>
+  ).toString()
+
+const paddockPanel = (): string =>
+  (
+    <div class="profile-form">
+      <fieldset>
+        <legend>Paddock</legend>
+        <p class="field-hint">
+          The bikes you ride. A range here is what the app plans fuel stops around, and the tour&rsquo;s fuel part
+          points at&nbsp;it.
+        </p>
+        <div id="paddock" data-paddock>
+          <p class="field-hint">Loading&hellip;</p>
+        </div>
+      </fieldset>
+    </div>
+  ).toString()
 
 // ONE QUERY FOR EVERY PREFERENCE THIS PAGE OWNS, rather than one per setting.
 // They are columns on a single row, so a second `select` is a second round trip
@@ -88,7 +136,7 @@ async function prefsFor(userId: number) {
 }
 
 /**
- * The whole page, with one of its two tabs open.
+ * The whole page, with one of its four tabs open.
  *
  * `profile` is the rendered Profile panel, `scripts` what it needs loaded. Both
  * come from profile.tsx, which owns that form's validation and its error
@@ -168,7 +216,8 @@ export async function accountPage(
         <>
           <h1>Your profile</h1>
           <p class="lede">
-            Who you are, where you set off from, and what you ride. Your preferences are on the tab beside&nbsp;this.
+            Who you are and where you set off from. Your preferences, places, and bikes are on the tabs
+            beside&nbsp;this.
           </p>
         </>
       ) : (
@@ -206,6 +255,28 @@ export async function accountPage(
           tabindex={tabOn('profile') ? undefined : -1}
         >
           Profile
+        </button>
+        <button
+          type="button"
+          class={`page-tab${tabOn('places') ? ' is-active' : ''}`}
+          role="tab"
+          id="tab-places"
+          aria-controls="panel-places"
+          aria-selected={tabOn('places') ? 'true' : 'false'}
+          tabindex={tabOn('places') ? undefined : -1}
+        >
+          Places
+        </button>
+        <button
+          type="button"
+          class={`page-tab${tabOn('paddock') ? ' is-active' : ''}`}
+          role="tab"
+          id="tab-paddock"
+          aria-controls="panel-paddock"
+          aria-selected={tabOn('paddock') ? 'true' : 'false'}
+          tabindex={tabOn('paddock') ? undefined : -1}
+        >
+          Paddock
         </button>
       </div>
 
@@ -892,6 +963,26 @@ export async function accountPage(
             application produced — the same arrangement views/content.ts uses. */}
         {raw(opts.profile)}
       </div>
+
+      <div
+        class="page-tabpanel"
+        id="panel-places"
+        role="tabpanel"
+        aria-labelledby="tab-places"
+        hidden={!tabOn('places')}
+      >
+        {raw(placesPanel())}
+      </div>
+
+      <div
+        class="page-tabpanel"
+        id="panel-paddock"
+        role="tabpanel"
+        aria-labelledby="tab-paddock"
+        hidden={!tabOn('paddock')}
+      >
+        {raw(paddockPanel())}
+      </div>
     </>
   ).toString()
 
@@ -911,7 +1002,7 @@ export async function accountPage(
     // state, so a missing script fails silently rather than loudly.
     scripts: `<script src="${asset('/js/tabs.js')}" defer></script>
   <script src="${asset('/js/autosave.js')}" defer></script>\n  ${opts.scripts ?? ''}\n  ${tourAssets(user).scripts}`,
-    // The tour's paddock beat lands on the Profile tab, so the page carries
+    // The tour's paddock beat lands on the Paddock tab, so the page carries
     // the tour's assets while one is running.
     head: tourAssets(user).head,
   })

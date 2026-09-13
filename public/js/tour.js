@@ -888,7 +888,8 @@
     if (/^\/m\/[^/]+\/riders$/.test(p)) return "roster";
     if (/^\/m\/[^/]+$/.test(p)) return "viewer";
     if (p === "/riders" || p === "/friends") return "riders";
-    if (p === "/profile" || p === "/settings") return "profile";
+    // One page at four URLs (#319); the paddock card lands on its own tab.
+    if (p === "/profile" || p === "/settings" || p === "/places" || p === "/paddock") return "profile";
     return "";
   }
 
@@ -905,7 +906,7 @@
       case "riders":
         return "/riders";
       case "profile":
-        return "/profile";
+        return "/paddock";
       default:
         return "/builder/" + p.rideId;
     }
