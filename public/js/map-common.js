@@ -1544,6 +1544,12 @@
   const DRAWER_MIN = 360;
   const DRAWER_MAX_VW = 0.75;
   const DRAWER_STEP = 20;
+  // The rail's width, --drawer-rail in _map.scss; the edge a pull-out starts from.
+  const DRAWER_RAIL = 56;
+  // How far under the minimum a push has to go before it folds. Every
+  // pull-out lands at exactly the minimum, so with no slack a one-pixel
+  // wobble left from there would fold what the rider just opened.
+  const DRAWER_FOLD_SLACK = 24;
 
   function readDrawer() {
     try {
@@ -1628,7 +1634,7 @@
       const map = holdCenter();
       drag = {
         x0: e.clientX,
-        w0: panel.classList.contains("collapsed") ? 0 : current(),
+        w0: panel.classList.contains("collapsed") ? DRAWER_RAIL : current(),
         moved: false,
         opening: false,
         closing: false,
@@ -1641,12 +1647,15 @@
       const dx = e.clientX - drag.x0;
       if (!drag.moved && Math.abs(dx) < 4) return;
       drag.moved = true;
-      // The pointer's own x is the drawer's edge, which is what a drag on an
-      // edge means; the start offset is only for the click test. Open, the
-      // drawer collapses the moment the edge is pulled under the minimum;
-      // collapsed, it POPS to the minimum as soon as the rail is pulled
-      // outward at all, and follows the pointer from there — waiting for the
-      // pointer to reach 360px would leave a pull of 300px doing nothing.
+      // THE WIDTH MOVES BY THE POINTER'S TRAVEL, NOT TO THE POINTER'S X. The
+      // grab strip is 20px wide and sits inside the edge, so a hand on it is
+      // up to 20px short of the edge — and reading the pointer's x as the
+      // new edge folded a 360px drawer on the first move outward, because
+      // x was 350. Reported 2026-09-13. Width is where it started plus how
+      // far the pointer has moved, which is what a drag on an edge means.
+      // Open, the drawer collapses the moment the edge is pushed under the
+      // minimum; collapsed, it POPS to the minimum as soon as the rail is
+      // pulled outward at all, and follows the pointer from there.
       //
       // ONE GESTURE, ONE DIRECTION. Ziad's call, 2026-09-13: a pull from the
       // rail pops the drawer to the minimum and it stays open on release
@@ -1655,7 +1664,7 @@
       // drag decided, and the rest of the gesture is the rider letting go. A
       // warn-and-wait version (hold at 360, glow, fold on release) was tried
       // and pulled the same day: it read as the drawer resisting.
-      const want = e.clientX;
+      const want = drag.w0 + dx;
       if (drag.closing) return;
       if (panel.classList.contains("collapsed")) {
         if (dx > 12) {
@@ -1665,7 +1674,7 @@
         }
       } else if (drag.opening) {
         setWidth(Math.max(DRAWER_MIN, want));
-      } else if (want < DRAWER_MIN) {
+      } else if (want < DRAWER_MIN - DRAWER_FOLD_SLACK) {
         setCollapsed(true);
         drag.closing = true;
       } else {
