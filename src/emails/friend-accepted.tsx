@@ -13,9 +13,11 @@
 // appearing under "Asked".
 import { APP_ORIGIN } from '../config'
 import { defineEmail } from './types'
+import { wordsIn, type WithWords } from './words'
+import { aWd, wd, wds } from '../views/vocab'
 import { A, Button, Muted, P } from './shell'
 
-type Props = {
+type Props = WithWords & {
   /** Who accepted — users.display_name. */
   friendName: string
   /** Their handle, without the @. */
@@ -27,20 +29,20 @@ export const friendAcceptedEmail = defineEmail<Props>({
 
   subject: ({ friendName }) => `${friendName} accepted your friend request`,
 
-  preheader: () => 'You can put each other on rides now.',
+  preheader: (p) => `You can put each other on ${wds(wordsIn(p), 'journey')} now.`,
 
-  text: ({ friendName, friendHandle }) =>
+  text: ({ friendName, friendHandle, ...p }) =>
     [
       `${friendName} (@${friendHandle}) accepted your friend request.`,
       '',
       `${APP_ORIGIN}/@${friendHandle}`,
       '',
-      `You can put each other on rides now, and you will see each other’s rides that are shared with friends.`,
+      `You can put each other on ${wds(wordsIn(p), 'journey')} now, and you will see each other’s ${wds(wordsIn(p), 'journey')} that are shared with friends.`,
       '',
       `Your friends: ${APP_ORIGIN}/friends`,
     ].join('\n'),
 
-  html: ({ friendName, friendHandle }) =>
+  html: ({ friendName, friendHandle, ...p }) =>
     (
       <>
         <P>
@@ -48,10 +50,11 @@ export const friendAcceptedEmail = defineEmail<Props>({
         </P>
         <Button href={`${APP_ORIGIN}/@${friendHandle}`}>See their profile</Button>
         <Muted>
-          You can put each other on rides now, and you will see each other’s rides that are shared with&nbsp;friends.
+          You can put each other on {wds(wordsIn(p), 'journey')} now, and you will see each other’s{' '}
+          {wds(wordsIn(p), 'journey')} that are shared with&nbsp;friends.
         </Muted>
         <Muted>
-          Everyone you ride with: <A href={`${APP_ORIGIN}/friends`}>{`${APP_ORIGIN}/friends`}</A>
+          Everyone you go with: <A href={`${APP_ORIGIN}/friends`}>{`${APP_ORIGIN}/friends`}</A>
         </Muted>
       </>
     ).toString(),

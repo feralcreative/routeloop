@@ -19,9 +19,11 @@
 // person to hand it to.
 import { APP_ORIGIN } from '../config'
 import { defineEmail } from './types'
+import { wordsIn, type WithWords } from './words'
+import { aWd, wd, wds } from '../views/vocab'
 import { A, Button, Muted, P } from './shell'
 
-type Props = {
+type Props = WithWords & {
   /** How many days are left, as a whole number. */
   daysLeft: number
   /** The date, already formatted by the caller in the rider's own date format. */
@@ -34,15 +36,17 @@ export const accountPurgeSoonEmail = defineEmail<Props>({
   key: 'account-purge-soon',
 
   subject: ({ daysLeft }) =>
-    daysLeft === 1 ? 'Your Routeloop account is deleted tomorrow' : `Your Routeloop account is deleted in ${daysLeft} days`,
+    daysLeft === 1
+      ? 'Your Routeloop account is deleted tomorrow'
+      : `Your Routeloop account is deleted in ${daysLeft} days`,
 
   preheader: () => 'Signing in cancels it. Doing nothing goes ahead with it.',
 
-  text: ({ daysLeft, purgeOn }) =>
+  text: ({ daysLeft, purgeOn, ...p }) =>
     [
       `You asked us to delete your account, and on ${purgeOn} we will — that is ${daysLeft === 1 ? 'tomorrow' : `${daysLeft} days from now`}.`,
       '',
-      `Everything goes: every ride, every saved place, every bike, and every file you uploaded. There is nothing to restore from afterwards.`,
+      `Everything goes: every ${wd(wordsIn(p), 'journey')}, every saved place, every ${wd(wordsIn(p), 'vehicle')}, and every file you uploaded. There is nothing to restore from afterwards.`,
       '',
       `If you have changed your mind, sign in and the deletion is canceled:`,
       SIGN_IN_URL,
@@ -50,7 +54,7 @@ export const accountPurgeSoonEmail = defineEmail<Props>({
       `If you have not, you need do nothing. This is the only reminder we will send.`,
     ].join('\n'),
 
-  html: ({ daysLeft, purgeOn }) =>
+  html: ({ daysLeft, purgeOn, ...p }) =>
     (
       <>
         <P>
@@ -58,8 +62,8 @@ export const accountPurgeSoonEmail = defineEmail<Props>({
           {daysLeft === 1 ? 'tomorrow' : `${daysLeft} days from now`}.
         </P>
         <P>
-          Everything goes: every ride, every saved place, every bike, and every file you uploaded. There is nothing to
-          restore from&nbsp;afterwards.
+          Everything goes: every {wd(wordsIn(p), 'journey')}, every saved place, every {wd(wordsIn(p), 'vehicle')}, and
+          every file you uploaded. There is nothing to restore from&nbsp;afterwards.
         </P>
         <Button href={SIGN_IN_URL}>Sign in to cancel it</Button>
         <Muted>

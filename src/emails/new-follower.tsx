@@ -12,9 +12,11 @@
 // that decides whether you want to.
 import { APP_ORIGIN } from '../config'
 import { defineEmail } from './types'
+import { wordsIn, type WithWords } from './words'
+import { aWd, wd, wds } from '../views/vocab'
 import { A, Button, Muted, P } from './shell'
 
-type Props = {
+type Props = WithWords & {
   followerName: string
   /** Their handle, without the @. */
   followerHandle: string
@@ -29,18 +31,18 @@ export const newFollowerEmail = defineEmail<Props>({
 
   preheader: () => 'Following is one-way and opens nothing of yours.',
 
-  text: ({ followerName, followerHandle }) =>
+  text: ({ followerName, followerHandle, ...p }) =>
     [
       `${followerName} (@${followerHandle}) is following you.`,
       '',
       profile(followerHandle),
       '',
-      `Following means they see the rides you have already made public. It opens nothing else — not your private rides, not your friends-only ones, and not anything about you that was not already public.`,
+      `Following means they see the ${wds(wordsIn(p), 'journey')} you have already made public. It opens nothing else — not your private ${wds(wordsIn(p), 'journey')}, not your friends-only ones, and not anything about you that was not already public.`,
       '',
       `Follow them back, or do nothing, from their page above.`,
     ].join('\n'),
 
-  html: ({ followerName, followerHandle }) =>
+  html: ({ followerName, followerHandle, ...p }) =>
     (
       <>
         <P>
@@ -48,8 +50,9 @@ export const newFollowerEmail = defineEmail<Props>({
         </P>
         <Button href={profile(followerHandle)}>Look at who they are</Button>
         <Muted>
-          Following means they see the rides you have already made public. It opens nothing else — not your private
-          rides, not your friends-only ones, and not anything about you that was not already&nbsp;public.
+          Following means they see the {wds(wordsIn(p), 'journey')} you have already made public. It opens nothing else
+          — not your private {wds(wordsIn(p), 'journey')}, not your friends-only ones, and not anything about you that
+          was not already&nbsp;public.
         </Muted>
       </>
     ).toString(),

@@ -13,9 +13,11 @@
 // src/account/quota-sweep.ts.
 import { APP_ORIGIN } from '../config'
 import { defineEmail } from './types'
+import { wordsIn, type WithWords } from './words'
+import { aWd, cap, wd, wds } from '../views/vocab'
 import { A, Button, Muted, P } from './shell'
 
-type Props = {
+type Props = WithWords & {
   /** Whole percent of the allowance in use. */
   percent: number
   /** Both already formatted by the caller, in whichever unit reads best. */
@@ -33,22 +35,22 @@ export const quotaFullEmail = defineEmail<Props>({
 
   preheader: ({ used, quota }) => `${used} of ${quota}. Only uploaded files count.`,
 
-  text: ({ percent, used, quota }) =>
+  text: ({ percent, used, quota, ...p }) =>
     [
       `Your storage is ${percent}% full — ${used} of ${quota}.`,
       '',
-      `Only files you IMPORTED count against this. A ride you planned in the builder writes nothing to disk and costs you nothing, however long it is, so this is not a limit on how much you can plan.`,
+      `Only files you IMPORTED count against this. ${cap(aWd(wordsIn(p), 'journey'))} you planned in the builder writes nothing to disk and costs you nothing, however long it is, so this is not a limit on how much you can plan.`,
       '',
       `Two things free space up. Deleting an imported ride you no longer want:`,
       RIDES_URL,
       '',
-      `And emptying your bin, where a deleted ride still counts for thirty days:`,
+      `And emptying your bin, where a deleted ${wd(wordsIn(p), 'journey')} still counts for thirty days:`,
       BIN_URL,
       '',
       `If neither is enough, reply to this and we will sort it out.`,
     ].join('\n'),
 
-  html: ({ percent, used, quota }) =>
+  html: ({ percent, used, quota, ...p }) =>
     (
       <>
         <P>
@@ -58,7 +60,7 @@ export const quotaFullEmail = defineEmail<Props>({
           Only files you <b>imported</b> count against this. A ride you planned in the builder writes nothing to disk
           and costs you nothing, however long it is, so this is not a limit on how much you can&nbsp;plan.
         </P>
-        <Button href={RIDES_URL}>Look at your rides</Button>
+        <Button href={RIDES_URL}>Look at your {wds(wordsIn(p), 'journey')}</Button>
         <Muted>
           Deleting an imported ride frees its space, and so does emptying <A href={BIN_URL}>your bin</A> — a ride in
           there still counts for thirty&nbsp;days.

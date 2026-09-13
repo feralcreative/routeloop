@@ -11,9 +11,11 @@
 // follows for the same reason.
 import { APP_ORIGIN } from '../config'
 import { defineEmail } from './types'
+import { wordsIn, type WithWords } from './words'
+import { aWd, wd, wds } from '../views/vocab'
 import { A, Button, Muted, P } from './shell'
 
-type Props = {
+type Props = WithWords & {
   proposerName: string
   rideTitle: string
   rideSlug: string
@@ -34,7 +36,7 @@ export const rideSuggestionEmail = defineEmail<Props>({
 
   preheader: ({ routeLabel }) => `A new version of ${routeLabel}, for you to accept or discard.`,
 
-  text: ({ proposerName, rideTitle, rideSlug, routeLabel, note }) =>
+  text: ({ proposerName, rideTitle, rideSlug, routeLabel, note, ...p }) =>
     [
       `${proposerName} suggested a change to ${routeLabel} of your ride ${rideTitle}.`,
       ...(note ? ['', `They said: “${note}”`] : []),
@@ -43,10 +45,10 @@ export const rideSuggestionEmail = defineEmail<Props>({
       '',
       `Their version is drawn against yours there, with Accept and Discard beside it.`,
       '',
-      `A suggestion goes stale on its own if you change that route first, so there is no way to accept one that no longer describes your ride.`,
+      `A suggestion goes stale on its own if you change that ${wd(wordsIn(p), 'route')} first, so there is no way to accept one that no longer describes your ${wd(wordsIn(p), 'journey')}.`,
     ].join('\n'),
 
-  html: ({ proposerName, rideTitle, rideSlug, routeLabel, note }) =>
+  html: ({ proposerName, rideTitle, rideSlug, routeLabel, note, ...p }) =>
     (
       <>
         <P>
@@ -57,7 +59,7 @@ export const rideSuggestionEmail = defineEmail<Props>({
         <Muted>It is drawn against yours there, with Accept and Discard beside&nbsp;it.</Muted>
         <Muted>
           A suggestion goes stale on its own if you change that route first, so there is no way to accept one that no
-          longer describes your&nbsp;ride.
+          longer describes your&nbsp;{wd(wordsIn(p), 'journey')}.
         </Muted>
       </>
     ).toString(),

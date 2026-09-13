@@ -19,9 +19,11 @@
 // who can see the message. The link goes to the page where both buttons live.
 import { APP_ORIGIN } from '../config'
 import { defineEmail } from './types'
+import { wordsIn, type WithWords } from './words'
+import { aWd, wd, wds } from '../views/vocab'
 import { A, Button, Muted, P } from './shell'
 
-type Props = {
+type Props = WithWords & {
   /** Who asked, as they are shown everywhere else — users.display_name. */
   fromName: string
   /** Their handle, without the @. Lets the recipient look at who this is
@@ -40,7 +42,7 @@ export const friendRequestEmail = defineEmail<Props>({
 
   preheader: () => 'Accept or decline on your friends page.',
 
-  text: ({ fromName, fromHandle }) =>
+  text: ({ fromName, fromHandle, ...p }) =>
     [
       `${fromName} (@${fromHandle}) sent you a friend request.`,
       '',
@@ -50,10 +52,10 @@ export const friendRequestEmail = defineEmail<Props>({
       '',
       `Who they are: ${APP_ORIGIN}/@${fromHandle}`,
       '',
-      `Riding friends can put each other on rides, and see rides shared with friends.`,
+      `Friends can put each other on ${wds(wordsIn(p), 'journey')}, and see ${wds(wordsIn(p), 'journey')} shared with friends.`,
     ].join('\n'),
 
-  html: ({ fromName, fromHandle }) =>
+  html: ({ fromName, fromHandle, ...p }) =>
     (
       <>
         <P>
@@ -64,7 +66,10 @@ export const friendRequestEmail = defineEmail<Props>({
           They are under “Waiting on you” at <A href={FRIENDS_URL}>{FRIENDS_URL}</A>, with both buttons
           beside&nbsp;them.
         </Muted>
-        <Muted>Riding friends can put each other on rides, and see rides shared with&nbsp;friends.</Muted>
+        <Muted>
+          Friends can put each other on {wds(wordsIn(p), 'journey')}, and see {wds(wordsIn(p), 'journey')} shared
+          with&nbsp;friends.
+        </Muted>
       </>
     ).toString(),
 

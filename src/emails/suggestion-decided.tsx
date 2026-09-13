@@ -11,9 +11,11 @@
 // `discard` reach here — see src/suggestions/service.ts.
 import { APP_ORIGIN } from '../config'
 import { defineEmail } from './types'
+import { wordsIn, type WithWords } from './words'
+import { aWd, wd, wds } from '../views/vocab'
 import { A, Button, Muted, P } from './shell'
 
-type Props = {
+type Props = WithWords & {
   /** Whose ride it was. */
   ownerName: string
   rideTitle: string
@@ -29,12 +31,14 @@ export const suggestionDecidedEmail = defineEmail<Props>({
   key: 'suggestion-decided',
 
   subject: ({ ownerName, accepted, rideTitle }) =>
-    accepted ? `${ownerName} took your suggestion for ${rideTitle}` : `${ownerName} passed on your suggestion for ${rideTitle}`,
+    accepted
+      ? `${ownerName} took your suggestion for ${rideTitle}`
+      : `${ownerName} passed on your suggestion for ${rideTitle}`,
 
   preheader: ({ accepted, routeLabel }) =>
     accepted ? `${routeLabel} is your version now.` : `${routeLabel} is staying as it was.`,
 
-  text: ({ ownerName, rideTitle, rideSlug, routeLabel, accepted }) =>
+  text: ({ ownerName, rideTitle, rideSlug, routeLabel, accepted, ...p }) =>
     [
       accepted
         ? `${ownerName} accepted your suggestion for ${routeLabel} of ${rideTitle}. That route is your version now.`
@@ -43,11 +47,11 @@ export const suggestionDecidedEmail = defineEmail<Props>({
       url(rideSlug),
       '',
       accepted
-        ? `Everyone on the ride is riding it.`
-        : `Nothing stops you suggesting something else — a ride is a conversation about a road.`,
+        ? `Everyone on the ${wd(wordsIn(p), 'journey')} is on it.`
+        : `Nothing stops you suggesting something else — ${aWd(wordsIn(p), 'journey')} is a conversation about a road.`,
     ].join('\n'),
 
-  html: ({ ownerName, rideTitle, rideSlug, routeLabel, accepted }) =>
+  html: ({ ownerName, rideTitle, rideSlug, routeLabel, accepted, ...p }) =>
     (
       <>
         <P>
@@ -58,8 +62,8 @@ export const suggestionDecidedEmail = defineEmail<Props>({
         <Button href={url(rideSlug)}>Look at the ride</Button>
         <Muted>
           {accepted
-            ? 'Everyone on the ride is riding it.'
-            : 'Nothing stops you suggesting something else — a ride is a conversation about a road.'}
+            ? `Everyone on the ${wd(wordsIn(p), 'journey')} is on it.`
+            : `Nothing stops you suggesting something else — ${aWd(wordsIn(p), 'journey')} is a conversation about a road.`}
         </Muted>
       </>
     ).toString(),
