@@ -68,7 +68,8 @@ import { LIVE_RIDE } from '../trash/service'
 import { fmtDateFull } from '../views/date-format'
 import { dateFormatFor } from '../views/prefs'
 import type { DateFormat } from '../views/date-format'
-import { page } from '../views/layout'
+import { page, wordsOf } from '../views/layout'
+import { Wds, aWd, cap, wd, wds, wn, type Words } from '../views/vocab'
 import { tourAssets } from '../views/tour-assets'
 import { notifyRideAdded, notifyRsvp } from '../notifications/senders'
 import { ownRide } from './maps'
@@ -242,7 +243,7 @@ function MemberRow({
           <form method="post" action={`/m/${slug}/riders/group`} class="roster-rsvp">
             <input type="hidden" name="rider" value={String(m.riderId)} />
             <label class="visually-hidden" for={`sg-${m.riderId}`}>
-              Which group {m.displayName} rides with
+              Which group {m.displayName} is in
             </label>
             <select id={`sg-${m.riderId}`} name="group" onchange="this.form.submit()">
               <option value="">No group</option>
@@ -354,25 +355,27 @@ function Deadline({ closeAt, dateFormat, open }: { closeAt: Date | null; dateFor
  * And it says how many riders it could not account for, because a binding range
  * over two of five bikes is a different claim from one over all five.
  */
-function Fuel({ range }: { range: GroupRange }) {
+function Fuel({ range, w }: { range: GroupRange; w: Words }) {
   if (range.riders === 0) return <></>
+  // Nothing to plan around on a pedal ride (#321): the fuel word is blank.
+  if (!w.fuel) return <></>
   if (range.miles === null) {
     return (
       <p class="roster-fuel is-quiet">
-        Nobody coming has a range on file, so there is nothing to plan fuel stops around. Ranges live in the{' '}
-        <a href="/paddock">paddock</a>.
+        Nobody coming has a range on file, so there is nothing to plan {wd(w, 'fuel')} stops around. Ranges live in the{' '}
+        <a href="/paddock">{wd(w, 'storage')}</a>.
       </p>
     )
   }
   return (
     <p class="roster-fuel">
-      Plan fuel stops around <strong>{range.miles} miles</strong> — {range.riderName}'s {range.bikeLabel} has the
-      shortest range of anyone&nbsp;coming.
+      Plan {wd(w, 'fuel')} stops around <strong>{range.miles} miles</strong> — {range.riderName}'s {range.bikeLabel} has
+      the shortest range of anyone&nbsp;coming.
       {range.unknown > 0 && (
         <span class="roster-fuel-gap">
           {' '}
-          {range.unknown} {range.unknown === 1 ? 'rider has' : 'riders have'} no range on file, so this could still be
-          optimistic.
+          {range.unknown} {wn(w, 'person', range.unknown)} {range.unknown === 1 ? 'has' : 'have'} no range on file, so
+          this could still be optimistic.
         </span>
       )}
     </p>
@@ -384,6 +387,8 @@ rosterRoutes.get('/m/:slug/riders', requireActive, async (c) => {
   const found = await memberRide(c.req.param('slug'), user.id)
   if (!found) return c.text('Not found', 404)
   const { ride, role } = found
+  // The ride's own words (#321): its vehicle over the viewer's default.
+  const w = wordsOf({ user, ride })
 
   const [members, groups, routeRows, friends, dateFormat, range, myGarage, subgroups] = await Promise.all([
     roster(ride.id),
@@ -418,15 +423,15 @@ rosterRoutes.get('/m/:slug/riders', requireActive, async (c) => {
       <p class="roster-back">
         <a href={`/m/${ride.slug}`}>← {ride.title}</a>
       </p>
-      <h1>Riders</h1>
+      <h1>{Wds(w, 'person')}</h1>
       <p class="lede">
-        {coming} of {members.length} {members.length === 1 ? 'rider is' : 'riders are'} coming. A rider on this ride can
-        see it whatever its visibility is set&nbsp;to.
+        {coming} of {members.length} {wn(w, 'person', members.length)} {members.length === 1 ? 'is' : 'are'} coming.{' '}
+        {cap(aWd(w, 'person'))} on this {wd(w, 'journey')} can see it whatever its visibility is set&nbsp;to.
       </p>
 
       {error && <p class="form-error">{ERRORS[error] ?? 'That did not work.'}</p>}
 
-      <Fuel range={range} />
+      <Fuel range={range} w={w} />
 
       <ul class="rider-list roster-list">
         {members.map((m) => (
@@ -454,7 +459,7 @@ rosterRoutes.get('/m/:slug/riders', requireActive, async (c) => {
           <select id="bike" name="bike" onchange="this.form.submit()">
             {/* "" is the default-bike fallback, and it is first because it is
                 what every rider is until they say otherwise. */}
-            <option value="">My default bike</option>
+            <option value="">My default {wd(w, 'vehicle')}</option>
             {myGarage.map((b) => (
               <option value={String(b.id)} selected={myBikeId === b.id}>
                 {bikeLabel(b)}
@@ -471,7 +476,7 @@ rosterRoutes.get('/m/:slug/riders', requireActive, async (c) => {
 
       {canInvite(role) && (
         <section class="roster-invite">
-          <h2>Add a rider</h2>
+          <h2>Add {aWd(w, 'person')}</h2>
           {friends.length > 0 ? (
             <form method="post" action={`/m/${ride.slug}/riders/invite`} class="roster-row">
               <label class="visually-hidden" for="who">
@@ -540,7 +545,17 @@ rosterRoutes.get('/m/:slug/riders', requireActive, async (c) => {
   ).toString()
 
   // The tour visits this page, so it carries the tour's assets while one is running.
-  return c.html(page({ title: `${ride.title} – riders`, user, bodyClass: 'content-page roster-page', body, ...tourAssets(user) }))
+  return c.html(
+    page({
+      title: `${ride.title} – ${wds(w, 'person')}`,
+      user,
+      words: w,
+      ride,
+      bodyClass: 'content-page roster-page',
+      body,
+      ...tourAssets(user),
+    }),
+  )
 })
 
 /**
