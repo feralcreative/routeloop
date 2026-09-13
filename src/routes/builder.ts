@@ -31,7 +31,7 @@ import { faqLink, googleMapsLoader, page, panelShell, rideTimeline, wordsOf } fr
 import { TRASH_HOLD_DAYS } from '../trash/policy'
 import { asset } from '../views/assets'
 import { esc } from '../views/esc'
-import { POWERS, POWER_CHOICES, VEHICLES, VEHICLE_CHOICES, cap } from '../views/vocab'
+import { POWERS, POWER_CHOICES, VEHICLES, VEHICLE_CHOICES, Wd, Wds, aWd, cap, wd } from '../views/vocab'
 import { TOUR_HEAD, tourScript } from '../views/tour-assets'
 import { GMAPS_KEY, GMAPS_MAP_ID } from '../config'
 import { generateSlug } from '../maps/slug'
@@ -897,13 +897,18 @@ function builderHtml(
   // state in it; three disclosures would let a rider open all three and be back
   // where they started. Roving tabindex, arrow keys and aria-selected are wired
   // by initTabs() in builder.js — nothing here is decorative.
+  // The words for this page (#321): the ride's own pair over the rider's
+  // default. The two selects' "My default" option names the default so the
+  // rider can see what leaving them alone means.
+  const words = wordsOf({ user, ride: vehicle })
+
   const tabs = `        <div class="panel-tabs" role="tablist" aria-label="Builder sections">
           <button type="button" class="panel-tab is-active" role="tab" id="tab-routes"
-                  aria-controls="panel-routes" aria-selected="true">Routes</button>
+                  aria-controls="panel-routes" aria-selected="true">${Wds(words, 'route')}</button>
           <button type="button" class="panel-tab" role="tab" id="tab-groups"
                   aria-controls="panel-groups" aria-selected="false" tabindex="-1">Groups <span class="tab-count" id="sg-count"></span></button>
           <button type="button" class="panel-tab" role="tab" id="tab-riders"
-                  aria-controls="panel-riders" aria-selected="false" tabindex="-1">Riders <span class="tab-count" id="riders-count"></span></button>
+                  aria-controls="panel-riders" aria-selected="false" tabindex="-1">${Wds(words, 'person')} <span class="tab-count" id="riders-count"></span></button>
         </div>`
 
   // ROUTES. Everything that was in the panel about the road: the route list, the
@@ -935,7 +940,7 @@ function builderHtml(
   const routesTab = `        <div class="panel-tabpanel is-active" role="tabpanel" id="panel-routes" aria-labelledby="tab-routes" tabindex="0">
           <div class="tab-actions">
             ${faqLink('waypoint-poi-stop', 'the difference between a stop and a POI')}
-            <button type="button" class="route-add" id="route-add" data-tip="route-add" title="Add a route">+ Route</button>
+            <button type="button" class="route-add" id="route-add" data-tip="route-add" title="Add ${aWd(words, 'route')}">+ ${Wd(words, 'route')}</button>
           </div>
 
           <!-- Select mode’s action bar, filled by renderSelectBar() in builder.js
@@ -1021,19 +1026,14 @@ function builderHtml(
   const standingBanner = standing.isOwner
     ? ''
     : `        <div class="builder-standing">
-          <strong>${standing.canEdit ? 'You can edit this ride' : PERM_LABELS[standing.perm ?? DEFAULT_PERM]}</strong>
+          <strong>${standing.canEdit ? `You can edit this ${wd(words, 'journey')}` : PERM_LABELS[standing.perm ?? DEFAULT_PERM]}</strong>
           <span>${
             standing.canEdit
               ? 'It belongs to someone else, so sharing, the roster and deleting stay&nbsp;theirs.'
-              : 'You are looking at someone else&rsquo;s ride. Nothing you do here is&nbsp;saved.'
+              : `You are looking at someone else&rsquo;s ${wd(words, 'journey')}. Nothing you do here is&nbsp;saved.`
           }</span>
         </div>
 `
-
-  // The words for this page (#321): the ride's own pair over the rider's
-  // default. The two selects' "My default" option names the default so the
-  // rider can see what leaving them alone means.
-  const words = wordsOf({ user, ride: vehicle })
 
   const contents = `${standingBanner}        <div class="panel-band panel-band--ride">
           <textarea id="ride-description" name="description" maxlength="2000" placeholder="Description (optional)" rows="2"></textarea>
@@ -1131,7 +1131,7 @@ ${
   // nothing to export yet, so the block renders hidden and reveals itself the
   // moment there is something behind it.
   `        <details class="builder-export" id="builder-export"${slug ? '' : ' hidden'}>
-          <summary>Export this ride</summary>
+          <summary>Export this ${wd(words, 'journey')}</summary>
           <div class="builder-export-body">
             <p class="field-hint">
               An imported ride hands back the file you uploaded until you edit it here; after that it is built from
@@ -1179,7 +1179,7 @@ ${
   // not carry, along with visibility and the roster.
   rideId && standing.isOwner
     ? `        <div class="builder-danger">
-          <button type="button" id="ride-delete" class="linkbtn">Delete this ride</button>
+          <button type="button" id="ride-delete" class="linkbtn">Delete this ${wd(words, 'journey')}</button>
           <span class="builder-danger-note">Moves it to the recycle bin for ${TRASH_HOLD_DAYS} days.</span>
         </div>`
     : ''
@@ -1222,8 +1222,8 @@ ${
   // a textarea does not size itself. `rows="1"` is the floor that fitTitle()
   // grows from; the two-line ceiling is a max-height in _builder.scss.
   const titleHtml = `<textarea id="ride-title" name="title" maxlength="150" rows="1" wrap="soft"
-             placeholder="${rideId ? 'Untitled ride' : 'Plan a ride'}" autocomplete="off" spellcheck="false"
-             aria-label="Ride name" data-tip="ride-name" title="Ride name—click to edit"></textarea>
+             placeholder="${rideId ? 'Untitled ride' : `Plan ${aWd(words, 'journey')}`}" autocomplete="off" spellcheck="false"
+             aria-label="${Wd(words, 'journey')} name" data-tip="ride-name" title="${Wd(words, 'journey')} name—click to edit"></textarea>
           <div class="totals" id="totals"></div>`
 
   // PINNED TO THE DRAWER'S BOTTOM EDGE, not scrolled with the route list.
@@ -1271,7 +1271,7 @@ ${
         </div>`
 
   return page({
-    title: rideId ? 'Edit ride' : 'Plan a ride',
+    title: rideId ? `Edit ${wd(words, 'journey')}` : `Plan ${aWd(words, 'journey')}`,
     user,
     words,
     ride: vehicle,
@@ -1281,7 +1281,7 @@ ${
     // The floating way into the intake. 'planning' matches areaFromPath() in
     // src/feedback/policy.ts, which is what the account-menu path infers.
     feedbackArea: 'planning',
-    noscript: 'JavaScript is required to plan a ride.',
+    noscript: `JavaScript is required to plan ${aWd(words, 'journey')}.`,
     body: `  <div id="map"></div>\n\n  ${panelShell({
       titleHtml,
       extraClass: 'builder-panel',
@@ -1295,7 +1295,7 @@ ${
       // The rail keeps a dot per route, but as a jump-to rather than a picker:
       // clicking one scrolls that route's section into view and makes it active.
       rail: `<div class="rail-routes" id="rail-routes"></div>`,
-    })}\n\n  ${rideTimeline({ scopeToggle: true })}`,
+    })}\n\n  ${rideTimeline({ scopeToggle: true, words })}`,
     tb: {
       gmapsKey: GMAPS_KEY,
       mapId: GMAPS_MAP_ID,

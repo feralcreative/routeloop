@@ -43,96 +43,100 @@
   // rider would touch it — never a restatement of the label above it, which is
   // the failure mode this whole feature exists to fix.
   var BODY = {
-    // ——— The route header ———
+    // ——— The {route} header ———
     "route-drag":
-      "Routes ride in the order they are listed. Drag this to move one earlier or later, or tab to it and use the up and down arrow keys—the keys work whether or not the drag library loaded.",
+      "{Routes} go in the order they are listed. Drag this to move one earlier or later, or tab to it and use the up and down arrow keys—the keys work whether or not the drag library loaded.",
     "route-twirl":
-      "Folds a route down to its header. Nothing is removed and nothing stops counting; it is just out of the way while you work on another one.",
+      "Folds {a route} down to its header. Nothing is removed and nothing stops counting; it is just out of the way while you work on another one.",
     "route-color":
-      "The color this route is drawn in on the map, and on its row in the timeline. Pick something you can tell apart from the route beside it.",
+      "The color this {route} is drawn in on the map, and on its row in the timeline. Pick something you can tell apart from the {route} beside it.",
     "route-rev":
-      "Turns the route around, so the last stop becomes the first. Every leg is routed again from scratch, because the road back is not always the road out.",
-    "route-menu": "Duplicate the route, make it an alternative, split it at a stop, or throw it away.",
+      "Turns the {route} around, so the last stop becomes the first. Every leg is routed again from scratch, because the road back is not always the road out.",
+    "route-menu": "Duplicate the {route}, make it an alternative, split it at a stop, or throw it away.",
     "route-end":
-      "Worked out for you from the start time, the riding, and how long you stop. Type over it if you know better, or clear it to hand it back.",
+      "Worked out for you from the start time, the {travel}, and how long you stop. Type over it if you know better, or clear it to hand it back.",
     "route-alt":
-      "Two routes can cover the same stretch as alternatives, and only one of them counts toward the ride’s distance and time. This says which one you are looking at.",
+      "Two {routes} can cover the same stretch as alternatives, and only one of them counts toward the {journey}’s distance and time. This says which one you are looking at.",
     "route-groups":
-      "Who is on this stretch of road. Leave it alone and the route is ridden by everyone who was on the route before it; tick a group to say somebody joins or peels off here.",
+      "Who is on this stretch of road. Leave it alone and the {route} is taken by everyone who was on the {route} before it; tick a group to say somebody joins or peels off here.",
 
     // ——— A point row ———
     "row-drag":
-      "Drag to move this point earlier or later in the route, or tab to it and use the up and down arrow keys. The legs either side are re-routed once you let go.",
+      "Drag to move this point earlier or later in the {route}, or tab to it and use the up and down arrow keys. The legs either side are re-routed once you let go.",
     "row-dur":
-      "How long you are off the bike here. It pushes everything after it later, which is how the arrival time at the far end knows about your lunch.",
+      "How long you are off the {vehicle} here. It pushes everything after it later, which is how the arrival time at the far end knows about your lunch.",
     "row-roles":
-      "What this place is for—fuel, food, a bed, a view. Giving a point a category also promotes it to a stop, because a reason to be somewhere is a reason to stop.",
+      "What this place is for—{fuel}, food, a bed, a view. Giving a point a category also promotes it to a stop, because a reason to be somewhere is a reason to stop.",
     "row-detail-flag":
       "This stop has details only you can see—a confirmation number, a gate code, a phone number. They are never shared and never exported.",
-    "row-menu": "Rename the point, open its details, split the route here, move it to another route, or remove it.",
-    "row-splitoff": "Some riders leave the group at this stop. This jumps to the route they take from here.",
+    "row-menu": "Rename the point, open its details, split the {route} here, move it to another {route}, or remove it.",
+    "row-splitoff": "Some {persons} leave the group at this stop. This jumps to the {route} they take from here.",
     "row-dist-dry":
-      "On the smallest tank in the group, the fuel runs out before this point. Put a fuel stop in ahead of it, or the map draws the road closed from where you go dry.",
+      "On the smallest {tank} in the group, the {fuel} {dry} before this point. Put a {fuel} stop in ahead of it, or the map draws the road closed from where you go dry.",
 
-    // ——— Adding to a route ———
+    // ——— Adding to {a route} ———
     "insert-slot":
-      "Slips a new point in between these two rather than at the end. Whatever you search for here is searched along this leg, not across the whole route.",
+      "Slips a new point in between these two rather than at the end. Whatever you search for here is searched along this leg, not across the whole {route}.",
     "via-del":
       "Removes a shaping point—one of the handles you dragged the road onto. The leg is routed again without it and the stops either side are untouched.",
     "map-add": "Arms the map. Click anywhere on it and a point lands there. Press again to disarm.",
     "scope-btn":
-      "Whether a search looks at the piece of map you can see or at the whole road this route takes. Along the route is what finds fuel three hours ahead.",
+      "Whether a search looks at the piece of map you can see or at the whole road this {route} takes. Along the {route} is what finds {fuel} three hours ahead.",
 
-    // ——— Groups and riders ———
+    // ——— Groups and {persons} ———
     "sg-drag":
       "The first group is the main group: the one whose road everybody else joins, and whose departure time the others are worked out from. Drag another one over it to hand that over.",
-    "sg-del": "Removes the group. The riders in it stay on the ride and the routes they were on are untouched.",
-    "rider-del": "Takes them off the ride. Anything they wrote stays, attributed to them, and you can add them back.",
+    "sg-del":
+      "Removes the group. The {persons} in it stay on the {journey} and the {routes} they were on are untouched.",
+    "rider-del":
+      "Takes them off the {journey}. Anything they wrote stays, attributed to them, and you can add them back.",
     "totals-ride":
-      "The whole ride—distance, riding time, and how twisty the roads are. Alternatives you are not riding are left out of it.",
+      "The whole {journey}—distance, {travel} time, and how {curvy} the roads are. Alternatives you are not on are left out of it.",
 
     // ——— The bar above the panel ———
-    "route-add": "Starts another route. A route is one leg of the trip, usually a day, and a ride is made of several.",
-    "ride-name": "What the ride is called, everywhere it appears. Click it and type.",
+    "route-add":
+      "Starts another {route}. {A route} is one stretch of the {journey}, usually a day, and {a journey} is made of several.",
+    "ride-name": "What the {journey} is called, everywhere it appears. Click it and type.",
     "ride-visibility":
-      "Who can open the link. Private is you and the people on the ride, unlisted is anyone holding the link, and public puts it on the explore page.",
+      "Who can open the link. Private is you and the people on the {journey}, unlisted is anyone holding the link, and public puts it on the explore page.",
     "ride-vehicle":
-      "What this ride is for. The words on every page follow it—trip and driver for a car, ride and rider for a bike—and it starts as whatever you picked in your preferences.",
+      "What this {journey} is for. The words on every page follow it—trip and driver for a car, ride and rider for a bike—and it starts as whatever you picked in your preferences.",
     "ride-power":
-      "What it runs on. Gas or electric changes the fuel words; pedal turns the fuel planning off for this ride, since there is no tank to plan around.",
+      "What it runs on. Gas or electric changes the fuel words; pedal turns the fuel planning off for this {journey}, since there is no tank to plan around.",
     "ride-stop-by":
-      "The hour you would rather start looking for a bed. Set it and each route gets a band across the list at the point it reaches that time, with how much riding is left after it.",
-    undo: "Takes back the last change to the ride. Every edit here is undoable, including deleting a route.",
+      "The hour you would rather start looking for a bed. Set it and each {route} gets a band across the list at the point it reaches that time, with how much {travel} is left after it.",
+    undo: "Takes back the last change to the {journey}. Every edit here is undoable, including deleting {a route}.",
     redo: "Puts a change back after you have undone it. Available until you make a different edit, which is the point the old path stops existing.",
 
     // ——— The timeline, on both map pages ———
     "time-scope":
-      "Whether the slider runs over this route or the whole ride. Route gives an hour of Saturday afternoon real room to scrub through; Ride shows where everybody is across all of it.",
+      "Whether the slider runs over this {route} or the whole {journey}. {Route} gives an hour of Saturday afternoon real room to scrub through; {Journey} shows where everybody is across all of it.",
     "range-ring":
-      "Shows or hides the fuel overlay: the ring around where you are, the red stretch you cannot reach, and the E marks where the smallest tank runs dry. The dot marking where you are stays either way.",
+      "Shows or hides the {fuel} overlay: the ring around where you are, the red stretch you cannot reach, and the E marks where the smallest {tank} {dry}. The dot marking where you are stays either way.",
 
     // ——— The viewer ———
-    "viewer-edit": "Opens the same ride in the builder, where you can move stops, add points, and change the dates.",
+    "viewer-edit":
+      "Opens the same {journey} in the builder, where you can move stops, add points, and change the dates.",
     "viewer-clone":
-      "Copies the ride into your own account so you can change it without touching the original. The owner is not told, and the two rides stay separate from then on.",
+      "Copies the {journey} into your own account so you can change it without touching the original. The owner is not told, and the two {journeys} stay separate from then on.",
     "viewer-roster":
-      "Everybody on the ride and whether they said they are coming. Only riders on the roster can see it; a share link shows the route and nothing about people.",
+      "Everybody on the {journey} and whether they said they are coming. Only {persons} on the roster can see it; a share link shows the {route} and nothing about people.",
     "viewer-qr":
-      "The link to this ride as a code a phone camera can read. Hold your screen up at a meeting point and the whole group gets the route without typing anything.",
+      "The link to this {journey} as a code a phone camera can read. Hold your screen up at a meeting point and the whole group gets the {route} without typing anything.",
     "viewer-arrows":
-      "Draws small arrows along the line so you can tell which way the route runs. Useful on a loop, where the start and the end are the same place.",
+      "Draws small arrows along the line so you can tell which way the {route} runs. Useful on a loop, where the start and the end are the same place.",
     "route-dl":
-      "Every format here loses something on the way into another app except the Routeloop one, which comes back as the same ride. GPX is the safe pick for a GPS; the roadbook is the one you print.",
+      "Every format here loses something on the way into another app except the Routeloop one, which comes back as the same {journey}. GPX is the safe pick for a GPS; the {roadbook} is the one you print.",
     "route-zip":
-      "One file per route, named so they land back in the right order and dated, because a GPX or KML has nowhere inside it to carry a date.",
+      "One file per {route}, named so they land back in the right order and dated, because a GPX or KML has nowhere inside it to carry a date.",
 
     // ——— The dashboard ———
     "ride-delete":
-      "Moves the ride to the recycle bin, where it sits for thirty days with a button to put it back. There is no are-you-sure step because the bin is that step.",
+      "Moves the {journey} to the recycle bin, where it sits for thirty days with a button to put it back. There is no are-you-sure step because the bin is that step.",
     "rides-friends":
-      "Rides your friends have set to be visible to friends. Being friends is what unlocks them; a public ride shows up under Public for everyone.",
+      "{Journeys} your friends have set to be visible to friends. Being friends is what unlocks them; a public {journey} shows up under Public for everyone.",
     "rides-following":
-      "Public and unlisted rides from the riders you follow, newest first. Following is one-way and grants nothing—it is a feed, not a key.",
+      "Public and unlisted {journeys} from the {persons} you follow, newest first. Following is one-way and grants nothing—it is a feed, not a key.",
 
     // ——— The footer ———
     "whats-new":
@@ -142,9 +146,10 @@
 
     // ——— Elsewhere ———
     timeline:
-      "Scrubs through the ride. The map shows where you would be at that moment, and which leg you would be on.",
-    "import-move-up": "Files import in the order shown, and the order becomes the route order. This moves one earlier.",
-    "import-move-down": "Moves this file later in the order the routes will be created in.",
+      "Scrubs through the {journey}. The map shows where you would be at that moment, and which leg you would be on.",
+    "import-move-up":
+      "Files import in the order shown, and the order becomes the {route} order. This moves one earlier.",
+    "import-move-down": "Moves this file later in the order the {routes} will be created in.",
     "import-drop": "Leaves this file out. Nothing is uploaded for a row you drop.",
   };
 
@@ -256,13 +261,53 @@
     el.style.top = Math.round(top) + "px";
   }
 
+  // WHAT THE APP CALLS THINGS (#321). A body is written with tokens for the
+  // words a rider can rename — `{journey}`, `{journeys}`, `{Journey}`,
+  // `{a journey}`, `{A journey}` — and they are filled in at show time from
+  // vocab.js, so a preset changed in the builder is a hover away from every
+  // tip agreeing. A page without vocab.js reads the motorcycle words, which is
+  // what every body said before.
+  var FALLBACK = {
+    journey: ["ride", "rides"],
+    travel: ["riding", "riding"],
+    vehicle: ["bike", "bikes"],
+    person: ["rider", "riders"],
+    storage: ["paddock", "paddocks"],
+    curvy: ["twisty", "twisty"],
+    route: ["route", "routes"],
+    roadbook: ["roadbook", "roadbooks"],
+    fuel: ["gas", "gas"],
+    refuel: ["fill up", "fill up"],
+    tank: ["tank", "tanks"],
+    station: ["gas station", "gas stations"],
+    dry: ["runs dry", "runs dry"],
+    highway: ["highway", "highways"],
+  };
+  function word(id, many) {
+    var V = window.TBVocab;
+    if (V) return many ? V.many(id) : V.w(id);
+    var f = FALLBACK[id];
+    return f ? f[many ? 1 : 0] : id;
+  }
+  function fill(body) {
+    if (!body) return body;
+    return body.replace(/\{(An? |an? )?([A-Za-z])([a-z]+?)(s?)\}/g, function (m, art, first, rest, plural) {
+      var id = first.toLowerCase() + rest;
+      if (!FALLBACK[id]) return m;
+      var w = word(id, !!plural);
+      if (art) w = (/^[aeiou]/i.test(w) ? "an " : "a ") + w;
+      var capital = first === first.toUpperCase() || (art && art[0] === "A");
+      return capital ? w.charAt(0).toUpperCase() + w.slice(1) : w;
+    });
+  }
+
   function show(node) {
     // NOTHING WHILE A TOUR IS RUNNING. tour.js stamps `html.tour-active` for
     // as long as one is up; a card is already explaining the control, and a
     // bubble beside it is a second voice. Ziad's call, 2026-09-12.
     if (document.documentElement.classList.contains("tour-active")) return;
     var key = node.getAttribute("data-tip");
-    var body = BODY[key];
+    var body = fill(BODY[key]);
     if (!body) return; // an unknown key keeps its native title—see wire()
 
     // A CONTROL WITH NO BOX GETS NOTHING. The timeline is `display: none` on an
@@ -394,5 +439,5 @@
 
   // Exported for the test that pins the table against the `data-tip` keys in the
   // source, and for nothing else — no page calls this.
-  window.TBTips = { BODY: BODY };
+  window.TBTips = { BODY: BODY, fill: fill };
 })();

@@ -894,6 +894,9 @@
   function cap(s) {
     return s ? s.charAt(0).toUpperCase() + s.slice(1) : s;
   }
+  function an(word) {
+    return (/^[aeiou]/i.test(word) ? "an " : "a ") + word;
+  }
 
   function markDirty() {
     // THE READ-ONLY BUILDER STOPS HERE, and this is the only place it needs to.
@@ -1076,7 +1079,7 @@
     const res = await fetch("/api/maps/" + state.rideId, { method: "DELETE" });
     if (!res.ok) {
       const data = await res.json().catch(() => null);
-      setSaveStatus("error", (data && data.error) || "Could not delete this ride.");
+      setSaveStatus("error", (data && data.error) || "Could not delete this " + W("journey") + ".");
       return;
     }
     state.dirty = false;
@@ -1174,7 +1177,7 @@
       el.textContent =
         others.length === 1
           ? others[0].name + (others[0].routeUid ? " is editing a route" : " is here")
-          : others.length + " other riders here";
+          : others.length + " other " + Ws("person") + " here";
       el.title = others.map((r) => r.name).join(", ");
     }
 
@@ -1359,12 +1362,12 @@
     error: "Not saved",
     // Nothing of this rider's is at risk — they have no unsaved work — but what
     // is on screen is behind. A softer wording than `conflict` for that reason.
-    stale: "Someone else changed this ride—reload to see it",
+    stale: "Someone else changed this " + W("journey") + "—reload to see it",
     // Deliberately says what to DO, not what went wrong. A rider seeing this has
     // work in front of them that the server has refused, and the only safe move
     // is to reload and redo it — which is worth saying plainly rather than
     // leaving them pressing a save that is never going to be attempted again.
-    conflict: "Someone else edited this ride—reload to see their changes",
+    conflict: "Someone else edited this " + W("journey") + "—reload to see their changes",
   };
 
   // --- Errors that need saying properly -------------------------------------
@@ -1384,10 +1387,10 @@
   let lastErrorSeen = null;
 
   const ERROR_TITLES = {
-    error: "This ride did not save",
-    conflict: "Someone else edited this ride",
-    stale: "Someone else changed this ride",
-    blocked: "This ride cannot be saved yet",
+    error: "This " + W("journey") + " did not save",
+    conflict: "Someone else edited this " + W("journey"),
+    stale: "Someone else changed this " + W("journey"),
+    blocked: "This " + W("journey") + " cannot be saved yet",
   };
 
   // THE HOUSE MODAL, ON A DIALOG ELEMENT. `.modal` is the box every other modal
@@ -2724,7 +2727,7 @@
     // GUARDS BEFORE beginEdit, not after. All four of these functions had it the
     // other way round, so refusing to delete a ride's last route still pushed an
     // undo step — the rider then pressed undo and nothing visible happened.
-    if (state.routes.length <= 1) return toast("A ride needs at least one route", true);
+    if (state.routes.length <= 1) return toast(cap(an(W("journey"))) + " needs at least one " + W("route"), true);
     const r = editIndex();
     if (r == null) return noRouteYet();
     beginEdit("delete route");
@@ -3022,7 +3025,8 @@
   function deleteSelectedRoutes() {
     const rows = selectedRoutes();
     if (!rows.length) return;
-    if (rows.length >= state.routes.length) return toast("A ride needs at least one route", true);
+    if (rows.length >= state.routes.length)
+      return toast(cap(an(W("journey"))) + " needs at least one " + W("route"), true);
     beginEdit("delete routes");
     // Descending, so each splice cannot shift the index of one still to come.
     [...rows].reverse().forEach((r) => {
@@ -3277,7 +3281,7 @@
     renderMarkers();
     refreshDerived();
     markDirty();
-    toast("Now riding " + routeLabel(r));
+    toast("Now " + W("travel") + " " + routeLabel(r));
   }
 
   // Break a group apart: every member becomes an ordinary route again and all of
@@ -3347,7 +3351,7 @@
   // there is a name, the number alone when there is not.
   function routeLabel(r) {
     const name = routeName(r);
-    return name ? "Route " + routeNumber(r) + SEP + name : "Route " + routeNumber(r);
+    return name ? Wc("route") + " " + routeNumber(r) + SEP + name : Wc("route") + " " + routeNumber(r);
   }
 
   // EVERY DAY, RENDERED AT ONCE. This replaces renderSlider + renderRouteEditing +
@@ -3493,8 +3497,13 @@
     // says "once it saves" rather than asking the rider to do anything.
     if (!state.rideId) {
       host.innerHTML =
-        '<p class="riders-empty">Riders appear here once the ride saves. You are on it already—' +
-        "every ride has its planner on the roster.</p>";
+        '<p class="riders-empty">' +
+        esc(Wsc("person")) +
+        " appear here once the " +
+        esc(W("journey")) +
+        " saves. You are on it already—every " +
+        esc(W("journey")) +
+        " has its planner on the roster.</p>";
       return;
     }
     if (ridersCache && Date.now() - ridersAt < RIDERS_TTL_MS) return renderRiders(ridersCache);
@@ -3619,7 +3628,7 @@
       ? '<form class="comment-new" id="comment-new">' +
         '<label class="visually-hidden" for="comment-body">Your comment</label>' +
         '<textarea id="comment-body" rows="2" maxlength="4000" placeholder="' +
-        (commentAnchor ? "Comment on " + esc(labelForUid(commentAnchor)) : "Comment on this ride") +
+        (commentAnchor ? "Comment on " + esc(labelForUid(commentAnchor)) : "Comment on this " + esc(W("journey"))) +
         '"></textarea>' +
         '<div class="comment-new-acts">' +
         (commentAnchor
@@ -3883,7 +3892,7 @@
       data.coming +
       " of " +
       data.riders.length +
-      (data.riders.length === 1 ? " rider is" : " riders are") +
+      (data.riders.length === 1 ? " " + esc(W("person")) + " is" : " " + esc(Ws("person")) + " are") +
       " coming.</p>" +
       fuelHtml(data.range) +
       '<ul class="riders-list">' +
@@ -3921,10 +3930,16 @@
   function fuelHtml(range) {
     if (!range || range.riders === 0) return "";
     if (range.miles === null) {
-      return '<p class="riders-fuel is-quiet">No ranges on file, so there is nothing to plan fuel stops around.</p>';
+      return (
+        '<p class="riders-fuel is-quiet">No ranges on file, so there is nothing to plan ' +
+        esc(W("fuel")) +
+        " stops around.</p>"
+      );
     }
     return (
-      '<p class="riders-fuel">Plan fuel around <strong>' +
+      '<p class="riders-fuel">Plan ' +
+      esc(W("fuel")) +
+      " around <strong>" +
       range.miles +
       " miles</strong>—" +
       esc(range.riderName || "") +
@@ -3934,7 +3949,7 @@
       (range.unknown > 0
         ? '<span class="riders-fuel-gap"> ' +
           range.unknown +
-          (range.unknown === 1 ? " rider has" : " riders have") +
+          (range.unknown === 1 ? " " + esc(W("person")) + " has" : " " + esc(Ws("person")) + " have") +
           " no range on file, so this could still be optimistic.</span>"
         : "") +
       "</p>"
@@ -4044,7 +4059,7 @@
       // A confirm rather than an undo, because this one is not in the builder's
       // history at all: it is a write to the roster that lands immediately, and
       // beginEdit() covers the ride payload only.
-      if (!window.confirm("Take " + name + " off this ride?")) return;
+      if (!window.confirm("Take " + name + " off this " + W("journey") + "?")) return;
       const ok = await riderPost("remove", { rider: Number(row.dataset.rider) });
       ridersStale();
       if (!ok) toast("They could not be removed.", true);
@@ -4230,7 +4245,7 @@
       if (junction.left.length) bits.push(junction.left.map(riderNameOf).join(", ") + " leaves here");
       label = bits.join(SEP);
     } else {
-      label = names.length + (names.length === 1 ? " rider" : " riders");
+      label = names.length + " " + (names.length === 1 ? W("person") : Ws("person"));
     }
     return (
       '<button type="button" class="route-riders' +
@@ -4271,9 +4286,15 @@
     const on = new Set(rr.riderIds);
     const el = routeRidersDialog();
     el.dataset.uid = route.uid;
-    el.querySelector("#tb-riders-title").textContent = "Who rides " + routeLabel(r) + "?";
+    el.querySelector("#tb-riders-title").textContent = "Who is " + W("travel") + " " + routeLabel(r) + "?";
     el.querySelector(".modal-lede").textContent =
-      "Tick everyone riding " + routeLabel(r) + ". They stay on every route after this one until you say otherwise.";
+      "Tick everyone " +
+      W("travel") +
+      " " +
+      routeLabel(r) +
+      ". They stay on every " +
+      W("route") +
+      " after this one until you say otherwise.";
     el.querySelector(".rider-picks").innerHTML = roster
       .map(
         (m) =>
@@ -6149,8 +6170,8 @@
     if (picked.length && !okRiders) {
       warn.textContent =
         picked.length >= onRoute.length
-          ? "Somebody has to carry on—leave at least one rider on the road ahead."
-          : "Nobody would be riding this.";
+          ? "Somebody has to carry on—leave at least one " + W("person") + " on the road ahead."
+          : "Nobody would be " + W("travel") + " this.";
       warn.hidden = false;
     } else {
       warn.hidden = true;
@@ -6610,9 +6631,17 @@
   // such notion: that is #28, and it works by scoring the alternates Routes
   // returns rather than by asking for anything.
   const AVOID_PREFS = [
-    { key: "avoidHighways", label: "Highways", hint: "Route this one off the interstate where there is another way" },
+    {
+      key: "avoidHighways",
+      label: Wsc("highway"),
+      hint: "Route this one off the interstate where there is another way",
+    },
     { key: "avoidTolls", label: "Tolls", hint: "Avoid toll roads and bridges on this route" },
-    { key: "avoidFerries", label: "Ferries", hint: "Keep this route on roads the bike can ride onto" },
+    {
+      key: "avoidFerries",
+      label: "Ferries",
+      hint: "Keep this " + W("route") + " on roads the " + W("vehicle") + " can go onto",
+    },
   ];
 
   // #28. A SEPARATE GROUP BECAUSE IT IS A DIFFERENT VERB. Four toggles under one
@@ -6623,7 +6652,7 @@
   const PREFER_PREFS = [
     {
       key: "preferTwisty",
-      label: "Twisty roads",
+      label: Wc("curvy") + " roads",
       hint: "Compare the roads Google offers for this route and take the twistiest",
     },
   ];
@@ -7037,8 +7066,8 @@
       seg.classList.toggle("is-on", on);
       seg.title =
         seg.dataset.scope === "route"
-          ? "The slider covers the route you are editing"
-          : "The slider covers the whole ride";
+          ? "The slider covers the " + W("route") + " you are editing"
+          : "The slider covers the whole " + W("journey");
     });
     // Nothing to widen to on a single-route ride, and a control that returns the
     // same slider does nothing. Hidden rather than disabled: it is in a one-line
@@ -7060,7 +7089,7 @@
     btn.hidden = rangeM() == null;
     if (btn.hidden) return;
     btn.textContent = "Range";
-    btn.title = state.ringOn ? "Hide the fuel range" : "Show the fuel range";
+    btn.title = state.ringOn ? "Hide the " + W("fuel") + " range" : "Show the " + W("fuel") + " range";
     btn.setAttribute("aria-label", btn.title);
     btn.setAttribute("aria-pressed", String(state.ringOn));
   }
@@ -7102,7 +7131,9 @@
     if (route.endManual) {
       note.textContent = "end set by hand";
     } else {
-      note.textContent = routeTotals(route).estimated ? "end estimated from the route" : "end from the route";
+      note.textContent = routeTotals(route).estimated
+        ? "end estimated from the " + W("route")
+        : "end from the " + W("route");
     }
   }
 
@@ -7264,7 +7295,7 @@
       // WHAT IS LEFT AFTER IT, which is the number that says whether this is a
       // gentle nudge or a route that badly overruns. Omitted when the route ends
       // within the hour anyway, where "0h 12m still to ride" is noise.
-      (over > 3600 ? SEP + esc(hm(over)) + " still to ride" : "") +
+      (over > 3600 ? SEP + esc(hm(over)) + " still to go" : "") +
       "</span>" +
       '<button type="button" class="row-bedtime-btn" data-route="' +
       routeIndex +
@@ -7326,21 +7357,23 @@
     // differs and would print "0 mi on this tank" under every fuel stop in the
     // ride. True, and noise.
     if (Math.round(since) > 0 && Math.round(since) !== Math.round(into)) {
-      parts.push('<span class="row-dist-fuel">' + esc(fmtDist(since)) + " on this tank</span>");
+      parts.push('<span class="row-dist-fuel">' + esc(fmtDist(since)) + " on this " + esc(W("tank")) + "</span>");
     }
     if (dry) {
       // Names WHOSE tank, because on a group ride the binding range belongs to
       // somebody in particular and "you will run out" is the wrong sentence to
       // show the rider with the big tank. See groupRange().
       const whose = range.riderName
-        ? esc(range.riderName) + "\u2019s " + esc(range.bikeLabel || "bike")
-        : "the smallest tank";
+        ? esc(range.riderName) + "\u2019s " + esc(range.bikeLabel || W("vehicle"))
+        : "the smallest " + esc(W("tank"));
       parts.push(
         '<span class="row-dist-dry" data-tip="row-dist-dry" title="Past ' +
           whose +
           " (" +
           esc(String(range.miles)) +
-          ' mi). Add a fuel stop before here.">out of range</span>',
+          " mi). Add a " +
+          esc(W("fuel")) +
+          ' stop before here.">out of range</span>',
       );
     }
     return '<div class="row-dist"' + (dry ? ' data-dry="1"' : "") + ">" + parts.join("") + "</div>";
@@ -7981,7 +8014,7 @@
   // alternative is finding the station and then opening the row menu to say it
   // is a gas station, which is the sort of thing that makes a tool feel stupid.
   const CHIPS = [
-    { role: "gas", label: "Gas", query: "gas station" },
+    { role: "gas", label: Wc("fuel"), query: "gas station" },
     { role: "food", label: "Food", query: "restaurant" },
     { role: "coffee", label: "Coffee", query: "coffee shop" },
     { role: "hotel", label: "Lodging", query: "hotel" },
@@ -8178,7 +8211,8 @@
       SEP +
       (t.estimated ? "~" : "") +
       hm(t.riding) +
-      " riding" +
+      " " +
+      W("travel") +
       (t.twist ? SEP + twistLabel(t.twist.dpm) + (withLink ? faqLink("twistiness", "twistiness") : "") : "");
 
     // The label alone on the line; the numbers behind it on hover. "252°/mi"
@@ -8252,7 +8286,8 @@
       // three routes and two alternates is a three-route ride, and saying "5 routes"
       // beside a mileage that only covers three would make both look wrong.
       counted.length +
-      " routes" +
+      " " +
+      (counted.length === 1 ? W("route") : Ws("route")) +
       SEP +
       line(ride, true) +
       "</span>" +
@@ -8702,13 +8737,15 @@
    */
   function splitGroupRefusal(route, i) {
     const roster = (state.routeRiders && state.routeRiders.riders) || [];
-    if (!state.rideId) return "Save the ride first—a split is a change to who rides which road.";
+    if (!state.rideId) return "Save the " + W("journey") + " first—a split is a change to who is on which road.";
     if (state.meta.subgroups.length < 2 && roster.length < 2) {
-      return "There is nobody to split off—you are the only rider on this ride.";
+      return "There is nobody to split off—you are the only " + W("person") + " on this " + W("journey") + ".";
     }
-    if (roster.length < 2) return "There is nobody to split off—add riders to the ride first.";
+    if (roster.length < 2)
+      return "There is nobody to split off—add " + Ws("person") + " to the " + W("journey") + " first.";
     const rr = routeRidersOf(route);
-    if (rr && (rr.riderIds || []).length < 2) return "Only one rider is on this stretch, so nobody can leave it.";
+    if (rr && (rr.riderIds || []).length < 2)
+      return "Only one " + W("person") + " is on this stretch, so nobody can leave it.";
     if (!SPLIT.canPeelOffAt(route, i)) return "This route ends here—split from the route that carries on.";
     return null;
   }
@@ -10715,7 +10752,9 @@
     if (state.startSwapDeclined) return;
 
     const ok = window.confirm(
-      "This ride starts at your home address, and a shared map would show a pin on it.\n\n" +
+      "This " +
+        W("journey") +
+        " starts at your home address, and a shared map would show a pin on it.\n\n" +
         "Replace the start with your public starting point (" +
         start.label +
         ")?",
