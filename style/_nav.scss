@@ -1,8 +1,5 @@
 @use "sass:color";
 @use "tokens" as *;
-// For `sign-arrow` on the header's tour sign — the `_account.scss` arrangement,
-// for its reason: one drawing of the arrow, namespaced so nothing here collides.
-@use "chrome";
 
 // Global header. Before this existed there was no way off the builder or viewer
 // short of the browser back button — they rendered no chrome at all.
@@ -60,15 +57,20 @@
 // is not rendered at all.
 //
 // THE CONSTRUCTION IS `.notif-more`'s, NOT `.btn`'s. Adding `.btn` would bring
-// the full-size sign — 3px/5px keyline, 1.3125em arrow, 0.75rem padding — and
-// every line here would be an override of it. At this scale the keyline is
-// 2px/3px, in px because a keyline is a drawn line and an em-based width lands
-// on a fraction of a device pixel; the arrow is 1em rather than the mixin's own
-// size so it reads as punctuation on the sign rather than its subject. Both
-// numbers are the ones `.notif-more` settled on, for the reasons it records.
+// the full-size sign — 3px/5px keyline, an arrow, 0.75rem padding — and every
+// line here would be an override of it. At this scale the keyline is 2px/3px,
+// in px because a keyline is a drawn line and an em-based width lands on a
+// fraction of a device pixel — the numbers `.notif-more` settled on, for the
+// reasons it records.
 //
-// $ink-light and never $white: the legend does not follow the page (#282), and
-// that is also what makes the baked white in `sign-arrow`'s data URI right.
+// A YIELD SIGN WITH NO ARROW (#340). Ziad's call, 2026-09-13: the sign is a
+// call to action, not a guide sign pointing somewhere, so the arrow went and
+// the field is $yield. Yield is a BLACK-legend field — white on it is about
+// 1.23:1, the worst pairing the palette can produce, and legend.ts records it
+// as the one field left carrying black — so the legend AND the keyline are
+// $ink-dark, or a white ring on yellow vanishes. $ink-dark and never $text:
+// the legend does not follow the page (#282), and the sign-legend test is
+// what holds that pairing.
 //
 // `margin-left: auto` is what puts it at the right in the drawer layouts, where
 // the header is the logo (or nothing, on a map page) and then this and the
@@ -82,10 +84,10 @@
   // Roomier than `.notif-more`'s 0.34/0.5/0.2/0.6 — the type went down and the
   // field was asked to come up, so the legend sits in the sign rather than on
   // its keyline. Same top-heavy asymmetry, for the reason that rule records.
-  padding: 0.46rem 0.7rem 0.32rem 0.8rem;
+  padding: 0.46rem 0.8rem 0.32rem;
   border-radius: 4px;
-  background: $interstate;
-  color: $ink-light;
+  background: $yield;
+  color: $ink-dark;
   // Was 0.66rem, a hair under `.notif-more`'s 0.72rem against the chip beside
   // it; about 30% up on 2026-09-13, Ziad's call, now that the sign is the
   // only way in — the tour no longer starts unasked. The padding is in rem
@@ -96,29 +98,22 @@
   white-space: nowrap;
   text-decoration: none;
   box-shadow:
-    inset 0 0 0 2px $interstate,
-    inset 0 0 0 3px $ink-light;
+    inset 0 0 0 2px $yield,
+    inset 0 0 0 3px $ink-dark;
   transition: background-color 0.15s ease;
 
-  &::after {
-    @include chrome.sign-arrow;
-
-    width: 1em;
-    height: 1em;
-    margin-left: 0.15rem;
-  }
-
-  // Both keyline layers move with the field, or the resting green shows as a
-  // hairline outside the ring.
+  // Both keyline layers move with the field, or the resting yellow shows as a
+  // hairline outside the ring. Lifted rather than darkened: a yield sign
+  // darkened toward black reads as dirty, not as lit.
   &:hover,
   &:focus-visible {
-    $lit: color-mix(in oklab, #{$interstate}, black 12%);
+    $lit: color-mix(in oklab, #{$yield}, white 14%);
 
     background: $lit;
     text-decoration: none;
     box-shadow:
       inset 0 0 0 2px $lit,
-      inset 0 0 0 3px $ink-light;
+      inset 0 0 0 3px $ink-dark;
   }
 }
 
