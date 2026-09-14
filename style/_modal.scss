@@ -400,6 +400,61 @@ body.modal-open {
     line-height: 1.3;
   }
 
+  // THE ACCORDION (#325). Every entry but the newest is a <details> whose
+  // summary is the title; they share a `name`, so the browser keeps one open.
+  // The summary's own marker is dropped — the timeline dot already marks the
+  // title — and a chevron after the title says it folds, turning when open.
+  // The title inside a summary is display: inline by the UA sheet, so it is
+  // put back to block and keeps the dot.
+  .rn-fold {
+    > summary {
+      list-style: none;
+      cursor: pointer;
+
+      &::-webkit-details-marker {
+        display: none;
+      }
+
+      h3 {
+        display: block;
+        margin-bottom: 0;
+        padding-right: 1.6rem;
+
+        &::after {
+          content: "";
+          position: absolute;
+          right: 0.3rem;
+          top: 0.55em;
+          width: 0.5em;
+          height: 0.5em;
+          border-right: 2px solid $neutral-57;
+          border-bottom: 2px solid $neutral-57;
+          transform: rotate(45deg);
+          transition: transform 0.15s ease;
+        }
+      }
+
+      &:hover h3 {
+        color: $brand;
+      }
+
+      &:focus-visible {
+        outline: 2px solid $brand;
+        outline-offset: 2px;
+        border-radius: 4px;
+      }
+    }
+
+    &[open] > summary h3 {
+      margin-bottom: 0.7rem;
+
+      &::after {
+        transform: rotate(225deg);
+        top: 0.75em;
+      }
+    }
+  }
+
   h3,
   .rn-date {
     // The build stamp, demoted to a reference. It USED to lead the heading and

@@ -231,7 +231,8 @@ export function withAnchors(html: string): string {
 }
 
 /**
- * The date as an eyebrow over the title, at render (#325).
+ * The date as an eyebrow over the title, and the entry folded to those two
+ * lines, at render (#325).
  *
  * **THE FILE KEEPS "DATE — TITLE" IN ONE `<h3>`, and this is what makes that
  * safe to leave alone.** The heading is the announcement id and the thing the
@@ -241,29 +242,48 @@ export function withAnchors(html: string): string {
  * no identity: `<h3>DATE — TITLE STAMP</h3>` renders as an eyebrow carrying
  * the date and the stamp, then an `<h3>` carrying the title alone. A heading
  * with no title (the early history) keeps the date as its heading.
+ *
+ * **AN ACCORDION, WITH THE NEWEST ENTRY ALWAYS OPEN.** Ziad's call,
+ * 2026-09-13: thirty-six entries of bullets is a wall, and the title is what
+ * a rider scans. The newest is the one the badge points at, so it is rendered
+ * open and is not a `<details>` at all — nothing to fold. Every older entry is
+ * a `<details>` sharing one `name`, which is the native exclusive accordion:
+ * opening one closes the other, with no script. site.js opens the entry a
+ * notification's anchor names, which is the one thing the markup cannot do.
  */
 function splitHeadings(html: string): string {
   const masked = maskComments(html)
-  const re = /<h3>([^]*?)<\/h3>/g
+  const re = /<section class="rn-release"(\s[^>]*)?>([^]*?)<\/section>/g
   let out = ''
   let last = 0
+  let first = true
   let m: RegExpExecArray | null
   while ((m = re.exec(masked)) !== null) {
-    const inner = html.slice(m.index + 4, m.index + m[0].length - 5)
+    const open = html.slice(m.index, m.index + m[0].indexOf('>') + 1)
+    const inner = html.slice(m.index + open.length, m.index + m[0].length - '</section>'.length)
     out += html.slice(last, m.index)
     last = m.index + m[0].length
-    const stamp = /<code>[^<]*<\/code>(?:\s*<a class="rn-sha"[^]*?<\/a>)?/.exec(inner)
-    const text = (stamp ? inner.slice(0, stamp.index) : inner).trim()
-    const split = /^(.*?\d{4})\s*(?:&mdash;|—)\s*([^]+)$/.exec(text)
-    if (!split) {
-      out += `<h3>${inner}</h3>`
+    const head = /<h3>([^]*?)<\/h3>/.exec(inner)
+    // Already split — this is idempotent, like the anchors, because the modal
+    // and the page both render whatever they are handed.
+    if (!head || /class="rn-date"|class="rn-fold"/.test(inner)) {
+      out += html.slice(m.index, last)
+      first = false
       continue
     }
-    const eyebrow = `${split[1].trim()}${stamp ? ` ${stamp[0].trim()}` : ''}`
+    const rest = inner.slice(head.index + head[0].length)
+    const stamp = /<code>[^<]*<\/code>(?:\s*<a class="rn-sha"[^]*?<\/a>)?/.exec(head[1])
+    const text = (stamp ? head[1].slice(0, stamp.index) : head[1]).trim()
+    const split = /^(.*?\d{4})\s*(?:&mdash;|—)\s*([^]+)$/.exec(text)
+    const eyebrow = split ? `${split[1].trim()}${stamp ? ` ${stamp[0].trim()}` : ''}` : null
     // The title stood after a dash and was written lowercase; alone on its
     // line it opens the sentence. An entity or a tag at the front is left be.
-    const title = split[2].trim().replace(/^[a-z]/, (c) => c.toUpperCase())
-    out += `<p class="rn-date">${eyebrow}</p>\n  <h3>${title}</h3>`
+    const title = split ? split[2].trim().replace(/^[a-z]/, (c) => c.toUpperCase()) : head[1].trim()
+    const eyebrowHtml = eyebrow ? `  <p class="rn-date">${eyebrow}</p>\n` : ''
+    out += first
+      ? `${open}\n${eyebrowHtml}  <h3>${title}</h3>${rest}</section>`
+      : `${open}\n${eyebrowHtml}  <details class="rn-fold" name="rn-fold">\n  <summary><h3>${title}</h3></summary>${rest}</details>\n</section>`
+    first = false
   }
   return out + html.slice(last)
 }
