@@ -1,11 +1,15 @@
 # Status and handoff
 
-**Branch:** `feat/chrome-polish`, PR pending review, after `feat/account-polish` merged as [#344](https://github.com/feralcreative/routeloop/pull/344). **2,986 tests across 114 files** (2 skipped, 2,988 total).
+**Branch:** `feat/dashboard-polish`, PR pending review, after `feat/account-polish` ([#344](https://github.com/feralcreative/routeloop/pull/344)) and `feat/chrome-polish` ([#345](https://github.com/feralcreative/routeloop/pull/345)) merged. **2,986 tests across 114 files** (2 skipped, 2,988 total).
 **Merged 2026-09-13 as [#331](https://github.com/feralcreative/routeloop/pull/331)** (the release notes reshaped), **[#333](https://github.com/feralcreative/routeloop/pull/333)** (`both.sh`), **[#324](https://github.com/feralcreative/routeloop/pull/324)** (the resizable drawer), **[#322](https://github.com/feralcreative/routeloop/pull/322)** (the account sprint) **and [#318](https://github.com/feralcreative/routeloop/pull/318)** (the dark wordmark). `main` is `ed30b12`.
-**What this branch is:** the `area:chrome` pair from the 2026-09-13 brainstorm: the header's Take the tour sign is a yield sign with no arrow (#340), and riders on `/riders` and `/friends` are cards in a size picked per section and remembered per browser (#341). No migration.
-**Still to build from that brainstorm:** `area:dashboard` (#342 the stat-row clue, #343 the Recycle bin tab), its own branch.
+**What this branch is:** the `area:dashboard` pair from the 2026-09-13 brainstorm: the stat row says whose numbers it holds (#342), and the Recycle bin is the last tab under Rides, with binned places folded under the places list, `/trash` redirecting, and the menu item gone (#343). No migration. It is the last of the three brainstorm branches.
 **PROD IS BEHIND** by every PR above plus migration `0042`; `utils/deploy/both.sh` is the command, prod first.
 **For:** the next agent, or the owner returning cold
+
+## The bin beside the rides, and a clue on the stat row, 2026-09-13
+
+`feat/dashboard-polish`, #342 and #343. The dashboard's tab strip is server-driven now—`?tab=` names any of the five—which is what lets `/trash` land on the bin. `src/views/bin.tsx` holds the two fragments (rides for the dashboard, places and groups for the fold on `/places`) because `account-page.tsx` imports no route module. Each restore form carries a hidden `back`, honored only as a path so a forged value cannot send a rider off-site; checked live with a scheme and a protocol-relative value, both fell back. The stat row's pair reads `everyone` / `most` at its old size and an eyebrow captions the row once.
+
 
 ## Riders as cards, and a yield sign, 2026-09-13
 
