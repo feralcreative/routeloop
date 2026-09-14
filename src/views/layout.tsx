@@ -84,7 +84,6 @@ export type NavKey =
   // merely one the menu does not highlight.
   | 'profile'
   | 'settings'
-  | 'trash'
   // ONE ADMIN KEY, NOT FOUR, as of 2026-09-07. `approvals`, `invites` and
   // `survey-results` went with the four-item admin block in the account menu —
   // and they had to, under this union's own rule: a key no NavItem carries is an
@@ -951,10 +950,11 @@ const NavAccountMenu = ({ user, navKey, unread = 0 }: { user: UserRow; navKey?: 
             menu now, which is allowed; what is not allowed is a key nothing
             sets. */}
         <NavLink item={{ key: 'settings', href: '/account', label: 'My Account' }} navKey={navKey} />
-        {/* Under the account rather than under Rides: the bin holds saved places
-            and groups as well, so it belongs to the rider rather than to their
-            rides. */}
-        <NavLink item={{ key: 'trash', href: '/trash', label: 'Recycle bin' }} navKey={navKey} />
+        {/* NO RECYCLE BIN ITEM SINCE #343. It sat here because the bin held
+            saved places and groups as well as rides; the bin has no page now —
+            binned rides are the last tab under Rides on the dashboard and
+            binned places a fold on /places — so an item here would be a
+            second door to a tab one click away. Ziad's call, 2026-09-13. */}
         <hr />
         {/* THE ONLY WAY IN NOW THAT THE FLOATING SHIELD IS GONE, and renamed to
             match — Ziad's call, 2026-09-07. It was "Tell us something" beside a

@@ -8,6 +8,13 @@
 // The JSON routes in maps.ts and places.ts stay where they are for the callers
 // that genuinely are JavaScript.
 //
+// THE BIN HAS NO PAGE OF ITS OWN SINCE #343. Ziad's call, 2026-09-13: binned
+// things sit beside the list they left — the rides on the dashboard's last
+// Rides tab, the places and groups under the list on /places — so `/trash`
+// redirects to the dashboard's bin tab (the purge-warning email links to it)
+// and the two fragments below are what those pages render. The verbs stay
+// here, and each carries its caller back to where it pressed the button.
+//
 // There is deliberately NO "empty the bin" and no per-item "delete forever".
 // Leaving something here costs nothing — the quota is already freed and the
 // files are already small — so the only thing such a button buys is a
@@ -15,130 +22,18 @@
 // that destroys, and it does it on a schedule nobody has to press.
 import { Hono } from 'hono'
 import { currentUser, requireActive, requireSameOrigin, type AuthEnv } from '../auth/middleware'
-import { daysUntilPurge, RESTORE_REFUSAL_MESSAGES, TRASH_HOLD_DAYS } from '../trash/policy'
-import { listBin, restoreGroup, restorePlace, restoreRide, trashRide } from '../trash/service'
-import { page } from '../views/layout'
-import { fmtDateFull } from '../views/date-format'
-import { dateFormatFor } from '../views/prefs'
-import type { DateFormat } from '../views/date-format'
-import type { PlaceGroupRow, PlaceRow, RideRow } from '../db/schema'
+import { RESTORE_REFUSAL_MESSAGES } from '../trash/policy'
+import { restoreGroup, restorePlace, restoreRide, trashRide } from '../trash/service'
 import type { RestoreResult } from '../trash/service'
-import { SEP } from '../views/sep'
+import { PLACES_BIN, RIDES_BIN } from '../views/bin'
 
 export const trashRoutes = new Hono<AuthEnv>()
 
-/** The countdown, phrased for someone deciding whether to act. `daysUntilPurge`
- *  rounds up, so the last partial day still reads as "1 day left". */
-function Countdown({ purgeAfter, dateFormat }: { purgeAfter: Date | null; dateFormat: DateFormat }) {
-  if (!purgeAfter) return <span class="trash-when">Scheduled</span>
-  const days = daysUntilPurge({ deletedAt: null, purgeAfter }, new Date())
-  return (
-    <span class="trash-when">
-      {days === 0 ? 'Goes today' : `${days} ${days === 1 ? 'day' : 'days'} left`}
-      {SEP}destroyed {fmtDateFull(purgeAfter, dateFormat)}
-    </span>
-  )
-}
-
-function RestoreForm({ action, label }: { action: string; label: string }) {
-  return (
-    <form method="post" action={action} class="trash-restore">
-      <button class="btn arrow-left" type="submit">
-        {label}
-      </button>
-    </form>
-  )
-}
-
-trashRoutes.get('/trash', requireActive, async (c) => {
-  const user = currentUser(c)
-  const [bin, dateFormat] = await Promise.all([listBin(user.id), dateFormatFor(c)])
+// The old page's address. The purge-warning email and any bookmark land here;
+// the error query rides along so a refusal is still shown.
+trashRoutes.get('/trash', requireActive, (c) => {
   const error = c.req.query('error')
-  const total = bin.rides.length + bin.places.length + bin.groups.length
-
-  const body = (
-    <>
-      <h1>Recycle bin</h1>
-      <p class="lede">
-        Anything you delete waits here for {TRASH_HOLD_DAYS} days, then is destroyed for good. Put something back and
-        the {TRASH_HOLD_DAYS} days start again from&nbsp;scratch.
-      </p>
-
-      {error && <p class="notice is-error">{error}</p>}
-
-      {total === 0 ? (
-        <p class="empty">Nothing in here. Deleting a ride, a saved place or a group puts it in the bin first.</p>
-      ) : (
-        <>
-          {bin.rides.length > 0 && (
-            <>
-              <h2>Rides</h2>
-              {/* Storage is freed the moment a ride is binned, so this is worth
-                  saying plainly — a rider looking at the bin while up against
-                  their limit should not think these are still costing them. */}
-              <p class="sub">
-                These no longer count against your storage. Their share links are dead until you put them&nbsp;back.
-              </p>
-              <ul class="cards trash-list">
-                {bin.rides.map((ride: RideRow) => (
-                  <li>
-                    <div>
-                      <strong>{ride.title}</strong>
-                      <Countdown purgeAfter={ride.purgeAfter} dateFormat={dateFormat} />
-                    </div>
-                    <RestoreForm action={`/trash/rides/${ride.id}/restore`} label="Put it back" />
-                  </li>
-                ))}
-              </ul>
-            </>
-          )}
-
-          {bin.places.length > 0 && (
-            <>
-              <h2>Saved places</h2>
-              <ul class="cards trash-list">
-                {bin.places.map((place: PlaceRow) => (
-                  <li>
-                    <div>
-                      <strong>{place.name}</strong>
-                      <Countdown purgeAfter={place.purgeAfter} dateFormat={dateFormat} />
-                    </div>
-                    <RestoreForm action={`/trash/places/${place.id}/restore`} label="Put it back" />
-                  </li>
-                ))}
-              </ul>
-            </>
-          )}
-
-          {bin.groups.length > 0 && (
-            <>
-              <h2>Groups</h2>
-              {/* Stated up front rather than discovered afterwards: the places
-                  were ungrouped the moment the group went, which is what
-                  deleting a group has always done. */}
-              <p class="sub">
-                The places that were in these are still in your library, just&nbsp;ungrouped. Putting a group back gives
-                you an empty&nbsp;group.
-              </p>
-              <ul class="cards trash-list">
-                {bin.groups.map((group: PlaceGroupRow) => (
-                  <li>
-                    <div>
-                      <strong>{group.name}</strong>
-                      <Countdown purgeAfter={group.purgeAfter} dateFormat={dateFormat} />
-                    </div>
-                    <RestoreForm action={`/trash/place-groups/${group.id}/restore`} label="Put it back" />
-                  </li>
-                ))}
-              </ul>
-            </>
-          )}
-        </>
-      )}
-    </>
-  ).toString()
-
-  return c.html(page({ title: 'Recycle bin', user, navKey: 'trash', body }))
+  return c.redirect(error ? `${RIDES_BIN}&error=${encodeURIComponent(error)}` : RIDES_BIN, 302)
 })
 
 /** Turns an id path param into a number, or null. Same shape as every other
@@ -152,7 +47,16 @@ const idOf = (raw: string): number | null => {
 // there is no session store for one-shot messages, and the bin is a page a
 // rider lands on directly anyway. `encodeURIComponent` because the messages are
 // prose with apostrophes in them.
-const back = (message?: string): string => (message ? `/trash?error=${encodeURIComponent(message)}` : '/trash')
+// WHERE A VERB RETURNS TO IS WHAT THE FORM SAYS, WITHIN LIMITS. The rides bin
+// is on the dashboard and the places bin on /places, so one fixed address is
+// the wrong one for half the callers. The form's `back` is honored only as a
+// path — one leading slash, no scheme, no host — so a forged value cannot send
+// a rider off-site; anything else falls back to the rides bin. The error rides
+// on the query, joined with `&` when the path already carries one.
+const backOf = (raw: unknown, fallback = RIDES_BIN): string =>
+  typeof raw === 'string' && /^\/(?!\/)/.test(raw) ? raw : fallback
+const withError = (path: string, message?: string): string =>
+  message ? `${path}${path.includes('?') ? '&' : '?'}error=${encodeURIComponent(message)}` : path
 
 /**
  * A refusal as prose.
@@ -190,26 +94,29 @@ trashRoutes.post('/trash/rides/:id/bin', requireActive, requireSameOrigin, async
 
 trashRoutes.post('/trash/rides/:id/restore', requireActive, requireSameOrigin, async (c) => {
   const user = currentUser(c)
+  const back = backOf((await c.req.parseBody()).back, RIDES_BIN)
   const id = idOf(c.req.param('id'))
-  if (!id) return c.redirect(back('That ride is not in the bin.'), 302)
+  if (!id) return c.redirect(withError(back, 'That ride is not in the bin.'), 302)
 
   const result = await restoreRide(user.id, id)
-  return c.redirect(result.ok ? back() : back(refusalText(result, 'ride')), 302)
+  return c.redirect(result.ok ? back : withError(back, refusalText(result, 'ride')), 302)
 })
 
 trashRoutes.post('/trash/places/:id/restore', requireActive, requireSameOrigin, async (c) => {
   const user = currentUser(c)
+  const back = backOf((await c.req.parseBody()).back, PLACES_BIN)
   const id = idOf(c.req.param('id'))
-  if (!id) return c.redirect(back('That place is not in the bin.'), 302)
+  if (!id) return c.redirect(withError(back, 'That place is not in the bin.'), 302)
   const ok = await restorePlace(user.id, id)
-  return c.redirect(ok ? back() : back('That place is not in the bin.'), 302)
+  return c.redirect(ok ? back : withError(back, 'That place is not in the bin.'), 302)
 })
 
 trashRoutes.post('/trash/place-groups/:id/restore', requireActive, requireSameOrigin, async (c) => {
   const user = currentUser(c)
+  const back = backOf((await c.req.parseBody()).back, PLACES_BIN)
   const id = idOf(c.req.param('id'))
-  if (!id) return c.redirect(back('That group is not in the bin.'), 302)
+  if (!id) return c.redirect(withError(back, 'That group is not in the bin.'), 302)
 
   const result = await restoreGroup(user.id, id)
-  return c.redirect(result.ok ? back() : back(refusalText(result, 'group')), 302)
+  return c.redirect(result.ok ? back : withError(back, refusalText(result, 'group')), 302)
 })
