@@ -280,10 +280,12 @@ function splitHeadings(html: string): string {
     // The title stood after a dash and was written lowercase; alone on its
     // line it opens the sentence. An entity or a tag at the front is left be.
     const title = split ? split[2].trim().replace(/^[a-z]/, (c) => c.toUpperCase()) : head[1].trim()
-    const eyebrowHtml = eyebrow ? `  <p class="rn-date">${eyebrow}</p>\n` : ''
+    // The eyebrow is inside the summary, above the title, so a folded entry
+    // still shows its date and build.
+    const eyebrowHtml = eyebrow ? `<p class="rn-date">${eyebrow}</p>` : ''
     out +=
-      `${open}\n${eyebrowHtml}  <details class="rn-fold" name="rn-fold"${first ? ' open' : ''}>\n` +
-      `  <summary><h3>${title}</h3></summary>${rest}</details>\n</section>`
+      `${open}\n  <details class="rn-fold" name="rn-fold"${first ? ' open' : ''}>\n` +
+      `  <summary>${eyebrowHtml}<h3>${title}</h3></summary>${rest}</details>\n</section>`
     first = false
   }
   return out + html.slice(last)
