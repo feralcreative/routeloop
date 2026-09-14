@@ -497,31 +497,48 @@ body.modal-open {
   // green, fixed the regulatory blue, changed the work-zone orange with its
   // black legend, removed a neutral. Each field carries the legend the palette
   // audit clears it for — see BLACK_LEGEND in test/palette-contrast.test.ts.
+  // ONE SIZE FOR ALL FOUR, AND THE SIGN'S INSET KEYLINE. Ziad's call,
+  // 2026-09-13: a column of badges only reads as a column when "New" and
+  // "Changed" are the same box, so the width is fixed to the widest word and
+  // the text is centered; and each carries the white keyline inside its
+  // field, the construction every sign here has, at 1px/2px because at this
+  // scale `.btn`'s 3px/5px would be most of the badge. The field is a custom
+  // property so the keyline's outer ring can restate it per kind without
+  // four copies of the shadow.
   .rn-kind {
+    --rn-field: #{$interstate};
     display: inline-block;
+    box-sizing: border-box;
+    width: 6.4em;
     margin: 0 0.5rem 0 0;
-    padding: 0.1em 0.5em 0.05em;
+    // Top-heavy, the way .notif-more and .nav-tour are: Overpass sits high in
+    // its box, so an even pad leaves the legend a pixel or two above center.
+    padding: 0.3em 0.3em 0.05em;
     border-radius: 4px;
     font-size: 0.7rem;
     font-weight: 700;
     letter-spacing: 0.04em;
+    text-align: center;
     text-transform: uppercase;
     vertical-align: 0.15em;
     color: $ink-light;
-    background: $interstate;
+    background: var(--rn-field);
+    box-shadow:
+      inset 0 0 0 1px var(--rn-field),
+      inset 0 0 0 2px $ink-light;
   }
 
   .rn-item[data-kind="fixed"] .rn-kind {
-    background: $disabled;
+    --rn-field: #{$disabled};
   }
 
   .rn-item[data-kind="changed"] .rn-kind {
-    background: $detour;
+    --rn-field: #{$detour};
     color: $black;
   }
 
   .rn-item[data-kind="removed"] .rn-kind {
-    background: $neutral-50;
+    --rn-field: #{$neutral-50};
   }
 }
 
