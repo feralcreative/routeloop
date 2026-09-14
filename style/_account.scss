@@ -199,6 +199,35 @@
   }
 }
 
+// THE PLACES BIN FOLD (#343), under the places list. A plain <details> with
+// a hairline above it, closed to start — history under the list that is the
+// point of the tab. The rows inside are `.cards.trash-list`, which _chrome.scss
+// draws for the dashboard's bin tab as well.
+.places-bin {
+  margin-top: 1.5rem;
+  padding-top: 1rem;
+  border-top: 1px solid $grey;
+
+  > summary {
+    cursor: pointer;
+    font-weight: 600;
+
+    &:hover {
+      color: $brand;
+    }
+  }
+
+  h3 {
+    margin: 1rem 0 0.5rem;
+    font-size: 0.95rem;
+  }
+
+  .sub {
+    color: $neutral-43;
+    font-size: 0.9rem;
+  }
+}
+
 .setting-topic > .palette-bar {
   max-width: none;
 }

@@ -50,7 +50,9 @@ import { cachedGlobalStats, cachedUsedBytes, loadStats } from '../stats/query'
 import { shapeStats } from '../stats/shape'
 import type { DashboardStats, MonthPoint, RecordTile, RoleBar, Tile } from '../stats/shape'
 import { followingRides, friendsRides, publicRides } from '../access/query'
-import { LIVE_RIDE } from '../trash/service'
+import { LIVE_RIDE, listBinnedRides } from '../trash/service'
+import { binRidesHtml } from '../views/bin'
+import { dateFormatFor } from '../views/prefs'
 import { ridesImOn } from '../members/service'
 import { RSVP_LABELS } from '../members/policy'
 import { unitsFor } from '../views/prefs'
@@ -536,7 +538,17 @@ homeRoutes.get('/', requireActive, async (c) => {
   // query, so this tests for the one string rather than for truthiness.
   const showAll = c.req.query('rides') === 'all'
 
-  const [stats, cached, owned, global, joined, friendly, publik, feed] = await Promise.all([
+  // WHICH TAB OPENS (#343). The strip was always server-rendered on Your rides
+  // and tabs.js took it from there; `/trash` now lands here with `?tab=bin`,
+  // so the server has to be able to open a tab. Anything but a known name is
+  // the first tab, which is what a bot's invented value should get.
+  const TABS = ['mine', 'friends', 'following', 'public', 'bin'] as const
+  type RideTab = (typeof TABS)[number]
+  const tabQ = c.req.query('tab')
+  const tab: RideTab = (TABS as readonly string[]).includes(tabQ ?? '') ? (tabQ as RideTab) : 'mine'
+  const binError = c.req.query('error')
+
+  const [stats, cached, owned, global, joined, friendly, publik, feed, binned, dateFormat] = await Promise.all([
     loadStats(user.id),
     cachedUsedBytes(user.id),
     db
@@ -582,6 +594,10 @@ homeRoutes.get('/', requireActive, async (c) => {
     // agreed to, so it cannot open anything a stranger could not already open.
     // See the note on the `follows` table in src/db/schema.ts.
     followingRides(user.id, RIDE_PAGE),
+    // THE BIN'S RIDES (#343): the fifth tab. Owner-only by construction, soonest
+    // purge first, and the places half of the bin lives on /places.
+    listBinnedRides(user.id),
+    dateFormatFor(c),
   ])
 
   const hasMore = !showAll && owned.length > RIDE_PAGE
@@ -770,24 +786,25 @@ homeRoutes.get('/', requireActive, async (c) => {
             <div class="page-tabs" role="tablist" aria-label="Rides" data-tabs>
               <button
                 type="button"
-                class="page-tab is-active"
+                class={`page-tab${tab === 'mine' ? ' is-active' : ''}`}
                 role="tab"
                 id="tab-mine"
                 aria-controls="rides-mine"
-                aria-selected="true"
+                aria-selected={tab === 'mine' ? 'true' : 'false'}
+                tabindex={tab === 'mine' ? undefined : -1}
               >
                 Your {wds(w, 'journey')} <span class="tab-count">{stats.totals.rides}</span>
               </button>
               <button
                 type="button"
-                class="page-tab"
+                class={`page-tab${tab === 'friends' ? ' is-active' : ''}`}
                 role="tab"
                 id="tab-friends"
                 data-tip="rides-friends"
                 title="Rides your friends have shared"
                 aria-controls="rides-friends"
-                aria-selected="false"
-                tabindex={-1}
+                aria-selected={tab === 'friends' ? 'true' : 'false'}
+                tabindex={tab === 'friends' ? undefined : -1}
               >
                 Friends <span class="tab-count">{friendly.length}</span>
               </button>
@@ -799,27 +816,45 @@ homeRoutes.get('/', requireActive, async (c) => {
               */}
               <button
                 type="button"
-                class="page-tab"
+                class={`page-tab${tab === 'following' ? ' is-active' : ''}`}
                 role="tab"
                 id="tab-following"
                 data-tip="rides-following"
                 title={`${Wds(w, 'journey')} from ${wds(w, 'person')} you follow`}
                 aria-controls="rides-following"
-                aria-selected="false"
-                tabindex={-1}
+                aria-selected={tab === 'following' ? 'true' : 'false'}
+                tabindex={tab === 'following' ? undefined : -1}
               >
                 Following <span class="tab-count">{feed.length}</span>
               </button>
               <button
                 type="button"
-                class="page-tab"
+                class={`page-tab${tab === 'public' ? ' is-active' : ''}`}
                 role="tab"
                 id="tab-public"
                 aria-controls="rides-public"
-                aria-selected="false"
-                tabindex={-1}
+                aria-selected={tab === 'public' ? 'true' : 'false'}
+                tabindex={tab === 'public' ? undefined : -1}
               >
                 Public <span class="tab-count">{publik.length}</span>
+              </button>
+              {/*
+                THE BIN IS THE LAST TAB (#343). Ziad's call, 2026-09-13: the bin
+                is where a ride goes, so it belongs beside the lists it left.
+                The count shows even at zero — an empty bin reading 0 is the
+                answer to "did that delete work", where a tab that vanishes is
+                a question.
+              */}
+              <button
+                type="button"
+                class={`page-tab${tab === 'bin' ? ' is-active' : ''}`}
+                role="tab"
+                id="tab-bin"
+                aria-controls="rides-bin"
+                aria-selected={tab === 'bin' ? 'true' : 'false'}
+                tabindex={tab === 'bin' ? undefined : -1}
+              >
+                Recycle bin <span class="tab-count">{binned.length}</span>
               </button>
             </div>
 
@@ -829,11 +864,12 @@ homeRoutes.get('/', requireActive, async (c) => {
               link that the other two tabs must never show.
             */}
             <div
-              class="page-tabpanel is-active"
+              class={`page-tabpanel${tab === 'mine' ? ' is-active' : ''}`}
               role="tabpanel"
               id="rides-mine"
               aria-labelledby="tab-mine"
               tabindex={0}
+              hidden={tab !== 'mine'}
             >
               <ul class="ride-cards ride-cards--dense">
                 {visibleRides.map((r) => (
@@ -856,12 +892,12 @@ homeRoutes.get('/', requireActive, async (c) => {
               rather than as two answers.
             */}
             <div
-              class="page-tabpanel"
+              class={`page-tabpanel${tab === 'friends' ? ' is-active' : ''}`}
               role="tabpanel"
               id="rides-friends"
               aria-labelledby="tab-friends"
               tabindex={0}
-              hidden
+              hidden={tab !== 'friends'}
             >
               {raw(
                 rideCards(friendly, false, {
@@ -879,12 +915,12 @@ homeRoutes.get('/', requireActive, async (c) => {
               followed anybody rather than followed quiet people.
             */}
             <div
-              class="page-tabpanel"
+              class={`page-tabpanel${tab === 'following' ? ' is-active' : ''}`}
               role="tabpanel"
               id="rides-following"
               aria-labelledby="tab-following"
               tabindex={0}
-              hidden
+              hidden={tab !== 'following'}
             >
               {raw(
                 rideCards(feed, false, {
@@ -906,12 +942,12 @@ homeRoutes.get('/', requireActive, async (c) => {
               which is what the link below it is for.
             */}
             <div
-              class="page-tabpanel"
+              class={`page-tabpanel${tab === 'public' ? ' is-active' : ''}`}
               role="tabpanel"
               id="rides-public"
               aria-labelledby="tab-public"
               tabindex={0}
-              hidden
+              hidden={tab !== 'public'}
             >
               {raw(
                 rideCards(publik, false, {
@@ -925,6 +961,17 @@ homeRoutes.get('/', requireActive, async (c) => {
                   Explore all public {wds(w, 'journey')}
                 </a>
               </p>
+            </div>
+
+            <div
+              class={`page-tabpanel${tab === 'bin' ? ' is-active' : ''}`}
+              role="tabpanel"
+              id="rides-bin"
+              aria-labelledby="tab-bin"
+              tabindex={0}
+              hidden={tab !== 'bin'}
+            >
+              {raw(binRidesHtml(binned, dateFormat, binError, w))}
             </div>
           </section>
         </>

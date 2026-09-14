@@ -219,6 +219,15 @@ export type BinContents = {
  * and would stop being if the hold ever changed length — the rider is looking at
  * this page to see what is about to go, so it sorts by that.
  */
+/** The rides half of the bin on its own, for the dashboard's tab (#343). */
+export async function listBinnedRides(ownerId: number): Promise<RideRow[]> {
+  return db
+    .select()
+    .from(rides)
+    .where(and(eq(rides.ownerId, ownerId), TRASHED_RIDE))
+    .orderBy(asc(rides.purgeAfter))
+}
+
 export async function listBin(ownerId: number): Promise<BinContents> {
   const [rideRows, placeRows, groupRows] = await Promise.all([
     db

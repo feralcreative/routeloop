@@ -50,6 +50,8 @@ import { GROUPS, eventsInGroup } from '../notifications/catalog'
 import { channelsFor } from '../notifications/policy'
 import { prefsOf } from '../notifications/service'
 import { dateFormatFor } from './prefs'
+import { listBin } from '../trash/service'
+import { binPlacesHtml } from './bin'
 import { fieldHelp, page } from './layout'
 import { tourAssets } from './tour-assets'
 import { asset } from './assets'
@@ -67,7 +69,13 @@ export type AccountTab = 'preferences' | 'profile' | 'paddock' | 'places'
 // organizing what is already there: rename, refile, delete. A create-from-scratch
 // flow here wants the address picker from roadmap item 19 and should wait for it
 // rather than ship a lat/lng text box.
-const placesPanel = (): string =>
+// THE PLACES BIN IS A FOLD UNDER THE LIST (#343): binned places and groups
+// sit beside the list they left, the way binned rides sit on the dashboard's
+// last Rides tab. `placesBin` arrives rendered (views/bin.tsx) with the count
+// beside it; an empty bin renders no fold at all, because a heading over an
+// empty list is a question and not an answer. Closed to start with — it is
+// history, and the list above it is the point of the tab.
+const placesPanel = (bin?: { html: string; count: number; error?: string }): string =>
   (
     <div class="profile-form">
       <fieldset>
@@ -79,6 +87,14 @@ const placesPanel = (): string =>
         <div id="places-manager" data-places-manager>
           <p class="field-hint">Loading&hellip;</p>
         </div>
+        {bin && (bin.count > 0 || bin.error) && (
+          <details class="places-bin" open={!!bin.error}>
+            <summary>
+              Recycle bin <span class="friend-count">{bin.count}</span>
+            </summary>
+            {raw(bin.html)}
+          </details>
+        )}
       </fieldset>
     </div>
   ).toString()
@@ -207,6 +223,20 @@ export async function accountPage(
   const scheme = user.scheme
 
   const tabOn = (t: AccountTab) => opts.tab === t
+
+  // The places bin, only when the tab is the one that shows it: one more
+  // query for a fold most riders never open is fine on /places and waste on
+  // the other three doors.
+  const placesBin = tabOn('places')
+    ? await (async () => {
+        const bin = await listBin(user.id)
+        const count = bin.places.length + bin.groups.length
+        const error = c.req.query('error')
+        // A refusal opens the fold, or the message a restore came back with
+        // is inside a closed box.
+        return { html: binPlacesHtml(bin, dateFormat, error), count, error }
+      })()
+    : undefined
 
   // THE CHIP IS THE NO-SCRIPT PATH NOW. With autosave running, the border on the
   // group says dirty/saving/saved and this never renders — a `?saved=` query only
@@ -1171,7 +1201,7 @@ export async function accountPage(
         aria-labelledby="tab-places"
         hidden={!tabOn('places')}
       >
-        {raw(placesPanel())}
+        {raw(placesPanel(placesBin))}
       </div>
     </>
   ).toString()
