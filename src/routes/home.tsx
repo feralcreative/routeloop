@@ -194,14 +194,22 @@ function StatTile({ tile }: { tile: Tile }) {
         private ones, which is only acceptable because these are two anonymous
         aggregates — see loadGlobalStats in src/stats/query.ts.
       */}
+      {/*
+        THE LABELS SAY WHOSE NUMBERS THESE ARE (#342). Ziad's call, 2026-09-13:
+        "avg" and "top" said nothing about whom, so a rider could not tell the
+        small pair was everybody's and the big figure theirs. "Everyone" and
+        "most" do — a comparison reads without a heading — at the same size,
+        because the pair was deliberately held small when the tiles grew (#176)
+        and a clue that grows it undoes that.
+      */}
       {tile.spread && (
         <dl class="stat-spread">
           <div>
-            <dt>avg</dt>
+            <dt>everyone</dt>
             <dd>{tile.spread.avg}</dd>
           </div>
           <div>
-            <dt>top</dt>
+            <dt>most</dt>
             <dd>{tile.spread.top}</dd>
           </div>
         </dl>
@@ -673,6 +681,13 @@ homeRoutes.get('/', requireActive, async (c) => {
             </a>
           </p>
 
+          {/*
+            ONE EYEBROW OVER THE ROW, NOT A PARAGRAPH (#342). The tiles sat
+            directly under the Plan a ride sign with nothing saying whose
+            numbers they were; one line captions the whole row once, at the
+            `.rn-date` size, and the pair inside each tile finishes the thought.
+          */}
+          <p class="stat-eyebrow">Your numbers, beside everyone&rsquo;s</p>
           <ul class="stat-tiles">
             {s.tiles.map((t) => (
               <StatTile tile={t} />
