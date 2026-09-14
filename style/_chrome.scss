@@ -1414,8 +1414,9 @@ ul.cards {
 
 // --- The roster page ---------------------------------------------------------
 //
-// Built on .rider-list, the same white-row list /riders and /friends use, with
-// a third column for what each person said. The row is the card and the anchor
+// Built on .rider-list, the white-row list /admin still uses (/riders and
+// /friends draw cards since #341 — see _riders.scss), with a third column for
+// what each person said. The row is the card and the anchor
 // is only the name — see the note on .rider-list above for why.
 .roster-back {
   font-size: 0.9em;

@@ -10,7 +10,7 @@
 // already ended.
 import { and, eq, inArray, ne, or, sql } from 'drizzle-orm'
 import { db } from '../db/index'
-import { friendships, users, type FriendshipRow } from '../db/schema'
+import { friendships, userProfiles, users, type FriendshipRow } from '../db/schema'
 import { canAccept, canBlock, canRemove, canRequest, canUnblock, friendView, pairOf, type FriendView } from './policy'
 import { dropFollowsBetween } from '../follows/service'
 
@@ -152,7 +152,18 @@ export async function unblockRider(viewerId: number, otherId: number): Promise<F
   return { ok: true, view: 'none' }
 }
 
-export type RiderCard = { id: number; displayName: string; username: string }
+/**
+ * A rider on a list. Name and handle are what a public profile shows, which is
+ * the whole rule; the two avatar columns joined on 2026-09-13 (#341) so a card
+ * can carry a face, and they publish nothing a profile page does not.
+ */
+export type RiderCard = {
+  id: number
+  displayName: string
+  username: string
+  avatarUrl: string | null
+  avatarBytes: number
+}
 
 /**
  * The three lists the friends page renders, in one round trip each.
@@ -165,9 +176,18 @@ export type RiderCard = { id: number; displayName: string; username: string }
 async function listBy(viewerId: number, where: ReturnType<typeof and>): Promise<RiderCard[]> {
   const other = sql<number>`case when ${friendships.riderA} = ${viewerId} then ${friendships.riderB} else ${friendships.riderA} end`
   const rows = await db
-    .select({ id: users.id, displayName: users.displayName, username: users.username })
+    .select({
+      id: users.id,
+      displayName: users.displayName,
+      username: users.username,
+      avatarUrl: users.avatarUrl,
+      // On the profile row, which most riders do not have (it is created
+      // lazily by the settings upsert), hence the left join and the coalesce.
+      avatarBytes: sql<number>`coalesce(${userProfiles.avatarBytes}, 0)`,
+    })
     .from(friendships)
     .innerJoin(users, eq(users.id, other))
+    .leftJoin(userProfiles, eq(userProfiles.userId, users.id))
     .where(where)
     .orderBy(users.displayName)
   // A rider with no handle has no profile to link to and is not on the roster

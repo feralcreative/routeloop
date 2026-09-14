@@ -1,0 +1,202 @@
+// RIDERS AS CARDS, IN A SIZE THE RIDER PICKS PER SECTION (#341). Ziad's call,
+// 2026-09-13. /riders and /friends drew every rider as a white row — name,
+// handle, verb — and a roster of faces reads as people where a list of rows
+// reads as a table. Three grids, one class each; the switch over a section
+// reclasses the grid and nothing else (public/js/riders.js), and the size is
+// remembered per section per browser.
+//
+// The switch is the Route | Ride pill's construction (`_map.scss`): a
+// `role="group"` of `aria-pressed` buttons, the pressed one filled `$disabled`
+// with `$ink-light` — the blue SIGN field and never `$brand`, which the dark
+// scheme lifts to stay legible as a link and which then fails as a field under
+// white type (measured there at 2.75 in the worst dark palette against 7.69).
+@use "tokens" as *;
+
+.rider-cards-block {
+  margin-bottom: 0.5rem;
+}
+
+.card-size {
+  display: inline-flex;
+  align-items: stretch;
+  margin: 0 0 0.75rem;
+  border: 1px solid $grey;
+  border-radius: 999px;
+  overflow: hidden;
+
+  button {
+    padding: 0.25em 0.8em;
+    border: 0;
+    background: transparent;
+    color: $neutral-50;
+    font: inherit;
+    font-size: 0.78rem;
+    font-weight: 600;
+    line-height: 1.5;
+    cursor: pointer;
+
+    & + button {
+      border-left: 1px solid $grey;
+    }
+
+    &:hover,
+    &:focus-visible {
+      color: $text;
+    }
+
+    &:focus-visible {
+      outline: 2px solid $brand;
+      outline-offset: -2px;
+    }
+
+    &[aria-pressed="true"] {
+      background: $disabled;
+      color: $ink-light;
+    }
+  }
+}
+
+.rider-cards {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 0.75rem;
+}
+
+.rider-card {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+  min-width: 0;
+  padding: 1rem;
+  background: $white;
+  border: 1px solid $neutral-88;
+  border-radius: 10px;
+}
+
+.rider-card-who {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.6rem;
+  min-width: 0;
+  color: $text;
+  text-decoration: none;
+  text-align: center;
+
+  &:hover .rider-display {
+    text-decoration: underline;
+  }
+}
+
+.rider-card-name {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+
+  > span {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+}
+
+// The face: the account chip's rule at a size per grid. `flex: none` because
+// a shrinking flex item squashes a round image into an oval.
+.rider-face {
+  flex: none;
+  box-sizing: border-box;
+  width: var(--face, 64px);
+  height: var(--face, 64px);
+  border-radius: 50%;
+  object-fit: cover;
+  background: $neutral-94;
+
+  &.is-initials {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: $brand-l46;
+    color: $brand-d8;
+    font-size: calc(var(--face, 64px) * 0.36);
+    font-weight: 600;
+    letter-spacing: 0.02em;
+  }
+}
+
+.rider-card-acts {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 0.4rem;
+  margin-top: auto;
+
+  form {
+    margin: 0;
+  }
+}
+
+// --- The three sizes ---------------------------------------------------------
+
+.rider-cards--lg {
+  grid-template-columns: repeat(auto-fill, minmax(17rem, 1fr));
+  --face: 96px;
+
+  .rider-card {
+    padding: 1.5rem 1.25rem;
+  }
+
+  .rider-display {
+    font-size: 1.1rem;
+  }
+}
+
+.rider-cards--md {
+  grid-template-columns: repeat(auto-fill, minmax(12rem, 1fr));
+  --face: 64px;
+}
+
+// Small is a list again — one across, the face at the left, the verb at the
+// right — which is the old row with a face on it.
+.rider-cards--sm {
+  grid-template-columns: 1fr;
+  gap: 0.4rem;
+  --face: 40px;
+
+  .rider-card {
+    flex-direction: row;
+    align-items: center;
+    padding: 0.5rem 0.75rem;
+    border-radius: 8px;
+  }
+
+  .rider-card-who {
+    flex: 1;
+    flex-direction: row;
+    text-align: left;
+  }
+
+  .rider-card-name {
+    flex-direction: row;
+    align-items: baseline;
+    gap: 0.6rem;
+  }
+
+  .rider-card-acts {
+    margin-top: 0;
+    justify-content: flex-end;
+  }
+}
+
+//@ Phone — large and medium both go two across, and the verbs wrap under the name
+@media (max-width: 34rem) {
+  .rider-cards--lg,
+  .rider-cards--md {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .rider-cards--lg {
+    --face: 72px;
+  }
+}

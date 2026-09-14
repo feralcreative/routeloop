@@ -890,13 +890,20 @@ export const wordsOf = (opts: { user: UserRow | null; words?: Words; ride?: Page
 const hideTourOf = (u: UserRow | null): boolean =>
   (u as unknown as { hideTour?: unknown } | null)?.hideTour === true
 
-const NavAccountMenu = ({ user, navKey, unread = 0 }: { user: UserRow; navKey?: NavKey; unread?: number }) => {
-  const initials = user.displayName
+/** Up to two initials for the tinted disc a rider with no picture gets — the
+ *  account chip's rule, shared with the rider cards on /riders (#341). */
+export const initialsOf = (displayName: string): string =>
+  displayName
     .split(/\s+/)
-    .filter(Boolean)
+    // A word that opens with a bracket or a symbol lends no initial — "Ziad
+    // (Personal)" read "Z(" until the cards made a 40px disc of it.
+    .filter((w) => /^[\p{L}\p{N}]/u.test(w))
     .slice(0, 2)
     .map((w) => w[0]?.toUpperCase() ?? '')
     .join('')
+
+const NavAccountMenu = ({ user, navKey, unread = 0 }: { user: UserRow; navKey?: NavKey; unread?: number }) => {
+  const initials = initialsOf(user.displayName)
 
   return (
     <details class="nav-sub nav-account">
