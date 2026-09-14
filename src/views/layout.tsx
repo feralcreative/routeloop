@@ -1148,6 +1148,15 @@ function siteFooter(splash: boolean): string {
 // right after the drawer's markup, so the element exists and nothing has
 // painted yet. Exactly what initPanelResize() writes, read back; the shape is
 // {w, collapsed}. Every read is wrapped: a private window can refuse storage.
+// A FOLDED CARD STAYS FOLDED (#339). Every `<details data-fold="name">` on a
+// chrome page ships `open`; site.js writes `routeloop.fold.<name>` = "closed"
+// when a rider folds it, and this takes the `open` back off before the page
+// settles, the way DRAWER_RESTORE restores the drawer's width. At the end of
+// the body rather than in the head because the elements have to exist; small
+// enough that no frame paints between the markup and the script. Nothing
+// stored means open — a new rider sees the card with no write anywhere.
+const FOLD_RESTORE = `<script>(function(){try{var f=document.querySelectorAll("details[data-fold]");for(var i=0;i<f.length;i++){if(localStorage.getItem("routeloop.fold."+f[i].getAttribute("data-fold"))==="closed")f[i].removeAttribute("open");}}catch(e){}})();</script>`
+
 const DRAWER_RESTORE = `<script>(function(){try{var d=JSON.parse(localStorage.getItem("routeloop.drawer")||"null");if(!d)return;var h=document.documentElement,p=document.getElementById("info-panel");if(d.w>0)h.style.setProperty("--panel-width",d.w+"px");if(d.collapsed&&p){p.classList.add("collapsed");var r=p.querySelector(".drawer-rail");if(r)r.setAttribute("aria-hidden","false");var t=p.querySelector(".collapse-toggle");if(t){t.setAttribute("aria-expanded","false");t.setAttribute("aria-label","Expand panel");}}}catch(e){}})();</script>`
 
 export function page(opts: PageOpts): string {
@@ -1304,7 +1313,7 @@ export function page(opts: PageOpts): string {
 ${stageBanner()}
 ${variant === 'splash' ? '' : (<SiteHeader user={opts.user} navKey={opts.navKey} isMap={isMap} unread={unreadOf(opts.user)} words={wordsOf(opts)} />).toString()}
 ${body}
-${isMap ? DRAWER_RESTORE : ''}
+${isMap ? DRAWER_RESTORE : FOLD_RESTORE}
 ${opts.splash === false ? '' : alphaSplash()}
 ${releaseNotesModal()}
 ${opts.noscript ? `<noscript><p style="padding:1em">${esc(opts.noscript)}</p></noscript>` : ''}

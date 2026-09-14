@@ -1,6 +1,7 @@
 @use "sass:color";
 @use "tokens" as *;
 @use "controls";
+@use "fold";
 // For `sign-arrow`. A THIRD literal copy of that path is what this avoids: the
 // mixin's own comment is that there should be exactly one shape to correct if it
 // is ever revised, and `_feedback.scss` already keeps a second (with a mask, for
@@ -118,6 +119,86 @@
 // file it sits — so `max-width: none` on `.palette-bar` alone was simply
 // discarded, with the bar rendering at exactly the width it had before and
 // nothing to say why.
+// SHOW ME AROUND IS A FOLDING CARD AT THE TOP OF PROFILE (#339). The card,
+// the eased fold and the disc are `_fold.scss`'s, shared with the release
+// notes; what is decided here is the bar. Open, the summary is the heading
+// with its lead under it; closed, the same summary IS the subtle one-line
+// bar — heading, lead, disc — because a folded <details> shows nothing but
+// its summary, so there is no second drawing to keep in step. The disc sits at
+// the end of the bar by flex rather than by absolute position, which is what
+// lets the heading and the lead wrap under it on a phone.
+.fold-card.setting-topic {
+  @include fold.fold-card;
+
+  margin-top: 0;
+  margin-bottom: 2.5rem;
+
+  > summary {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+
+    h2 {
+      margin: 0;
+      font-size: 1.3rem;
+      line-height: 1.3;
+    }
+
+    .fold-lead {
+      flex: 1;
+      min-width: 0;
+      color: $neutral-43;
+      font-size: 0.95rem;
+    }
+
+    &::after {
+      @include fold.fold-disc;
+
+      // The mixin inherits sign-arrow's `position: relative; top: -0.1em`,
+      // which nudged a button's arrow against its legend; a disc centered by
+      // flex wants neither.
+      position: static;
+      top: auto;
+    }
+
+    &:hover {
+      h2 {
+        color: $brand;
+      }
+
+      &::after {
+        @include fold.fold-disc-hover;
+      }
+    }
+  }
+
+  &[open] > summary::after {
+    @include fold.fold-disc-open;
+  }
+
+  // The body keeps the topic's own rhythm — its lead paragraph and forms sit
+  // under the bar exactly as they did under the heading.
+  > p:first-of-type {
+    margin-top: 0.85rem;
+  }
+
+  //@ Phone — the lead drops under the heading, the disc stays at the end
+  @media (max-width: 34rem) {
+    > summary {
+      flex-wrap: wrap;
+
+      .fold-lead {
+        flex-basis: 100%;
+        order: 3;
+      }
+
+      &::after {
+        margin-left: auto;
+      }
+    }
+  }
+}
+
 .setting-topic > .palette-bar {
   max-width: none;
 }
