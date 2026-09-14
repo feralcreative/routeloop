@@ -346,15 +346,20 @@ body.modal-open {
   // $neutral-96 on the standalone page. It would be right on one and a halo on
   // the other — the same trap .rn-note fell into. The dot is four steps darker
   // than the rail instead, which separates them on any background.
-  &::before {
+  // ON THE TITLE, NOT THE SECTION. The dot sat at the section's top until
+  // the date became an eyebrow above the title (#325), which left it beside
+  // the eyebrow; it hangs off the h3 now so it marks the title whether or not
+  // there is an eyebrow over it. `left` walks back across the section's
+  // 1.3rem padding to the rail: -6px against a 2px rail centers a 10px dot on
+  // it, since the padding box starts after the border, so the dot spans -4px
+  // to 6px and the rail spans 0 to 2px, both centered on 1px. `top` centers it
+  // on the first line of the title.
+  h3::before {
     content: "";
     box-sizing: border-box;
     position: absolute;
-    // -6px against a 2px rail centers a 10px dot on it: the padding box starts
-    // after the border, so the dot spans -4px to 6px and the rail spans 0 to
-    // 2px. Both center on 1px.
-    left: -6px;
-    top: 0.3rem;
+    left: calc(-1.3rem - 6px);
+    top: calc(0.65em - 5px);
     width: 10px;
     height: 10px;
     border-radius: 50%;
@@ -363,7 +368,7 @@ body.modal-open {
 
   // The newest release is the one nearly everyone opened this to read, so it is
   // the only mark carrying the brand color. Everything below it is history.
-  &:first-of-type::before {
+  &:first-of-type h3::before {
     background: $interstate;
   }
 
@@ -386,9 +391,12 @@ body.modal-open {
   }
 
   h3 {
-    margin: 0 0 0.6rem;
+    position: relative;
+    margin: 0 0 0.7rem;
     color: $text;
-    font-size: 1.02rem;
+    // Up from 1.02rem when the date left it for the eyebrow — Ziad's call,
+    // 2026-09-13 — so the title reads as the heading it is now.
+    font-size: 1.3rem;
     line-height: 1.3;
   }
 
