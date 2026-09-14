@@ -1,5 +1,6 @@
 @use "sass:color";
 @use "tokens" as *;
+@use "controls";
 
 // The app's first real form. Everything before this was either a fetch+JSON
 // panel in the builder or the single logout button, so there was no input,
@@ -516,20 +517,9 @@
   input:not([type="checkbox"]):not([type="radio"]),
   select,
   textarea {
-    box-sizing: border-box;
-    width: 100%;
-    padding: 0.6rem 0.7rem;
-    font: inherit;
-    color: $text;
-    background: $white;
-    border: 1px solid $grey;
-    border-radius: 8px;
+    @include controls.text-control;
 
-    &:focus-visible {
-      outline: 2px solid $brand;
-      outline-offset: 1px;
-      border-color: $brand;
-    }
+    width: 100%;
   }
 
   textarea {
@@ -1107,7 +1097,7 @@ h1 + .transfer-head {
   margin: 0;
   padding: 0;
   display: grid;
-  gap: 0.35rem;
+  gap: 0.6rem;
 }
 
 // Name, group, address, delete. The address column is the one that collapses:
@@ -1116,12 +1106,13 @@ h1 + .transfer-head {
 .place-row {
   display: grid;
   grid-template-columns: minmax(0, 2fr) minmax(0, 1fr) minmax(0, 1.5fr) auto;
-  gap: 0.4rem;
+  gap: 0.6rem;
   align-items: center;
 
   input,
   select {
-    box-sizing: border-box;
+    @include controls.text-control;
+
     width: 100%;
     min-width: 0;
   }
@@ -1142,6 +1133,8 @@ h1 + .transfer-head {
   margin-top: 0.75rem;
 
   input {
+    @include controls.text-control;
+
     flex: 0 1 16rem;
     min-width: 0;
   }
@@ -1248,7 +1241,8 @@ h1 + .transfer-head {
 
   input,
   select {
-    box-sizing: border-box;
+    @include controls.text-control;
+
     width: 100%;
     min-width: 0;
   }

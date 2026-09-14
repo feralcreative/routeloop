@@ -1,5 +1,6 @@
 @use "sass:color";
 @use "tokens" as *;
+@use "controls";
 // For `sign-arrow`. A THIRD literal copy of that path is what this avoids: the
 // mixin's own comment is that there should be exactly one shape to correct if it
 // is ever revised, and `_feedback.scss` already keeps a second (with a mask, for
@@ -587,11 +588,9 @@
   }
 
   input[type="text"] {
+    @include controls.text-control;
+
     width: 100%;
-    padding: 0.6rem 0.75rem;
-    border: 1px solid $grey;
-    border-radius: 8px;
-    font: inherit;
   }
 }
 
@@ -1183,11 +1182,16 @@
     outline-offset: 2px;
   }
 
+  // The shared control, then the pill's own metrics over it: a box inside a
+  // pill is the one place the 0.6rem padding is too much.
   input[type="text"] {
+    @include controls.text-control;
+
     flex: 1 1 auto;
     min-width: 0;
     width: 0;
     padding: 0.15rem 0.4rem;
+    border-radius: 6px;
     font-size: 0.9rem;
   }
 

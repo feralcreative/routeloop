@@ -29,6 +29,15 @@
   @each $name, $value in palette.build($theme, $scheme) {
     --#{$name}: #{$value};
   }
+
+  // THE BROWSER IS TOLD WHICH SCHEME THIS IS (#335). Every painted surface
+  // already follows the tokens, but a radio, a checkbox, a select's arrow, a
+  // date picker, and the scrollbar are drawn by the browser from its own
+  // idea of the scheme — and with nothing declared that idea is "light", so
+  // under every dark palette the native chrome stayed light. Emitted beside
+  // the tokens rather than as a separate rule per selector so a scheme block
+  // cannot carry one and not the other.
+  color-scheme: $scheme;
 }
 
 // The default, and the fallback for any attribute value the app does not know.
