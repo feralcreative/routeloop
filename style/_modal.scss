@@ -1,9 +1,6 @@
-@use "sass:map";
 @use "tokens" as *;
 @use "motion";
-// For `sign-arrow` on the fold's disc — the `_account.scss` arrangement, so the
-// arrow stays one drawing.
-@use "chrome";
+@use "fold";
 
 // The app's first modal primitive. Built generic because the Places category
 // editor will reuse it.
@@ -352,38 +349,10 @@ body.modal-open {
   // surface and follows the scheme, so the card stays a card under a dark
   // palette; the hairline is what separates it from the standalone page's
   // $neutral-96 ground, the same reason .rn-note carries one.
+  // The card, the eased fold and the disc are `_fold.scss`'s now (#339), so
+  // the Show me around card on the Profile tab draws the same thing.
   .rn-fold {
-    padding: 1.2rem 1.5rem;
-    border: 1px solid $neutral-88;
-    border-radius: 10px;
-    background: $white;
-
-    // EASED OPEN AND SHUT (#325). Ziad's call, 2026-09-13: a <details> snaps.
-    // `::details-content` is the part that appears, and with
-    // `interpolate-size: allow-keywords` its height can run from 0 to auto
-    // over a transition; `content-visibility` rides along as a discrete
-    // transition so the closing content stays painted while it shrinks. A
-    // browser without either simply snaps, as it always did. Off for a rider
-    // who asked for no motion.
-    interpolate-size: allow-keywords;
-
-    &::details-content {
-      height: 0;
-      overflow: hidden;
-      transition:
-        height 0.4s cubic-bezier(0.4, 0, 0.2, 1),
-        content-visibility 0.4s allow-discrete;
-    }
-
-    &[open]::details-content {
-      height: auto;
-    }
-
-    @include motion.still {
-      &::details-content {
-        transition: none;
-      }
-    }
+    @include fold.fold-card;
   }
 
   // The mark. box-sizing is declared because this stylesheet inherits no global
@@ -476,13 +445,6 @@ body.modal-open {
   // 3px/5px is most of the disc.
   .rn-fold {
     > summary {
-      list-style: none;
-      cursor: pointer;
-
-      &::-webkit-details-marker {
-        display: none;
-      }
-
       // No margin under the title in either state: the gap to the first item
       // belongs to the content, so it shrinks with the fold instead of
       // snapping away the moment it starts to close.
@@ -492,26 +454,13 @@ body.modal-open {
         padding-right: 2.2rem;
 
         &::after {
-          @include chrome.sign-arrow;
+          @include fold.fold-disc;
 
           position: absolute;
           right: 0;
           // Centered on the first line of the title: line-height 1.3 puts
           // that line's middle at 0.65em, and the disc is 1.5rem tall.
           top: calc(0.65em - 0.75rem);
-          width: 1.5rem;
-          height: 1.5rem;
-          border-radius: 50%;
-          background-color: $disabled;
-          background-size: 50%;
-          box-shadow:
-            inset 0 0 0 2px $disabled,
-            inset 0 0 0 3px $ink-light;
-          transform: rotate(map.get(chrome.$sign-arrow-bearings, "s"));
-          transition:
-            transform 0.4s cubic-bezier(0.4, 0, 0.2, 1),
-            background-color 0.15s ease,
-            box-shadow 0.15s ease;
         }
       }
 
@@ -519,24 +468,13 @@ body.modal-open {
         color: $brand;
 
         &::after {
-          background-color: $brand;
-          box-shadow:
-            inset 0 0 0 2px $brand,
-            inset 0 0 0 3px $ink-light;
+          @include fold.fold-disc-hover;
         }
-      }
-
-      &:focus-visible {
-        outline: 2px solid $brand;
-        outline-offset: 2px;
-        border-radius: 4px;
       }
     }
 
-    // North is 270deg in the bearing map; -90deg is the same heading and
-    // turns the arrow back through east rather than the long way round.
     &[open] > summary h3::after {
-      transform: rotate(-90deg);
+      @include fold.fold-disc-open;
     }
 
     .rn-items {

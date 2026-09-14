@@ -329,7 +329,7 @@ settingsRoutes.post('/settings/tips', requireActive, requireSameOrigin, async (c
       set: { tips, updatedAt: new Date() },
     })
 
-  return c.redirect('/account?saved=tips#tips', 303)
+  return c.redirect('/profile?saved=tips#tips', 303)
 })
 
 // Whether the header's Take the tour sign is shown. Ziad's call, 2026-09-11.
@@ -341,7 +341,7 @@ settingsRoutes.post('/settings/tips', requireActive, requireSameOrigin, async (c
 settingsRoutes.post('/settings/tour-button', requireActive, requireSameOrigin, async (c) => {
   const user = currentUser(c)
   const body = await c.req.parseBody()
-  if (body.present !== '1') return c.redirect('/account#tips', 303)
+  if (body.present !== '1') return c.redirect('/profile#tips', 303)
   const hideTour = body.hideTour === 'on'
 
   await db
@@ -357,7 +357,7 @@ settingsRoutes.post('/settings/tour-button', requireActive, requireSameOrigin, a
       set: { hideTour, updatedAt: new Date() },
     })
 
-  return c.redirect('/account?saved=tour-button#tips', 303)
+  return c.redirect('/profile?saved=tour-button#tips', 303)
 })
 
 // Twelve- or twenty-four-hour time (#270).

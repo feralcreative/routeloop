@@ -1,0 +1,108 @@
+// A FOLDING CARD, drawn once and taken by two surfaces (#328, #339).
+//
+// Mixins only — no CSS is emitted from here, so `_modal.scss` and
+// `_account.scss` can both `@use` it without moving anybody's rules in the
+// cascade. The release-notes accordion (`.rn-fold`) is where the drawing was
+// settled: a faint card — hairline, soft corner, the page's own surface, so it
+// stays a card under a dark palette — whose `::details-content` eases open and
+// shut, and a disc at the summary's right carrying the app's own sign arrow,
+// south for "opens down" and north when open. The Show me around card on the
+// Profile tab takes the same three pieces.
+//
+// THE DISC IS A SIGN AND CARRIES THE INSET KEYLINE, ALWAYS. Ziad's call,
+// 2026-09-13: the two stacked inset shadows are what make a field read as
+// signage rather than as a colored blob, on `.btn`, the kind badges and the
+// Read more sign alike. The `.notif-more` widths, 2px/3px, because at 1.5rem
+// the button's own 3px/5px is most of the disc. $disabled and not $brand for
+// the reason the Route | Ride pill records — $brand is a link color the dark
+// scheme lifts, and the baked white in `sign-arrow`'s data URI needs a
+// WHITE_LEGEND field under it.
+//
+// Each caller positions the disc itself — the release note hangs it off its
+// title, the Profile card lets flex put it at the end of the bar — which is why
+// `fold-disc` draws and does not place.
+@use "sass:map";
+@use "tokens" as *;
+@use "motion";
+@use "chrome";
+
+/// The card and the eased fold. `interpolate-size: allow-keywords` lets
+/// `::details-content` run from 0 to auto over a transition;
+/// `content-visibility` rides along as a discrete transition so the closing
+/// content stays painted while it shrinks. A browser without either simply
+/// snaps, as a <details> always did. Off for a rider who asked for no motion.
+@mixin fold-card {
+  padding: 1.2rem 1.5rem;
+  border: 1px solid $neutral-88;
+  border-radius: 10px;
+  background: $white;
+  interpolate-size: allow-keywords;
+
+  &::details-content {
+    height: 0;
+    overflow: hidden;
+    transition:
+      height 0.4s cubic-bezier(0.4, 0, 0.2, 1),
+      content-visibility 0.4s allow-discrete;
+  }
+
+  &[open]::details-content {
+    height: auto;
+  }
+
+  @include motion.still {
+    &::details-content {
+      transition: none;
+    }
+  }
+
+  > summary {
+    list-style: none;
+    cursor: pointer;
+
+    &::-webkit-details-marker {
+      display: none;
+    }
+
+    &:focus-visible {
+      outline: 2px solid $brand;
+      outline-offset: 2px;
+      border-radius: 4px;
+    }
+  }
+}
+
+/// The disc, on whatever pseudo-element the caller names. The mixin's flex
+/// and relative positioning from `sign-arrow` are left for the caller to
+/// override where it places the disc absolutely.
+@mixin fold-disc {
+  @include chrome.sign-arrow;
+
+  width: 1.5rem;
+  height: 1.5rem;
+  border-radius: 50%;
+  background-color: $disabled;
+  background-size: 50%;
+  box-shadow:
+    inset 0 0 0 2px $disabled,
+    inset 0 0 0 3px $ink-light;
+  transform: rotate(map.get(chrome.$sign-arrow-bearings, "s"));
+  transition:
+    transform 0.4s cubic-bezier(0.4, 0, 0.2, 1),
+    background-color 0.15s ease,
+    box-shadow 0.15s ease;
+}
+
+/// The disc under the summary's hover: the field takes the link color.
+@mixin fold-disc-hover {
+  background-color: $brand;
+  box-shadow:
+    inset 0 0 0 2px $brand,
+    inset 0 0 0 3px $ink-light;
+}
+
+/// North is 270deg in the bearing map; -90deg is the same heading and turns
+/// the arrow back through east rather than the long way round.
+@mixin fold-disc-open {
+  transform: rotate(-90deg);
+}

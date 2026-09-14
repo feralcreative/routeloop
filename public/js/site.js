@@ -336,6 +336,29 @@
   openNotedRelease();
   window.addEventListener("hashchange", openNotedRelease);
 
+  // --- Folded cards remember the fold ---------------------------------------
+  //
+  // `<details data-fold="name">` (#339): closing one writes
+  // `routeloop.fold.<name>` and opening it again clears the key, so absence
+  // means open and a new rider never has a write made on their behalf.
+  // FOLD_RESTORE in layout.tsx reads it back at the end of the body. Capture,
+  // because `toggle` does not bubble.
+  document.addEventListener(
+    "toggle",
+    (e) => {
+      const fold = e.target;
+      if (!(fold instanceof HTMLDetailsElement) || !fold.dataset.fold) return;
+      const key = "routeloop.fold." + fold.dataset.fold;
+      try {
+        if (fold.open) localStorage.removeItem(key);
+        else localStorage.setItem(key, "closed");
+      } catch (_) {
+        // Private mode or a full store: the fold still works, it just does not stick.
+      }
+    },
+    true,
+  );
+
   // --- Release notes: an opened entry scrolls to its own top ----------------
   //
   // Ziad's call, 2026-09-13: opening a card thirty entries down puts its
