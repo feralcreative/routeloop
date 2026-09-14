@@ -116,6 +116,9 @@
           return (
             '<section class="place-group">' +
             head +
+            // The column headings, on the rows' own grid. `aria-hidden` because
+            // every control in a row already names itself.
+            '<div class="place-cols" aria-hidden="true"><span>Name</span><span>Group</span><span>Address</span><span></span></div>' +
             '<ul class="place-list">' +
             sec.places.map((pl) => placeRow(pl, gid)).join("") +
             "</ul></section>"
