@@ -1,4 +1,9 @@
+@use "sass:map";
 @use "tokens" as *;
+@use "motion";
+// For `sign-arrow` on the fold's disc — the `_account.scss` arrangement, so the
+// arrow stays one drawing.
+@use "chrome";
 
 // The app's first modal primitive. Built generic because the Places category
 // editor will reuse it.
@@ -334,8 +339,52 @@ body.modal-open {
 // twenty separate segments.
 .rn-release {
   position: relative;
-  padding: 0 0 1.5rem 1.3rem;
+  padding: 0 0 1.2rem 1.3rem;
+  // Where an opened entry lands when site.js scrolls to it: a little air
+  // above the card, in the dialog and on the page alike.
+  scroll-margin-top: 1rem;
   border-left: 2px solid $neutral-94;
+
+  // EACH ENTRY IS A CARD (#325). Ziad's call, 2026-09-13: folded to a title
+  // and an eyebrow, thirty-five entries down a rail read as one column of
+  // text with nothing saying where one ends. A faint container per entry —
+  // hairline, soft corner, its own surface — does. $white is the page's own
+  // surface and follows the scheme, so the card stays a card under a dark
+  // palette; the hairline is what separates it from the standalone page's
+  // $neutral-96 ground, the same reason .rn-note carries one.
+  .rn-fold {
+    padding: 1.2rem 1.5rem;
+    border: 1px solid $neutral-88;
+    border-radius: 10px;
+    background: $white;
+
+    // EASED OPEN AND SHUT (#325). Ziad's call, 2026-09-13: a <details> snaps.
+    // `::details-content` is the part that appears, and with
+    // `interpolate-size: allow-keywords` its height can run from 0 to auto
+    // over a transition; `content-visibility` rides along as a discrete
+    // transition so the closing content stays painted while it shrinks. A
+    // browser without either simply snaps, as it always did. Off for a rider
+    // who asked for no motion.
+    interpolate-size: allow-keywords;
+
+    &::details-content {
+      height: 0;
+      overflow: hidden;
+      transition:
+        height 0.4s cubic-bezier(0.4, 0, 0.2, 1),
+        content-visibility 0.4s allow-discrete;
+    }
+
+    &[open]::details-content {
+      height: auto;
+    }
+
+    @include motion.still {
+      &::details-content {
+        transition: none;
+      }
+    }
+  }
 
   // The mark. box-sizing is declared because this stylesheet inherits no global
   // border-box reset — see AGENTS.md — and a fixed-size box that forgets renders
@@ -346,15 +395,21 @@ body.modal-open {
   // $neutral-96 on the standalone page. It would be right on one and a halo on
   // the other — the same trap .rn-note fell into. The dot is four steps darker
   // than the rail instead, which separates them on any background.
-  &::before {
+  // ON THE TITLE, NOT THE SECTION. The dot sat at the section's top until
+  // the date became an eyebrow above the title (#325), which left it beside
+  // the eyebrow; it hangs off the h3 now so it marks the title whether or not
+  // there is an eyebrow over it. `left` walks back across the section's
+  // 1.3rem padding and the card's 1.5rem to the rail: -6px against a 2px rail centers a 10px dot on
+  // it, since the padding box starts after the border, so the dot spans -4px
+  // to 6px and the rail spans 0 to 2px, both centered on 1px. `top` centers it
+  // on the first line of the title.
+  h3::before {
     content: "";
     box-sizing: border-box;
     position: absolute;
-    // -6px against a 2px rail centers a 10px dot on it: the padding box starts
-    // after the border, so the dot spans -4px to 6px and the rail spans 0 to
-    // 2px. Both center on 1px.
-    left: -6px;
-    top: 0.3rem;
+    // The card's 1.5rem padding and 1px border, then the section's 1.3rem.
+    left: calc(-1.3rem - 1.5rem - 1px - 6px);
+    top: calc(0.65em - 5px);
     width: 10px;
     height: 10px;
     border-radius: 50%;
@@ -363,7 +418,7 @@ body.modal-open {
 
   // The newest release is the one nearly everyone opened this to read, so it is
   // the only mark carrying the brand color. Everything below it is history.
-  &:first-of-type::before {
+  &:first-of-type h3::before {
     background: $interstate;
   }
 
@@ -371,12 +426,126 @@ body.modal-open {
     padding-bottom: 0;
   }
 
-  h3 {
-    margin: 0 0 0.6rem;
-    color: $text;
-    font-size: 1.02rem;
-    line-height: 1.3;
+  // THE DATE IS AN EYEBROW OVER THE TITLE (#325). Ziad's call, 2026-09-13:
+  // the file writes "date — title" in one heading, because the heading is the
+  // announcement id, and latest.ts splits it at render — see splitHeadings().
+  // The eyebrow carries the date and the build stamp; the heading is the
+  // title alone, and on a day with no title it is the date.
+  .rn-date {
+    margin: 0 0 0.15rem;
+    color: $neutral-50;
+    font-size: 0.72rem;
+    font-weight: 600;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+  }
 
+  h3 {
+    position: relative;
+    margin: 0 0 0.7rem;
+    color: $text;
+    // Up from 1.02rem when the date left it for the eyebrow — Ziad's call,
+    // 2026-09-13 — so the title reads as the heading it is now.
+    font-size: 1.3rem;
+    line-height: 1.3;
+  }
+
+  // THE ACCORDION (#325). Every entry but the newest is a <details> whose
+  // summary is the title; they share a `name`, so the browser keeps one open.
+  // The summary's own marker is dropped — the timeline dot already marks the
+  // title — and a disc after the title says it folds. The title inside a
+  // summary is display: inline by the UA sheet, so it is put back to block
+  // and keeps the dot.
+  //
+  // THE DISC CARRIES THE SIGN ARROW, NOT A CHEVRON. Ziad's call, 2026-09-13:
+  // the border-drawn caret every other <details> here uses read as a stray
+  // bracket beside a 1.3rem title. The app's own arrow on a small $disabled
+  // disc is the same mark as the buttons and the Read more sign, pointing
+  // south for "opens down" and turning to north when open. $disabled and not
+  // $brand for the reason the Route | Ride pill records — $brand is a link
+  // color the dark scheme lifts, and the baked white in `sign-arrow`'s data
+  // URI needs a WHITE_LEGEND field under it. The mixin's flex and relative
+  // positioning are overridden because this one is absolutely placed off the
+  // title's right edge.
+  //
+  // A SIGN CARRIES THE INSET KEYLINE, ALWAYS. Ziad's call, 2026-09-13, and
+  // it is the rule rather than a preference for this disc: the two stacked
+  // inset shadows are what make a field read as signage rather than as a
+  // colored blob, on `.btn`, the kind badges and the Read more sign alike.
+  // The `.notif-more` widths, 2px/3px, because at 1.5rem the button's own
+  // 3px/5px is most of the disc.
+  .rn-fold {
+    > summary {
+      list-style: none;
+      cursor: pointer;
+
+      &::-webkit-details-marker {
+        display: none;
+      }
+
+      // No margin under the title in either state: the gap to the first item
+      // belongs to the content, so it shrinks with the fold instead of
+      // snapping away the moment it starts to close.
+      h3 {
+        display: block;
+        margin-bottom: 0;
+        padding-right: 2.2rem;
+
+        &::after {
+          @include chrome.sign-arrow;
+
+          position: absolute;
+          right: 0;
+          // Centered on the first line of the title: line-height 1.3 puts
+          // that line's middle at 0.65em, and the disc is 1.5rem tall.
+          top: calc(0.65em - 0.75rem);
+          width: 1.5rem;
+          height: 1.5rem;
+          border-radius: 50%;
+          background-color: $disabled;
+          background-size: 50%;
+          box-shadow:
+            inset 0 0 0 2px $disabled,
+            inset 0 0 0 3px $ink-light;
+          transform: rotate(map.get(chrome.$sign-arrow-bearings, "s"));
+          transition:
+            transform 0.4s cubic-bezier(0.4, 0, 0.2, 1),
+            background-color 0.15s ease,
+            box-shadow 0.15s ease;
+        }
+      }
+
+      &:hover h3 {
+        color: $brand;
+
+        &::after {
+          background-color: $brand;
+          box-shadow:
+            inset 0 0 0 2px $brand,
+            inset 0 0 0 3px $ink-light;
+        }
+      }
+
+      &:focus-visible {
+        outline: 2px solid $brand;
+        outline-offset: 2px;
+        border-radius: 4px;
+      }
+    }
+
+    // North is 270deg in the bearing map; -90deg is the same heading and
+    // turns the arrow back through east rather than the long way round.
+    &[open] > summary h3::after {
+      transform: rotate(-90deg);
+    }
+
+    .rn-items {
+      margin-top: 0.7rem;
+    }
+  }
+
+  h3,
+  .rn-date {
     // The build stamp, demoted to a reference. It USED to lead the heading and
     // that was the wrong way round: a rider scans this list by date and reaches
     // for the version only when filing a report, so the date is the headline
@@ -397,6 +566,8 @@ body.modal-open {
       font-variant-numeric: tabular-nums;
       white-space: nowrap;
       vertical-align: 0.15em;
+      // The eyebrow is uppercase; a commit hash is not.
+      text-transform: none;
     }
   }
 
@@ -429,6 +600,89 @@ body.modal-open {
     &:last-child {
       margin-bottom: 0;
     }
+  }
+
+  // EVERY ITEM IS A KIND, A SENTENCE, AND BULLETS (#325). Ziad's call,
+  // 2026-09-13: the notes were paragraphs nobody read through. The list of
+  // items carries no marker — the badge is the marker — and each item is the
+  // badge and the sentence on one line, with the detail bullets under it in
+  // the ordinary list style, a shade quieter and a size smaller so the
+  // sentence is what a skim lands on.
+  .rn-items {
+    padding-left: 0;
+    list-style: none;
+  }
+
+  .rn-item {
+    margin-bottom: 0.85rem;
+    padding-left: 0;
+  }
+
+  .rn-summary {
+    display: inline;
+    margin: 0;
+    color: $text;
+    font-weight: 600;
+  }
+
+  .rn-details {
+    margin-top: 0.3rem;
+    padding-left: 1.15rem;
+    font-size: 0.93em;
+
+    li {
+      margin-bottom: 0.25rem;
+      color: $neutral-43;
+    }
+  }
+
+  // The kind, as a small sign. Four of the road-sign fields, one per kind, so
+  // a column of badges reads as a legend without one: new is the guide-sign
+  // green, fixed the regulatory blue, changed the work-zone orange with its
+  // black legend, removed a neutral. Each field carries the legend the palette
+  // audit clears it for — see BLACK_LEGEND in test/palette-contrast.test.ts.
+  // ONE SIZE FOR ALL FOUR, AND THE SIGN'S INSET KEYLINE. Ziad's call,
+  // 2026-09-13: a column of badges only reads as a column when "New" and
+  // "Changed" are the same box, so the width is fixed to the widest word and
+  // the text is centered; and each carries the white keyline inside its
+  // field, the construction every sign here has, at 1px/2px because at this
+  // scale `.btn`'s 3px/5px would be most of the badge. The field is a custom
+  // property so the keyline's outer ring can restate it per kind without
+  // four copies of the shadow.
+  .rn-kind {
+    --rn-field: #{$interstate};
+    display: inline-block;
+    box-sizing: border-box;
+    width: 6.4em;
+    margin: 0 0.5rem 0 0;
+    // Top-heavy, the way .notif-more and .nav-tour are: Overpass sits high in
+    // its box, so an even pad leaves the legend a pixel or two above center.
+    padding: 0.3em 0.3em 0.05em;
+    border-radius: 4px;
+    font-size: 0.7rem;
+    font-weight: 700;
+    letter-spacing: 0.04em;
+    text-align: center;
+    text-transform: uppercase;
+    vertical-align: 0.15em;
+    color: $ink-light;
+    background: var(--rn-field);
+    box-shadow:
+      inset 0 0 0 1px var(--rn-field),
+      inset 0 0 0 2px $ink-light;
+  }
+
+  .rn-item[data-kind="fixed"] .rn-kind {
+    --rn-field: #{$disabled};
+  }
+
+  .rn-item[data-kind="changed"] .rn-kind {
+    --rn-field: #{$detour};
+    color: $black;
+  }
+
+  .rn-item[data-kind="removed"] .rn-kind {
+    --rn-field: #{$neutral-50};
   }
 }
 

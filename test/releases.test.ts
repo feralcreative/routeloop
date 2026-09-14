@@ -11,7 +11,7 @@ import { describe, expect, it } from 'vitest'
 import { readFileSync } from 'node:fs'
 import { allReleases, latestRelease, releaseDate, releaseId, withAnchors } from '../src/releases/latest'
 import { content } from '../src/views/content'
-import { NOTES_FILE } from '../src/notifications/announce'
+import { NOTES_FILE, releaseDay } from '../src/notifications/announce'
 
 const wrap = (body: string) => `<h1>What's new</h1>\n${body}`
 
@@ -258,5 +258,24 @@ describe('the id that stops it being announced twice', () => {
 
   it('is bounded, so it fits the column that stores it', () => {
     expect(releaseId('x'.repeat(400)).length).toBeLessThanOrEqual(120)
+  })
+})
+
+describe('releaseDay', () => {
+  // What pairs a renamed heading's rows with the live release on the same day,
+  // so a retitle keeps every rider's read state rather than rewriting the row.
+  it('reads the day off an id in either shape the file has used', () => {
+    expect(releaseDay('13-september-2026-one-account-page')).toBe('13-september-2026')
+    expect(releaseDay('9-september-2026-staging-on-live-data')).toBe('9-september-2026')
+    expect(releaseDay('before-all-that-july-2026')).toBe('july-2026')
+    expect(releaseDay('july-2026-where-it-started')).toBe('july-2026')
+  })
+
+  it('does not confuse a dated July entry with the July catch-all', () => {
+    expect(releaseDay('31-july-2026-start-and-end-times')).toBe('31-july-2026')
+  })
+
+  it('leaves an id with no readable day as itself, so it pairs with nothing', () => {
+    expect(releaseDay('nothing-here')).toBe('nothing-here')
   })
 })

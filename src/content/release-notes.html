@@ -32,14 +32,32 @@
       <h3>24 August 2026 <code>2026-08-24-0912PT</code>
         <a class="rn-sha" href="https://github.com/feralcreative/routeloop/commit/FULL"><code>abc1234</code></a>
       </h3>
-      <ul>
-        <li>One sentence per change, in a rider's words.</li>
+      <ul class="rn-items">
+        <li class="rn-item" data-kind="new">
+          <span class="rn-kind">New</span>
+          <p class="rn-summary">One sentence, in a rider's words, saying what changed.</p>
+          <ul class="rn-details">
+            <li>A bullet per detail worth knowing; none is fine.</li>
+          </ul>
+        </li>
       </ul>
     </section>
 
-  EVERYTHING BELOW IS BACKFILLED, and headed by DAY rather than by version. None
-  of it was ever a stamped deploy — the version scheme did not exist yet, and
-  neither did the beta. It was read back out of the commit log so a tester can
+  EVERY ITEM IS A KIND, A SENTENCE, AND BULLETS (#325). The kind is one of
+  new, fixed, changed, removed — on `data-kind`, which paints the badge, and
+  spelled out in the span for a reader with no stylesheet. The sentence is the
+  whole item for somebody skimming, and it is what a notification quotes (see
+  src/releases/latest.ts), so it has to stand alone. The bullets are for the
+  rider who wants the detail; a paragraph there is what this shape replaced.
+  ONE SECTION PER DAY: a second release on a day that already has one adds
+  its items to that section and widens the heading.
+
+  EVERYTHING BELOW IS BACKFILLED, and headed by DAY. None of it was a stamped
+  deploy — the version scheme did not exist yet, and neither did the beta — so
+  the stamps and commits on those entries were RECONSTRUCTED on 2026-09-13 from
+  the commit log: each is the last commit on main authored on that day, in the
+  stamp's own format, which is close rather than exact and is there so every
+  entry reads the same. It was read back out of the commit log so a tester can
   see how the app got here, and so the answer to "when did that change?" is
   written down somewhere other than git. Days that shipped nothing a rider could
   see are not listed; there were a lot of them, and a list of internal
@@ -64,1182 +82,1820 @@
      same thing in its own heading, and this note is not said anywhere else. It
      belongs on both surfaces, so it needs to survive that rule. -->
 <p class="rn-note">
-  The older entries are headed by date rather than by build. They predate the version stamp — and the alpha — and were
-  read back out of the commit log, so you can see how the app got to you.
+  Every entry carries a build stamp and a commit. The ones from before the version scheme existed were read back out
+  of the commit log — the stamp is the last commit of that day — so you can see how the app got to you.
 </p>
 
 <section class="rn-release">
-  <h3>13 September 2026 &mdash; My Account, calling things what you call them, and a drawer you size yourself</h3>
-  <ul>
-    <li>
-      <strong>Drag the builder&rsquo;s panel to the width you want.</strong> The collapse arrow is gone on a desktop;
-      the panel&rsquo;s right edge is a handle instead. Pull it narrower than 360 pixels and it folds into the thin
-      rail; pull the rail back out and it pops to 360 and goes on up to three quarters of the screen. A click on the
-      edge folds or unfolds it, the arrow keys nudge it, and the width you leave it at is the width you get next time,
-      on that browser. On a phone the sheet works as it did.
+  <h3>13 September 2026 &mdash; one account page, your own vocabulary, and a drawer you can resize <code>2026-09-13-1641PT</code>
+    <a class="rn-sha" href="https://github.com/feralcreative/routeloop/commit/6f37a57c00d0e525bb77c078d1fc41b84d279670"><code>6f37a57</code></a>
+  </h3>
+  <ul class="rn-items">
+    <li class="rn-item" data-kind="new">
+      <span class="rn-kind">New</span>
+      <p class="rn-summary">Drag the builder&rsquo;s panel to the width you want.</p>
+      <ul class="rn-details">
+        <li>The collapse arrow is gone on a desktop; the panel&rsquo;s right edge is a handle instead.</li>
+        <li>Pull it narrower than 360 pixels and it folds into the thin rail; pull the rail back out and it pops to 360 and goes on up to three quarters of the screen.</li>
+        <li>A click on the edge folds or unfolds it, the arrow keys nudge it, and the width you leave it at is the width you get next time, on that browser. On a phone the sheet works as it did.</li>
+      </ul>
     </li>
-    <li>
-      <strong>One place for everything about you.</strong> Profile and Preferences were two menu items; they are one,
-      My Account, opening a page with four tabs &mdash; Preferences, Profile, Places, Paddock. Your saved places and
-      your bikes each have a tab of their own now instead of sitting at the foot of the profile form, and an empty
-      paddock shows you a blank bike to fill in rather than telling you there are none. The old settings link still
-      works and lands here.
+    <li class="rn-item" data-kind="new">
+      <span class="rn-kind">New</span>
+      <p class="rn-summary">One place for everything about you.</p>
+      <ul class="rn-details">
+        <li>Profile and Preferences were two menu items; they are one, My Account, opening a page with four tabs &mdash; Preferences, Profile, Places, Paddock.</li>
+        <li>Your saved places and your bikes each have a tab of their own now instead of sitting at the foot of the profile form, and an empty paddock shows you a blank bike to fill in rather than telling you there are none.</li>
+        <li>The old settings link still works and lands here.</li>
+      </ul>
     </li>
-    <li>
-      <strong>Routeloop is not only for motorcycles, and the words no longer assume it is.</strong> On the Preferences
-      tab, under Vocabulary, pick what you are on (motorcycle, car, bicycle) and what it runs on (gas,
-      electric, pedal), and every page uses the words that fit &mdash; trip and driver for a car, charge and battery
-      for anything electric. Under each preset is a table of fourteen terms, each with the words the presets use and a
-      box for your own; type in the box and it is picked. A slash gives a word its plural, like
-      <code>person/people</code>. A word you set here is yours everywhere.
+    <li class="rn-item" data-kind="new">
+      <span class="rn-kind">New</span>
+      <p class="rn-summary">Routeloop is not only for motorcycles, and the words no longer assume it is.</p>
+      <ul class="rn-details">
+        <li>On the Preferences tab, under Vocabulary, pick what you are on (motorcycle, car, bicycle) and what it runs on (gas, electric, pedal), and every page uses the words that fit &mdash; trip and driver for a car, charge and battery for anything electric.</li>
+        <li>Under each preset is a table of fourteen terms, each with the words the presets use and a box for your own; type in the box and it is picked.</li>
+        <li>A slash gives a word its plural, like <code>person/people</code>.</li>
+        <li>A word you set here is yours everywhere.</li>
+      </ul>
     </li>
-    <li>
-      <strong>A ride can be for a different vehicle than your default.</strong> Two new selects beside Visibility in
-      the builder say what this ride is for, and the builder, the viewer, the roster, the roadbook and the tips all
-      follow it. A ride powered by pedaling has no fuel to plan around, so the range ring, the empty markers and the
-      Range button stay away on it.
+    <li class="rn-item" data-kind="new">
+      <span class="rn-kind">New</span>
+      <p class="rn-summary">A ride can be for a different vehicle than your default.</p>
+      <ul class="rn-details">
+        <li>Two new selects beside Visibility in the builder say what this ride is for, and the builder, the viewer, the roster, the roadbook and the tips all follow it.</li>
+        <li>A ride powered by pedaling has no fuel to plan around, so the range ring, the empty markers and the Range button stay away on it.</li>
+      </ul>
     </li>
-    <li>
-      <strong>Emails use your words too.</strong> A note about a comment, a suggestion, a new follower or a ride you
-      were added to reads in the words you picked, not the words the person who triggered it picked.
-    </li>
-  </ul>
-</section>
-
-<section class="rn-release">
-  <h3>11 September 2026 &mdash; the real tour: a coast run with three friends, planned in front of you</h3>
-  <ul>
-    <li>
-      <strong>The tour is now the whole app, in five parts.</strong> It plans one ride from start to finish while
-      you watch &mdash; Oakland to Santa Cruz by Alice&rsquo;s and Pescadero &mdash; and the only buttons are Next,
-      Back and Skip. A cursor types the name, the points land and the road draws, the road is dragged inland through
-      Big Basin, lunch gets a category and a time, a start time lands and the slider runs the day through, a second
-      group sets off from San Jose, the roster fills, a tank runs dry in the redwoods and a gas stop fixes it, the
-      builder proposes where the two groups should meet and takes its answer, and one rider turns for home over 84.
-      It ends on the page you would share. About thirty cards, any part skippable.
-    </li>
-    <li>
-      <strong>Three riders exist for it.</strong> Sam, Priya and Diego are on every tour ride with real bikes and
-      real ranges, so the roster, the fuel ring and the split have somebody to be about. They are nowhere else: not
-      on the riders page, not friendable, never mailed.
-    </li>
-    <li>
-      <strong>The ride it builds is real, and it goes in the bin when you finish.</strong> It was the tour&rsquo;s,
-      not yours. Nothing is added to your paddock and nothing is routed live &mdash; the demo was planned once and is
-      replayed, so it is the same every time and costs nothing to run.
-    </li>
-    <li>
-      <strong>It follows you across pages.</strong> The roster on the ride&rsquo;s own page, the paddock on your
-      profile, the riders page, and the shared view of the ride are each visited when the story gets there.
-    </li>
-    <li>
-      <strong>A small <em>Take the tour</em> sign sits beside your name in the header</strong>, on the builder too.
-      If you have seen enough of it, <em>Show me around</em> in Preferences has a checkbox that takes it away;
-      <em>Take the tour</em> under the menu stays either way.
-    </li>
-    <li>
-      <strong>Fixed:</strong> a route&rsquo;s Starts and Ends fields opened blank on a dated ride until you touched
-      something; the times were there the whole time.
+    <li class="rn-item" data-kind="new">
+      <span class="rn-kind">New</span>
+      <p class="rn-summary">Emails use your words too.</p>
+      <ul class="rn-details">
+        <li>A note about a comment, a suggestion, a new follower or a ride you were added to reads in the words you picked, not the words the person who triggered it picked.</li>
+      </ul>
     </li>
   </ul>
 </section>
 
 <section class="rn-release">
-  <h3>10 September 2026 &mdash; a guided tour, controls that explain themselves, and the unread dot <code>2026-09-10-2045PT</code>
+  <h3>11 September 2026 &mdash; the full guided tour <code>2026-09-11-2203PT</code>
+    <a class="rn-sha" href="https://github.com/feralcreative/routeloop/commit/f3a786fdf1af0a89144ec0a06b647315bad7445d"><code>f3a786f</code></a>
+  </h3>
+  <ul class="rn-items">
+    <li class="rn-item" data-kind="changed">
+      <span class="rn-kind">Changed</span>
+      <p class="rn-summary">The tour is now the whole app, in five parts.</p>
+      <ul class="rn-details">
+        <li>It plans one ride from start to finish while you watch &mdash; Oakland to Santa Cruz by Alice&rsquo;s and Pescadero &mdash; and the only buttons are Next, Back and Skip.</li>
+        <li>A cursor types the name, the points land and the road draws, the road is dragged inland through Big Basin, lunch gets a category and a time, a start time lands and the slider runs the day through, a second group sets off from San Jose, the roster fills, a tank runs dry in the redwoods and a gas stop fixes it, the builder proposes where the two groups should meet and takes its answer, and one rider turns for home over 84. It ends on the page you would share. About thirty cards, any part skippable.</li>
+      </ul>
+    </li>
+    <li class="rn-item" data-kind="new">
+      <span class="rn-kind">New</span>
+      <p class="rn-summary">Three riders exist for it.</p>
+      <ul class="rn-details">
+        <li>Sam, Priya and Diego are on every tour ride with real bikes and real ranges, so the roster, the fuel ring and the split have somebody to be about.</li>
+        <li>They are nowhere else: not on the riders page, not friendable, never mailed.</li>
+      </ul>
+    </li>
+    <li class="rn-item" data-kind="new">
+      <span class="rn-kind">New</span>
+      <p class="rn-summary">The ride it builds is real, and it goes in the bin when you finish.</p>
+      <ul class="rn-details">
+        <li>It was the tour&rsquo;s, not yours.</li>
+        <li>Nothing is added to your paddock and nothing is routed live &mdash; the demo was planned once and is replayed, so it is the same every time and costs nothing to run.</li>
+      </ul>
+    </li>
+    <li class="rn-item" data-kind="new">
+      <span class="rn-kind">New</span>
+      <p class="rn-summary">It follows you across pages.</p>
+      <ul class="rn-details">
+        <li>The roster on the ride&rsquo;s own page, the paddock on your profile, the riders page, and the shared view of the ride are each visited when the story gets there.</li>
+      </ul>
+    </li>
+    <li class="rn-item" data-kind="new">
+      <span class="rn-kind">New</span>
+      <p class="rn-summary">A small <em>Take the tour</em> sign sits beside your name in the header, on the builder too.</p>
+      <ul class="rn-details">
+        <li>If you have seen enough of it, <em>Show me around</em> in Preferences has a checkbox that takes it away; <em>Take the tour</em> under the menu stays either way.</li>
+      </ul>
+    </li>
+    <li class="rn-item" data-kind="fixed">
+      <span class="rn-kind">Fixed</span>
+      <p class="rn-summary">A route&rsquo;s Starts and Ends fields opened blank on a dated ride until you touched something; the times were there the whole time.</p>
+    </li>
+  </ul>
+</section>
+
+<section class="rn-release">
+  <h3>10 September 2026 &mdash; a builder tour, tooltips, and the unread dot <code>2026-09-10-2045PT</code>
     <a class="rn-sha" href="https://github.com/feralcreative/routeloop/commit/d9d16d9126eb5cc83a95ef1105b0c4b3669359bf"><code>d9d16d9</code></a>
   </h3>
-  <ul>
-    <li>
-      <strong>The first time you open the builder, it shows you around.</strong> Three short parts, each pointing at
-      the thing it is talking about &mdash; the route, the clock, and the people. Name the ride, add a point, add a
-      second and watch the road draw; give it a start time and meet the slider along the bottom of the map; then
-      groups, who rides which route, and where to meet. Take the parts in any order or skip any of them, and it will
-      not come back on its own &mdash; <em>Take the tour</em> under the menu brings it back whenever you like.
+  <ul class="rn-items">
+    <li class="rn-item" data-kind="new">
+      <span class="rn-kind">New</span>
+      <p class="rn-summary">The first time you open the builder, it shows you around.</p>
+      <ul class="rn-details">
+        <li>Three short parts, each pointing at the thing it is talking about &mdash; the route, the clock, and the people.</li>
+        <li>Name the ride, add a point, add a second and watch the road draw; give it a start time and meet the slider along the bottom of the map; then groups, who rides which route, and where to meet.</li>
+        <li>Take the parts in any order or skip any of them, and it will not come back on its own &mdash; <em>Take the tour</em> under the menu brings it back whenever you like.</li>
+      </ul>
     </li>
-    <li>
-      <strong>Point at almost anything and it tells you what it is for.</strong> Every button, field and grip in the
-      builder, the download row and the buttons on a ride page, the tabs on your dashboard, the footer: a headline and
-      a sentence on why you would touch it, faster than the old tooltip. The reverse arrow says the road back is not
-      always the road out. The bed-time field says what the band across your route list means.
+    <li class="rn-item" data-kind="new">
+      <span class="rn-kind">New</span>
+      <p class="rn-summary">Point at almost anything and it tells you what it is for.</p>
+      <ul class="rn-details">
+        <li>Every button, field and grip in the builder, the download row and the buttons on a ride page, the tabs on your dashboard, the footer: a headline and a sentence on why you would touch it, faster than the old tooltip.</li>
+        <li>The reverse arrow says the road back is not always the road out.</li>
+        <li>The bed-time field says what the band across your route list means.</li>
+      </ul>
     </li>
-    <li>
-      <strong>Both are on to start with, and neither turns itself off.</strong> Preferences has a new
-      <em>Show me around</em> section at the top with the tour button and the switch for the tips. Say no to the tips
-      and you get the short labels back exactly as they were, on every device you sign in on.
+    <li class="rn-item" data-kind="new">
+      <span class="rn-kind">New</span>
+      <p class="rn-summary">Both are on to start with, and neither turns itself off.</p>
+      <ul class="rn-details">
+        <li>Preferences has a new <em>Show me around</em> section at the top with the tour button and the switch for the tips.</li>
+        <li>Say no to the tips and you get the short labels back exactly as they were, on every device you sign in on.</li>
+      </ul>
     </li>
-  
-
-    <li>
-      <strong>A ride you moved to the bin no longer sits on your dashboard.</strong> If somebody else put you on a ride
-      and then deleted it, the card stayed under &ldquo;riding with&rdquo; and opening it answered <em>not found</em>.
-      It was the one list in the app that did not check the bin, so the only thing you could do about it was ignore it.
-      That card is&nbsp;gone.
+    <li class="rn-item" data-kind="fixed">
+      <span class="rn-kind">Fixed</span>
+      <p class="rn-summary">A ride you moved to the bin no longer sits on your dashboard.</p>
+      <ul class="rn-details">
+        <li>If somebody else put you on a ride and then deleted it, the card stayed under &ldquo;riding with&rdquo; and opening it answered <em>not found</em>.</li>
+        <li>It was the one list in the app that did not check the bin, so the only thing you could do about it was ignore it. That card is&nbsp;gone.</li>
+      </ul>
     </li>
-    <li>
-      <strong>The unread dot now shows on the map.</strong> The red count on your account chip is the way to your
-      notifications, and on the builder and the ride viewer that chip lives inside the menu &mdash; so nothing on
-      screen told you anything had happened and you had to open the menu on the off chance. There is a small red dot on
-      the menu button itself now, wherever the chip is tucked away, including on a phone. It says something is in
-      there rather than how&nbsp;many.
+    <li class="rn-item" data-kind="fixed">
+      <span class="rn-kind">Fixed</span>
+      <p class="rn-summary">The unread dot now shows on the map.</p>
+      <ul class="rn-details">
+        <li>The red count on your account chip is the way to your notifications, and on the builder and the ride viewer that chip lives inside the menu &mdash; so nothing on screen told you anything had happened and you had to open the menu on the off chance.</li>
+        <li>There is a small red dot on the menu button itself now, wherever the chip is tucked away, including on a phone.</li>
+        <li>It says something is in there rather than how&nbsp;many.</li>
+      </ul>
     </li>
-    <li>
-      <strong>A wrong link now lands on a page instead of a line of text.</strong> A mistyped address, or a shared ride
-      that has since been deleted or made private, used to answer with the words <em>Not found</em> on a blank page and
-      no way onward. It is a proper page now, and it keeps the menu so you can get back to what you were&nbsp;doing.
+    <li class="rn-item" data-kind="fixed">
+      <span class="rn-kind">Fixed</span>
+      <p class="rn-summary">A wrong link now lands on a page instead of a line of text.</p>
+      <ul class="rn-details">
+        <li>A mistyped address, or a shared ride that has since been deleted or made private, used to answer with the words <em>Not found</em> on a blank page and no way onward.</li>
+        <li>It is a proper page now, and it keeps the menu so you can get back to what you were&nbsp;doing.</li>
+      </ul>
     </li>
-    <li>
-      <strong>The blue on a route where riders join or leave is readable again.</strong> It was set in a blue borrowed
-      from another app&rsquo;s logo, which was too pale to read as text and could not be darkened by the
-      high-contrast theme &mdash; the one setting that exists to fix exactly&nbsp;that.
-    </li>
-  
-  </ul>
-</section>
-
-<section class="rn-release">
-  <h3>9 September 2026 &mdash; staging on the live database, a color per notification, and what&rsquo;s new comes to you</h3>
-  <ul>
-    <li>
-      <strong>Staging is not a sandbox any more.</strong> It used to hold its own throwaway rides, which meant nothing
-      was ever tried against real ones until it was already live. It now reads and writes the same rides, the same
-      riders and the same uploads as the real&nbsp;site.
-    </li>
-    <li>
-      <strong>So anything you delete on staging is really deleted.</strong> Bin a ride there and it is a rider&rsquo;s
-      ride; empty the bin and it is gone for good. The amber banner says so on every page now &mdash; it used to
-      promise the opposite, that everything there gets wiped, and that is no longer&nbsp;true.
-    </li>
-    <li>
-      <strong>Staging will never email anybody.</strong> Testing a notification there cannot reach a real rider. The
-      side effect is that the sign-in link does not arrive on staging either, so use <em>Sign in with Google</em>
-      to&nbsp;get&nbsp;in.
-    </li>
-    <li>
-      <strong>Staging is a button now, like the real site.</strong> It no longer deploys itself every time something
-      merges, because that would put new code in front of real data with nobody deciding&nbsp;to.
-    </li>
-  
-
-    <li>
-      <strong>Notifications are color-coded by what they are.</strong> A comment is gray, a suggestion yellow, a
-      settled vote green, someone joining a ride blue, a friend request brown, a report you filed red, and a release
-      the guide-sign green. They were all the same blue before, so the little picture was doing all the work and the
-      color none of&nbsp;it.
-    </li>
-    <li>
-      <strong>Storage still speaks twice.</strong> Nearly out of room is amber, and something about to be destroyed is
-      red &mdash; the one mark that wears two colors, because those are advice and a verdict and should not look the
-      same.
-    </li>
-    <li>
-      <strong>A notification you can open now says so.</strong> Rows that lead somewhere carry a small green
-      <em>Read more</em> sign at the end of the line. Rows with nowhere to go do not, so you can tell at a glance which
-      is&nbsp;which.
-    </li>
-    <li>
-      <strong>The unread count is round.</strong> It was half a pixel taller than it was wide, the number inside it sat
-      high, and in the menu the dot hung low and too close to the word. All measured and all&nbsp;fixed.
-    </li>
-  
-
-    <li>
-      <strong>Release notes now arrive as a notification.</strong> When a build ships, it turns up in your
-      notifications alongside everything else, newest first &mdash; so you find out what changed without going to look
-      for&nbsp;it.
-    </li>
-    <li>
-      <strong>Every release is in there, not just the new ones.</strong> The whole history back to July is in your
-      notifications, dated when it actually shipped, already marked read so nothing is shouting at you. Each one links
-      to its own entry on this page, which still has the full&nbsp;text.
-    </li>
-    <li>
-      <strong>The red count on your name is the nudge.</strong> It sits on your name in the header, and again on
-      <em>Notifications</em> in that menu so you know where you are going. On the route builder and the map the header
-      collapses to the &#9776; menu, so the count is inside there rather than on screen &mdash; those two had no way to
-      reach the release notes at all since the feedback button&nbsp;went.
-    </li>
-    <li>
-      <strong>No email unless you ask for one.</strong> Routeloop ships several times a day, so release notes are the
-      one notification that is off on email and off in the browser to start with. If you want them in your inbox,
-      Preferences &rarr; Notifications &rarr; Your account has the&nbsp;switch.
-    </li>
-  
-  </ul>
-</section>
-
-<section class="rn-release">
-  <h3>8 September 2026 &mdash; along-the-route results land where the road passes them, and a new ride stops nagging</h3>
-  <ul>
-    <li>
-      <strong>Along the route hits go in the right place now.</strong> Searching a route for coffee and picking one at
-      mile 40 used to add it after the hotel at mile 300, so the road doubled back on itself and you had to drag the
-      stop up the list. It now lands between the two stops it actually sits&nbsp;between.
-    </li>
-    <li>
-      <strong>Pressing a + between two stops still wins.</strong> If you opened an insert point, that is where the
-      place goes &mdash; you pointed at that stretch of road, and nothing second-guesses&nbsp;it.
-    </li>
-    <li>
-      <strong>Typing a category now searches what the scope says.</strong> With <em>Along the route</em> selected,
-      tapping the Gas chip searched the route while typing &ldquo;gas&rdquo; searched only what was on screen. Both
-      follow the control now. Searching for a place by name is still the visible map, which is what you want when you
-      are typing somewhere&nbsp;specific.
-    </li>
-  
-
-    <li>
-      <strong>Naming a ride no longer brings up a save error.</strong> Start a ride, type its name, and a few seconds
-      later you were told it could not be saved because it had no stop &mdash; which was the thing you had come to add.
-      A ride with nothing on it yet is simply not started, so nothing is attempted and nothing interrupts you. The name
-      goes up with the first stop you&nbsp;drop.
-    </li>
-    <li>
-      <strong>A ride that genuinely cannot save still says so.</strong> If you empty a saved ride of every stop, that
-      is real work not reaching the server, and you still get told &mdash; that message was never the&nbsp;problem.
-    </li>
-    <li>
-      <strong>Dialog headings are readable on the dark themes again.</strong> The heading on the save-error dialog, and
-      on the one for splitting a group off, was black on a near-black card &mdash; there, but impossible to&nbsp;read.
-    </li>
-  
-  </ul>
-</section>
-
-<section class="rn-release">
-  <h3>7 September 2026 &mdash; notifications, one settings page, groups that split off, and everything in your download</h3>
-  <ul>
-    <li>
-      <strong>Notifications.</strong> There is a Notifications page in your account menu now, with a count beside it
-      when something has happened &mdash; somebody commenting on a ride you own, putting you on one, saying whether they
-      are coming, or answering a report you&nbsp;filed.
-    </li>
-    <li>
-      <strong>You choose what reaches you, and where.</strong> Preferences &rarr; Notifications lists everything we
-      might tell you about, with a box for email and a box for your browser. <strong>Email is on to start with and the
-      browser is off.</strong> A browser notification needs Chrome&rsquo;s permission and only appears while you have
-      Routeloop open in a tab, so it is a nudge while you are here rather than a way to be reached when you are&nbsp;not.
-      Signing in and being let in are not on that list and cannot be switched off.
-    </li>
-    <li>
-      <strong>We will warn you before anything is destroyed.</strong> A week before a ride in your bin is deleted for
-      good, a week before an account deletion you asked for goes ahead, and once when your storage is nearly&nbsp;full.
-    </li>
-    <li>
-      <strong>&ldquo;Download everything about you&rdquo; now means it.</strong> The zip was missing your saved places,
-      your friends and follows, the rides you are on but do not own, every comment, suggestion and vote you made, the
-      reports you filed, and your survey answers. All of it is in there. Other people are named by handle and never by
-      email address &mdash; their contact details are theirs to export, not&nbsp;yours.
-    </li>
-    <li>
-      <strong>If you use a dark theme, several things were unreadable and are not any more.</strong> Every button&rsquo;s
-      legend, the KML download badge, and the banner across the top of the page were all rendering near-black on their
-      own color. Worth another look if you had given up on&nbsp;dark.
-    </li>
-    <li>
-      <strong>The corner button is gone.</strong> The shield that floated at the bottom right of every page did the same
-      thing as an account-menu item, so there is one way in now and it is called <strong>Feedback</strong>. The account
-      menu is shorter besides, and pages are wider than they&nbsp;were.
-    </li>
-  
-
-    <li>
-      <strong>Settings and Your profile are two tabs of one page now.</strong> Both were always &ldquo;the things about
-      me I can change&rdquo;, and having them on separate pages meant knowing in advance which one a thing had been
-      filed under. Both links still work and each opens its own&nbsp;tab.
-    </li>
-    <li>
-      <strong>Changing your username works again.</strong> It had been failing outright, and we are sorry &mdash; if you
-      tried in the last day and got an error page, try&nbsp;again.
-    </li>
-    <li>
-      <strong>Twelve- or twenty-four-hour time is its own choice.</strong> It used to come along with your date format,
-      so the only way to get a 24-hour clock was to also read your dates as 24/08/2026. Now it is a setting of its own,
-      and it applies in the planner as well as on the printed&nbsp;roadbook.
-    </li>
-    <li>
-      <strong>Tell us the places you would rather not stop at.</strong> Under <em>Places to avoid</em>, list a brand or
-      a kind of place &mdash; ARCO, Costco Gas, fast food &mdash; and they drop to the bottom of every place search.
-      Nothing is ever hidden: the one time you are out of fuel with one in front of you is exactly the time you need to
-      see&nbsp;it.
-    </li>
-    <li>
-      <strong>Your bikes can carry a tank size, in gallons or liters.</strong> The unit is yours to pick under
-      <em>Fuel volume</em>, and it follows your distance setting unless you say&nbsp;otherwise.
-    </li>
-    <li>
-      <strong>Some counts said &ldquo;routes&rdquo; where they meant days.</strong> The recycle bin said a ride had
-      &ldquo;17 routes left&rdquo; and the account page counted down in routes. They say days,&nbsp;properly.
-    </li>
-  
-
-    <li>
-      <strong>A group can now peel off partway through a ride.</strong> Open the &#8942; menu on any stop and choose
-      <em>Split a group off here</em>. Say who is leaving &mdash; a group that has ridden together before, or a new one
-      &mdash; and where they are headed, and you get their road drawn from that stop to their destination while
-      everyone else carries on as planned. Both groups leave at the moment the last of you&nbsp;arrives.
-    </li>
-    <li>
-      <strong>Pick the same group again and the right people are already ticked.</strong> When a group joins the main
-      pack their name stops applying, but it is not gone &mdash; it survives on the road they rode as it. So when they
-      split off for home, the app offers that group back with whoever rode as it last already selected. Change it if
-      one or two are carrying on with&nbsp;you.
-    </li>
-    <li>
-      <strong>Split the same stop as many times as you need.</strong> Three groups going three ways from one gas
-      station is one pass each. The only thing it will not let you do is leave nobody on the road ahead &mdash; someone
-      has to carry&nbsp;on.
-    </li>
-    <li>
-      <strong>The stop that a group left from says so.</strong> The group’s own road is added at the bottom of the
-      route list, so the stop carries a line naming them and where they went &mdash; press it to jump straight
-      to&nbsp;it.
-    </li>
-    <li>
-      <strong>Notes and reservations are one place now.</strong> The stop menu had two items leading to two different
-      notes boxes with nothing saying which was which. There is one item, and inside it the boxes are labeled for who
-      reads them: notes everyone on the ride can see, and notes only you can see. A note you have written also shows on
-      the stop’s row, so you can read it without&nbsp;opening anything.
-    </li>
-    <li>
-      <strong>The stop menu lost three items it did not need.</strong> Move up and move down are gone &mdash; the grip
-      on the left of each row does it, and you can now focus it and use the arrow keys, which you could not before.
-      &ldquo;Make this a POI&rdquo; is gone from stops that carry a category, because removing the last category
-      already does&nbsp;it.
-    </li>
-  
-  </ul>
-</section>
-
-<section class="rn-release">
-  <h3>6 September 2026 — a day is now a route, and groups get their meeting point sorted out</h3>
-  <ul>
-    <li>
-      <strong>What used to be called a day is now called a route.</strong> Nothing about your rides has changed — the
-      same list, the same order, the same colors. Only the word. Once you plan for more than one group, the first few
-      routes are often fractions of one afternoon rather than days at all: three groups setting off from three towns
-      and meeting up before lunch. Calling those “days” described none of&nbsp;them.
-    </li>
-    <li>
-      <strong>“Day” still means a day.</strong> Dates, start times and the clock on your routes are unchanged — a
-      Saturday is still a Saturday. Release notes below this one still say “day” because that is what they said at the
-      time, and they are a record rather than&nbsp;instructions.
-    </li>
-    <li>
-      <strong>A route can be ridden by several groups, not just one.</strong> The group control on a route is a list of
-      tickboxes now. Once two groups meet up, the road they share says both their names instead of claiming everybody
-      rides it — which was wrong whenever a third group was still on its way. Ticking <strong>Everyone</strong> ticks
-      the lot. Your own group is remembered on the road you rode to get there, so when you peel off for home it can
-      offer to split you back off the same&nbsp;way.
-    </li>
-    <li>
-      <strong>You can say who rides which route.</strong> Each route in the Routes panel now shows how many riders are
-      on it, and tapping that opens a list to tick. Somebody who joins you for the middle of a ride and peels off again
-      is two answers — everyone stays on from where you put them until you say otherwise — and the routes where the
-      group changes read <em>“Dylan joins here”</em> and <em>“Dylan leaves here”</em> instead of a&nbsp;count.
-    </li>
-    <li>
-      <strong>Your roadbook and your files are yours alone now.</strong> Download the roadbook, the Google Maps hand-off
-      or any of the four file formats and you get the routes <em>you</em> ride — not the whole group’s. A friend who
-      joined for one afternoon gets that afternoon. This used to give you your group’s whole run, which was the same
-      answer only when everybody in a group rode exactly the same&nbsp;stretches.
-    </li>
-    <li>
-      <strong>Picking a meeting point now splits the shared stretch off as its own route.</strong> Everybody’s approach
-      stays their own, and the road you ride together from the meeting point becomes one route marked for everyone. Do
-      it twice and you get a staged meet-up — two groups join at the first point and ride on together, and the third
-      catches everyone at the&nbsp;second.
-    </li>
-    <li>
-      <strong>Departure times now move the whole approach.</strong> If a group has a route or two before the one that
-      reaches the meeting point, those shift with it instead of being left&nbsp;behind.
-    </li>
-    <li>
-      <strong>You can say how far a detour is worth it.</strong> There is a miles box beside <strong>Find meeting
-      points</strong> now. Widen it and you will be offered somewhere earlier on the road; tighten it and the suggestion
-      moves closer to where everybody was already&nbsp;going.
-    </li>
-    <li>
-      <strong>Groups show where they start.</strong> Each group in the Groups panel now says which town it sets off
-      from, under its&nbsp;name.
-    </li>
-    <li>
-      <strong>Shaping points snap to the road.</strong> Drag the line onto a different highway and the handle now settles
-      on the road itself rather than wherever your pointer&nbsp;landed.
-    </li>
-    <li>
-      <strong>Meeting-point suggestions sit on top of everything else on the map.</strong> A numbered suggestion could
-      end up behind a gas-station pin, where you could neither see it nor hover&nbsp;it.
-    </li>
-    <li>
-      <strong>Re-check your saved ride files.</strong> The file format moved on to carry the new wording. Anything you
-      exported before today still imports exactly as it did — but if you keep backups, this is a good day to drop one
-      back on the import page and confirm your routes come back the way you left&nbsp;them.
+    <li class="rn-item" data-kind="fixed">
+      <span class="rn-kind">Fixed</span>
+      <p class="rn-summary">The blue on a route where riders join or leave is readable again.</p>
+      <ul class="rn-details">
+        <li>It was set in a blue borrowed from another app&rsquo;s logo, which was too pale to read as text and could not be darkened by the high-contrast theme &mdash; the one setting that exists to fix exactly&nbsp;that.</li>
+      </ul>
     </li>
   </ul>
 </section>
 
 <section class="rn-release">
-  <h3>3 September 2026 &mdash; finding a meeting point, and errors you can actually read</h3>
-  <ul>
-    <li>
-      <strong>Find meeting points now answers the question you actually have.</strong> Plan your main group’s route to
-      the destination — say Oakland to Ensenada — then press <strong>Find meeting points</strong> in the Groups panel.
-      It suggests where the other groups should join that road, and tells you what each one goes out of its way by
-      name. Where a group’s route already passes through the spot, it says so rather than showing a zero.
+  <h3>9 September 2026 &mdash; staging on live data, color-coded notifications, and release notes as notifications <code>2026-09-09-2026PT</code>
+    <a class="rn-sha" href="https://github.com/feralcreative/routeloop/commit/0e6754128d2c4816246da55875c1628540f7ccda"><code>0e67541</code></a>
+  </h3>
+  <ul class="rn-items">
+    <li class="rn-item" data-kind="changed">
+      <span class="rn-kind">Changed</span>
+      <p class="rn-summary">Staging is not a sandbox any more.</p>
+      <ul class="rn-details">
+        <li>It used to hold its own throwaway rides, which meant nothing was ever tried against real ones until it was already live.</li>
+        <li>It now reads and writes the same rides, the same riders and the same uploads as the real&nbsp;site.</li>
+      </ul>
     </li>
-    <li>
-      There is now one button for the whole ride instead of one per group, and the first group you add is the main
-      group. It used to refuse to say anything until a day was marked as ridden by everyone — which is the thing you
-      were trying to work out.
+    <li class="rn-item" data-kind="changed">
+      <span class="rn-kind">Changed</span>
+      <p class="rn-summary">So anything you delete on staging is really deleted.</p>
+      <ul class="rn-details">
+        <li>Bin a ride there and it is a rider&rsquo;s ride; empty the bin and it is gone for good.</li>
+        <li>The amber banner says so on every page now &mdash; it used to promise the opposite, that everything there gets wiped, and that is no longer&nbsp;true.</li>
+      </ul>
     </li>
-    <li>
-      <strong>Fixed: deleting a stop could leave a day that would never save again.</strong> If you removed the last
-      stop from a day using the row menu, everything left on it was a point you ride past rather than stop at — and the
-      ride refused to save from then on, with no way to put it right except tagging one by hand. The first remaining
-      point now becomes the stop, the way it already did everywhere else.
+    <li class="rn-item" data-kind="changed">
+      <span class="rn-kind">Changed</span>
+      <p class="rn-summary">Staging will never email anybody.</p>
+      <ul class="rn-details">
+        <li>Testing a notification there cannot reach a real rider.</li>
+        <li>The side effect is that the sign-in link does not arrive on staging either, so use <em>Sign in with Google</em> to&nbsp;get&nbsp;in.</li>
+      </ul>
     </li>
-    <li>
-      Every ride now starts with one group already there, which is you. Rename it if you like; you cannot delete it,
-      because a ride you planned has at least one rider on it. Groups only start appearing elsewhere — on the roster,
-      and on the roadbook’s whose-copy switch — once there are two of them.
+    <li class="rn-item" data-kind="changed">
+      <span class="rn-kind">Changed</span>
+      <p class="rn-summary">Staging is a button now, like the real site.</p>
+      <ul class="rn-details">
+        <li>It no longer deploys itself every time something merges, because that would put new code in front of real data with nobody deciding&nbsp;to.</li>
+      </ul>
     </li>
-    <li>
-      The Groups tab now shows the main group on its own at the top, marked <strong>Main</strong>. That is the group
-      whose route everyone else joins when you look for a meeting point. To change it, drag another group up over it —
-      the one on top is the main one. You can also focus a group’s grip and use the arrow keys.
+    <li class="rn-item" data-kind="new">
+      <span class="rn-kind">New</span>
+      <p class="rn-summary">Notifications are color-coded by what they are.</p>
+      <ul class="rn-details">
+        <li>A comment is gray, a suggestion yellow, a settled vote green, someone joining a ride blue, a friend request brown, a report you filed red, and a release the guide-sign green.</li>
+        <li>They were all the same blue before, so the little picture was doing all the work and the color none of&nbsp;it.</li>
+      </ul>
     </li>
-    <li>
-      <strong>Suggested meeting points now appear on the map</strong>, one numbered dot each, matching the list, with
-      the road each joining group would ride to reach it drawn alongside. Hover a dot or a row and the other lights up;
-      press either to take it.
+    <li class="rn-item" data-kind="new">
+      <span class="rn-kind">New</span>
+      <p class="rn-summary">Storage still speaks twice.</p>
+      <ul class="rn-details">
+        <li>Nearly out of room is amber, and something about to be destroyed is red &mdash; the one mark that wears two colors, because those are advice and a verdict and should not look the same.</li>
+      </ul>
     </li>
-    <li>
-      <strong>Tell a ride when you like to stop for the night.</strong> Set a time on the ride — say 4pm — and the day
-      list breaks where you reach that hour, with a band saying how far in you are and how much riding would still be
-      left after it. It takes the road you planned and the stops you added into account, and offers to search that
-      stretch for somewhere to stay; picking one still offers to end the day there. The map marks the spot too. Leave
-      it blank and nothing changes.
+    <li class="rn-item" data-kind="changed">
+      <span class="rn-kind">Changed</span>
+      <p class="rn-summary">A notification you can open now says so.</p>
+      <ul class="rn-details">
+        <li>Rows that lead somewhere carry a small green <em>Read more</em> sign at the end of the line.</li>
+        <li>Rows with nowhere to go do not, so you can tell at a glance which is&nbsp;which.</li>
+      </ul>
     </li>
-    <li>
-      <strong>Fixed: dragging a route onto a different road stopped working.</strong> It broke earlier the same day,
-      when the search-result dots landed — two pieces of the map code ended up sharing a name and the newer one
-      silently replaced the older. Dragging a leg to reshape it works again.
+    <li class="rn-item" data-kind="fixed">
+      <span class="rn-kind">Fixed</span>
+      <p class="rn-summary">The unread count is round.</p>
+      <ul class="rn-details">
+        <li>It was half a pixel taller than it was wide, the number inside it sat high, and in the menu the dot hung low and too close to the word. All measured and all&nbsp;fixed.</li>
+      </ul>
     </li>
-    <li>
-      <strong>Fixed: searching a long day for gas missed most of it.</strong> Looking for fuel along the day ran a
-      fixed six searches spread across the whole route, and on anything over about 190 miles those searches stopped
-      overlapping — so a 593-mile day had 37-mile stretches nobody ever looked at, and a run through Los Angeles could
-      come back with nothing. It now runs as many searches as the day needs, which also means fewer of them on a short
-      day. Past about 745 miles it still cannot cover everything, and now says so rather than looking like an empty
-      road.
+    <li class="rn-item" data-kind="new">
+      <span class="rn-kind">New</span>
+      <p class="rn-summary">Release notes now arrive as a notification.</p>
+      <ul class="rn-details">
+        <li>When a build ships, it turns up in your notifications alongside everything else, newest first &mdash; so you find out what changed without going to look for&nbsp;it.</li>
+      </ul>
     </li>
-    <li>
-      <strong>A meeting point has to be one everybody can actually get to on the fuel they have.</strong> Suggestions
-      are now checked against the shortest tank on the ride, measured from each group’s last fill — along the road for
-      the main group, and along the real routed road for anyone joining. If nothing is reachable without stopping for
-      fuel first, it says so rather than quietly suggesting a forecourt you would run dry short of.
+    <li class="rn-item" data-kind="new">
+      <span class="rn-kind">New</span>
+      <p class="rn-summary">Every release is in there, not just the new ones.</p>
+      <ul class="rn-details">
+        <li>The whole history back to July is in your notifications, dated when it actually shipped, already marked read so nothing is shouting at you.</li>
+        <li>Each one links to its own entry on this page, which still has the full&nbsp;text.</li>
+      </ul>
     </li>
-    <li>
-      <strong>Meeting points are gas stations.</strong> Everyone turns up needing fuel and a forecourt is somewhere you
-      can actually wait, so the suggestions are real stations on the main group’s road, named and with an address. The
-      point added to everyone’s day is the station itself rather than a spot on the highway beside it, and it counts as
-      a refuel on the fuel gauge. If there is no station on the stretch everyone can reach, it offers the best plain
-      spots instead and says that is what it did.
+    <li class="rn-item" data-kind="new">
+      <span class="rn-kind">New</span>
+      <p class="rn-summary">The red count on your name is the nudge.</p>
+      <ul class="rn-details">
+        <li>It sits on your name in the header, and again on <em>Notifications</em> in that menu so you know where you are going.</li>
+        <li>On the route builder and the map the header collapses to the &#9776; menu, so the count is inside there rather than on screen &mdash; those two had no way to reach the release notes at all since the feedback button&nbsp;went.</li>
+      </ul>
     </li>
-    <li>
-      <strong>Meeting points are now the earliest everyone can reach, not the cheapest.</strong> The old suggestions
-      were whichever cost the joining group the fewest extra miles, which is almost always somewhere near the end of
-      the ride — so two groups rode most of the way separately to a ride they were doing together. It now picks the
-      soonest point everybody can get to without going a long way out of their way.
-    </li>
-    <li>
-      <strong>Taking a meeting point sets everyone’s departure for you.</strong> The main group keeps the time you gave
-      them, and every other group is told when to leave so they arrive at the meeting point at the same moment. It
-      waits for the real roads to be worked out first, so the times you see are the routed ones rather than a guess. If
-      the main group’s day has no date yet, it says so instead of quietly doing nothing.
-    </li>
-    <li>
-      The choice of what to pin a group ride to is gone. It is always the main group’s departure, which is the one time
-      anybody actually knows; the meet and the arrival are worked out from it.
-    </li>
-    <li>
-      Suggestions were also landing too far along the route. Every bend in the road ahead was counted as a detour the
-      joining group had chosen, which on a normal winding route added tens of miles nobody was riding.
-    </li>
-  
-
-    <li>
-      <strong>Fixed: the second day of a ride could not be saved.</strong> A new day starts where the last one ended,
-      and that carried-over point was not being counted as a stop — so the ride failed to save, every time, until you
-      gave one of its points a category by hand. If a ride of yours has been refusing to save, this was why, and it
-      should now save on its own.
-    </li>
-    <li>
-      When something goes wrong, you get a window that holds the whole message instead of a few words cut off at the
-      bottom of the panel. It also tells you whether your work is at risk — usually it is not, because a copy is kept in
-      your browser and Routeloop keeps retrying.
-    </li>
-    <li>
-      Errors name the day rather than a number. “Day 2 needs at least one stop”, not “days.1”.
-    </li>
-  
-  </ul>
-</section>
-
-<section class="rn-release">
-  <h3>2 September 2026 — routing options, and a QR code for the meeting point</h3>
-  <ul>
-    <li>
-      Each day can now be told what to avoid — highways, tolls, ferries — and whether to prefer the twistier road. It is
-      set per day rather than per ride, because a Saturday in the hills and the slog home want opposite answers. Changing
-      one re-routes that day.
-    </li>
-    <li>
-      Show a QR code for any ride from the ride page. Hold it up and everyone at the meeting point can scan their way onto the
-      route. It works with the phone signal you actually have at a meeting point, and the link is printed underneath for
-      anyone who would rather type it.
-    </li>
-    <li>
-      Searching for a gas station or a coffee stop from the <strong>+</strong> between two points now searches that
-      stretch of road. It used to search the whole day, or whatever was on screen — which on a long ride meant results
-      from the middle of nowhere.
-    </li>
-    <li>
-      Search results appear on the map as numbered dots. Hover one to see what it is, hover a result to find it on the
-      map, and tap a dot to add it.
-    </li>
-    <li>
-      Searching along a day now looks the whole way along it rather than around its midpoint, so a station three hours in
-      is offered instead of missed.
-    </li>
-    <li>
-      The fuel ring is green while you have most of a tank, orange past half, and red from three quarters — so it says
-      how much you have left rather than only where it runs out.
-    </li>
-    <li>Ctrl or Cmd + S saves straight away, instead of your browser offering to save the page.</li>
-    <li>
-      Fixed: searching along a day found nothing at all, whatever you asked for and wherever you were. It had been broken
-      since the search was added two days earlier.
+    <li class="rn-item" data-kind="new">
+      <span class="rn-kind">New</span>
+      <p class="rn-summary">No email unless you ask for one.</p>
+      <ul class="rn-details">
+        <li>Routeloop ships several times a day, so release notes are the one notification that is off on email and off in the browser to start with.</li>
+        <li>If you want them in your inbox, Preferences &rarr; Notifications &rarr; Your account has the&nbsp;switch.</li>
+      </ul>
     </li>
   </ul>
 </section>
 
 <section class="rn-release">
-  <h3>31 August 2026 — the map tells you where you run out of fuel</h3>
-  <ul>
-    <li>
-      Every day now shows how far in each stop is and how far you are on the current tank, counted from the last stop
-      you tagged Gas or Charge. A fuel stop reads zero at its own row, because standing at the pump you have gone no
-      distance on that tank yet.
+  <h3>8 September 2026 &mdash; search results in the right place, and fewer save errors <code>2026-09-08-2048PT</code>
+    <a class="rn-sha" href="https://github.com/feralcreative/routeloop/commit/c28513c3c3956f904004d4a41be17a9eb5a346ee"><code>c28513c</code></a>
+  </h3>
+  <ul class="rn-items">
+    <li class="rn-item" data-kind="fixed">
+      <span class="rn-kind">Fixed</span>
+      <p class="rn-summary">Along the route hits go in the right place now.</p>
+      <ul class="rn-details">
+        <li>Searching a route for coffee and picking one at mile 40 used to add it after the hotel at mile 300, so the road doubled back on itself and you had to drag the stop up the list.</li>
+        <li>It now lands between the two stops it actually sits&nbsp;between.</li>
+      </ul>
     </li>
-    <li>
-      The map marks every place you would run dry, not just the first — a red disc with an <strong>E</strong> on it,
-      one for each tankful the day needs. Hover one to confirm what it is.
+    <li class="rn-item" data-kind="changed">
+      <span class="rn-kind">Changed</span>
+      <p class="rn-summary">Pressing a + between two stops still wins.</p>
+      <ul class="rn-details">
+        <li>If you opened an insert point, that is where the place goes &mdash; you pointed at that stretch of road, and nothing second-guesses&nbsp;it.</li>
+      </ul>
     </li>
-    <li>
-      The stretch you cannot ride on the fuel you have is drawn as red-and-white hazard tape, from the first empty
-      marker to the next fuel stop, or to the end of the day if there is no fuel stop after it.
+    <li class="rn-item" data-kind="fixed">
+      <span class="rn-kind">Fixed</span>
+      <p class="rn-summary">Typing a category now searches what the scope says.</p>
+      <ul class="rn-details">
+        <li>With <em>Along the route</em> selected, tapping the Gas chip searched the route while typing &ldquo;gas&rdquo; searched only what was on screen. Both follow the control now.</li>
+        <li>Searching for a place by name is still the visible map, which is what you want when you are typing somewhere&nbsp;specific.</li>
+      </ul>
     </li>
-    <li>
-      A dotted red circle around you shrinks to nothing exactly as you reach the point you run dry, and springs back
-      out when you pass a fuel stop. The range is the smallest tank in the group, so the plan is built around whoever
-      has to stop first.
+    <li class="rn-item" data-kind="fixed">
+      <span class="rn-kind">Fixed</span>
+      <p class="rn-summary">Naming a ride no longer brings up a save error.</p>
+      <ul class="rn-details">
+        <li>Start a ride, type its name, and a few seconds later you were told it could not be saved because it had no stop &mdash; which was the thing you had come to add.</li>
+        <li>A ride with nothing on it yet is simply not started, so nothing is attempted and nothing interrupts you.</li>
+        <li>The name goes up with the first stop you&nbsp;drop.</li>
+      </ul>
     </li>
-    <li>
-      All of it is behind one <strong>Range</strong> button beside the slider, on both the builder and a shared ride.
-      Turn it off and you get the plain route back.
+    <li class="rn-item" data-kind="fixed">
+      <span class="rn-kind">Fixed</span>
+      <p class="rn-summary">A ride that genuinely cannot save still says so.</p>
+      <ul class="rn-details">
+        <li>If you empty a saved ride of every stop, that is real work not reaching the server, and you still get told &mdash; that message was never the&nbsp;problem.</li>
+      </ul>
     </li>
-    <li>
-      The scrubber no longer wastes most of its travel on the overnights. On a nine-day ride, roughly two thirds of the
-      slider used to be nights in hotels with nothing on the map.
-    </li>
-    <li>
-      Searching for a place now looks at the part of the map you can see, and the category chips (Gas, Food, Coffee,
-      Lodging) follow the map rather than the last stop of the day. If nothing matches on screen it says so, and
-      zooming out searches wider.
-    </li>
-    <li>
-      A new <strong>Along the day</strong> option searches the whole day’s route instead of just what is on screen, and
-      lists what it finds nearest-detour-first.
-    </li>
-    <li>
-      Tag a stop in the middle of a day as lodging and the day offers to end there, splitting what follows into the
-      next day. You can also split a day at any stop.
-    </li>
-    <li>
-      Red is no longer offered as a day color, because red now means “you cannot ride this”. Rides you have already
-      colored keep what they were given.
-    </li>
-  </ul>
-</section>
-
-<section class="rn-release">
-  <h3>30 August 2026 &mdash; plan a ride together, and the timeline scrubs one day at a time</h3>
-  <ul>
-    <li>
-      The slider along the bottom of the builder now covers the day you are working on, not the whole ride. On a
-      four-day trip that is roughly eighteen times the precision — enough to actually find the middle of Saturday
-      afternoon and work out where lunch&nbsp;goes. <strong>Whole ride</strong> beside the readout still gives you the
-      old full-length&nbsp;slider.
-    </li>
-    <li>
-      The day you are editing is the bright one on the map. It used to be whichever day the slider happened to be
-      parked on, so clicking into day three to work on it left day three faded out behind day&nbsp;one.
-    </li>
-    <li>
-      Picking a category for a waypoint closes the picker. It stayed open and had to be dismissed by hand, which read
-      as the click not having&nbsp;registered.
-    </li>
-    <li>
-      The round feedback badge no longer sits on the end of the slider. It was covering the last of the travel, which
-      is the end of the&nbsp;ride.
-    </li>
-  
-
-    <li>
-      A ride somebody shared with you now has a way in. If you are on a ride’s roster you will see a link to open it
-      from the ride page, and what it says is what you can actually do there — edit it, suggest changes, or leave a
-      comment.
-    </li>
-    <li>
-      Two of you can plan the same ride at the same time. Take different days and neither of you can lose the other’s
-      work: your saves are merged a day at a time rather than one of you overwriting the whole&nbsp;ride.
-    </li>
-    <li>
-      You can see who else is in a ride with you and which day they are on. A day somebody else is working on is
-      marked, so you know to expect a clash before you start moving stops&nbsp;around.
-    </li>
-    <li>
-      When someone else saves a day you are looking at, it updates in front of you rather than going quietly out of
-      date. If you have unsaved work that clashes, the panel says so and stops saving instead of picking a winner.
-    </li>
-    <li>
-      <strong>Worth re-checking:</strong> if you have ever had a ride open in two tabs, or planned one alongside
-      somebody else, look over its days. Until today the last save won outright and could take the other one’s changes
-      with it, silently.
-    </li>
-  
-  </ul>
-</section>
-
-<section class="rn-release">
-  <h3>29 August 2026 — two fixes and a tidier way around</h3>
-  <ul>
-    <li>
-      Adding a bike in the Paddock no longer throws you out of every field. Each time you clicked into one it lost
-      focus straight away and had to be clicked again; it just works&nbsp;now. Saving a place or renaming a group had
-      the same problem, and&nbsp;does&nbsp;not.
-    </li>
-    <li>
-      You can set a stop shorter than an hour. Typing <strong>.25</strong> gives you a quarter of an hour, and stop
-      times are shown to two decimals so a fifteen-minute coffee stop stays fifteen&nbsp;minutes. It did not before:
-      anything that was not a multiple of six minutes was quietly rounded on its way out of the box, and grew a little
-      every time you touched the&nbsp;row.
-      <strong>Worth re-checking any stop time you set before today</strong> — a stop you meant as twenty minutes
-      may be sitting at&nbsp;eighteen.
-    </li>
-    <li>
-      <strong>Dash</strong> is now the first thing in the menu instead of hiding at the top of the Rides list. Your
-      numbers, your records, then your&nbsp;rides.
-    </li>
-    <li>
-      There is a <strong>Plan a ride</strong> sign at the top of your dashboard. Starting a ride is what this is for
-      and it used to mean opening a menu&nbsp;first.
-    </li>
-    <li>
-      Riders and Friends are one page with two tabs, reached from <strong>Riders</strong>. Everyone in one place
-      instead of two, and old links to your friends list still land in the right&nbsp;place.
-    </li>
-    <li>
-      You can download a ride straight from the builder now — GPX, KML, GeoJSON, CSV, or a file per day —
-      without going to the Import / Export&nbsp;page.
-    </li>
-    <li>
-      If you imported a route file and then re-cut it here, downloading it gives you <em>your</em> version. It used to
-      hand back the file you uploaded, so an afternoon of edits came back as though you had never made&nbsp;them. What
-      you uploaded is still kept, and is still in your account&nbsp;archive.
-    </li>
-    <li>Google’s zoom and map-type controls are about a third smaller, so there is more map to&nbsp;look&nbsp;at.</li>
-    <li>
-      A fix worth knowing about even though it was never reported: if the builder offered to restore unsaved changes,
-      clicking the map to add a point silently did nothing, and the route could not be dragged into shape. It looked
-      completely normal. That is&nbsp;fixed.
+    <li class="rn-item" data-kind="fixed">
+      <span class="rn-kind">Fixed</span>
+      <p class="rn-summary">Dialog headings are readable on the dark themes again.</p>
+      <ul class="rn-details">
+        <li>The heading on the save-error dialog, and on the one for splitting a group off, was black on a near-black card &mdash; there, but impossible to&nbsp;read.</li>
+      </ul>
     </li>
   </ul>
 </section>
 
 <section class="rn-release">
-  <h3>28 August 2026 — riding on someone else’s ride</h3>
-  <ul>
-    <li>
-      Everyone you add to a ride can now look at it, talk about it, and suggest changes to it. That is what an
-      invitation gives them from the moment you add them &mdash; you no longer have to choose between showing somebody a
-      route and letting them help plan&nbsp;it.
+  <h3>7 September 2026 &mdash; notifications, one settings page, and groups that split off <code>2026-09-07-2152PT</code>
+    <a class="rn-sha" href="https://github.com/feralcreative/routeloop/commit/0127390bd58576010e4fcae9729de1ac1b3e56fc"><code>0127390</code></a>
+  </h3>
+  <ul class="rn-items">
+    <li class="rn-item" data-kind="new">
+      <span class="rn-kind">New</span>
+      <p class="rn-summary">Notifications.</p>
+      <ul class="rn-details">
+        <li>There is a Notifications page in your account menu now, with a count beside it when something has happened &mdash; somebody commenting on a ride you own, putting you on one, saying whether they are coming, or answering a report you&nbsp;filed.</li>
+      </ul>
     </li>
-    <li>
-      Letting somebody edit the ride outright is a separate decision you make yourself, either while you are adding
-      them or any time afterwards, from the Riders page. You can go the other way too and give somebody a look and
-      nothing&nbsp;more.
+    <li class="rn-item" data-kind="new">
+      <span class="rn-kind">New</span>
+      <p class="rn-summary">You choose what reaches you, and where.</p>
+      <ul class="rn-details">
+        <li>Preferences &rarr; Notifications lists everything we might tell you about, with a box for email and a box for your browser.</li>
+        <li><strong>Email is on to start with and the browser is off.</strong></li>
+        <li>A browser notification needs Chrome&rsquo;s permission and only appears while you have Routeloop open in a tab, so it is a nudge while you are here rather than a way to be reached when you are&nbsp;not.</li>
+        <li>Signing in and being let in are not on that list and cannot be switched off.</li>
+      </ul>
     </li>
-    <li>
-      Editing means the route. Deleting the ride, changing who can see it, and adding or removing riders stay with the
-      owner however much you trust&nbsp;somebody.
+    <li class="rn-item" data-kind="new">
+      <span class="rn-kind">New</span>
+      <p class="rn-summary">We will warn you before anything is destroyed.</p>
+      <ul class="rn-details">
+        <li>A week before a ride in your bin is deleted for good, a week before an account deletion you asked for goes ahead, and once when your storage is nearly&nbsp;full.</li>
+      </ul>
     </li>
-    <li>
-      A ride can now have more than one owner, so you are not the single point of failure on a trip you organized. The
-      last owner cannot leave &mdash; somebody has to be able to run&nbsp;it.
+    <li class="rn-item" data-kind="fixed">
+      <span class="rn-kind">Fixed</span>
+      <p class="rn-summary">&ldquo;Download everything about you&rdquo; now means it.</p>
+      <ul class="rn-details">
+        <li>The zip was missing your saved places, your friends and follows, the rides you are on but do not own, every comment, suggestion and vote you made, the reports you filed, and your survey answers. All of it is in there.</li>
+        <li>Other people are named by handle and never by email address &mdash; their contact details are theirs to export, not&nbsp;yours.</li>
+      </ul>
     </li>
-    <li>
-      Comments, on the whole ride or on one particular stop. &ldquo;Is this hotel actually walkable?&rdquo; belongs on
-      the hotel. Delete the stop later and the comment does not vanish with it &mdash; it moves up to the ride and still
-      says which stop it was&nbsp;about.
+    <li class="rn-item" data-kind="fixed">
+      <span class="rn-kind">Fixed</span>
+      <p class="rn-summary">If you use a dark theme, several things were unreadable and are not any more.</p>
+      <ul class="rn-details">
+        <li>Every button&rsquo;s legend, the KML download badge, and the banner across the top of the page were all rendering near-black on their own color.</li>
+        <li>Worth another look if you had given up on&nbsp;dark.</li>
+      </ul>
     </li>
-    <li>
-      Suggestions. Open a ride you cannot edit, rearrange a day the way you think it should go, and press Suggest. The
-      owner sees it and takes it or leaves it. If they change that day in the meantime, your suggestion says so instead
-      of quietly overwriting their&nbsp;work.
+    <li class="rn-item" data-kind="removed">
+      <span class="rn-kind">Removed</span>
+      <p class="rn-summary">The corner button is gone.</p>
+      <ul class="rn-details">
+        <li>The shield that floated at the bottom right of every page did the same thing as an account-menu item, so there is one way in now and it is called <strong>Feedback</strong>.</li>
+        <li>The account menu is shorter besides, and pages are wider than they&nbsp;were.</li>
+      </ul>
     </li>
-    <li>Everyone on the ride sees everyone else’s suggestions, so two people do not propose the same detour.</li>
-  </ul>
-</section>
-
-<section class="rn-release">
-  <h3>27 August 2026 &mdash; settings, your picture, a louder dashboard, and dragging a stop where you want it</h3>
-  <ul>
-    <li>
-      <strong>Settings is reorganized into two topics</strong> — Appearance, and how things read — instead of four boxes
-      that never quite lined&nbsp;up.
+    <li class="rn-item" data-kind="changed">
+      <span class="rn-kind">Changed</span>
+      <p class="rn-summary">Settings and Your profile are two tabs of one page now.</p>
+      <ul class="rn-details">
+        <li>Both were always &ldquo;the things about me I can change&rdquo;, and having them on separate pages meant knowing in advance which one a thing had been filed under.</li>
+        <li>Both links still work and each opens its own&nbsp;tab.</li>
+      </ul>
     </li>
-    <li>
-      <strong>You can switch the whole site to kilometers.</strong> Distances, your records, the roadbook, the ride list
-      and the builder all follow it. Twistiness comes along too: the same road reads as a smaller number per kilometer
-      than per&nbsp;mile.
+    <li class="rn-item" data-kind="fixed">
+      <span class="rn-kind">Fixed</span>
+      <p class="rn-summary">Changing your username works again.</p>
+      <ul class="rn-details">
+        <li>It had been failing outright, and we are sorry &mdash; if you tried in the last day and got an error page, try&nbsp;again.</li>
+      </ul>
     </li>
-    <li>
-      <strong>You can turn animation off here</strong> without changing your whole phone or computer — or leave it
-      following your device, which is what it has always&nbsp;done.
+    <li class="rn-item" data-kind="new">
+      <span class="rn-kind">New</span>
+      <p class="rn-summary">Twelve- or twenty-four-hour time is its own choice.</p>
+      <ul class="rn-details">
+        <li>It used to come along with your date format, so the only way to get a 24-hour clock was to also read your dates as 24/08/2026.</li>
+        <li>Now it is a setting of its own, and it applies in the planner as well as on the printed&nbsp;roadbook.</li>
+      </ul>
     </li>
-    <li>
-      <strong>Your profile takes a picture now.</strong> Pick a photo of any shape, position and zoom the circle, and we
-      store a square copy. We strip the location your camera put in&nbsp;it.
+    <li class="rn-item" data-kind="new">
+      <span class="rn-kind">New</span>
+      <p class="rn-summary">Tell us the places you would rather not stop at.</p>
+      <ul class="rn-details">
+        <li>Under <em>Places to avoid</em>, list a brand or a kind of place &mdash; ARCO, Costco Gas, fast food &mdash; and they drop to the bottom of every place search.</li>
+        <li>Nothing is ever hidden: the one time you are out of fuel with one in front of you is exactly the time you need to see&nbsp;it.</li>
+      </ul>
     </li>
-    <li>
-      <strong>Typing an address offers suggestions</strong>, and picking one fills the street, town, state and postal
-      code at&nbsp;once.
+    <li class="rn-item" data-kind="new">
+      <span class="rn-kind">New</span>
+      <p class="rn-summary">Your bikes can carry a tank size, in gallons or liters.</p>
+      <ul class="rn-details">
+        <li>The unit is yours to pick under <em>Fuel volume</em>, and it follows your distance setting unless you say&nbsp;otherwise.</li>
+      </ul>
     </li>
-    <li>
-      <strong>The profile saves as you go.</strong> Your username and your address still need the button — a username
-      gets claimed and held the moment it is saved, so that one waits until you say&nbsp;so.
+    <li class="rn-item" data-kind="fixed">
+      <span class="rn-kind">Fixed</span>
+      <p class="rn-summary">Some counts said &ldquo;routes&rdquo; where they meant days.</p>
+      <ul class="rn-details">
+        <li>The recycle bin said a ride had &ldquo;17 routes left&rdquo; and the account page counted down in routes. They say days,&nbsp;properly.</li>
+      </ul>
     </li>
-    <li>A phone number and your social handles, each with its own switch for who can see&nbsp;them.</li>
-    <li>
-      In a club? <strong>Clubs are not built yet</strong>, but there is a note on your profile asking you to get in
-      touch so we can find you when they&nbsp;are.
+    <li class="rn-item" data-kind="changed">
+      <span class="rn-kind">Changed</span>
+      <p class="rn-summary">A group can now peel off partway through a ride.</p>
+      <ul class="rn-details">
+        <li>Open the &#8942; menu on any stop and choose <em>Split a group off here</em>.</li>
+        <li>Say who is leaving &mdash; a group that has ridden together before, or a new one &mdash; and where they are headed, and you get their road drawn from that stop to their destination while everyone else carries on as planned.</li>
+        <li>Both groups leave at the moment the last of you&nbsp;arrives.</li>
+      </ul>
     </li>
-    <li>
-      A fix worth knowing about: if your dates ever switched to American order on their own, that was us. Saving a
-      setting could overwrite the date format your browser was giving you. It no longer&nbsp;can.
+    <li class="rn-item" data-kind="new">
+      <span class="rn-kind">New</span>
+      <p class="rn-summary">Pick the same group again and the right people are already ticked.</p>
+      <ul class="rn-details">
+        <li>When a group joins the main pack their name stops applying, but it is not gone &mdash; it survives on the road they rode as it.</li>
+        <li>So when they split off for home, the app offers that group back with whoever rode as it last already selected.</li>
+        <li>Change it if one or two are carrying on with&nbsp;you.</li>
+      </ul>
     </li>
-  
-
-    <li>
-      <strong>Deleting a ride from the dashboard no longer jumps you back to the top of the page.</strong> The card is
-      replaced where it stood, with an <strong>Undo</strong> right there if you did not mean it — so you can clear out
-      several rides in a row without scrolling back down each&nbsp;time.
+    <li class="rn-item" data-kind="new">
+      <span class="rn-kind">New</span>
+      <p class="rn-summary">Split the same stop as many times as you need.</p>
+      <ul class="rn-details">
+        <li>Three groups going three ways from one gas station is one pass each.</li>
+        <li>The only thing it will not let you do is leave nobody on the road ahead &mdash; someone has to carry&nbsp;on.</li>
+      </ul>
     </li>
-    <li>
-      The figures at the top of the dashboard — rides, days, legs, waypoints — are bigger. They were the smallest
-      numbers on a page whose job is to show you&nbsp;numbers.
+    <li class="rn-item" data-kind="new">
+      <span class="rn-kind">New</span>
+      <p class="rn-summary">The stop that a group left from says so.</p>
+      <ul class="rn-details">
+        <li>The group’s own road is added at the bottom of the route list, so the stop carries a line naming them and where they went &mdash; press it to jump straight to&nbsp;it.</li>
+      </ul>
     </li>
-    <li>Each of your records now shows its figure in that record’s own color, matching the icon beside&nbsp;it.</li>
-    <li>
-      Those colors were checked against all six themes while we were in there, and several of them were genuinely hard
-      to read on the dark ones. Every record figure has been retuned so it is legible in whichever theme you&nbsp;use.
+    <li class="rn-item" data-kind="changed">
+      <span class="rn-kind">Changed</span>
+      <p class="rn-summary">Notes and reservations are one place now.</p>
+      <ul class="rn-details">
+        <li>The stop menu had two items leading to two different notes boxes with nothing saying which was which.</li>
+        <li>There is one item, and inside it the boxes are labeled for who reads them: notes everyone on the ride can see, and notes only you can see.</li>
+        <li>A note you have written also shows on the stop’s row, so you can read it without&nbsp;opening anything.</li>
+      </ul>
     </li>
-  
-
-    <li>
-      <strong>Dragging a stop to a new position works again.</strong> It had been landing a few rows farther down than
-      you dropped it, or springing back to where it started the next time the list redrew. Both are fixed: a stop goes
-      exactly where you put&nbsp;it.
-    </li>
-    <li>
-      If a drag sprang back, the change was never saved either — so a reorder you thought you had made was simply not
-      there when you came back to the ride. Worth re-checking the order on any ride you have been rearranging
-      this&nbsp;week.
-    </li>
-    <li>
-      Dragging a stop from one day into another now drops it where you aimed, instead of at the bottom of that day.
-    </li>
-  
-  </ul>
-</section>
-
-<section class="rn-release">
-  <h3>26 August 2026 &mdash; the ride panel in three tabs, and groups that split up</h3>
-  <ul>
-    <li>
-      <strong>The panel is three tabs now: Routes, Groups and Riders.</strong> Groups and riders arrived last week and
-      pushed the day you were actually editing off the bottom of the panel. Only one of the three takes up room at a
-      time, so the day list gets the space&nbsp;back.
-    </li>
-    <li>
-      The ride’s description and who can see it sit above the tabs, because they are about the whole ride rather than
-      any one&nbsp;tab.
-    </li>
-    <li>
-      <strong>Riders is new.</strong> It shows who is coming, what they said, which bike they are bringing, and the
-      smallest tank on the ride—without leaving the map. You can put a rider on a group from there, or take somebody off
-      the&nbsp;ride.
-    </li>
-    <li>
-      Inviting someone, answering for yourself, and the vote are still on the riders page, and there is a link straight
-      to it. Those are things any rider does, and the panel is only for whoever is planning&nbsp;it.
-    </li>
-    <li>
-      A group you have just added cannot have riders put on it until the ride saves, which takes a second or two. The
-      tab says so rather than leaving the group mysteriously&nbsp;missing.
-    </li>
-    <li>
-      In the corner menu, <em>What’s new</em> is now above <em>Something wrong?</em>&nbsp;instead of below it.
-    </li>
-    <li>
-      <strong>The build stamp under it is finally right.</strong> Every deployed build has been calling itself
-      <em>dev</em> since the stamp was added, whatever it actually was—so if you have quoted one in a bug report, it
-      told us&nbsp;nothing. It now says the build you are really&nbsp;on.
-    </li>
-  
-
-    <li>
-      <strong>Riders leaving from different places.</strong> Add a group for each starting point in the ride panel, then
-      say which days each group rides. The days you leave on <em>Everyone</em> are the ones you all ride&nbsp;together.
-    </li>
-    <li>
-      Everyone gets their own copy of the ride. Your roadbook, your Google Maps links and your downloads start where you
-      start and skip somebody else’s morning — and the map shows the whole shape with your own path picked&nbsp;out.
-    </li>
-    <li>
-      <strong>Routeloop can find the meeting point for you.</strong> Press <em>Find a meet</em> beside a group and it
-      suggests places on the shared route they could join without going backwards or a long way round — preferring fuel
-      stops, since that is where everyone regathers&nbsp;anyway.
-    </li>
-    <li>
-      Pick whose clock the day is built around, and whether you are pinning their departure, the meet, or getting there.
-      If you pick a group that is closer than the others, it says&nbsp;so.
-    </li>
-    <li>
-      Fuel stops are planned around the smallest tank coming, and it tells you whose it is. Say which bike you are
-      bringing on the riders&nbsp;page.
-    </li>
-  
-
-    <li>
-      <strong>Riders on a ride.</strong> Open a ride and press <em>Riders and the vote</em>. Add the friends you are
-      actually going with, and they get the ride on their own dashboard under <em>Riding with others</em> — whatever
-      its visibility is set&nbsp;to.
-    </li>
-    <li>Everyone on a ride says whether they are in: Going, Maybe, or can’t make it. You answer for yourself, and only for yourself.</li>
-    <li>
-      <strong>Vote on alternatives.</strong> If a day has two or more ways of doing it, everyone on the ride picks one
-      and the count sits beside each. Press your own pick again to take it&nbsp;back.
-    </li>
-    <li>
-      The count does nothing on its own — you promote an alternative yourself, as before. Set a deadline and the one
-      with the most votes is elected then instead. A tie leaves your current pick&nbsp;alone.
-    </li>
-    <li>You can only add a friend to a ride. To share a route with somebody you have not added, set it to Unlisted and send the link.</li>
-  
-
-    <li>
-      <strong>Friends.</strong> Find someone on the Riders page and ask. Once you are friends, either of you can set a
-      ride to <strong>Friends</strong> and the other can open it — nobody else can, link or no link.
-    </li>
-    <li>
-      A fourth setting on every ride, then. Private is still only you, Unlisted is still anyone holding the link, Public
-      is still listed in Explore, and Friends is the one that actually checks who is asking.
-    </li>
-    <li>
-      You can take a copy of a friend’s ride the same way you can take a copy of a public one. Unlisted rides stay
-      un-copyable: handing someone a link is not handing them a&nbsp;copy.
-    </li>
-    <li>
-      Blocking, if you need it. A blocked rider disappears from your Riders page and you from theirs, and they are not
-      told.
-    </li>
-    <li>Riders on a ride — invites, who is in, who is out — is next. There is a preview of it in the ride panel.</li>
-  
-  </ul>
-</section>
-
-<section class="rn-release">
-  <h3>23 August 2026</h3>
-  <ul>
-    <li>
-      <strong>Every point you drop now starts as a point of interest.</strong> Drop pins wherever you are thinking of
-      going, in whatever order, then promote the ones the route actually has to run through — “Make this a stop” in the
-      row’s ⋮ menu. The road is drawn once two of them are stops. The first point of each day is promoted for you.
-    </li>
-    <li>
-      Changed your mind? “Make this a POI” puts it back, and the point keeps its notes, categories and reservations.
-    </li>
-    <li>Dragging a row reorders it, whichever kind it is. Dragging a point of interest no longer moves its pin.</li>
-    <li>This page, and a version number in the footer, so you can tell which build you found something in.</li>
-    <li>The red button on the map is now a bug, and the gray one beside it opens this page.</li>
-  </ul>
-</section>
-
-<section class="rn-release">
-  <h3>22 August 2026</h3>
-  <ul>
-    <li>
-      <strong>Saved places.</strong> Keep a library of the places you use — home, the good fuel stop, the meet point
-      everyone knows — and drop one into any ride from the day’s search box. File them into groups if you want to.
-    </li>
-    <li>
-      A place you save carries its phone number and address into every ride you use it in, but never a confirmation
-      number — that belongs to one trip.
-    </li>
-    <li>
-      <strong>Buttons look like highway signs.</strong> The green field and white keyline are the house style now rather
-      than something a few buttons opted into.
-    </li>
-    <li>
-      Fixed: you could not click into the search box at the bottom of a day. It could be tabbed to but not clicked.
-    </li>
-    <li>
-      Each day has its own button for adding a point. Press it, then click the map, and the point lands on that day.
-    </li>
-    <li>The button that adds a day looked broken. It always worked — it just had no styling at all.</li>
-  </ul>
-</section>
-
-<section class="rn-release">
-  <h3>21 August 2026</h3>
-  <ul>
-    <li>
-      <strong>Stop details.</strong> A stop can hold a confirmation number, check-in and check-out, a phone number, an
-      address, links and notes. <strong>Only you can see them.</strong> They never go out with a shared link and they
-      are stripped from every export except your own backup file.
-    </li>
-    <li>Your rides show a map of themselves on the list, instead of all looking alike.</li>
-    <li>The alpha notice picked up its club marks and a bit of paint.</li>
-  </ul>
-</section>
-
-<section class="rn-release">
-  <h3>19 August 2026</h3>
-  <ul>
-    <li>Leaving the map is an “Exit map” menu item now, rather than an X you had to find.</li>
-    <li>
-      Fixed: the stop-duration setting rendered wider than it declared, and the legend refused to wrap at any window
-      size.
+    <li class="rn-item" data-kind="removed">
+      <span class="rn-kind">Removed</span>
+      <p class="rn-summary">The stop menu lost three items it did not need.</p>
+      <ul class="rn-details">
+        <li>Move up and move down are gone &mdash; the grip on the left of each row does it, and you can now focus it and use the arrow keys, which you could not before. &ldquo;Make this a POI&rdquo; is gone from stops that carry a category, because removing the last category already does&nbsp;it.</li>
+      </ul>
     </li>
   </ul>
 </section>
 
 <section class="rn-release">
-  <h3>16 August 2026</h3>
-  <ul>
-    <li>
-      <strong>Alternate days.</strong> Two or more versions of the same stretch, grouped, with one of them live. The
-      others are drawn as dashed ghosts and stay out of your mileage, your exports and your roadbook until you make one
-      of them the active one.
+  <h3>6 September 2026 &mdash; days become routes, and riders per route <code>2026-09-06-2323PT</code>
+    <a class="rn-sha" href="https://github.com/feralcreative/routeloop/commit/9de6ab77015558208b83d5192d5a1bb4152a24ef"><code>9de6ab7</code></a>
+  </h3>
+  <ul class="rn-items">
+    <li class="rn-item" data-kind="changed">
+      <span class="rn-kind">Changed</span>
+      <p class="rn-summary">What used to be called a day is now called a route.</p>
+      <ul class="rn-details">
+        <li>Nothing about your rides has changed — the same list, the same order, the same colors. Only the word.</li>
+        <li>Once you plan for more than one group, the first few routes are often fractions of one afternoon rather than days at all: three groups setting off from three towns and meeting up before lunch.</li>
+        <li>Calling those “days” described none of&nbsp;them.</li>
+      </ul>
     </li>
-    <li>
-      <strong>Tell us something.</strong> Report a bug or ask for a feature from inside the app, with a screenshot if it
-      helps. A bug is private between you and the owner unless it gets published; the idea board is where feature wants
-      go, and you can back someone else’s instead of filing your own.
+    <li class="rn-item" data-kind="new">
+      <span class="rn-kind">New</span>
+      <p class="rn-summary">“Day” still means a day.</p>
+      <ul class="rn-details">
+        <li>Dates, start times and the clock on your routes are unchanged — a Saturday is still a Saturday.</li>
+        <li>Release notes below this one still say “day” because that is what they said at the time, and they are a record rather than&nbsp;instructions.</li>
+      </ul>
     </li>
-    <li>You get an email when something you reported changes state.</li>
-    <li>Every day has its own search row now, instead of one search box that had to be told which day it meant.</li>
-    <li>A day menu, and a select mode for acting on several days or points at once.</li>
-    <li>The builder’s icons were redrawn by an actual human.</li>
-  </ul>
-</section>
-
-<section class="rn-release">
-  <h3>15 August 2026</h3>
-  <ul>
-    <li>
-      <strong>The builder is a drawer down the left side showing every day at once</strong>, instead of a panel that
-      floated over the map showing one.
+    <li class="rn-item" data-kind="new">
+      <span class="rn-kind">New</span>
+      <p class="rn-summary">A route can be ridden by several groups, not just one.</p>
+      <ul class="rn-details">
+        <li>The group control on a route is a list of tickboxes now.</li>
+        <li>Once two groups meet up, the road they share says both their names instead of claiming everybody rides it — which was wrong whenever a third group was still on its way. Ticking <strong>Everyone</strong> ticks the lot.</li>
+        <li>Your own group is remembered on the road you rode to get there, so when you peel off for home it can offer to split you back off the same&nbsp;way.</li>
+      </ul>
     </li>
-    <li>
-      <strong>The Save button is gone, and that is on purpose.</strong> Your work saves itself when you stop typing. If
-      the browser dies mid-edit, the draft is waiting when you come back.
+    <li class="rn-item" data-kind="new">
+      <span class="rn-kind">New</span>
+      <p class="rn-summary">You can say who rides which route.</p>
+      <ul class="rn-details">
+        <li>Each route in the Routes panel now shows how many riders are on it, and tapping that opens a list to tick.</li>
+        <li>Somebody who joins you for the middle of a ride and peels off again is two answers — everyone stays on from where you put them until you say otherwise — and the routes where the group changes read <em>“Dylan joins here”</em> and <em>“Dylan leaves here”</em> instead of a&nbsp;count.</li>
+      </ul>
     </li>
-    <li>Drag a row to reorder it, or use the menu on the row if you would rather not drag.</li>
-    <li>The ride timeline moved to the bottom edge of the map, where it stops covering the road.</li>
-    <li>Terrain is the default map now, and there is a switcher for the others.</li>
-    <li>Choose how stop times are written — <em>1h 30m</em> or <em>1:30</em> — in Settings.</li>
-    <li>The ride’s name is the headline of the drawer, so you can tell two half-finished rides apart.</li>
-    <li>
-      <strong>An imported file opens in the builder and can be edited</strong>, rather than being a route you could only
-      look at.
+    <li class="rn-item" data-kind="changed">
+      <span class="rn-kind">Changed</span>
+      <p class="rn-summary">Your roadbook and your files are yours alone now.</p>
+      <ul class="rn-details">
+        <li>Download the roadbook, the Google Maps hand-off or any of the four file formats and you get the routes <em>you</em> ride — not the whole group’s.</li>
+        <li>A friend who joined for one afternoon gets that afternoon.</li>
+        <li>This used to give you your group’s whole run, which was the same answer only when everybody in a group rode exactly the same&nbsp;stretches.</li>
+      </ul>
     </li>
-    <li>
-      <strong>Delete Me.</strong> Ask for your account to be destroyed and it goes on a 30-day hold, with a Save Me
-      button that calls it off. Nothing skips the hold, including us.
+    <li class="rn-item" data-kind="changed">
+      <span class="rn-kind">Changed</span>
+      <p class="rn-summary">Picking a meeting point now splits the shared stretch off as its own route.</p>
+      <ul class="rn-details">
+        <li>Everybody’s approach stays their own, and the road you ride together from the meeting point becomes one route marked for everyone.</li>
+        <li>Do it twice and you get a staged meet-up — two groups join at the first point and ride on together, and the third catches everyone at the&nbsp;second.</li>
+      </ul>
     </li>
-    <li>Your rides live at their own address now, and old rollchart.app links land in the right place.</li>
-  </ul>
-</section>
-
-<section class="rn-release">
-  <h3>14 August 2026</h3>
-  <ul>
-    <li><strong>Download Me.</strong> Everything the app holds about you, packaged and handed over, in one file.</li>
-  </ul>
-</section>
-
-<section class="rn-release">
-  <h3>13 August 2026</h3>
-  <ul>
-    <li>
-      The typeface is served by us rather than borrowed from Google, so pages stop flashing an unstyled headline on the
-      way in.
+    <li class="rn-item" data-kind="changed">
+      <span class="rn-kind">Changed</span>
+      <p class="rn-summary">Departure times now move the whole approach.</p>
+      <ul class="rn-details">
+        <li>If a group has a route or two before the one that reaches the meeting point, those shift with it instead of being left&nbsp;behind.</li>
+      </ul>
     </li>
-  </ul>
-</section>
-
-<section class="rn-release">
-  <h3>11 August 2026</h3>
-  <ul>
-    <li>
-      <strong>The app is called Routeloop.</strong> It was TankBag, and briefly RouteLoop before that.
-      <strong>Files you already downloaded still import.</strong> Anything named <code>tankbag_…</code> is read exactly
-      as before, day order and dates intact — that is deliberate and it is not going away.
+    <li class="rn-item" data-kind="new">
+      <span class="rn-kind">New</span>
+      <p class="rn-summary">You can say how far a detour is worth it.</p>
+      <ul class="rn-details">
+        <li>There is a miles box beside <strong>Find meeting points</strong> now.</li>
+        <li>Widen it and you will be offered somewhere earlier on the road; tighten it and the suggestion moves closer to where everybody was already&nbsp;going.</li>
+      </ul>
     </li>
-  </ul>
-</section>
-
-<section class="rn-release">
-  <h3>9 August 2026</h3>
-  <ul>
-    <li>A proper navigation bar on a desktop screen, with About and your account as their own menus.</li>
-  </ul>
-</section>
-
-<section class="rn-release">
-  <h3>8 August 2026</h3>
-  <ul>
-    <li>
-      <strong>The signed-in home page is your numbers</strong> — miles, days, rides, and what you have been planning —
-      rather than a list you already had.
+    <li class="rn-item" data-kind="new">
+      <span class="rn-kind">New</span>
+      <p class="rn-summary">Groups show where they start.</p>
+      <ul class="rn-details">
+        <li>Each group in the Groups panel now says which town it sets off from, under its&nbsp;name.</li>
+      </ul>
     </li>
-    <li>Invitations, and a short survey for the riders who take one.</li>
-    <li>
-      <strong>Downloads are named so they can be re-imported.</strong> The long filename carries the ride, the day, the
-      date and the order, because GPX and KML cannot hold a schedule inside themselves. Drop the files back in and the
-      ride comes back with its days in the right order.
+    <li class="rn-item" data-kind="new">
+      <span class="rn-kind">New</span>
+      <p class="rn-summary">Shaping points snap to the road.</p>
+      <ul class="rn-details">
+        <li>Drag the line onto a different highway and the handle now settles on the road itself rather than wherever your pointer&nbsp;landed.</li>
+      </ul>
     </li>
-    <li>Drop a file anywhere on the import page rather than hunting for a file picker.</li>
-  </ul>
-</section>
-
-<section class="rn-release">
-  <h3>7 August 2026</h3>
-  <ul>
-    <li>
-      Mail from the app now comes from the app’s own domain and looks like something a person sent — the sign-in link, a
-      waitlist confirmation, and an approval notice.
+    <li class="rn-item" data-kind="new">
+      <span class="rn-kind">New</span>
+      <p class="rn-summary">Meeting-point suggestions sit on top of everything else on the map.</p>
+      <ul class="rn-details">
+        <li>A numbered suggestion could end up behind a gas-station pin, where you could neither see it nor hover&nbsp;it.</li>
+      </ul>
+    </li>
+    <li class="rn-item" data-kind="changed">
+      <span class="rn-kind">Changed</span>
+      <p class="rn-summary">Re-check your saved ride files.</p>
+      <ul class="rn-details">
+        <li>The file format moved on to carry the new wording.</li>
+        <li>Anything you exported before today still imports exactly as it did — but if you keep backups, this is a good day to drop one back on the import page and confirm your routes come back the way you left&nbsp;them.</li>
+      </ul>
     </li>
   </ul>
 </section>
 
 <section class="rn-release">
-  <h3>5 August 2026</h3>
-  <ul>
-    <li><strong>Undo and redo in the builder</strong>, and a recovered draft if the browser falls over.</li>
-    <li>
-      <strong>Drag the route line onto the road you actually meant.</strong> The point you drop shapes that one leg and
-      nothing else re-routes.
+  <h3>3 September 2026 &mdash; better meeting points, and readable save errors <code>2026-09-03-1851PT</code>
+    <a class="rn-sha" href="https://github.com/feralcreative/routeloop/commit/0b260c55d0573856efbf94f0e3b6914002b5b114"><code>0b260c5</code></a>
+  </h3>
+  <ul class="rn-items">
+    <li class="rn-item" data-kind="changed">
+      <span class="rn-kind">Changed</span>
+      <p class="rn-summary">Find meeting points now answers the question you actually have.</p>
+      <ul class="rn-details">
+        <li>Plan your main group’s route to the destination — say Oakland to Ensenada — then press <strong>Find meeting points</strong> in the Groups panel.</li>
+        <li>It suggests where the other groups should join that road, and tells you what each one goes out of its way by name.</li>
+        <li>Where a group’s route already passes through the spot, it says so rather than showing a zero.</li>
+      </ul>
+    </li>
+    <li class="rn-item" data-kind="changed">
+      <span class="rn-kind">Changed</span>
+      <p class="rn-summary">There is now one button for the whole ride instead of one per group, and the first group you add is the main group.</p>
+      <ul class="rn-details">
+        <li>It used to refuse to say anything until a day was marked as ridden by everyone — which is the thing you were trying to work out.</li>
+      </ul>
+    </li>
+    <li class="rn-item" data-kind="fixed">
+      <span class="rn-kind">Fixed</span>
+      <p class="rn-summary">Deleting a stop could leave a day that would never save again.</p>
+      <ul class="rn-details">
+        <li>If you removed the last stop from a day using the row menu, everything left on it was a point you ride past rather than stop at — and the ride refused to save from then on, with no way to put it right except tagging one by hand.</li>
+        <li>The first remaining point now becomes the stop, the way it already did everywhere else.</li>
+      </ul>
+    </li>
+    <li class="rn-item" data-kind="changed">
+      <span class="rn-kind">Changed</span>
+      <p class="rn-summary">Every ride now starts with one group already there, which is you.</p>
+      <ul class="rn-details">
+        <li>Rename it if you like; you cannot delete it, because a ride you planned has at least one rider on it.</li>
+        <li>Groups only start appearing elsewhere — on the roster, and on the roadbook’s whose-copy switch — once there are two of them.</li>
+      </ul>
+    </li>
+    <li class="rn-item" data-kind="changed">
+      <span class="rn-kind">Changed</span>
+      <p class="rn-summary">The Groups tab now shows the main group on its own at the top, marked <strong>Main</strong>.</p>
+      <ul class="rn-details">
+        <li>That is the group whose route everyone else joins when you look for a meeting point.</li>
+        <li>To change it, drag another group up over it — the one on top is the main one.</li>
+        <li>You can also focus a group’s grip and use the arrow keys.</li>
+      </ul>
+    </li>
+    <li class="rn-item" data-kind="changed">
+      <span class="rn-kind">Changed</span>
+      <p class="rn-summary">Suggested meeting points now appear on the map.</p>
+      <ul class="rn-details">
+        <li>One numbered dot each, matching the list, with the road each joining group would ride to reach it drawn alongside.</li>
+        <li>Hover a dot or a row and the other lights up; press either to take it.</li>
+      </ul>
+    </li>
+    <li class="rn-item" data-kind="new">
+      <span class="rn-kind">New</span>
+      <p class="rn-summary">Tell a ride when you like to stop for the night.</p>
+      <ul class="rn-details">
+        <li>Set a time on the ride — say 4pm — and the day list breaks where you reach that hour, with a band saying how far in you are and how much riding would still be left after it.</li>
+        <li>It takes the road you planned and the stops you added into account, and offers to search that stretch for somewhere to stay; picking one still offers to end the day there. The map marks the spot too. Leave it blank and nothing changes.</li>
+      </ul>
+    </li>
+    <li class="rn-item" data-kind="fixed">
+      <span class="rn-kind">Fixed</span>
+      <p class="rn-summary">Dragging a route onto a different road stopped working.</p>
+      <ul class="rn-details">
+        <li>It broke earlier the same day, when the search-result dots landed — two pieces of the map code ended up sharing a name and the newer one silently replaced the older.</li>
+        <li>Dragging a leg to reshape it works again.</li>
+      </ul>
+    </li>
+    <li class="rn-item" data-kind="fixed">
+      <span class="rn-kind">Fixed</span>
+      <p class="rn-summary">Searching a long day for gas missed most of it.</p>
+      <ul class="rn-details">
+        <li>Looking for fuel along the day ran a fixed six searches spread across the whole route, and on anything over about 190 miles those searches stopped overlapping — so a 593-mile day had 37-mile stretches nobody ever looked at, and a run through Los Angeles could come back with nothing.</li>
+        <li>It now runs as many searches as the day needs, which also means fewer of them on a short day.</li>
+        <li>Past about 745 miles it still cannot cover everything, and now says so rather than looking like an empty road.</li>
+      </ul>
+    </li>
+    <li class="rn-item" data-kind="new">
+      <span class="rn-kind">New</span>
+      <p class="rn-summary">A meeting point has to be one everybody can actually get to on the fuel they have.</p>
+      <ul class="rn-details">
+        <li>Suggestions are now checked against the shortest tank on the ride, measured from each group’s last fill — along the road for the main group, and along the real routed road for anyone joining.</li>
+        <li>If nothing is reachable without stopping for fuel first, it says so rather than quietly suggesting a forecourt you would run dry short of.</li>
+      </ul>
+    </li>
+    <li class="rn-item" data-kind="new">
+      <span class="rn-kind">New</span>
+      <p class="rn-summary">Meeting points are gas stations.</p>
+      <ul class="rn-details">
+        <li>Everyone turns up needing fuel and a forecourt is somewhere you can actually wait, so the suggestions are real stations on the main group’s road, named and with an address.</li>
+        <li>The point added to everyone’s day is the station itself rather than a spot on the highway beside it, and it counts as a refuel on the fuel gauge.</li>
+        <li>If there is no station on the stretch everyone can reach, it offers the best plain spots instead and says that is what it did.</li>
+      </ul>
+    </li>
+    <li class="rn-item" data-kind="changed">
+      <span class="rn-kind">Changed</span>
+      <p class="rn-summary">Meeting points are now the earliest everyone can reach, not the cheapest.</p>
+      <ul class="rn-details">
+        <li>The old suggestions were whichever cost the joining group the fewest extra miles, which is almost always somewhere near the end of the ride — so two groups rode most of the way separately to a ride they were doing together.</li>
+        <li>It now picks the soonest point everybody can get to without going a long way out of their way.</li>
+      </ul>
+    </li>
+    <li class="rn-item" data-kind="new">
+      <span class="rn-kind">New</span>
+      <p class="rn-summary">Taking a meeting point sets everyone’s departure for you.</p>
+      <ul class="rn-details">
+        <li>The main group keeps the time you gave them, and every other group is told when to leave so they arrive at the meeting point at the same moment.</li>
+        <li>It waits for the real roads to be worked out first, so the times you see are the routed ones rather than a guess.</li>
+        <li>If the main group’s day has no date yet, it says so instead of quietly doing nothing.</li>
+      </ul>
+    </li>
+    <li class="rn-item" data-kind="removed">
+      <span class="rn-kind">Removed</span>
+      <p class="rn-summary">The choice of what to pin a group ride to is gone.</p>
+      <ul class="rn-details">
+        <li>It is always the main group’s departure, which is the one time anybody actually knows; the meet and the arrival are worked out from it.</li>
+      </ul>
+    </li>
+    <li class="rn-item" data-kind="fixed">
+      <span class="rn-kind">Fixed</span>
+      <p class="rn-summary">Suggestions were also landing too far along the route.</p>
+      <ul class="rn-details">
+        <li>Every bend in the road ahead was counted as a detour the joining group had chosen, which on a normal winding route added tens of miles nobody was riding.</li>
+      </ul>
+    </li>
+    <li class="rn-item" data-kind="fixed">
+      <span class="rn-kind">Fixed</span>
+      <p class="rn-summary">The second day of a ride could not be saved.</p>
+      <ul class="rn-details">
+        <li>A new day starts where the last one ended, and that carried-over point was not being counted as a stop — so the ride failed to save, every time, until you gave one of its points a category by hand.</li>
+        <li>If a ride of yours has been refusing to save, this was why, and it should now save on its own.</li>
+      </ul>
+    </li>
+    <li class="rn-item" data-kind="fixed">
+      <span class="rn-kind">Fixed</span>
+      <p class="rn-summary">When something goes wrong, you get a window that holds the whole message instead of a few words cut off at the bottom of the panel.</p>
+      <ul class="rn-details">
+        <li>It also tells you whether your work is at risk — usually it is not, because a copy is kept in your browser and Routeloop keeps retrying.</li>
+      </ul>
+    </li>
+    <li class="rn-item" data-kind="changed">
+      <span class="rn-kind">Changed</span>
+      <p class="rn-summary">Errors name the day rather than a number.</p>
+      <ul class="rn-details">
+        <li>“Day 2 needs at least one stop”, not “days.1”.</li>
+      </ul>
     </li>
   </ul>
 </section>
 
 <section class="rn-release">
-  <h3>4 August 2026</h3>
-  <ul>
-    <li><strong>Hand a day off to Google Maps</strong> as an ordered series of links.</li>
-    <li>
-      <strong>Expand</strong> weaves extra shaping points into those links so Maps has too little room to pick its own
-      roads — and it tells you the longest stretch Maps still chooses for itself rather than hiding it.
+  <h3>2 September 2026 &mdash; routing options, a QR code, and search fixes <code>2026-09-02-2130PT</code>
+    <a class="rn-sha" href="https://github.com/feralcreative/routeloop/commit/6ea6d62613b71875b33df660a5577123d1d23d5f"><code>6ea6d62</code></a>
+  </h3>
+  <ul class="rn-items">
+    <li class="rn-item" data-kind="changed">
+      <span class="rn-kind">Changed</span>
+      <p class="rn-summary">Each day can now be told what to avoid — highways, tolls, ferries — and whether to prefer the twistier road.</p>
+      <ul class="rn-details">
+        <li>It is set per day rather than per ride, because a Saturday in the hills and the slog home want opposite answers. Changing one re-routes that day.</li>
+      </ul>
+    </li>
+    <li class="rn-item" data-kind="new">
+      <span class="rn-kind">New</span>
+      <p class="rn-summary">Show a QR code for any ride from the ride page.</p>
+      <ul class="rn-details">
+        <li>Hold it up and everyone at the meeting point can scan their way onto the route.</li>
+        <li>It works with the phone signal you actually have at a meeting point, and the link is printed underneath for anyone who would rather type it.</li>
+      </ul>
+    </li>
+    <li class="rn-item" data-kind="changed">
+      <span class="rn-kind">Changed</span>
+      <p class="rn-summary">Searching for a gas station or a coffee stop from the <strong>+</strong> between two points now searches that stretch of road.</p>
+      <ul class="rn-details">
+        <li>It used to search the whole day, or whatever was on screen — which on a long ride meant results from the middle of nowhere.</li>
+      </ul>
+    </li>
+    <li class="rn-item" data-kind="new">
+      <span class="rn-kind">New</span>
+      <p class="rn-summary">Search results appear on the map as numbered dots.</p>
+      <ul class="rn-details">
+        <li>Hover one to see what it is, hover a result to find it on the map, and tap a dot to add it.</li>
+      </ul>
+    </li>
+    <li class="rn-item" data-kind="fixed">
+      <span class="rn-kind">Fixed</span>
+      <p class="rn-summary">Searching along a day now looks the whole way along it rather than around its midpoint, so a station three hours in is offered instead of missed.</p>
+    </li>
+    <li class="rn-item" data-kind="new">
+      <span class="rn-kind">New</span>
+      <p class="rn-summary">The fuel ring is green while you have most of a tank, orange past half, and red from three quarters — so it says how much you have left rather than only where it runs out.</p>
+    </li>
+    <li class="rn-item" data-kind="new">
+      <span class="rn-kind">New</span>
+      <p class="rn-summary">Ctrl or Cmd + S saves straight away, instead of your browser offering to save the page.</p>
+    </li>
+    <li class="rn-item" data-kind="fixed">
+      <span class="rn-kind">Fixed</span>
+      <p class="rn-summary">Searching along a day found nothing at all, whatever you asked for and wherever you were.</p>
+      <ul class="rn-details">
+        <li>It had been broken since the search was added two days earlier.</li>
+      </ul>
     </li>
   </ul>
 </section>
 
 <section class="rn-release">
-  <h3>3 August 2026</h3>
-  <ul>
-    <li>Fixed: a file holding several tracks kept only the longest one. It keeps all of them now.</li>
+  <h3>31 August 2026 &mdash; fuel range on the map <code>2026-08-31-2059PT</code>
+    <a class="rn-sha" href="https://github.com/feralcreative/routeloop/commit/bd9bd240ab9e764ded342ded48e6c619da968fe4"><code>bd9bd24</code></a>
+  </h3>
+  <ul class="rn-items">
+    <li class="rn-item" data-kind="new">
+      <span class="rn-kind">New</span>
+      <p class="rn-summary">Every day now shows how far in each stop is and how far you are on the current tank, counted from the last stop you tagged Gas or Charge.</p>
+      <ul class="rn-details">
+        <li>A fuel stop reads zero at its own row, because standing at the pump you have gone no distance on that tank yet.</li>
+      </ul>
+    </li>
+    <li class="rn-item" data-kind="new">
+      <span class="rn-kind">New</span>
+      <p class="rn-summary">The map marks every place you would run dry, not just the first — a red disc with an <strong>E</strong> on it, one for each tankful the day needs.</p>
+      <ul class="rn-details">
+        <li>Hover one to confirm what it is.</li>
+      </ul>
+    </li>
+    <li class="rn-item" data-kind="new">
+      <span class="rn-kind">New</span>
+      <p class="rn-summary">The stretch you cannot ride on the fuel you have is drawn as red-and-white hazard tape, from the first empty marker to the next fuel stop, or to the end of the day if there is no fuel stop after it.</p>
+    </li>
+    <li class="rn-item" data-kind="new">
+      <span class="rn-kind">New</span>
+      <p class="rn-summary">A dotted red circle around you shrinks to nothing exactly as you reach the point you run dry, and springs back out when you pass a fuel stop.</p>
+      <ul class="rn-details">
+        <li>The range is the smallest tank in the group, so the plan is built around whoever has to stop first.</li>
+      </ul>
+    </li>
+    <li class="rn-item" data-kind="new">
+      <span class="rn-kind">New</span>
+      <p class="rn-summary">All of it is behind one <strong>Range</strong> button beside the slider, on both the builder and a shared ride.</p>
+      <ul class="rn-details">
+        <li>Turn it off and you get the plain route back.</li>
+      </ul>
+    </li>
+    <li class="rn-item" data-kind="fixed">
+      <span class="rn-kind">Fixed</span>
+      <p class="rn-summary">The scrubber no longer wastes most of its travel on the overnights.</p>
+      <ul class="rn-details">
+        <li>On a nine-day ride, roughly two thirds of the slider used to be nights in hotels with nothing on the map.</li>
+      </ul>
+    </li>
+    <li class="rn-item" data-kind="changed">
+      <span class="rn-kind">Changed</span>
+      <p class="rn-summary">Searching for a place now looks at the part of the map you can see, and the category chips (Gas, Food, Coffee, Lodging) follow the map rather than the last stop of the day.</p>
+      <ul class="rn-details">
+        <li>If nothing matches on screen it says so, and zooming out searches wider.</li>
+      </ul>
+    </li>
+    <li class="rn-item" data-kind="new">
+      <span class="rn-kind">New</span>
+      <p class="rn-summary">A new <strong>Along the day</strong> option searches the whole day’s route instead of just what is on screen, and lists what it finds nearest-detour-first.</p>
+    </li>
+    <li class="rn-item" data-kind="new">
+      <span class="rn-kind">New</span>
+      <p class="rn-summary">Tag a stop in the middle of a day as lodging and the day offers to end there, splitting what follows into the next day.</p>
+      <ul class="rn-details">
+        <li>You can also split a day at any stop.</li>
+      </ul>
+    </li>
+    <li class="rn-item" data-kind="fixed">
+      <span class="rn-kind">Fixed</span>
+      <p class="rn-summary">Red is no longer offered as a day color, because red now means “you cannot ride this”.</p>
+      <ul class="rn-details">
+        <li>Rides you have already colored keep what they were given.</li>
+      </ul>
+    </li>
   </ul>
 </section>
 
 <section class="rn-release">
-  <h3>2 August 2026</h3>
-  <ul>
-    <li>
-      <strong>Import and export.</strong> KML, KMZ, GPX, GeoJSON and CSV in and out, plus a lossless Routeloop backup
-      file that re-imports as the same ride. Hand it several files at once and they become the days of one ride.
+  <h3>30 August 2026 &mdash; planning together, and a per-day timeline <code>2026-08-30-2247PT</code>
+    <a class="rn-sha" href="https://github.com/feralcreative/routeloop/commit/b3e5383400916a116f9e69c96b91842b60813b61"><code>b3e5383</code></a>
+  </h3>
+  <ul class="rn-items">
+    <li class="rn-item" data-kind="changed">
+      <span class="rn-kind">Changed</span>
+      <p class="rn-summary">The slider along the bottom of the builder now covers the day you are working on, not the whole ride.</p>
+      <ul class="rn-details">
+        <li>On a four-day trip that is roughly eighteen times the precision — enough to actually find the middle of Saturday afternoon and work out where lunch&nbsp;goes.</li>
+        <li><strong>Whole ride</strong> beside the readout still gives you the old full-length&nbsp;slider.</li>
+      </ul>
     </li>
-    <li>
-      <strong>A printable roadbook</strong> for the tank bag: stop by stop, leg and running miles, miles since fuel, and
-      an estimated clock.
+    <li class="rn-item" data-kind="fixed">
+      <span class="rn-kind">Fixed</span>
+      <p class="rn-summary">The day you are editing is the bright one on the map.</p>
+      <ul class="rn-details">
+        <li>It used to be whichever day the slider happened to be parked on, so clicking into day three to work on it left day three faded out behind day&nbsp;one.</li>
+      </ul>
     </li>
-    <li>
-      <strong>Twisty.</strong> Every route gets a rough measure of how much the road actually bends, from Straight to
-      Very twisty. Hover it for the number behind the word.
+    <li class="rn-item" data-kind="fixed">
+      <span class="rn-kind">Fixed</span>
+      <p class="rn-summary">Picking a category for a waypoint closes the picker.</p>
+      <ul class="rn-details">
+        <li>It stayed open and had to be dismissed by hand, which read as the click not having&nbsp;registered.</li>
+      </ul>
     </li>
-    <li>
-      A point of interest can carry how long you expect to be there, and sits in the list where it falls along the road.
+    <li class="rn-item" data-kind="fixed">
+      <span class="rn-kind">Fixed</span>
+      <p class="rn-summary">The round feedback badge no longer sits on the end of the slider.</p>
+      <ul class="rn-details">
+        <li>It was covering the last of the travel, which is the end of the&nbsp;ride.</li>
+      </ul>
     </li>
-    <li>The questions page collapses into an accordion, and each answer has a link you can send someone.</li>
+    <li class="rn-item" data-kind="new">
+      <span class="rn-kind">New</span>
+      <p class="rn-summary">A ride somebody shared with you now has a way in.</p>
+      <ul class="rn-details">
+        <li>If you are on a ride’s roster you will see a link to open it from the ride page, and what it says is what you can actually do there — edit it, suggest changes, or leave a comment.</li>
+      </ul>
+    </li>
+    <li class="rn-item" data-kind="new">
+      <span class="rn-kind">New</span>
+      <p class="rn-summary">Two of you can plan the same ride at the same time.</p>
+      <ul class="rn-details">
+        <li>Take different days and neither of you can lose the other’s work: your saves are merged a day at a time rather than one of you overwriting the whole&nbsp;ride.</li>
+      </ul>
+    </li>
+    <li class="rn-item" data-kind="new">
+      <span class="rn-kind">New</span>
+      <p class="rn-summary">You can see who else is in a ride with you and which day they are on.</p>
+      <ul class="rn-details">
+        <li>A day somebody else is working on is marked, so you know to expect a clash before you start moving stops&nbsp;around.</li>
+      </ul>
+    </li>
+    <li class="rn-item" data-kind="new">
+      <span class="rn-kind">New</span>
+      <p class="rn-summary">When someone else saves a day you are looking at, it updates in front of you rather than going quietly out of date.</p>
+      <ul class="rn-details">
+        <li>If you have unsaved work that clashes, the panel says so and stops saving instead of picking a winner.</li>
+      </ul>
+    </li>
+    <li class="rn-item" data-kind="changed">
+      <span class="rn-kind">Changed</span>
+      <p class="rn-summary">If you have ever had a ride open in two tabs, or planned one alongside somebody else, look over its days.</p>
+      <ul class="rn-details">
+        <li>Until today the last save won outright and could take the other one’s changes with it, silently.</li>
+      </ul>
+    </li>
   </ul>
 </section>
 
 <section class="rn-release">
-  <h3>1 August 2026</h3>
-  <ul>
-    <li>
-      <strong>A timeline slider across the whole ride.</strong> Drag it and the day it lands on comes forward while the
-      rest dim, on both the builder and the shared view.
+  <h3>29 August 2026 &mdash; downloads from the builder, and small fixes <code>2026-08-29-1902PT</code>
+    <a class="rn-sha" href="https://github.com/feralcreative/routeloop/commit/21cfa577342ee1d4b82660bd44de917a478f94ec"><code>21cfa57</code></a>
+  </h3>
+  <ul class="rn-items">
+    <li class="rn-item" data-kind="fixed">
+      <span class="rn-kind">Fixed</span>
+      <p class="rn-summary">Adding a bike in the Paddock no longer throws you out of every field.</p>
+      <ul class="rn-details">
+        <li>Each time you clicked into one it lost focus straight away and had to be clicked again; it just works&nbsp;now.</li>
+        <li>Saving a place or renaming a group had the same problem, and&nbsp;does&nbsp;not.</li>
+      </ul>
     </li>
-    <li><strong>Find a ride</strong> — a gallery of the rides other people have made public.</li>
-    <li><strong>Clone a public ride into your own account</strong> and change it however you like.</li>
-    <li>Pick a username, and a starting point that shows on a ride you make public.</li>
-    <li>Reverse a day, and throw away unsaved changes without reloading.</li>
-    <li>Pause the video on the sign-in page.</li>
+    <li class="rn-item" data-kind="new">
+      <span class="rn-kind">New</span>
+      <p class="rn-summary">You can set a stop shorter than an hour.</p>
+      <ul class="rn-details">
+        <li>Typing <strong>.25</strong> gives you a quarter of an hour, and stop times are shown to two decimals so a fifteen-minute coffee stop stays fifteen&nbsp;minutes.</li>
+        <li>It did not before: anything that was not a multiple of six minutes was quietly rounded on its way out of the box, and grew a little every time you touched the&nbsp;row.</li>
+        <li><strong>Worth re-checking any stop time you set before today</strong> — a stop you meant as twenty minutes may be sitting at&nbsp;eighteen.</li>
+      </ul>
+    </li>
+    <li class="rn-item" data-kind="changed">
+      <span class="rn-kind">Changed</span>
+      <p class="rn-summary">Dash is now the first thing in the menu instead of hiding at the top of the Rides list.</p>
+      <ul class="rn-details">
+        <li>Your numbers, your records, then your&nbsp;rides.</li>
+      </ul>
+    </li>
+    <li class="rn-item" data-kind="new">
+      <span class="rn-kind">New</span>
+      <p class="rn-summary">There is a <strong>Plan a ride</strong> sign at the top of your dashboard.</p>
+      <ul class="rn-details">
+        <li>Starting a ride is what this is for and it used to mean opening a menu&nbsp;first.</li>
+      </ul>
+    </li>
+    <li class="rn-item" data-kind="changed">
+      <span class="rn-kind">Changed</span>
+      <p class="rn-summary">Riders and Friends are one page with two tabs, reached from <strong>Riders</strong>.</p>
+      <ul class="rn-details">
+        <li>Everyone in one place instead of two, and old links to your friends list still land in the right&nbsp;place.</li>
+      </ul>
+    </li>
+    <li class="rn-item" data-kind="changed">
+      <span class="rn-kind">Changed</span>
+      <p class="rn-summary">You can download a ride straight from the builder now — GPX, KML, GeoJSON, CSV, or a file per day — without going to the Import / Export&nbsp;page.</p>
+    </li>
+    <li class="rn-item" data-kind="fixed">
+      <span class="rn-kind">Fixed</span>
+      <p class="rn-summary">If you imported a route file and then re-cut it here, downloading it gives you <em>your</em> version.</p>
+      <ul class="rn-details">
+        <li>It used to hand back the file you uploaded, so an afternoon of edits came back as though you had never made&nbsp;them.</li>
+        <li>What you uploaded is still kept, and is still in your account&nbsp;archive.</li>
+      </ul>
+    </li>
+    <li class="rn-item" data-kind="new">
+      <span class="rn-kind">New</span>
+      <p class="rn-summary">Google’s zoom and map-type controls are about a third smaller, so there is more map to&nbsp;look&nbsp;at.</p>
+    </li>
+    <li class="rn-item" data-kind="fixed">
+      <span class="rn-kind">Fixed</span>
+      <p class="rn-summary">A fix worth knowing about even though it was never reported: if the builder offered to restore unsaved changes, clicking the map to add a point silently did nothing, and the route could not be dragged into shape.</p>
+      <ul class="rn-details">
+        <li>It looked completely normal. That is&nbsp;fixed.</li>
+      </ul>
+    </li>
   </ul>
 </section>
 
 <section class="rn-release">
-  <h3>31 July 2026</h3>
-  <ul>
-    <li>
-      Give a day a start and end time, and get an honest estimate for a leg the router could not route rather than a
-      zero.
+  <h3>28 August 2026 &mdash; comments, suggestions, and co-owners <code>2026-08-28-1637PT</code>
+    <a class="rn-sha" href="https://github.com/feralcreative/routeloop/commit/547a7b33f08eaefc8d4059ff3e6d0c3eba089185"><code>547a7b3</code></a>
+  </h3>
+  <ul class="rn-items">
+    <li class="rn-item" data-kind="new">
+      <span class="rn-kind">New</span>
+      <p class="rn-summary">Everyone you add to a ride can now look at it, talk about it, and suggest changes to it.</p>
+      <ul class="rn-details">
+        <li>That is what an invitation gives them from the moment you add them &mdash; you no longer have to choose between showing somebody a route and letting them help plan&nbsp;it.</li>
+      </ul>
+    </li>
+    <li class="rn-item" data-kind="new">
+      <span class="rn-kind">New</span>
+      <p class="rn-summary">Letting somebody edit the ride outright is a separate decision you make yourself, either while you are adding them or any time afterwards, from the Riders page.</p>
+      <ul class="rn-details">
+        <li>You can go the other way too and give somebody a look and nothing&nbsp;more.</li>
+      </ul>
+    </li>
+    <li class="rn-item" data-kind="new">
+      <span class="rn-kind">New</span>
+      <p class="rn-summary">Editing means the route.</p>
+      <ul class="rn-details">
+        <li>Deleting the ride, changing who can see it, and adding or removing riders stay with the owner however much you trust&nbsp;somebody.</li>
+      </ul>
+    </li>
+    <li class="rn-item" data-kind="new">
+      <span class="rn-kind">New</span>
+      <p class="rn-summary">A ride can now have more than one owner, so you are not the single point of failure on a trip you organized.</p>
+      <ul class="rn-details">
+        <li>The last owner cannot leave &mdash; somebody has to be able to run&nbsp;it.</li>
+      </ul>
+    </li>
+    <li class="rn-item" data-kind="new">
+      <span class="rn-kind">New</span>
+      <p class="rn-summary">Comments, on the whole ride or on one particular stop. &ldquo;Is this hotel actually walkable?&rdquo; belongs on the hotel.</p>
+      <ul class="rn-details">
+        <li>Delete the stop later and the comment does not vanish with it &mdash; it moves up to the ride and still says which stop it was&nbsp;about.</li>
+      </ul>
+    </li>
+    <li class="rn-item" data-kind="new">
+      <span class="rn-kind">New</span>
+      <p class="rn-summary">Suggestions.</p>
+      <ul class="rn-details">
+        <li>Open a ride you cannot edit, rearrange a day the way you think it should go, and press Suggest.</li>
+        <li>The owner sees it and takes it or leaves it.</li>
+        <li>If they change that day in the meantime, your suggestion says so instead of quietly overwriting their&nbsp;work.</li>
+      </ul>
+    </li>
+    <li class="rn-item" data-kind="new">
+      <span class="rn-kind">New</span>
+      <p class="rn-summary">Everyone on the ride sees everyone else’s suggestions, so two people do not propose the same detour.</p>
     </li>
   </ul>
 </section>
 
 <section class="rn-release">
-  <h3>30 July 2026</h3>
-  <ul>
-    <li>
-      <strong>The map engine moved to Google Maps</strong>, and a ride became several days drawn together on one map
-      instead of a single route.
+  <h3>27 August 2026 &mdash; settings, profile pictures, and drag fixes <code>2026-08-27-2359PT</code>
+    <a class="rn-sha" href="https://github.com/feralcreative/routeloop/commit/46f61ebf7e57eeb268b76907a8a1937bb062216c"><code>46f61eb</code></a>
+  </h3>
+  <ul class="rn-items">
+    <li class="rn-item" data-kind="changed">
+      <span class="rn-kind">Changed</span>
+      <p class="rn-summary">Settings is reorganized into two topics.</p>
+      <ul class="rn-details">
+        <li>— Appearance, and how things read — instead of four boxes that never quite lined&nbsp;up.</li>
+      </ul>
+    </li>
+    <li class="rn-item" data-kind="new">
+      <span class="rn-kind">New</span>
+      <p class="rn-summary">You can switch the whole site to kilometers.</p>
+      <ul class="rn-details">
+        <li>Distances, your records, the roadbook, the ride list and the builder all follow it.</li>
+        <li>Twistiness comes along too: the same road reads as a smaller number per kilometer than per&nbsp;mile.</li>
+      </ul>
+    </li>
+    <li class="rn-item" data-kind="new">
+      <span class="rn-kind">New</span>
+      <p class="rn-summary">You can turn animation off here, without changing your whole phone or computer.</p>
+      <ul class="rn-details">
+        <li>Or leave it following your device, which is what it has always&nbsp;done.</li>
+      </ul>
+    </li>
+    <li class="rn-item" data-kind="new">
+      <span class="rn-kind">New</span>
+      <p class="rn-summary">Your profile takes a picture now.</p>
+      <ul class="rn-details">
+        <li>Pick a photo of any shape, position and zoom the circle, and we store a square copy.</li>
+        <li>We strip the location your camera put in&nbsp;it.</li>
+      </ul>
+    </li>
+    <li class="rn-item" data-kind="new">
+      <span class="rn-kind">New</span>
+      <p class="rn-summary">Typing an address offers suggestions, and picking one fills the street, town, state and postal code at&nbsp;once.</p>
+    </li>
+    <li class="rn-item" data-kind="new">
+      <span class="rn-kind">New</span>
+      <p class="rn-summary">The profile saves as you go.</p>
+      <ul class="rn-details">
+        <li>Your username and your address still need the button — a username gets claimed and held the moment it is saved, so that one waits until you say&nbsp;so.</li>
+      </ul>
+    </li>
+    <li class="rn-item" data-kind="new">
+      <span class="rn-kind">New</span>
+      <p class="rn-summary">A phone number and your social handles, each with its own switch for who can see&nbsp;them.</p>
+    </li>
+    <li class="rn-item" data-kind="new">
+      <span class="rn-kind">New</span>
+      <p class="rn-summary">In a club?</p>
+      <ul class="rn-details">
+        <li><strong>Clubs are not built yet</strong>, but there is a note on your profile asking you to get in touch so we can find you when they&nbsp;are.</li>
+      </ul>
+    </li>
+    <li class="rn-item" data-kind="fixed">
+      <span class="rn-kind">Fixed</span>
+      <p class="rn-summary">A fix worth knowing about: if your dates ever switched to American order on their own, that was us.</p>
+      <ul class="rn-details">
+        <li>Saving a setting could overwrite the date format your browser was giving you. It no longer&nbsp;can.</li>
+      </ul>
+    </li>
+    <li class="rn-item" data-kind="fixed">
+      <span class="rn-kind">Fixed</span>
+      <p class="rn-summary">Deleting a ride from the dashboard no longer jumps you back to the top of the page.</p>
+      <ul class="rn-details">
+        <li>The card is replaced where it stood, with an <strong>Undo</strong> right there if you did not mean it — so you can clear out several rides in a row without scrolling back down each&nbsp;time.</li>
+      </ul>
+    </li>
+    <li class="rn-item" data-kind="new">
+      <span class="rn-kind">New</span>
+      <p class="rn-summary">The figures at the top of the dashboard — rides, days, legs, waypoints — are bigger.</p>
+      <ul class="rn-details">
+        <li>They were the smallest numbers on a page whose job is to show you&nbsp;numbers.</li>
+      </ul>
+    </li>
+    <li class="rn-item" data-kind="changed">
+      <span class="rn-kind">Changed</span>
+      <p class="rn-summary">Each of your records now shows its figure in that record’s own color, matching the icon beside&nbsp;it.</p>
+    </li>
+    <li class="rn-item" data-kind="fixed">
+      <span class="rn-kind">Fixed</span>
+      <p class="rn-summary">Those colors were checked against all six themes while we were in there, and several of them were genuinely hard to read on the dark ones.</p>
+      <ul class="rn-details">
+        <li>Every record figure has been retuned so it is legible in whichever theme you&nbsp;use.</li>
+      </ul>
+    </li>
+    <li class="rn-item" data-kind="fixed">
+      <span class="rn-kind">Fixed</span>
+      <p class="rn-summary">Dragging a stop to a new position works again.</p>
+      <ul class="rn-details">
+        <li>It had been landing a few rows farther down than you dropped it, or springing back to where it started the next time the list redrew.</li>
+        <li>Both are fixed: a stop goes exactly where you put&nbsp;it.</li>
+      </ul>
+    </li>
+    <li class="rn-item" data-kind="fixed">
+      <span class="rn-kind">Fixed</span>
+      <p class="rn-summary">If a drag sprang back, the change was never saved either — so a reorder you thought you had made was simply not there when you came back to the ride.</p>
+      <ul class="rn-details">
+        <li>Worth re-checking the order on any ride you have been rearranging this&nbsp;week.</li>
+      </ul>
+    </li>
+    <li class="rn-item" data-kind="fixed">
+      <span class="rn-kind">Fixed</span>
+      <p class="rn-summary">Dragging a stop from one day into another now drops it where you aimed, instead of at the bottom of that day.</p>
     </li>
   </ul>
 </section>
 
 <section class="rn-release">
-  <h3>Before all that, July 2026</h3>
-  <ul>
-    <li>
-      The app was rebuilt from scratch in its second week, sign-in was tried three different ways before landing on
-      Google and an emailed link, and it was called something else twice. None of that is worth a line each — but it is
-      why the earliest rides in your account may look like they were made by a different app. They were.
+  <h3>26 August 2026 &mdash; groups, riders, friends, and voting <code>2026-08-26-2230PT</code>
+    <a class="rn-sha" href="https://github.com/feralcreative/routeloop/commit/54880abd1e156e5d909034d2ab03653c5a2ce44e"><code>54880ab</code></a>
+  </h3>
+  <ul class="rn-items">
+    <li class="rn-item" data-kind="changed">
+      <span class="rn-kind">Changed</span>
+      <p class="rn-summary">The panel is three tabs now: Routes, Groups and Riders.</p>
+      <ul class="rn-details">
+        <li>Groups and riders arrived last week and pushed the day you were actually editing off the bottom of the panel.</li>
+        <li>Only one of the three takes up room at a time, so the day list gets the space&nbsp;back.</li>
+      </ul>
+    </li>
+    <li class="rn-item" data-kind="new">
+      <span class="rn-kind">New</span>
+      <p class="rn-summary">The ride’s description and who can see it sit above the tabs, because they are about the whole ride rather than any one&nbsp;tab.</p>
+    </li>
+    <li class="rn-item" data-kind="new">
+      <span class="rn-kind">New</span>
+      <p class="rn-summary">Riders is new.</p>
+      <ul class="rn-details">
+        <li>It shows who is coming, what they said, which bike they are bringing, and the smallest tank on the ride—without leaving the map.</li>
+        <li>You can put a rider on a group from there, or take somebody off the&nbsp;ride.</li>
+      </ul>
+    </li>
+    <li class="rn-item" data-kind="new">
+      <span class="rn-kind">New</span>
+      <p class="rn-summary">Inviting someone, answering for yourself, and the vote are still on the riders page, and there is a link straight to it.</p>
+      <ul class="rn-details">
+        <li>Those are things any rider does, and the panel is only for whoever is planning&nbsp;it.</li>
+      </ul>
+    </li>
+    <li class="rn-item" data-kind="changed">
+      <span class="rn-kind">Changed</span>
+      <p class="rn-summary">A group you have just added cannot have riders put on it until the ride saves, which takes a second or two.</p>
+      <ul class="rn-details">
+        <li>The tab says so rather than leaving the group mysteriously&nbsp;missing.</li>
+      </ul>
+    </li>
+    <li class="rn-item" data-kind="changed">
+      <span class="rn-kind">Changed</span>
+      <p class="rn-summary">In the corner menu, <em>What’s new</em> is now above <em>Something wrong?</em>&nbsp;instead of below it.</p>
+    </li>
+    <li class="rn-item" data-kind="fixed">
+      <span class="rn-kind">Fixed</span>
+      <p class="rn-summary">The build stamp under it is finally right.</p>
+      <ul class="rn-details">
+        <li>Every deployed build has been calling itself <em>dev</em> since the stamp was added, whatever it actually was—so if you have quoted one in a bug report, it told us&nbsp;nothing.</li>
+        <li>It now says the build you are really&nbsp;on.</li>
+      </ul>
+    </li>
+    <li class="rn-item" data-kind="new">
+      <span class="rn-kind">New</span>
+      <p class="rn-summary">Riders leaving from different places.</p>
+      <ul class="rn-details">
+        <li>Add a group for each starting point in the ride panel, then say which days each group rides.</li>
+        <li>The days you leave on <em>Everyone</em> are the ones you all ride&nbsp;together.</li>
+      </ul>
+    </li>
+    <li class="rn-item" data-kind="new">
+      <span class="rn-kind">New</span>
+      <p class="rn-summary">Everyone gets their own copy of the ride.</p>
+      <ul class="rn-details">
+        <li>Your roadbook, your Google Maps links and your downloads start where you start and skip somebody else’s morning — and the map shows the whole shape with your own path picked&nbsp;out.</li>
+      </ul>
+    </li>
+    <li class="rn-item" data-kind="new">
+      <span class="rn-kind">New</span>
+      <p class="rn-summary">Routeloop can find the meeting point for you.</p>
+      <ul class="rn-details">
+        <li>Press <em>Find a meet</em> beside a group and it suggests places on the shared route they could join without going backwards or a long way round — preferring fuel stops, since that is where everyone regathers&nbsp;anyway.</li>
+      </ul>
+    </li>
+    <li class="rn-item" data-kind="new">
+      <span class="rn-kind">New</span>
+      <p class="rn-summary">Pick whose clock the day is built around, and whether you are pinning their departure, the meet, or getting there.</p>
+      <ul class="rn-details">
+        <li>If you pick a group that is closer than the others, it says&nbsp;so.</li>
+      </ul>
+    </li>
+    <li class="rn-item" data-kind="new">
+      <span class="rn-kind">New</span>
+      <p class="rn-summary">Fuel stops are planned around the smallest tank coming, and it tells you whose it is.</p>
+      <ul class="rn-details">
+        <li>Say which bike you are bringing on the riders&nbsp;page.</li>
+      </ul>
+    </li>
+    <li class="rn-item" data-kind="new">
+      <span class="rn-kind">New</span>
+      <p class="rn-summary">Riders on a ride.</p>
+      <ul class="rn-details">
+        <li>Open a ride and press <em>Riders and the vote</em>.</li>
+        <li>Add the friends you are actually going with, and they get the ride on their own dashboard under <em>Riding with others</em> — whatever its visibility is set&nbsp;to.</li>
+      </ul>
+    </li>
+    <li class="rn-item" data-kind="new">
+      <span class="rn-kind">New</span>
+      <p class="rn-summary">Everyone on a ride says whether they are in: Going, Maybe, or can’t make it.</p>
+      <ul class="rn-details">
+        <li>You answer for yourself, and only for yourself.</li>
+      </ul>
+    </li>
+    <li class="rn-item" data-kind="new">
+      <span class="rn-kind">New</span>
+      <p class="rn-summary">Vote on alternatives.</p>
+      <ul class="rn-details">
+        <li>If a day has two or more ways of doing it, everyone on the ride picks one and the count sits beside each.</li>
+        <li>Press your own pick again to take it&nbsp;back.</li>
+      </ul>
+    </li>
+    <li class="rn-item" data-kind="new">
+      <span class="rn-kind">New</span>
+      <p class="rn-summary">The count does nothing on its own — you promote an alternative yourself, as before.</p>
+      <ul class="rn-details">
+        <li>Set a deadline and the one with the most votes is elected then instead. A tie leaves your current pick&nbsp;alone.</li>
+      </ul>
+    </li>
+    <li class="rn-item" data-kind="new">
+      <span class="rn-kind">New</span>
+      <p class="rn-summary">You can only add a friend to a ride.</p>
+      <ul class="rn-details">
+        <li>To share a route with somebody you have not added, set it to Unlisted and send the link.</li>
+      </ul>
+    </li>
+    <li class="rn-item" data-kind="new">
+      <span class="rn-kind">New</span>
+      <p class="rn-summary">Friends.</p>
+      <ul class="rn-details">
+        <li>Find someone on the Riders page and ask.</li>
+        <li>Once you are friends, either of you can set a ride to <strong>Friends</strong> and the other can open it — nobody else can, link or no link.</li>
+      </ul>
+    </li>
+    <li class="rn-item" data-kind="new">
+      <span class="rn-kind">New</span>
+      <p class="rn-summary">A fourth setting on every ride, then.</p>
+      <ul class="rn-details">
+        <li>Private is still only you, Unlisted is still anyone holding the link, Public is still listed in Explore, and Friends is the one that actually checks who is asking.</li>
+      </ul>
+    </li>
+    <li class="rn-item" data-kind="new">
+      <span class="rn-kind">New</span>
+      <p class="rn-summary">You can take a copy of a friend’s ride the same way you can take a copy of a public one.</p>
+      <ul class="rn-details">
+        <li>Unlisted rides stay un-copyable: handing someone a link is not handing them a&nbsp;copy.</li>
+      </ul>
+    </li>
+    <li class="rn-item" data-kind="new">
+      <span class="rn-kind">New</span>
+      <p class="rn-summary">Blocking, if you need it.</p>
+      <ul class="rn-details">
+        <li>A blocked rider disappears from your Riders page and you from theirs, and they are not told.</li>
+      </ul>
+    </li>
+    <li class="rn-item" data-kind="new">
+      <span class="rn-kind">New</span>
+      <p class="rn-summary">Riders on a ride — invites, who is in, who is out — is next.</p>
+      <ul class="rn-details">
+        <li>There is a preview of it in the ride panel.</li>
+      </ul>
+    </li>
+  </ul>
+</section>
+
+<section class="rn-release">
+  <h3>23 August 2026 &mdash; points of interest by default, and this page <code>2026-08-23-2145PT</code>
+    <a class="rn-sha" href="https://github.com/feralcreative/routeloop/commit/9a179fdc57aadec7ff15ce1798bbe06b77ee878d"><code>9a179fd</code></a>
+  </h3>
+  <ul class="rn-items">
+    <li class="rn-item" data-kind="changed">
+      <span class="rn-kind">Changed</span>
+      <p class="rn-summary">Every point you drop now starts as a point of interest.</p>
+      <ul class="rn-details">
+        <li>Drop pins wherever you are thinking of going, in whatever order, then promote the ones the route actually has to run through — “Make this a stop” in the row’s ⋮ menu.</li>
+        <li>The road is drawn once two of them are stops.</li>
+        <li>The first point of each day is promoted for you.</li>
+      </ul>
+    </li>
+    <li class="rn-item" data-kind="new">
+      <span class="rn-kind">New</span>
+      <p class="rn-summary">Changed your mind?</p>
+      <ul class="rn-details">
+        <li>“Make this a POI” puts it back, and the point keeps its notes, categories and reservations.</li>
+      </ul>
+    </li>
+    <li class="rn-item" data-kind="fixed">
+      <span class="rn-kind">Fixed</span>
+      <p class="rn-summary">Dragging a row reorders it, whichever kind it is.</p>
+      <ul class="rn-details">
+        <li>Dragging a point of interest no longer moves its pin.</li>
+      </ul>
+    </li>
+    <li class="rn-item" data-kind="new">
+      <span class="rn-kind">New</span>
+      <p class="rn-summary">This page, and a version number in the footer, so you can tell which build you found something in.</p>
+    </li>
+    <li class="rn-item" data-kind="changed">
+      <span class="rn-kind">Changed</span>
+      <p class="rn-summary">The red button on the map is now a bug, and the gray one beside it opens this page.</p>
+    </li>
+  </ul>
+</section>
+
+<section class="rn-release">
+  <h3>22 August 2026 &mdash; saved places, and buttons as highway signs <code>2026-08-22-2232PT</code>
+    <a class="rn-sha" href="https://github.com/feralcreative/routeloop/commit/42f634cf7398df24b95dd0fdf55b66474fead97b"><code>42f634c</code></a>
+  </h3>
+  <ul class="rn-items">
+    <li class="rn-item" data-kind="new">
+      <span class="rn-kind">New</span>
+      <p class="rn-summary">Saved places.</p>
+      <ul class="rn-details">
+        <li>Keep a library of the places you use — home, the good fuel stop, the meet point everyone knows — and drop one into any ride from the day’s search box. File them into groups if you want to.</li>
+      </ul>
+    </li>
+    <li class="rn-item" data-kind="new">
+      <span class="rn-kind">New</span>
+      <p class="rn-summary">A place you save carries its phone number and address into every ride you use it in, but never a confirmation number — that belongs to one trip.</p>
+    </li>
+    <li class="rn-item" data-kind="new">
+      <span class="rn-kind">New</span>
+      <p class="rn-summary">Buttons look like highway signs.</p>
+      <ul class="rn-details">
+        <li>The green field and white keyline are the house style now rather than something a few buttons opted into.</li>
+      </ul>
+    </li>
+    <li class="rn-item" data-kind="fixed">
+      <span class="rn-kind">Fixed</span>
+      <p class="rn-summary">You could not click into the search box at the bottom of a day.</p>
+      <ul class="rn-details">
+        <li>It could be tabbed to but not clicked.</li>
+      </ul>
+    </li>
+    <li class="rn-item" data-kind="new">
+      <span class="rn-kind">New</span>
+      <p class="rn-summary">Each day has its own button for adding a point.</p>
+      <ul class="rn-details">
+        <li>Press it, then click the map, and the point lands on that day.</li>
+      </ul>
+    </li>
+    <li class="rn-item" data-kind="fixed">
+      <span class="rn-kind">Fixed</span>
+      <p class="rn-summary">The button that adds a day looked broken.</p>
+      <ul class="rn-details">
+        <li>It always worked — it just had no styling at all.</li>
+      </ul>
+    </li>
+  </ul>
+</section>
+
+<section class="rn-release">
+  <h3>21 August 2026 &mdash; stop details, and ride thumbnails <code>2026-08-21-2242PT</code>
+    <a class="rn-sha" href="https://github.com/feralcreative/routeloop/commit/537d097db4d2b268c6abc31f444309cde8e13906"><code>537d097</code></a>
+  </h3>
+  <ul class="rn-items">
+    <li class="rn-item" data-kind="new">
+      <span class="rn-kind">New</span>
+      <p class="rn-summary">Stop details.</p>
+      <ul class="rn-details">
+        <li>A stop can hold a confirmation number, check-in and check-out, a phone number, an address, links and notes. <strong>Only you can see them.</strong></li>
+        <li>They never go out with a shared link and they are stripped from every export except your own backup file.</li>
+      </ul>
+    </li>
+    <li class="rn-item" data-kind="changed">
+      <span class="rn-kind">Changed</span>
+      <p class="rn-summary">Your rides show a map of themselves on the list, instead of all looking alike.</p>
+    </li>
+    <li class="rn-item" data-kind="new">
+      <span class="rn-kind">New</span>
+      <p class="rn-summary">The alpha notice picked up its club marks and a bit of paint.</p>
+    </li>
+  </ul>
+</section>
+
+<section class="rn-release">
+  <h3>19 August 2026 &mdash; an Exit map item, and a settings layout fix <code>2026-08-19-2214PT</code>
+    <a class="rn-sha" href="https://github.com/feralcreative/routeloop/commit/90b066e8d131e9066f33d881870ade09330770cf"><code>90b066e</code></a>
+  </h3>
+  <ul class="rn-items">
+    <li class="rn-item" data-kind="changed">
+      <span class="rn-kind">Changed</span>
+      <p class="rn-summary">Leaving the map is an “Exit map” menu item now, rather than an X you had to find.</p>
+    </li>
+    <li class="rn-item" data-kind="fixed">
+      <span class="rn-kind">Fixed</span>
+      <p class="rn-summary">The stop-duration setting rendered wider than it declared, and the legend refused to wrap at any window size.</p>
+    </li>
+  </ul>
+</section>
+
+<section class="rn-release">
+  <h3>16 August 2026 &mdash; alternate days, feedback, and redrawn icons <code>2026-08-16-2153PT</code>
+    <a class="rn-sha" href="https://github.com/feralcreative/routeloop/commit/3073d018de7b928c7f51f8341a9830a76689dc3f"><code>3073d01</code></a>
+  </h3>
+  <ul class="rn-items">
+    <li class="rn-item" data-kind="new">
+      <span class="rn-kind">New</span>
+      <p class="rn-summary">Alternate days.</p>
+      <ul class="rn-details">
+        <li>Two or more versions of the same stretch, grouped, with one of them live.</li>
+        <li>The others are drawn as dashed ghosts and stay out of your mileage, your exports and your roadbook until you make one of them the active one.</li>
+      </ul>
+    </li>
+    <li class="rn-item" data-kind="new">
+      <span class="rn-kind">New</span>
+      <p class="rn-summary">Tell us something.</p>
+      <ul class="rn-details">
+        <li>Report a bug or ask for a feature from inside the app, with a screenshot if it helps.</li>
+        <li>A bug is private between you and the owner unless it gets published; the idea board is where feature wants go, and you can back someone else’s instead of filing your own.</li>
+      </ul>
+    </li>
+    <li class="rn-item" data-kind="new">
+      <span class="rn-kind">New</span>
+      <p class="rn-summary">You get an email when something you reported changes state.</p>
+    </li>
+    <li class="rn-item" data-kind="changed">
+      <span class="rn-kind">Changed</span>
+      <p class="rn-summary">Every day has its own search row now, instead of one search box that had to be told which day it meant.</p>
+    </li>
+    <li class="rn-item" data-kind="new">
+      <span class="rn-kind">New</span>
+      <p class="rn-summary">A day menu, and a select mode for acting on several days or points at once.</p>
+    </li>
+    <li class="rn-item" data-kind="new">
+      <span class="rn-kind">New</span>
+      <p class="rn-summary">The builder’s icons were redrawn by an actual human.</p>
+    </li>
+  </ul>
+</section>
+
+<section class="rn-release">
+  <h3>15 August 2026 &mdash; the builder drawer, autosave, and editable imports <code>2026-08-15-2306PT</code>
+    <a class="rn-sha" href="https://github.com/feralcreative/routeloop/commit/eda5b7cd8177b6b949f380358bf59f1ee0ed94d8"><code>eda5b7c</code></a>
+  </h3>
+  <ul class="rn-items">
+    <li class="rn-item" data-kind="new">
+      <span class="rn-kind">New</span>
+      <p class="rn-summary">The builder is a drawer down the left side showing every day at once, instead of a panel that floated over the map showing one.</p>
+    </li>
+    <li class="rn-item" data-kind="removed">
+      <span class="rn-kind">Removed</span>
+      <p class="rn-summary">The Save button is gone, and that is on purpose.</p>
+      <ul class="rn-details">
+        <li>Your work saves itself when you stop typing.</li>
+        <li>If the browser dies mid-edit, the draft is waiting when you come back.</li>
+      </ul>
+    </li>
+    <li class="rn-item" data-kind="new">
+      <span class="rn-kind">New</span>
+      <p class="rn-summary">Drag a row to reorder it, or use the menu on the row if you would rather not drag.</p>
+    </li>
+    <li class="rn-item" data-kind="changed">
+      <span class="rn-kind">Changed</span>
+      <p class="rn-summary">The ride timeline moved to the bottom edge of the map, where it stops covering the road.</p>
+    </li>
+    <li class="rn-item" data-kind="changed">
+      <span class="rn-kind">Changed</span>
+      <p class="rn-summary">Terrain is the default map now, and there is a switcher for the others.</p>
+    </li>
+    <li class="rn-item" data-kind="new">
+      <span class="rn-kind">New</span>
+      <p class="rn-summary">Choose how stop times are written — <em>1h 30m</em> or <em>1:30</em> — in Settings.</p>
+    </li>
+    <li class="rn-item" data-kind="new">
+      <span class="rn-kind">New</span>
+      <p class="rn-summary">The ride’s name is the headline of the drawer, so you can tell two half-finished rides apart.</p>
+    </li>
+    <li class="rn-item" data-kind="new">
+      <span class="rn-kind">New</span>
+      <p class="rn-summary">An imported file opens in the builder and can be edited, rather than being a route you could only look at.</p>
+    </li>
+    <li class="rn-item" data-kind="new">
+      <span class="rn-kind">New</span>
+      <p class="rn-summary">Delete Me.</p>
+      <ul class="rn-details">
+        <li>Ask for your account to be destroyed and it goes on a 30-day hold, with a Save Me button that calls it off. Nothing skips the hold, including us.</li>
+      </ul>
+    </li>
+    <li class="rn-item" data-kind="changed">
+      <span class="rn-kind">Changed</span>
+      <p class="rn-summary">Your rides live at their own address now, and old rollchart.app links land in the right place.</p>
+    </li>
+  </ul>
+</section>
+
+<section class="rn-release">
+  <h3>14 August 2026 &mdash; download everything about you <code>2026-08-14-2119PT</code>
+    <a class="rn-sha" href="https://github.com/feralcreative/routeloop/commit/26cce6c64a5c65e93879278eff791227f7f92002"><code>26cce6c</code></a>
+  </h3>
+  <ul class="rn-items">
+    <li class="rn-item" data-kind="new">
+      <span class="rn-kind">New</span>
+      <p class="rn-summary">Download Me.</p>
+      <ul class="rn-details">
+        <li>Everything the app holds about you, packaged and handed over, in one file.</li>
+      </ul>
+    </li>
+  </ul>
+</section>
+
+<section class="rn-release">
+  <h3>13 August 2026 &mdash; a self-hosted typeface <code>2026-08-13-2313PT</code>
+    <a class="rn-sha" href="https://github.com/feralcreative/routeloop/commit/654caec81105bbf0e640fe3c34b10aba81c45b8d"><code>654caec</code></a>
+  </h3>
+  <ul class="rn-items">
+    <li class="rn-item" data-kind="new">
+      <span class="rn-kind">New</span>
+      <p class="rn-summary">The typeface is served by us rather than borrowed from Google, so pages stop flashing an unstyled headline on the way in.</p>
+    </li>
+  </ul>
+</section>
+
+<section class="rn-release">
+  <h3>11 August 2026 &mdash; the app is called Routeloop <code>2026-08-11-2024PT</code>
+    <a class="rn-sha" href="https://github.com/feralcreative/routeloop/commit/bebb30de45c22914011cec57970af53be8b6a08f"><code>bebb30d</code></a>
+  </h3>
+  <ul class="rn-items">
+    <li class="rn-item" data-kind="new">
+      <span class="rn-kind">New</span>
+      <p class="rn-summary">The app is called Routeloop.</p>
+      <ul class="rn-details">
+        <li>It was TankBag, and briefly RouteLoop before that.</li>
+        <li><strong>Files you already downloaded still import.</strong></li>
+        <li>Anything named <code>tankbag_…</code> is read exactly as before, day order and dates intact — that is deliberate and it is not going away.</li>
+      </ul>
+    </li>
+  </ul>
+</section>
+
+<section class="rn-release">
+  <h3>9 August 2026 &mdash; a desktop navigation bar <code>2026-08-09-2127PT</code>
+    <a class="rn-sha" href="https://github.com/feralcreative/routeloop/commit/22c58d1b2c75817467b83e599c7090d3fb7ad599"><code>22c58d1</code></a>
+  </h3>
+  <ul class="rn-items">
+    <li class="rn-item" data-kind="new">
+      <span class="rn-kind">New</span>
+      <p class="rn-summary">A proper navigation bar on a desktop screen, with About and your account as their own menus.</p>
+    </li>
+  </ul>
+</section>
+
+<section class="rn-release">
+  <h3>8 August 2026 &mdash; a dashboard, invitations, and drag-and-drop import <code>2026-08-08-2009PT</code>
+    <a class="rn-sha" href="https://github.com/feralcreative/routeloop/commit/dea63a0856759433d5964cbdca635e2ca8d9ed98"><code>dea63a0</code></a>
+  </h3>
+  <ul class="rn-items">
+    <li class="rn-item" data-kind="new">
+      <span class="rn-kind">New</span>
+      <p class="rn-summary">The signed-in home page is your numbers.</p>
+      <ul class="rn-details">
+        <li>— miles, days, rides, and what you have been planning — rather than a list you already had.</li>
+      </ul>
+    </li>
+    <li class="rn-item" data-kind="new">
+      <span class="rn-kind">New</span>
+      <p class="rn-summary">Invitations, and a short survey for the riders who take one.</p>
+    </li>
+    <li class="rn-item" data-kind="new">
+      <span class="rn-kind">New</span>
+      <p class="rn-summary">Downloads are named so they can be re-imported.</p>
+      <ul class="rn-details">
+        <li>The long filename carries the ride, the day, the date and the order, because GPX and KML cannot hold a schedule inside themselves.</li>
+        <li>Drop the files back in and the ride comes back with its days in the right order.</li>
+      </ul>
+    </li>
+    <li class="rn-item" data-kind="new">
+      <span class="rn-kind">New</span>
+      <p class="rn-summary">Drop a file anywhere on the import page rather than hunting for a file picker.</p>
+    </li>
+  </ul>
+</section>
+
+<section class="rn-release">
+  <h3>7 August 2026 &mdash; email from our own domain <code>2026-08-07-2051PT</code>
+    <a class="rn-sha" href="https://github.com/feralcreative/routeloop/commit/3e7978d2ca2cbfcf2ae75f6a4a8bf3c80ca496e4"><code>3e7978d</code></a>
+  </h3>
+  <ul class="rn-items">
+    <li class="rn-item" data-kind="changed">
+      <span class="rn-kind">Changed</span>
+      <p class="rn-summary">Mail from the app now comes from the app’s own domain and looks like something a person sent — the sign-in link, a waitlist confirmation, and an approval notice.</p>
+    </li>
+  </ul>
+</section>
+
+<section class="rn-release">
+  <h3>5 August 2026 &mdash; undo, redo, and dragging the route <code>2026-08-05-2224PT</code>
+    <a class="rn-sha" href="https://github.com/feralcreative/routeloop/commit/858b69296ea45723b7da9da4fc88c9dc5846b6d4"><code>858b692</code></a>
+  </h3>
+  <ul class="rn-items">
+    <li class="rn-item" data-kind="new">
+      <span class="rn-kind">New</span>
+      <p class="rn-summary">Undo and redo in the builder, and a recovered draft if the browser falls over.</p>
+    </li>
+    <li class="rn-item" data-kind="new">
+      <span class="rn-kind">New</span>
+      <p class="rn-summary">Drag the route line onto the road you actually meant.</p>
+      <ul class="rn-details">
+        <li>The point you drop shapes that one leg and nothing else re-routes.</li>
+      </ul>
+    </li>
+  </ul>
+</section>
+
+<section class="rn-release">
+  <h3>4 August 2026 &mdash; hand a day off to Google Maps <code>2026-08-04-2013PT</code>
+    <a class="rn-sha" href="https://github.com/feralcreative/routeloop/commit/87b965514c452e7fe7f46dfd689faed75f81be77"><code>87b9655</code></a>
+  </h3>
+  <ul class="rn-items">
+    <li class="rn-item" data-kind="new">
+      <span class="rn-kind">New</span>
+      <p class="rn-summary">Hand a day off to Google Maps as an ordered series of links.</p>
+    </li>
+    <li class="rn-item" data-kind="new">
+      <span class="rn-kind">New</span>
+      <p class="rn-summary">Expand weaves extra shaping points into those links so Maps has too little room to pick its own roads.</p>
+      <ul class="rn-details">
+        <li>It tells you the longest stretch Maps still chooses for itself rather than hiding it.</li>
+      </ul>
+    </li>
+  </ul>
+</section>
+
+<section class="rn-release">
+  <h3>3 August 2026 &mdash; multi-track files import whole <code>2026-08-03-2113PT</code>
+    <a class="rn-sha" href="https://github.com/feralcreative/routeloop/commit/add379baaabc6dc4603b11202e178dec15557f7d"><code>add379b</code></a>
+  </h3>
+  <ul class="rn-items">
+    <li class="rn-item" data-kind="fixed">
+      <span class="rn-kind">Fixed</span>
+      <p class="rn-summary">A file holding several tracks kept only the longest one.</p>
+      <ul class="rn-details">
+        <li>It keeps all of them now.</li>
+      </ul>
+    </li>
+  </ul>
+</section>
+
+<section class="rn-release">
+  <h3>2 August 2026 &mdash; import, export, a roadbook, and twistiness <code>2026-08-02-2305PT</code>
+    <a class="rn-sha" href="https://github.com/feralcreative/routeloop/commit/9a585d66db79e14d8cf94c9bc09270fa1e597432"><code>9a585d6</code></a>
+  </h3>
+  <ul class="rn-items">
+    <li class="rn-item" data-kind="new">
+      <span class="rn-kind">New</span>
+      <p class="rn-summary">Import and export.</p>
+      <ul class="rn-details">
+        <li>KML, KMZ, GPX, GeoJSON and CSV in and out, plus a lossless Routeloop backup file that re-imports as the same ride.</li>
+        <li>Hand it several files at once and they become the days of one ride.</li>
+      </ul>
+    </li>
+    <li class="rn-item" data-kind="new">
+      <span class="rn-kind">New</span>
+      <p class="rn-summary">A printable roadbook for the tank bag.</p>
+      <ul class="rn-details">
+        <li>Stop by stop: leg and running miles, miles since fuel, and an estimated clock.</li>
+      </ul>
+    </li>
+    <li class="rn-item" data-kind="new">
+      <span class="rn-kind">New</span>
+      <p class="rn-summary">Twisty.</p>
+      <ul class="rn-details">
+        <li>Every route gets a rough measure of how much the road actually bends, from Straight to Very twisty.</li>
+        <li>Hover it for the number behind the word.</li>
+      </ul>
+    </li>
+    <li class="rn-item" data-kind="new">
+      <span class="rn-kind">New</span>
+      <p class="rn-summary">A point of interest can carry how long you expect to be there, and sits in the list where it falls along the road.</p>
+    </li>
+    <li class="rn-item" data-kind="new">
+      <span class="rn-kind">New</span>
+      <p class="rn-summary">The questions page collapses into an accordion, and each answer has a link you can send someone.</p>
+    </li>
+  </ul>
+</section>
+
+<section class="rn-release">
+  <h3>1 August 2026 &mdash; a timeline slider, ride search, and cloning <code>2026-08-01-2222PT</code>
+    <a class="rn-sha" href="https://github.com/feralcreative/routeloop/commit/08ded3240e432e8f1e50c09d4ce82ae2b077b0e9"><code>08ded32</code></a>
+  </h3>
+  <ul class="rn-items">
+    <li class="rn-item" data-kind="new">
+      <span class="rn-kind">New</span>
+      <p class="rn-summary">A timeline slider across the whole ride.</p>
+      <ul class="rn-details">
+        <li>Drag it and the day it lands on comes forward while the rest dim, on both the builder and the shared view.</li>
+      </ul>
+    </li>
+    <li class="rn-item" data-kind="new">
+      <span class="rn-kind">New</span>
+      <p class="rn-summary">Find a ride.</p>
+      <ul class="rn-details">
+        <li>— a gallery of the rides other people have made public.</li>
+      </ul>
+    </li>
+    <li class="rn-item" data-kind="new">
+      <span class="rn-kind">New</span>
+      <p class="rn-summary">Clone a public ride into your own account and change it however you like.</p>
+    </li>
+    <li class="rn-item" data-kind="new">
+      <span class="rn-kind">New</span>
+      <p class="rn-summary">Pick a username, and a starting point that shows on a ride you make public.</p>
+    </li>
+    <li class="rn-item" data-kind="new">
+      <span class="rn-kind">New</span>
+      <p class="rn-summary">Reverse a day, and throw away unsaved changes without reloading.</p>
+    </li>
+    <li class="rn-item" data-kind="new">
+      <span class="rn-kind">New</span>
+      <p class="rn-summary">Pause the video on the sign-in page.</p>
+    </li>
+  </ul>
+</section>
+
+<section class="rn-release">
+  <h3>31 July 2026 &mdash; start and end times for a day <code>2026-07-31-2213PT</code>
+    <a class="rn-sha" href="https://github.com/feralcreative/routeloop/commit/2732526bddae65a801863144500f02aa548557d3"><code>2732526</code></a>
+  </h3>
+  <ul class="rn-items">
+    <li class="rn-item" data-kind="new">
+      <span class="rn-kind">New</span>
+      <p class="rn-summary">Give a day a start and end time, and get an honest estimate for a leg the router could not route rather than a zero.</p>
+    </li>
+  </ul>
+</section>
+
+<section class="rn-release">
+  <h3>30 July 2026 &mdash; Google Maps, and rides of several days <code>2026-07-30-2235PT</code>
+    <a class="rn-sha" href="https://github.com/feralcreative/routeloop/commit/f26bc3e68351bd93c43b96a9de853b02e5501458"><code>f26bc3e</code></a>
+  </h3>
+  <ul class="rn-items">
+    <li class="rn-item" data-kind="changed">
+      <span class="rn-kind">Changed</span>
+      <p class="rn-summary">The map engine moved to Google Maps, and a ride became several days drawn together on one map instead of a single route.</p>
+    </li>
+  </ul>
+</section>
+
+<section class="rn-release">
+  <h3>July 2026 &mdash; where it started <code>2026-07-13-2136PT</code>
+    <a class="rn-sha" href="https://github.com/feralcreative/routeloop/commit/46627cd01343f07ef8dfc43f12fb0424b0bec7d9"><code>46627cd</code></a>
+  </h3>
+  <ul class="rn-items">
+    <li class="rn-item" data-kind="new">
+      <span class="rn-kind">New</span>
+      <p class="rn-summary">The app was rebuilt from scratch in its second week, sign-in was tried three different ways before landing on Google and an emailed link, and it was called something else twice.</p>
+      <ul class="rn-details">
+        <li>None of that is worth a line each — but it is why the earliest rides in your account may look like they were made by a different app. They were.</li>
+      </ul>
     </li>
   </ul>
 </section>

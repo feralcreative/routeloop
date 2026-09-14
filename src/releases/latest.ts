@@ -157,20 +157,24 @@ export function latestRelease(html: string): Release | null {
 }
 
 /**
- * A release's own first bullet, as one or two sentences.
+ * A release's own first item, as one or two sentences.
  *
  * **DERIVED RATHER THAN AUTHORED, so it cannot drift.** Forty-two hand-written
  * summaries is forty-two more things to keep in step with the notes they
- * summarize, and the first bullet is already written as the headline change —
- * thirty-one of the forty-two open with a `<strong>` lead that is exactly this
- * sentence. The eleven that do not still open with a plain readable one.
+ * summarize, and the first item's summary line is already written as the
+ * headline change (#325 made that line a required part of every item).
  *
  * Cut on a SENTENCE boundary and only then on a word, so a summary ends as
  * something somebody wrote rather than mid-clause.
  */
 function summarize(sectionHtml: string): string {
+  // THE FIRST ITEM'S SUMMARY LINE, since #325 reshaped every item into a kind,
+  // a sentence and bullets: the sentence is exactly what this wants, and the
+  // whole `<li>` would now carry the bullets too. The bare-`<li>` fallback is
+  // for a section written the old way.
+  const line = /<p class="rn-summary">([^]*?)<\/p>/.exec(sectionHtml)
   const li = /<li>([^]*?)<\/li>/.exec(sectionHtml)
-  const text = plain(li ? li[1] : sectionHtml)
+  const text = plain(line ? line[1] : li ? li[1] : sectionHtml)
   if (text.length <= SUMMARY_MAX) return text
   // Two sentences at most, and only while they fit.
   let cut = ''
@@ -222,6 +226,67 @@ export function withAnchors(html: string): string {
     const head = /<h3>([^]*?)<\/h3>/.exec(rest)
     const title = head ? stripStamp(head[1]) : ''
     out += title ? `<section class="rn-release" id="${releaseId(title)}">` : tag
+  }
+  return splitHeadings(out + html.slice(last))
+}
+
+/**
+ * The date as an eyebrow over the title, and the entry folded to those two
+ * lines, at render (#325).
+ *
+ * **THE FILE KEEPS "DATE — TITLE" IN ONE `<h3>`, and this is what makes that
+ * safe to leave alone.** The heading is the announcement id and the thing the
+ * date is read from, so moving the date out of it in the FILE would mint a new
+ * id for every release — thirty-six quiet re-announcements — and leave the
+ * date parser nothing to read. Splitting at render costs nothing and changes
+ * no identity: `<h3>DATE — TITLE STAMP</h3>` renders as an eyebrow carrying
+ * the date and the stamp, then an `<h3>` carrying the title alone. A heading
+ * with no title (the early history) keeps the date as its heading.
+ *
+ * **AN ACCORDION, WITH THE NEWEST ENTRY OPEN TO START.** Ziad's call,
+ * 2026-09-13: thirty-six entries of bullets is a wall, and the title is what
+ * a rider scans. Every entry is a `<details>` sharing one `name`, which is
+ * the native exclusive accordion — opening one closes the other, with no
+ * script — and the newest ships `open`, because it is the one the badge
+ * points at; it folds like the rest once another is opened. site.js opens
+ * the entry a notification's anchor names, which is the one thing the markup
+ * cannot do.
+ */
+function splitHeadings(html: string): string {
+  const masked = maskComments(html)
+  const re = /<section class="rn-release"(\s[^>]*)?>([^]*?)<\/section>/g
+  let out = ''
+  let last = 0
+  let first = true
+  let m: RegExpExecArray | null
+  while ((m = re.exec(masked)) !== null) {
+    const open = html.slice(m.index, m.index + m[0].indexOf('>') + 1)
+    const inner = html.slice(m.index + open.length, m.index + m[0].length - '</section>'.length)
+    out += html.slice(last, m.index)
+    last = m.index + m[0].length
+    const head = /<h3>([^]*?)<\/h3>/.exec(inner)
+    // Already split — this is idempotent, like the anchors, because the modal
+    // and the page both render whatever they are handed.
+    if (!head || /class="rn-date"|class="rn-fold"/.test(inner)) {
+      out += html.slice(m.index, last)
+      first = false
+      continue
+    }
+    const rest = inner.slice(head.index + head[0].length)
+    const stamp = /<code>[^<]*<\/code>(?:\s*<a class="rn-sha"[^]*?<\/a>)?/.exec(head[1])
+    const text = (stamp ? head[1].slice(0, stamp.index) : head[1]).trim()
+    const split = /^(.*?\d{4})\s*(?:&mdash;|—)\s*([^]+)$/.exec(text)
+    const eyebrow = split ? `${split[1].trim()}${stamp ? ` ${stamp[0].trim()}` : ''}` : null
+    // The title stood after a dash and was written lowercase; alone on its
+    // line it opens the sentence. An entity or a tag at the front is left be.
+    const title = split ? split[2].trim().replace(/^[a-z]/, (c) => c.toUpperCase()) : head[1].trim()
+    // The eyebrow is inside the summary, above the title, so a folded entry
+    // still shows its date and build.
+    const eyebrowHtml = eyebrow ? `<p class="rn-date">${eyebrow}</p>` : ''
+    out +=
+      `${open}\n  <details class="rn-fold" name="rn-fold"${first ? ' open' : ''}>\n` +
+      `  <summary>${eyebrowHtml}<h3>${title}</h3></summary>${rest}</details>\n</section>`
+    first = false
   }
   return out + html.slice(last)
 }

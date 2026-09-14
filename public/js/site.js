@@ -318,6 +318,88 @@
     window.addEventListener("hashchange", openFromHash);
   }
 
+  // --- Release notes: open the entry a link names ---------------------------
+  //
+  // Every entry but the newest is folded into a <details> (#325), and a
+  // notification links to `/release-notes#<entry>` — an id on the SECTION,
+  // outside the <details>, so the browser's own fragment navigation scrolls to
+  // a folded entry and stops. This opens it, on load and on a hash change,
+  // which is the one thing the native accordion cannot do for itself. Nothing
+  // happens on a page with no such entry, which is every other page.
+  function openNotedRelease() {
+    const id = decodeURIComponent(window.location.hash.slice(1));
+    if (!id) return;
+    const section = document.getElementById(id);
+    const fold = section && section.classList.contains("rn-release") && section.querySelector("details.rn-fold");
+    if (fold) fold.open = true;
+  }
+  openNotedRelease();
+  window.addEventListener("hashchange", openNotedRelease);
+
+  // --- Release notes: an opened entry scrolls to its own top ----------------
+  //
+  // Ziad's call, 2026-09-13: opening a card thirty entries down puts its
+  // title wherever the click happened to be — routinely near the bottom of
+  // the screen, with the notes unfolding below the fold. And the accordion
+  // closes whichever entry was open, which is usually ABOVE this one, so the
+  // page also shifts up by that entry's height as it folds. The scroll waits
+  // for that fold to finish, or it lands short by exactly the collapsed
+  // height. The wait is read off the fold's own transition rather than off a
+  // motion preference: under `motion.still` the duration is 0s and the scroll
+  // is immediate, with no second copy of that rule here.
+  //
+  // `toggle` does not bubble, hence capture. The SECTION is what is scrolled
+  // to, so the eyebrow and the timeline dot arrive with the title; it carries
+  // a scroll-margin so the card does not kiss the top edge.
+  //
+  // THE SCROLL IS DRIVEN BY HAND, NOT `scrollIntoView({behavior: "smooth"})`.
+  // Ziad's call, 2026-09-13: the browser's smooth scroll runs at one pace and
+  // stops dead, which is jarring over a long jump. This one starts fast and
+  // eases out — a cubic ease-out — so the card settles rather than lands. The
+  // scroll container is whichever ancestor actually scrolls: the window on
+  // the standalone page, `.rn-body` in the dialog.
+  const scrollerOf = (el) => {
+    for (let n = el.parentElement; n; n = n.parentElement) {
+      const o = getComputedStyle(n).overflowY;
+      if ((o === "auto" || o === "scroll") && n.scrollHeight > n.clientHeight) return n;
+    }
+    return document.scrollingElement || document.documentElement;
+  };
+  const easeScrollTo = (section, ms) => {
+    const box = scrollerOf(section);
+    const margin = parseFloat(getComputedStyle(section).scrollMarginTop) || 0;
+    const boxTop =
+      box === document.scrollingElement || box === document.documentElement ? 0 : box.getBoundingClientRect().top;
+    const from = box.scrollTop;
+    const max = box.scrollHeight - box.clientHeight;
+    const to = Math.max(0, Math.min(max, from + section.getBoundingClientRect().top - boxTop - margin));
+    if (!ms) {
+      box.scrollTop = to;
+      return;
+    }
+    const t0 = performance.now();
+    const step = (now) => {
+      const t = Math.min(1, (now - t0) / ms);
+      const eased = 1 - Math.pow(1 - t, 3);
+      box.scrollTop = from + (to - from) * eased;
+      if (t < 1) requestAnimationFrame(step);
+    };
+    requestAnimationFrame(step);
+  };
+  document.addEventListener(
+    "toggle",
+    (e) => {
+      const fold = e.target;
+      if (!(fold instanceof HTMLDetailsElement) || !fold.classList.contains("rn-fold") || !fold.open) return;
+      const section = fold.closest(".rn-release");
+      if (!section) return;
+      const dur = parseFloat(getComputedStyle(fold, "::details-content").transitionDuration) || 0;
+      if (dur) window.setTimeout(() => easeScrollTo(section, 600), dur * 1000);
+      else easeScrollTo(section, 0);
+    },
+    true,
+  );
+
   // --- Release notes -------------------------------------------------------
   //
   // Its own function rather than a second copy of initSplash: the two dialogs
