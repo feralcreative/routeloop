@@ -345,11 +345,6 @@ body.modal-open {
   // surface and follows the scheme, so the card stays a card under a dark
   // palette; the hairline is what separates it from the standalone page's
   // $neutral-96 ground, the same reason .rn-note carries one.
-  > .rn-date,
-  > .rn-fold {
-    margin-left: 0;
-  }
-
   .rn-fold {
     padding: 0.85rem 1.1rem;
     border: 1px solid $neutral-88;
@@ -382,10 +377,6 @@ body.modal-open {
         transition: none;
       }
     }
-  }
-
-  .rn-date {
-    padding-left: 1.1rem;
   }
 
   // The mark. box-sizing is declared because this stylesheet inherits no global
@@ -467,6 +458,9 @@ body.modal-open {
         display: none;
       }
 
+      // No margin under the title in either state: the gap to the first item
+      // belongs to the content, so it shrinks with the fold instead of
+      // snapping away the moment it starts to close.
       h3 {
         display: block;
         margin-bottom: 0;
@@ -499,13 +493,13 @@ body.modal-open {
       }
     }
 
-    &[open] > summary h3 {
-      margin-bottom: 0.7rem;
+    &[open] > summary h3::after {
+      transform: rotate(225deg);
+      top: 0.75em;
+    }
 
-      &::after {
-        transform: rotate(225deg);
-        top: 0.75em;
-      }
+    .rn-items {
+      margin-top: 0.7rem;
     }
   }
 
