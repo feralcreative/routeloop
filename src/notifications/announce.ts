@@ -20,7 +20,7 @@
 // then have to merge two sources to order them by time, the badge would be two
 // counts, and none of the existing preference or read machinery would apply. A
 // row each buys all of it for the price of N inserts.
-import { and, eq, notInArray } from 'drizzle-orm'
+import { and, eq, ne, notInArray, or } from 'drizzle-orm'
 import { db } from '../db/index'
 import { announcedReleases, notifications, users } from '../db/schema'
 import { content } from '../views/content'
@@ -41,6 +41,17 @@ export const NOTES_FILE = 'release-notes.html'
 
 /** Where a release's notification points: the page, at that entry. */
 export const releaseUrl = (r: Release): string => `/release-notes#${r.id}`
+
+/**
+ * The day an announcement id names, in either shape the file has:
+ * "13-september-2026-…" or the month-only catch-all, "july-2026-…" — which
+ * used to open with "before-all-that-", hence a search rather than an anchor.
+ * Two ids on one day are one release under two headings, because the file
+ * keeps one section per day; the id itself when no day can be read, so such
+ * an id pairs with nothing and is treated as its own release.
+ */
+export const releaseDay = (id: string): string =>
+  id.match(/(?:^|-)(\d{1,2}-[a-z]+-\d{4})(?:-|$)/)?.[1] ?? id.match(/(?:^|-)([a-z]+-\d{4})(?:-|$)/)?.[1] ?? id
 
 /** Under the 400-character `body` column by construction — see `summarize`. */
 const bodyOf = (r: Release): string => r.summary
@@ -86,6 +97,66 @@ export async function announceReleases(): Promise<number> {
   // announcing nothing is correct rather than an error.
   if (releases.length === 0) return 0
 
+  // **A RENAMED HEADING IS THE SAME RELEASE, AND ITS ROWS ARE RENAMED WITH IT.**
+  // The heading is the announcement's identity (see the file header), so a
+  // retitled entry has a new id and every rider's center holds rows under the
+  // old one. Those rows carry the rider's own state — read or not, and the
+  // moment the build came up for the newest — and the first version of this
+  // reconcile threw that away: it deleted the orphans and wrote the release
+  // again as read, which cleared an unread badge nobody had cleared. Ziad's
+  // call, 2026-09-13, on retitling all thirty-five: the center has to say
+  // what the page says, and it has to keep saying whether you have read it.
+  //
+  // One release per day is the rule the file follows, so the DATE that opens
+  // every id is what pairs an orphan with its live release. The rows move to
+  // the new url with the new title and body, and the claim moves with them,
+  // BEFORE the insert below — so the renamed release conflicts there and is
+  // not written a second time. Orphans with no live release on their day are
+  // the merge case, several old sections folded into one: one of them is
+  // renamed and the rest are deleted, so no rider holds the day twice.
+  //
+  // Reconciled on every boot rather than by a one-off statement, because a
+  // data fix that runs nowhere is the class of migration AGENTS.md records as
+  // failing silently.
+  const live = releases.map((r) => releaseUrl(r))
+  const dayOf = releaseDay
+  const liveIds = new Set(releases.map((r) => r.id))
+  const liveByDay = new Map(releases.map((r) => [dayOf(r.id), r]))
+  const claims = await db.select({ id: announcedReleases.id }).from(announcedReleases)
+  const claimedIds = new Set(claims.map((c) => c.id))
+  const renamed: string[] = []
+  for (const { id: oldId } of claims) {
+    if (liveIds.has(oldId)) continue
+    const target = liveByDay.get(dayOf(oldId))
+    // Already renamed onto this release by an earlier orphan of the same day,
+    // or claimed by a boot that ran before this one: nothing to move onto.
+    if (!target || claimedIds.has(target.id)) continue
+    await db
+      .update(notifications)
+      .set({ title: target.title, body: bodyOf(target), url: releaseUrl(target) })
+      .where(and(eq(notifications.event, 'release'), eq(notifications.url, `/release-notes#${oldId}`)))
+    await db.update(announcedReleases).set({ id: target.id }).where(eq(announcedReleases.id, oldId))
+    claimedIds.add(target.id)
+    renamed.push(oldId)
+  }
+  if (renamed.length > 0) console.log(`[announce] moved ${renamed.length} release(s) under renamed headings`)
+
+  // **THE TITLE AND THE SUMMARY FOLLOW THE FILE EVEN WHEN THE ID DOES NOT.**
+  // The summary is derived from the entry's first item, and an id survives a
+  // change to that — so a row can hold a sentence the page no longer says.
+  for (const r of releases) {
+    await db
+      .update(notifications)
+      .set({ title: r.title, body: bodyOf(r) })
+      .where(
+        and(
+          eq(notifications.event, 'release'),
+          eq(notifications.url, releaseUrl(r)),
+          or(ne(notifications.title, r.title), ne(notifications.body, bodyOf(r))),
+        ),
+      )
+  }
+
   const claimed = await db
     .insert(announcedReleases)
     .values(releases.map((r) => ({ id: r.id })))
@@ -94,23 +165,11 @@ export async function announceReleases(): Promise<number> {
   const won = new Set(claimed.map((c) => c.id))
   const mine = releases.filter((r) => won.has(r.id))
 
-  // **A RENAMED HEADING IS A NEW ID, AND THE ROWS UNDER THE OLD ONE ARE
-  // ORPHANS.** The heading is the announcement's identity (see the file header),
-  // so editing one — merging a day's sections into one, fixing a title — leaves
-  // every rider's center holding the old row beside the one this claim writes.
-  // Seen on 2026-09-13, when eight days were merged to one section each and
-  // every merged day showed twice. The orphans go, and so do their claims, so a
-  // heading renamed BACK is announced again rather than being remembered as
-  // done with no row to show for it. Reconciled here on every boot rather than
-  // by a one-off statement, because a data fix that runs nowhere is the class
-  // of migration AGENTS.md records as failing silently.
-  //
-  // **AN ORPHAN FROM THE SAME DAY AS THE NEWEST RELEASE KEEPS IT QUIET.** The
-  // newest heading is the one that goes out loud, and a rename of it would
-  // otherwise mail every rider about a release they were already told about.
-  // Ids are slugs of the heading and open with the date, so "the same day" is
-  // a prefix test on the id.
-  const live = releases.map((r) => releaseUrl(r))
+  // **WHAT IS STILL ORPHANED AFTER THE RENAME IS A SECTION THAT NO LONGER
+  // EXISTS**, and the rows and the claim under it go — seen on 2026-09-13, when
+  // eight days were merged to one section each and every merged day showed
+  // twice. The claim goes too, so a heading renamed BACK is announced again
+  // rather than remembered as done with no row to show for it.
   const orphans = await db
     .delete(notifications)
     .where(and(eq(notifications.event, 'release'), notInArray(notifications.url, live)))
@@ -121,10 +180,7 @@ export async function announceReleases(): Promise<number> {
       releases.map((r) => r.id),
     ),
   )
-  const orphanIds = new Set(orphans.map((o) => (o.url ?? '').replace(/^\/release-notes#/, '')))
-  const datePrefix = (id: string) => id.match(/^\d{1,2}-[a-z]+-\d{4}/)?.[0] ?? id
-  const alreadyTold = (r: Release) => [...orphanIds].some((id) => datePrefix(id) === datePrefix(r.id))
-  if (orphans.length > 0) console.log(`[announce] removed ${orphans.length} release rows under renamed headings`)
+  if (orphans.length > 0) console.log(`[announce] removed ${orphans.length} release rows under merged headings`)
   if (mine.length === 0) return 0
 
   // EVERY RIDER, INCLUDING PENDING AND SUSPENDED ONES. A release note is not
@@ -139,7 +195,7 @@ export async function announceReleases(): Promise<number> {
   // adds an OLD entry to the history announces it quietly rather than raising a
   // badge for something that shipped in July.
   const [head, ...older] = mine
-  const isNew = head.id === releases[0].id && !alreadyTold(head)
+  const isNew = head.id === releases[0].id
   const quiet = isNew ? older : mine
 
   if (quiet.length > 0) {

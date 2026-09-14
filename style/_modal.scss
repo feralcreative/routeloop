@@ -1,5 +1,9 @@
+@use "sass:map";
 @use "tokens" as *;
 @use "motion";
+// For `sign-arrow` on the fold's disc — the `_account.scss` arrangement, so the
+// arrow stays one drawing.
+@use "chrome";
 
 // The app's first modal primitive. Built generic because the Places category
 // editor will reuse it.
@@ -336,6 +340,9 @@ body.modal-open {
 .rn-release {
   position: relative;
   padding: 0 0 1.2rem 1.3rem;
+  // Where an opened entry lands when site.js scrolls to it: a little air
+  // above the card, in the dialog and on the page alike.
+  scroll-margin-top: 1rem;
   border-left: 2px solid $neutral-94;
 
   // EACH ENTRY IS A CARD (#325). Ziad's call, 2026-09-13: folded to a title
@@ -346,7 +353,7 @@ body.modal-open {
   // palette; the hairline is what separates it from the standalone page's
   // $neutral-96 ground, the same reason .rn-note carries one.
   .rn-fold {
-    padding: 0.85rem 1.1rem;
+    padding: 1.2rem 1.5rem;
     border: 1px solid $neutral-88;
     border-radius: 10px;
     background: $white;
@@ -392,7 +399,7 @@ body.modal-open {
   // the date became an eyebrow above the title (#325), which left it beside
   // the eyebrow; it hangs off the h3 now so it marks the title whether or not
   // there is an eyebrow over it. `left` walks back across the section's
-  // 1.3rem padding to the rail: -6px against a 2px rail centers a 10px dot on
+  // 1.3rem padding and the card's 1.5rem to the rail: -6px against a 2px rail centers a 10px dot on
   // it, since the padding box starts after the border, so the dot spans -4px
   // to 6px and the rail spans 0 to 2px, both centered on 1px. `top` centers it
   // on the first line of the title.
@@ -400,8 +407,8 @@ body.modal-open {
     content: "";
     box-sizing: border-box;
     position: absolute;
-    // The card's 1.1rem padding and 1px border, then the section's 1.3rem.
-    left: calc(-1.3rem - 1.1rem - 1px - 6px);
+    // The card's 1.5rem padding and 1px border, then the section's 1.3rem.
+    left: calc(-1.3rem - 1.5rem - 1px - 6px);
     top: calc(0.65em - 5px);
     width: 10px;
     height: 10px;
@@ -446,9 +453,27 @@ body.modal-open {
   // THE ACCORDION (#325). Every entry but the newest is a <details> whose
   // summary is the title; they share a `name`, so the browser keeps one open.
   // The summary's own marker is dropped — the timeline dot already marks the
-  // title — and a chevron after the title says it folds, turning when open.
-  // The title inside a summary is display: inline by the UA sheet, so it is
-  // put back to block and keeps the dot.
+  // title — and a disc after the title says it folds. The title inside a
+  // summary is display: inline by the UA sheet, so it is put back to block
+  // and keeps the dot.
+  //
+  // THE DISC CARRIES THE SIGN ARROW, NOT A CHEVRON. Ziad's call, 2026-09-13:
+  // the border-drawn caret every other <details> here uses read as a stray
+  // bracket beside a 1.3rem title. The app's own arrow on a small $disabled
+  // disc is the same mark as the buttons and the Read more sign, pointing
+  // south for "opens down" and turning to north when open. $disabled and not
+  // $brand for the reason the Route | Ride pill records — $brand is a link
+  // color the dark scheme lifts, and the baked white in `sign-arrow`'s data
+  // URI needs a WHITE_LEGEND field under it. The mixin's flex and relative
+  // positioning are overridden because this one is absolutely placed off the
+  // title's right edge.
+  //
+  // A SIGN CARRIES THE INSET KEYLINE, ALWAYS. Ziad's call, 2026-09-13, and
+  // it is the rule rather than a preference for this disc: the two stacked
+  // inset shadows are what make a field read as signage rather than as a
+  // colored blob, on `.btn`, the kind badges and the Read more sign alike.
+  // The `.notif-more` widths, 2px/3px, because at 1.5rem the button's own
+  // 3px/5px is most of the disc.
   .rn-fold {
     > summary {
       list-style: none;
@@ -464,26 +489,41 @@ body.modal-open {
       h3 {
         display: block;
         margin-bottom: 0;
-        padding-right: 1.6rem;
+        padding-right: 2.2rem;
 
         &::after {
-          content: "";
+          @include chrome.sign-arrow;
+
           position: absolute;
-          right: 0.3rem;
-          top: 0.55em;
-          width: 0.5em;
-          height: 0.5em;
-          border-right: 2px solid $neutral-57;
-          border-bottom: 2px solid $neutral-57;
-          transform: rotate(45deg);
+          right: 0;
+          // Centered on the first line of the title: line-height 1.3 puts
+          // that line's middle at 0.65em, and the disc is 1.5rem tall.
+          top: calc(0.65em - 0.75rem);
+          width: 1.5rem;
+          height: 1.5rem;
+          border-radius: 50%;
+          background-color: $disabled;
+          background-size: 50%;
+          box-shadow:
+            inset 0 0 0 2px $disabled,
+            inset 0 0 0 3px $ink-light;
+          transform: rotate(map.get(chrome.$sign-arrow-bearings, "s"));
           transition:
             transform 0.4s cubic-bezier(0.4, 0, 0.2, 1),
-            top 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+            background-color 0.15s ease,
+            box-shadow 0.15s ease;
         }
       }
 
       &:hover h3 {
         color: $brand;
+
+        &::after {
+          background-color: $brand;
+          box-shadow:
+            inset 0 0 0 2px $brand,
+            inset 0 0 0 3px $ink-light;
+        }
       }
 
       &:focus-visible {
@@ -493,9 +533,10 @@ body.modal-open {
       }
     }
 
+    // North is 270deg in the bearing map; -90deg is the same heading and
+    // turns the arrow back through east rather than the long way round.
     &[open] > summary h3::after {
-      transform: rotate(225deg);
-      top: 0.75em;
+      transform: rotate(-90deg);
     }
 
     .rn-items {

@@ -140,3 +140,24 @@ describe('the release-notes commit stamps', () => {
     }
   })
 })
+
+describe('the release-notes markup', () => {
+  // An unclosed inline tag does not fail to render — the parser adopts every
+  // section after it as a child of that tag, so the rail's first-of-type and
+  // last-of-type rules land on the wrong entries and the cards below sit
+  // pulled up into the one above. Three `<strong>`s shipped that way on the
+  // 2026-09-13 reshape and it was seen in a screenshot, not in a test. Every
+  // tag the file uses is counted; a void element would break the count and
+  // the file uses none.
+  const notes = readFileSync('src/content/release-notes.html', 'utf8').replace(/<!--[^]*?-->/g, '')
+
+  it('closes every tag it opens', () => {
+    const opened = new Map<string, number>()
+    const closed = new Map<string, number>()
+    for (const [, tag] of notes.matchAll(/<([a-z][a-z0-9]*)\b[^>]*>/g)) opened.set(tag, (opened.get(tag) ?? 0) + 1)
+    for (const [, tag] of notes.matchAll(/<\/([a-z][a-z0-9]*)>/g)) closed.set(tag, (closed.get(tag) ?? 0) + 1)
+    for (const [tag, n] of opened) {
+      expect(closed.get(tag) ?? 0, `<${tag}> is opened ${n} times and closed ${closed.get(tag) ?? 0}`).toBe(n)
+    }
+  })
+})
