@@ -243,13 +243,14 @@ export function withAnchors(html: string): string {
  * the date and the stamp, then an `<h3>` carrying the title alone. A heading
  * with no title (the early history) keeps the date as its heading.
  *
- * **AN ACCORDION, WITH THE NEWEST ENTRY ALWAYS OPEN.** Ziad's call,
+ * **AN ACCORDION, WITH THE NEWEST ENTRY OPEN TO START.** Ziad's call,
  * 2026-09-13: thirty-six entries of bullets is a wall, and the title is what
- * a rider scans. The newest is the one the badge points at, so it is rendered
- * open and is not a `<details>` at all — nothing to fold. Every older entry is
- * a `<details>` sharing one `name`, which is the native exclusive accordion:
- * opening one closes the other, with no script. site.js opens the entry a
- * notification's anchor names, which is the one thing the markup cannot do.
+ * a rider scans. Every entry is a `<details>` sharing one `name`, which is
+ * the native exclusive accordion — opening one closes the other, with no
+ * script — and the newest ships `open`, because it is the one the badge
+ * points at; it folds like the rest once another is opened. site.js opens
+ * the entry a notification's anchor names, which is the one thing the markup
+ * cannot do.
  */
 function splitHeadings(html: string): string {
   const masked = maskComments(html)
@@ -280,9 +281,9 @@ function splitHeadings(html: string): string {
     // line it opens the sentence. An entity or a tag at the front is left be.
     const title = split ? split[2].trim().replace(/^[a-z]/, (c) => c.toUpperCase()) : head[1].trim()
     const eyebrowHtml = eyebrow ? `  <p class="rn-date">${eyebrow}</p>\n` : ''
-    out += first
-      ? `${open}\n${eyebrowHtml}  <h3>${title}</h3>${rest}</section>`
-      : `${open}\n${eyebrowHtml}  <details class="rn-fold" name="rn-fold">\n  <summary><h3>${title}</h3></summary>${rest}</details>\n</section>`
+    out +=
+      `${open}\n${eyebrowHtml}  <details class="rn-fold" name="rn-fold"${first ? ' open' : ''}>\n` +
+      `  <summary><h3>${title}</h3></summary>${rest}</details>\n</section>`
     first = false
   }
   return out + html.slice(last)

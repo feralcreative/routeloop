@@ -334,8 +334,31 @@ body.modal-open {
 // twenty separate segments.
 .rn-release {
   position: relative;
-  padding: 0 0 1.5rem 1.3rem;
+  padding: 0 0 1.2rem 1.3rem;
   border-left: 2px solid $neutral-94;
+
+  // EACH ENTRY IS A CARD (#325). Ziad's call, 2026-09-13: folded to a title
+  // and an eyebrow, thirty-five entries down a rail read as one column of
+  // text with nothing saying where one ends. A faint container per entry —
+  // hairline, soft corner, its own surface — does. $white is the page's own
+  // surface and follows the scheme, so the card stays a card under a dark
+  // palette; the hairline is what separates it from the standalone page's
+  // $neutral-96 ground, the same reason .rn-note carries one.
+  > .rn-date,
+  > .rn-fold {
+    margin-left: 0;
+  }
+
+  .rn-fold {
+    padding: 0.85rem 1.1rem;
+    border: 1px solid $neutral-88;
+    border-radius: 10px;
+    background: $white;
+  }
+
+  .rn-date {
+    padding-left: 1.1rem;
+  }
 
   // The mark. box-sizing is declared because this stylesheet inherits no global
   // border-box reset — see AGENTS.md — and a fixed-size box that forgets renders
@@ -358,7 +381,8 @@ body.modal-open {
     content: "";
     box-sizing: border-box;
     position: absolute;
-    left: calc(-1.3rem - 6px);
+    // The card's 1.1rem padding and 1px border, then the section's 1.3rem.
+    left: calc(-1.3rem - 1.1rem - 1px - 6px);
     top: calc(0.65em - 5px);
     width: 10px;
     height: 10px;
