@@ -1,4 +1,5 @@
 @use "tokens" as *;
+@use "motion";
 
 // The app's first modal primitive. Built generic because the Places category
 // editor will reuse it.
@@ -354,6 +355,33 @@ body.modal-open {
     border: 1px solid $neutral-88;
     border-radius: 10px;
     background: $white;
+
+    // EASED OPEN AND SHUT (#325). Ziad's call, 2026-09-13: a <details> snaps.
+    // `::details-content` is the part that appears, and with
+    // `interpolate-size: allow-keywords` its height can run from 0 to auto
+    // over a transition; `content-visibility` rides along as a discrete
+    // transition so the closing content stays painted while it shrinks. A
+    // browser without either simply snaps, as it always did. Off for a rider
+    // who asked for no motion.
+    interpolate-size: allow-keywords;
+
+    &::details-content {
+      height: 0;
+      overflow: hidden;
+      transition:
+        height 0.4s cubic-bezier(0.4, 0, 0.2, 1),
+        content-visibility 0.4s allow-discrete;
+    }
+
+    &[open]::details-content {
+      height: auto;
+    }
+
+    @include motion.still {
+      &::details-content {
+        transition: none;
+      }
+    }
   }
 
   .rn-date {
@@ -454,7 +482,9 @@ body.modal-open {
           border-right: 2px solid $neutral-57;
           border-bottom: 2px solid $neutral-57;
           transform: rotate(45deg);
-          transition: transform 0.15s ease;
+          transition:
+            transform 0.4s cubic-bezier(0.4, 0, 0.2, 1),
+            top 0.4s cubic-bezier(0.4, 0, 0.2, 1);
         }
       }
 
