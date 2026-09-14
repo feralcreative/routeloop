@@ -371,12 +371,29 @@ body.modal-open {
     padding-bottom: 0;
   }
 
+  // THE DATE IS AN EYEBROW OVER THE TITLE (#325). Ziad's call, 2026-09-13:
+  // the file writes "date — title" in one heading, because the heading is the
+  // announcement id, and latest.ts splits it at render — see splitHeadings().
+  // The eyebrow carries the date and the build stamp; the heading is the
+  // title alone, and on a day with no title it is the date.
+  .rn-date {
+    margin: 0 0 0.15rem;
+    color: $neutral-50;
+    font-size: 0.72rem;
+    font-weight: 600;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+  }
+
   h3 {
     margin: 0 0 0.6rem;
     color: $text;
     font-size: 1.02rem;
     line-height: 1.3;
+  }
 
+  h3,
+  .rn-date {
     // The build stamp, demoted to a reference. It USED to lead the heading and
     // that was the wrong way round: a rider scans this list by date and reaches
     // for the version only when filing a report, so the date is the headline
@@ -397,6 +414,8 @@ body.modal-open {
       font-variant-numeric: tabular-nums;
       white-space: nowrap;
       vertical-align: 0.15em;
+      // The eyebrow is uppercase; a commit hash is not.
+      text-transform: none;
     }
   }
 
