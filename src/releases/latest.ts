@@ -157,20 +157,24 @@ export function latestRelease(html: string): Release | null {
 }
 
 /**
- * A release's own first bullet, as one or two sentences.
+ * A release's own first item, as one or two sentences.
  *
  * **DERIVED RATHER THAN AUTHORED, so it cannot drift.** Forty-two hand-written
  * summaries is forty-two more things to keep in step with the notes they
- * summarize, and the first bullet is already written as the headline change —
- * thirty-one of the forty-two open with a `<strong>` lead that is exactly this
- * sentence. The eleven that do not still open with a plain readable one.
+ * summarize, and the first item's summary line is already written as the
+ * headline change (#325 made that line a required part of every item).
  *
  * Cut on a SENTENCE boundary and only then on a word, so a summary ends as
  * something somebody wrote rather than mid-clause.
  */
 function summarize(sectionHtml: string): string {
+  // THE FIRST ITEM'S SUMMARY LINE, since #325 reshaped every item into a kind,
+  // a sentence and bullets: the sentence is exactly what this wants, and the
+  // whole `<li>` would now carry the bullets too. The bare-`<li>` fallback is
+  // for a section written the old way.
+  const line = /<p class="rn-summary">([^]*?)<\/p>/.exec(sectionHtml)
   const li = /<li>([^]*?)<\/li>/.exec(sectionHtml)
-  const text = plain(li ? li[1] : sectionHtml)
+  const text = plain(line ? line[1] : li ? li[1] : sectionHtml)
   if (text.length <= SUMMARY_MAX) return text
   // Two sentences at most, and only while they fit.
   let cut = ''
