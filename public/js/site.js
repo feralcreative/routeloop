@@ -318,6 +318,24 @@
     window.addEventListener("hashchange", openFromHash);
   }
 
+  // --- Release notes: open the entry a link names ---------------------------
+  //
+  // Every entry but the newest is folded into a <details> (#325), and a
+  // notification links to `/release-notes#<entry>` — an id on the SECTION,
+  // outside the <details>, so the browser's own fragment navigation scrolls to
+  // a folded entry and stops. This opens it, on load and on a hash change,
+  // which is the one thing the native accordion cannot do for itself. Nothing
+  // happens on a page with no such entry, which is every other page.
+  function openNotedRelease() {
+    const id = decodeURIComponent(window.location.hash.slice(1));
+    if (!id) return;
+    const section = document.getElementById(id);
+    const fold = section && section.classList.contains("rn-release") && section.querySelector("details.rn-fold");
+    if (fold) fold.open = true;
+  }
+  openNotedRelease();
+  window.addEventListener("hashchange", openNotedRelease);
+
   // --- Release notes -------------------------------------------------------
   //
   // Its own function rather than a second copy of initSplash: the two dialogs
