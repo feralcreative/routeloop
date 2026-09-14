@@ -5216,7 +5216,10 @@
   // pressed the button to get.
   const MEET_REASONS = {
     "one-group": "Add a second group—a meeting point needs at least two starting places.",
-    "no-routes": "Give each group a route of its own, starting where that group starts.",
+    // ONE ENTRY FOR no-routes. The day→route rename folded "no-days" into this
+    // key and left both lines, and in an object literal the later one wins
+    // silently — esbuild's minifier is what reported it. The first, "Give each
+    // group a route of its own", was dead.
     // ITS OWN MESSAGE, because the old code answered this with "nowhere works"
     // and sent the planner hunting for a geometry problem in a ride whose real
     // state was that nobody had drawn a road yet. A meeting point is placed ON a

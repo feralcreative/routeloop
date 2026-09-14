@@ -1,10 +1,15 @@
 # Status and handoff
 
-**Branch:** `feat/dashboard-polish`, PR pending review, after `feat/account-polish` ([#344](https://github.com/feralcreative/routeloop/pull/344)) and `feat/chrome-polish` ([#345](https://github.com/feralcreative/routeloop/pull/345)) merged. **2,986 tests across 114 files** (2 skipped, 2,988 total).
+**Branch:** `chore/minify-dist` ([#347](https://github.com/feralcreative/routeloop/issues/347)), after `feat/dashboard-polish` (the bin tab and the stat-row clue) merged, and before that `feat/account-polish` ([#344](https://github.com/feralcreative/routeloop/pull/344)) and `feat/chrome-polish` ([#345](https://github.com/feralcreative/routeloop/pull/345)) merged. **2,986 tests across 114 files** (2 skipped, 2,988 total).
 **Merged 2026-09-13 as [#331](https://github.com/feralcreative/routeloop/pull/331)** (the release notes reshaped), **[#333](https://github.com/feralcreative/routeloop/pull/333)** (`both.sh`), **[#324](https://github.com/feralcreative/routeloop/pull/324)** (the resizable drawer), **[#322](https://github.com/feralcreative/routeloop/pull/322)** (the account sprint) **and [#318](https://github.com/feralcreative/routeloop/pull/318)** (the dark wordmark). `main` is `ed30b12`.
-**What this branch is:** the `area:dashboard` pair from the 2026-09-13 brainstorm: the stat row says whose numbers it holds (#342), and the Recycle bin is the last tab under Rides, with binned places folded under the places list, `/trash` redirecting, and the menu item gone (#343). No migration. It is the last of the three brainstorm branches.
+**What this branch is:** the production image minifies `public/js` and strips the comments out of `src/content`—`utils/minify-dist.mjs`, esbuild, one `RUN` in the Dockerfile—so the 1.24 MB the server was sending verbatim is 429 KB. Dev tree untouched; `--in-place` refuses inside a git checkout. No migration. Its first run found a dead duplicate key in `MEET_REASONS` left by the day→route rename.
+**The branch before it** was the `area:dashboard` pair from the 2026-09-13 brainstorm: the stat row says whose numbers it holds (#342), and the Recycle bin is the last tab under Rides, with binned places folded under the places list, `/trash` redirecting, and the menu item gone (#343). No migration. It is the last of the three brainstorm branches.
 **PROD IS BEHIND** by every PR above plus migration `0042`; `utils/deploy/both.sh` is the command, prod first.
 **For:** the next agent, or the owner returning cold
+
+## What the image sends, 2026-09-14
+
+`chore/minify-dist`. Sizes measured before and after, bytes: our JS 1,100,718 → 342,208 (plus `uplot.min.js`, 51,081, left alone); content HTML 137,244 → 133,251 (only release-notes carried comments); CSS unchanged at 213,371, because `--style=compressed` already strips it. Total of what the script touches: 1,238,156 → 429,453, 65% off. `builder.js` alone went 536,826 → 128,661—three quarters of that file was commentary. Every pure helper's `window.TB*` API was compared source against minified, and every minified file parses. The in-place mode was proven both ways: refused in the repo, applied in an image-shaped copy. Docker itself has not been built here; the first stage deploy is that test.
 
 ## The bin beside the rides, and a clue on the stat row, 2026-09-13
 
