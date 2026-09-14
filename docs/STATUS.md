@@ -1,11 +1,15 @@
 # Status and handoff
 
-**Branch:** `feat/account-polish`, PR pending review. **2,986 tests across 114 files** (2 skipped, 2,988 total).
+**Branch:** `feat/chrome-polish`, PR pending review, after `feat/account-polish` merged as [#344](https://github.com/feralcreative/routeloop/pull/344). **2,986 tests across 114 files** (2 skipped, 2,988 total).
 **Merged 2026-09-13 as [#331](https://github.com/feralcreative/routeloop/pull/331)** (the release notes reshaped), **[#333](https://github.com/feralcreative/routeloop/pull/333)** (`both.sh`), **[#324](https://github.com/feralcreative/routeloop/pull/324)** (the resizable drawer), **[#322](https://github.com/feralcreative/routeloop/pull/322)** (the account sprint) **and [#318](https://github.com/feralcreative/routeloop/pull/318)** (the dark wordmark). `main` is `ed30b12`.
-**What this branch is:** the `area:account` half of the 2026-09-13 brainstorm (#334–#339): every text box takes the theme's surface and the dark palettes declare `color-scheme`; the vocabulary table lines up; Places and Paddock are roomier with labels and a card per bike; the tabs read Preferences, Profile, Paddock, Places; Preferences opens on Appearance and Units; Show me around is a folding card at the top of Profile, remembered per browser. No migration.
-**Still to build from that brainstorm:** `area:chrome` (#340 the yield tour sign, #341 rider cards) and `area:dashboard` (#342 the stat-row clue, #343 the Recycle bin tab), each its own branch.
+**What this branch is:** the `area:chrome` pair from the 2026-09-13 brainstorm: the header's Take the tour sign is a yield sign with no arrow (#340), and riders on `/riders` and `/friends` are cards in a size picked per section and remembered per browser (#341). No migration.
+**Still to build from that brainstorm:** `area:dashboard` (#342 the stat-row clue, #343 the Recycle bin tab), its own branch.
 **PROD IS BEHIND** by every PR above plus migration `0042`; `utils/deploy/both.sh` is the command, prod first.
 **For:** the next agent, or the owner returning cold
+
+## Riders as cards, and a yield sign, 2026-09-13
+
+`feat/chrome-polish`, #340 and #341. The friends and roster queries never loaded a face; they left-join `user_profiles` for `avatar_bytes` now and `avatarSrc()` does the rest. Three grids in `style/_riders.scss`; the switch is the Route | Ride pill's shape with `$disabled` for the pressed field; `public/js/riders.js` reclasses the grid and writes `routeloop.riderCards`, and an inline `CARDS_RESTORE` at the end of the body puts sizes back before first paint. The yield sign takes black legend and black keyline because `$yield` is the one field left carrying black ink, and `test/sign-legend.test.ts` holds it.
 
 ## Account polish, 2026-09-13
 
