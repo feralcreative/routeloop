@@ -1,6 +1,7 @@
 @use "sass:color";
 @use "sass:map";
 @use "tokens" as *;
+@use "controls";
 @use "motion" as *;
 
 // Former CHROME_CSS from src/views/layout.ts, moved into the SCSS build so
@@ -1622,12 +1623,10 @@ ul.cards {
   margin-bottom: 1.5rem;
 
   input {
+    @include controls.text-control;
+
     flex: 1;
     min-width: 0;
-    padding: 0.6em 0.7em;
-    font: inherit;
-    border: 1px solid $grey;
-    border-radius: 6px;
   }
 }
 

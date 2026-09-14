@@ -1,0 +1,33 @@
+// Mixins only — this file emits no CSS, which is what lets `_forms.scss`,
+// `_chrome.scss` and `_account.scss` all `@use` it without moving anybody's
+// rules in the cascade. (A mixin in `_forms.scss` would have needed `_chrome`
+// to `@use` forms, and Sass emits a module's CSS at its FIRST load, so forms'
+// rules would have landed above chrome's and reordered every equal-specificity
+// pair between them.)
+@use "tokens" as *;
+
+// ONE DRAWING OF A TEXT CONTROL, FOR EVERY BOX ON THE SITE (#335). `.field`
+// carried this and nothing else did, so every input outside a `.field` — the
+// vocabulary Custom box, the confirm box, every field on the Places and Paddock
+// tabs, the roster's search — fell to the browser's default control: small,
+// square, and WHITE regardless of theme, which under a dark palette is the one
+// thing on the page that glares. A mixin rather than a shared class because the
+// consumers are selectors on existing markup that two scripts patch in place
+// (#188), and adding a class to those rows means touching the hooks they read.
+// Width is deliberately NOT here: `.field` wants 100% and a row's grid cell
+// wants `min-width: 0`, and each caller says which.
+@mixin text-control {
+  box-sizing: border-box;
+  padding: 0.6rem 0.7rem;
+  font: inherit;
+  color: $text;
+  background: $white;
+  border: 1px solid $grey;
+  border-radius: 8px;
+
+  &:focus-visible {
+    outline: 2px solid $brand;
+    outline-offset: 1px;
+    border-color: $brand;
+  }
+}
