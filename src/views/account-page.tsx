@@ -54,7 +54,7 @@ import { fieldHelp, page } from './layout'
 import { tourAssets } from './tour-assets'
 import { asset } from './assets'
 
-export type AccountTab = 'preferences' | 'profile' | 'places' | 'paddock'
+export type AccountTab = 'preferences' | 'profile' | 'paddock' | 'places'
 
 // The Paddock and Places tabs are static markup driven by paddock.js and
 // places.js against their APIs, so they render here rather than arriving from
@@ -273,17 +273,6 @@ export async function accountPage(
         </button>
         <button
           type="button"
-          class={`page-tab${tabOn('places') ? ' is-active' : ''}`}
-          role="tab"
-          id="tab-places"
-          aria-controls="panel-places"
-          aria-selected={tabOn('places') ? 'true' : 'false'}
-          tabindex={tabOn('places') ? undefined : -1}
-        >
-          Places
-        </button>
-        <button
-          type="button"
           class={`page-tab${tabOn('paddock') ? ' is-active' : ''}`}
           role="tab"
           id="tab-paddock"
@@ -292,6 +281,17 @@ export async function accountPage(
           tabindex={tabOn('paddock') ? undefined : -1}
         >
           {Wd(w, 'storage')}
+        </button>
+        <button
+          type="button"
+          class={`page-tab${tabOn('places') ? ' is-active' : ''}`}
+          role="tab"
+          id="tab-places"
+          aria-controls="panel-places"
+          aria-selected={tabOn('places') ? 'true' : 'false'}
+          tabindex={tabOn('places') ? undefined : -1}
+        >
+          Places
         </button>
       </div>
 
@@ -302,106 +302,6 @@ export async function accountPage(
         aria-labelledby="tab-preferences"
         hidden={!tabOn('preferences')}
       >
-        {/*
-          SHOW ME AROUND IS FIRST, AND ITS OWN TOPIC (#133).
-
-          First because it is the one preference here that exists for somebody
-          who has never used the app: everything below answers "how do you want
-          this written", which presumes a rider who already knows what the
-          controls are. This one is what tells them.
-
-          ITS OWN TOPIC RATHER THAN A FOURTH APPEARANCE AXIS, although it very
-          nearly fits — appearance is one form and one handler on the stated
-          reasoning that a rider has ONE appearance and would be surprised if
-          saving the palette reverted the light/dark choice made in the same
-          breath. That argument is about three answers to one question, and this
-          is a different question: whether the app talks to you is not how it
-          looks. Folding it in would also mean folding it into that handler,
-          which is the thing the per-column split exists to prevent.
-
-          A ONE-SETTING TOPIC IS NOT THE THING `reports` WAS. That notification
-          group was folded into `account` because it rendered as a heading, two
-          column labels and a single row — furniture around nothing. This is a
-          heading, a lede that explains a feature, and the control. The section
-          is complete; it is just short.
-        */}
-        <section class="setting-topic" id="tips">
-          <h2>Show me around</h2>
-          <p>
-            Two things, for somebody new. The tour walks you through the builder once, step by step, and waits while you
-            build a real route. The tips are what stay behind it: point at anything and get a sentence on what it is for
-            and why you would touch it. Both are on to start with, and neither turns itself&nbsp;off.
-          </p>
-
-          {/*
-            THE TOUR IS A LINK, NOT A FORM. There is nothing to store from here —
-            it runs on the builder, and finishing or skipping it is what writes
-            `tour_done_at`, from the builder, through its own endpoint. This is
-            the same `/builder?tour` the account menu carries, so a rider has two
-            doors to one room and both open the same one.
-          */}
-          <p class="setting-actions">
-            <a class="btn" href="/builder?tour" data-tour-start>
-              Take the tour
-            </a>
-          </p>
-
-          {/*
-            ONE FIELDSET IN THE THREE-COLUMN GRID, which is what keeps it to a
-            third of the page rather than letting two radios run the full width
-            of a desktop window. The grid is the page's rhythm and a lone cell
-            still sits on it; a full-bleed choice set does not, and reads as a
-            different kind of control from the five below.
-          */}
-          <form method="post" action="/settings/tips" class="setting-form" data-autosave>
-            <div class="three-col">
-              <fieldset class="choice-set">
-                <legend class="visually-hidden">Show me around</legend>
-                {TIPS_CHOICES.map((choice) => (
-                  <label class="choice">
-                    <input type="radio" name="tips" value={choice.id} checked={choice.id === tips} />
-                    <span class="choice-label">{choice.label}</span>
-                    <span class="choice-example">{choice.example}</span>
-                  </label>
-                ))}
-              </fieldset>
-            </div>
-            <div class="setting-actions">
-              <button type="submit" class="btn btn-sign arrow-right arrow-n" data-js-hide>
-                Save
-              </button>
-              <Saved when={on('tips')} />
-            </div>
-          </form>
-
-          {/*
-            THE HEADER'S SIGN HAS A SWITCH, AND IT IS ITS OWN FORM. Ziad's call,
-            2026-09-11. The sign sits beside the account chip on every page,
-            builder included, which a rider who has taken the tour twice does
-            not need to keep seeing; the account menu's own item stays, so this
-            hides an affordance and never the feature. Its own handler and its
-            own column, like every form on this page, so saving it cannot
-            revert the radios above.
-
-            A HIDDEN `present` FIELD, because an unticked checkbox sends
-            nothing and the handler has to tell "unticked" from "not this
-            form" — the same shape the notification forms carry as `group`.
-          */}
-          <form method="post" action="/settings/tour-button" class="setting-form" data-autosave>
-            <input type="hidden" name="present" value="1" />
-            <label class="check">
-              <input type="checkbox" name="hideTour" checked={hideTour} />
-              <span>Hide the Take the tour button in the header</span>
-            </label>
-            <div class="setting-actions">
-              <button type="submit" class="btn btn-sign arrow-right arrow-n" data-js-hide>
-                Save
-              </button>
-              <Saved when={on('tour-button')} />
-            </div>
-          </form>
-        </section>
-
         {/*
           TWO TOPICS, NOT FOUR PEERS (#178) — THREE SINCE #133, and the count in
           this note is what changed rather than its reasoning. Appearance is one
@@ -418,160 +318,6 @@ export async function accountPage(
           GTFO stays outside both topics: it is a boxed-off danger area and half
           a page is not where it belongs.
         */}
-        {/*
-          WHAT THE APP CALLS THINGS (#321). Ziad's call, 2026-09-13: Routeloop
-          is for every vehicle a rider owns, and the words were a motorcycle's.
-          Two pickers and a table. The pickers are the PRESETS — a vehicle and
-          what powers it — and the table is one row per term with the words
-          each preset would use as radios and a Custom box; typing in the box
-          picks Custom (public/js/jargon.js). A ride carries its own pair too,
-          set in the builder, and wins over the pickers; a row set here wins
-          over both. See src/views/vocab.ts for the precedence and the table.
-
-          THREE FORMS, THREE COLUMNS, like every other topic: the pickers each
-          write their own column and the table writes `jargon`, so saving a
-          word cannot revert the vehicle.
-
-          Second on the page — after Show me around and before Appearance —
-          because it is the other preference that exists for a rider who has
-          not used the app yet: everything below it is about how a thing is
-          written, and this is about what the thing is called.
-        */}
-        <section class="setting-topic" id="jargon">
-          <h2>Vocabulary</h2>
-          <p>
-            A ride, a rider, a bike, a paddock—those are a motorcyclist&rsquo;s words. The two defaults below decide
-            which set every page starts from; a ride can carry its own pair in the builder. Under them, any single word
-            can be overridden with one you would rather&nbsp;say.
-          </p>
-          <div class="three-col">
-            <section class="setting" id="vehicle">
-              <h3>Default: what you are on</h3>
-              <form method="post" action="/settings/vehicle" class="setting-form" data-autosave data-jargon-preset>
-                <fieldset class="choice-set">
-                  <legend class="visually-hidden">Vehicle</legend>
-                  {VEHICLE_CHOICES.map((choice) => (
-                    <label class="choice">
-                      <input type="radio" name="vehicle" value={choice.id} checked={choice.id === vocab.vehicle} />
-                      <span class="choice-label">{choice.label}</span>
-                      <span class="choice-example">{choice.example}</span>
-                    </label>
-                  ))}
-                </fieldset>
-                <div class="setting-actions">
-                  <button type="submit" class="btn btn-sign arrow-right arrow-n" data-js-hide>
-                    Save
-                  </button>
-                  <Saved when={on('vehicle')} />
-                </div>
-              </form>
-            </section>
-
-            <section class="setting" id="power">
-              <h3>Default: what it runs on</h3>
-              <form method="post" action="/settings/power" class="setting-form" data-autosave data-jargon-preset>
-                <fieldset class="choice-set">
-                  <legend class="visually-hidden">Power</legend>
-                  {POWER_CHOICES.map((choice) => (
-                    <label class="choice">
-                      <input type="radio" name="power" value={choice.id} checked={choice.id === vocab.power} />
-                      <span class="choice-label">{choice.label}</span>
-                      <span class="choice-example">{choice.example}</span>
-                    </label>
-                  ))}
-                </fieldset>
-                <div class="setting-actions">
-                  <button type="submit" class="btn btn-sign arrow-right arrow-n" data-js-hide>
-                    Save
-                  </button>
-                  <Saved when={on('power')} />
-                </div>
-              </form>
-            </section>
-          </div>
-
-          <section class="setting setting--wide" id="words">
-            <h3>Overrides: your own words</h3>
-            <p class="setting-hint">
-              The choice marked default comes from the two defaults above and moves with them. Pick another, or type
-              your own, and that word is used everywhere whatever the defaults say—a slash gives it a plural, like{' '}
-              <code>person/people</code>.
-            </p>
-            <form method="post" action="/settings/jargon" class="setting-form" data-autosave data-jargon>
-              <table class="jargon-table">
-                <thead>
-                  <tr>
-                    <th scope="col">Term</th>
-                    <th scope="col">Word</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {TERMS.map((t) => {
-                    const preset = presetWords[t.id]
-                    const custom = vocab.jargon[t.id]
-                    // Every word a preset on this row's axis would use, deduped
-                    // (Ride is Motorcycle and Bicycle), with the current preset's
-                    // first — the "follows your vehicle" choice.
-                    const words = [
-                      ...new Set([...(preset ? [preset.one] : []), ...Object.values(t.by).map((x) => x.one)]),
-                    ]
-                    const options = t.axis === 'regional' ? (t.options ?? []).map((o) => o.one) : words
-                    const picked = custom && options.includes(custom) ? custom : custom ? 'custom' : options[0]
-                    const off = t.axis === 'power' && vocab.power === 'pedal'
-                    return (
-                      <tr class={off ? 'is-off' : ''} data-term={t.id} data-axis={t.axis}>
-                        <th scope="row">
-                          <span class="jargon-label">{t.label}</span>
-                          <span class="jargon-where">{t.where}</span>
-                        </th>
-                        <td>
-                          {off ? (
-                            <span class="jargon-off">Nothing to plan fuel around on a pedal bike.</span>
-                          ) : (
-                            <div class="jargon-picks">
-                              {options.map((word, i) => (
-                                <label class="jargon-pick">
-                                  <input type="radio" name={`pick-${t.id}`} value={word} checked={picked === word} />
-                                  <span>
-                                    {cap(word)}
-                                    {i === 0 && t.axis !== 'regional' ? <small> · default</small> : null}
-                                  </span>
-                                </label>
-                              ))}
-                              <label class="jargon-pick jargon-pick--custom">
-                                <input
-                                  type="radio"
-                                  name={`pick-${t.id}`}
-                                  value="custom"
-                                  checked={picked === 'custom'}
-                                />
-                                <span>Custom</span>
-                                <input
-                                  type="text"
-                                  name={`custom-${t.id}`}
-                                  maxlength={40}
-                                  value={picked === 'custom' ? custom : ''}
-                                  placeholder={cap(options[0])}
-                                  aria-label={`Your word for ${t.label.toLowerCase()}`}
-                                />
-                              </label>
-                            </div>
-                          )}
-                        </td>
-                      </tr>
-                    )
-                  })}
-                </tbody>
-              </table>
-              <div class="setting-actions">
-                <button type="submit" class="btn btn-sign arrow-right arrow-n" data-js-hide>
-                  Save
-                </button>
-                <Saved when={on('jargon')} />
-              </div>
-            </form>
-          </section>
-        </section>
 
         <section class="setting-topic" id="appearance">
           <h2>Appearance</h2>
@@ -863,6 +609,261 @@ export async function accountPage(
         </section>
 
         {/*
+          WHAT THE APP CALLS THINGS (#321). Ziad's call, 2026-09-13: Routeloop
+          is for every vehicle a rider owns, and the words were a motorcycle's.
+          Two pickers and a table. The pickers are the PRESETS — a vehicle and
+          what powers it — and the table is one row per term with the words
+          each preset would use as radios and a Custom box; typing in the box
+          picks Custom (public/js/jargon.js). A ride carries its own pair too,
+          set in the builder, and wins over the pickers; a row set here wins
+          over both. See src/views/vocab.ts for the precedence and the table.
+
+          THREE FORMS, THREE COLUMNS, like every other topic: the pickers each
+          write their own column and the table writes `jargon`, so saving a
+          word cannot revert the vehicle.
+
+          Third on the page, after Appearance and Units. Ziad's call,
+          2026-09-13 (#338): the two topics everybody touches come first, and
+          this one — the other preference that exists for a rider who has not
+          used the app yet — sits right under them.
+        */}
+        <section class="setting-topic" id="jargon">
+          <h2>Vocabulary</h2>
+          <p>
+            A ride, a rider, a bike, a paddock—those are a motorcyclist&rsquo;s words. The two defaults below decide
+            which set every page starts from; a ride can carry its own pair in the builder. Under them, any single word
+            can be overridden with one you would rather&nbsp;say.
+          </p>
+          <div class="three-col">
+            <section class="setting" id="vehicle">
+              <h3>Default: what you are on</h3>
+              <form method="post" action="/settings/vehicle" class="setting-form" data-autosave data-jargon-preset>
+                <fieldset class="choice-set">
+                  <legend class="visually-hidden">Vehicle</legend>
+                  {VEHICLE_CHOICES.map((choice) => (
+                    <label class="choice">
+                      <input type="radio" name="vehicle" value={choice.id} checked={choice.id === vocab.vehicle} />
+                      <span class="choice-label">{choice.label}</span>
+                      <span class="choice-example">{choice.example}</span>
+                    </label>
+                  ))}
+                </fieldset>
+                <div class="setting-actions">
+                  <button type="submit" class="btn btn-sign arrow-right arrow-n" data-js-hide>
+                    Save
+                  </button>
+                  <Saved when={on('vehicle')} />
+                </div>
+              </form>
+            </section>
+
+            <section class="setting" id="power">
+              <h3>Default: what it runs on</h3>
+              <form method="post" action="/settings/power" class="setting-form" data-autosave data-jargon-preset>
+                <fieldset class="choice-set">
+                  <legend class="visually-hidden">Power</legend>
+                  {POWER_CHOICES.map((choice) => (
+                    <label class="choice">
+                      <input type="radio" name="power" value={choice.id} checked={choice.id === vocab.power} />
+                      <span class="choice-label">{choice.label}</span>
+                      <span class="choice-example">{choice.example}</span>
+                    </label>
+                  ))}
+                </fieldset>
+                <div class="setting-actions">
+                  <button type="submit" class="btn btn-sign arrow-right arrow-n" data-js-hide>
+                    Save
+                  </button>
+                  <Saved when={on('power')} />
+                </div>
+              </form>
+            </section>
+          </div>
+
+          <section class="setting setting--wide" id="words">
+            <h3>Overrides: your own words</h3>
+            <p class="setting-hint">
+              The choice marked default comes from the two defaults above and moves with them. Pick another, or type
+              your own, and that word is used everywhere whatever the defaults say—a slash gives it a plural, like{' '}
+              <code>person/people</code>.
+            </p>
+            <form method="post" action="/settings/jargon" class="setting-form" data-autosave data-jargon>
+              <table class="jargon-table">
+                <thead>
+                  <tr>
+                    <th scope="col">Term</th>
+                    <th scope="col">Word</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {TERMS.map((t) => {
+                    const preset = presetWords[t.id]
+                    const custom = vocab.jargon[t.id]
+                    // Every word a preset on this row's axis would use, deduped
+                    // (Ride is Motorcycle and Bicycle), with the current preset's
+                    // first — the "follows your vehicle" choice.
+                    const words = [
+                      ...new Set([...(preset ? [preset.one] : []), ...Object.values(t.by).map((x) => x.one)]),
+                    ]
+                    const options = t.axis === 'regional' ? (t.options ?? []).map((o) => o.one) : words
+                    const picked = custom && options.includes(custom) ? custom : custom ? 'custom' : options[0]
+                    const off = t.axis === 'power' && vocab.power === 'pedal'
+                    return (
+                      <tr class={off ? 'is-off' : ''} data-term={t.id} data-axis={t.axis}>
+                        <th scope="row">
+                          <span class="jargon-label">{t.label}</span>
+                          <span class="jargon-where">{t.where}</span>
+                        </th>
+                        <td>
+                          {off ? (
+                            <span class="jargon-off">Nothing to plan fuel around on a pedal bike.</span>
+                          ) : (
+                            <div class="jargon-picks">
+                              {options.map((word, i) => (
+                                <label class="jargon-pick">
+                                  <input type="radio" name={`pick-${t.id}`} value={word} checked={picked === word} />
+                                  <span>
+                                    {cap(word)}
+                                    {i === 0 && t.axis !== 'regional' ? <small> · default</small> : null}
+                                  </span>
+                                </label>
+                              ))}
+                              <label class="jargon-pick jargon-pick--custom">
+                                <input
+                                  type="radio"
+                                  name={`pick-${t.id}`}
+                                  value="custom"
+                                  checked={picked === 'custom'}
+                                />
+                                <span>Custom</span>
+                                <input
+                                  type="text"
+                                  name={`custom-${t.id}`}
+                                  maxlength={40}
+                                  value={picked === 'custom' ? custom : ''}
+                                  placeholder={cap(options[0])}
+                                  aria-label={`Your word for ${t.label.toLowerCase()}`}
+                                />
+                              </label>
+                            </div>
+                          )}
+                        </td>
+                      </tr>
+                    )
+                  })}
+                </tbody>
+              </table>
+              <div class="setting-actions">
+                <button type="submit" class="btn btn-sign arrow-right arrow-n" data-js-hide>
+                  Save
+                </button>
+                <Saved when={on('jargon')} />
+              </div>
+            </form>
+          </section>
+        </section>
+
+        {/*
+          SHOW ME AROUND IS FIRST, AND ITS OWN TOPIC (#133).
+
+          First because it is the one preference here that exists for somebody
+          who has never used the app: everything below answers "how do you want
+          this written", which presumes a rider who already knows what the
+          controls are. This one is what tells them.
+
+          ITS OWN TOPIC RATHER THAN A FOURTH APPEARANCE AXIS, although it very
+          nearly fits — appearance is one form and one handler on the stated
+          reasoning that a rider has ONE appearance and would be surprised if
+          saving the palette reverted the light/dark choice made in the same
+          breath. That argument is about three answers to one question, and this
+          is a different question: whether the app talks to you is not how it
+          looks. Folding it in would also mean folding it into that handler,
+          which is the thing the per-column split exists to prevent.
+
+          A ONE-SETTING TOPIC IS NOT THE THING `reports` WAS. That notification
+          group was folded into `account` because it rendered as a heading, two
+          column labels and a single row — furniture around nothing. This is a
+          heading, a lede that explains a feature, and the control. The section
+          is complete; it is just short.
+        */}
+        <section class="setting-topic" id="tips">
+          <h2>Show me around</h2>
+          <p>
+            Two things, for somebody new. The tour walks you through the builder once, step by step, and waits while you
+            build a real route. The tips are what stay behind it: point at anything and get a sentence on what it is for
+            and why you would touch it. Both are on to start with, and neither turns itself&nbsp;off.
+          </p>
+
+          {/*
+            THE TOUR IS A LINK, NOT A FORM. There is nothing to store from here —
+            it runs on the builder, and finishing or skipping it is what writes
+            `tour_done_at`, from the builder, through its own endpoint. This is
+            the same `/builder?tour` the account menu carries, so a rider has two
+            doors to one room and both open the same one.
+          */}
+          <p class="setting-actions">
+            <a class="btn" href="/builder?tour" data-tour-start>
+              Take the tour
+            </a>
+          </p>
+
+          {/*
+            ONE FIELDSET IN THE THREE-COLUMN GRID, which is what keeps it to a
+            third of the page rather than letting two radios run the full width
+            of a desktop window. The grid is the page's rhythm and a lone cell
+            still sits on it; a full-bleed choice set does not, and reads as a
+            different kind of control from the five below.
+          */}
+          <form method="post" action="/settings/tips" class="setting-form" data-autosave>
+            <div class="three-col">
+              <fieldset class="choice-set">
+                <legend class="visually-hidden">Show me around</legend>
+                {TIPS_CHOICES.map((choice) => (
+                  <label class="choice">
+                    <input type="radio" name="tips" value={choice.id} checked={choice.id === tips} />
+                    <span class="choice-label">{choice.label}</span>
+                    <span class="choice-example">{choice.example}</span>
+                  </label>
+                ))}
+              </fieldset>
+            </div>
+            <div class="setting-actions">
+              <button type="submit" class="btn btn-sign arrow-right arrow-n" data-js-hide>
+                Save
+              </button>
+              <Saved when={on('tips')} />
+            </div>
+          </form>
+
+          {/*
+            THE HEADER'S SIGN HAS A SWITCH, AND IT IS ITS OWN FORM. Ziad's call,
+            2026-09-11. The sign sits beside the account chip on every page,
+            builder included, which a rider who has taken the tour twice does
+            not need to keep seeing; the account menu's own item stays, so this
+            hides an affordance and never the feature. Its own handler and its
+            own column, like every form on this page, so saving it cannot
+            revert the radios above.
+
+            A HIDDEN `present` FIELD, because an unticked checkbox sends
+            nothing and the handler has to tell "unticked" from "not this
+            form" — the same shape the notification forms carry as `group`.
+          */}
+          <form method="post" action="/settings/tour-button" class="setting-form" data-autosave>
+            <input type="hidden" name="present" value="1" />
+            <label class="check">
+              <input type="checkbox" name="hideTour" checked={hideTour} />
+              <span>Hide the Take the tour button in the header</span>
+            </label>
+            <div class="setting-actions">
+              <button type="submit" class="btn btn-sign arrow-right arrow-n" data-js-hide>
+                Save
+              </button>
+              <Saved when={on('tour-button')} />
+            </div>
+          </form>
+        </section>
+
+        {/*
           PLACES TO AVOID (#271). Its own topic rather than a fourth cell in the
           grid above: everything in Units is a radio group about how a figure is
           WRITTEN, and this is free text that changes what a search ANSWERS.
@@ -1141,22 +1142,22 @@ export async function accountPage(
 
       <div
         class="page-tabpanel"
-        id="panel-places"
-        role="tabpanel"
-        aria-labelledby="tab-places"
-        hidden={!tabOn('places')}
-      >
-        {raw(placesPanel())}
-      </div>
-
-      <div
-        class="page-tabpanel"
         id="panel-paddock"
         role="tabpanel"
         aria-labelledby="tab-paddock"
         hidden={!tabOn('paddock')}
       >
         {raw(paddockPanel(w))}
+      </div>
+
+      <div
+        class="page-tabpanel"
+        id="panel-places"
+        role="tabpanel"
+        aria-labelledby="tab-places"
+        hidden={!tabOn('places')}
+      >
+        {raw(placesPanel())}
       </div>
     </>
   ).toString()
