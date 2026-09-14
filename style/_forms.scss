@@ -1086,10 +1086,31 @@ h1 + .transfer-head {
   margin-bottom: 0.4rem;
 
   input {
+    @include controls.text-control;
+
     flex: 1 1 auto;
     min-width: 0;
     font-weight: 600;
   }
+}
+
+// THE COLUMNS SAY WHAT THEY ARE (#336). A place row is three bare boxes and a
+// Delete, and nothing on it said which box was the name and which the group;
+// one header line per list, on the same grid as the rows, does. Rendered by
+// places.js beside the list and `aria-hidden`, because every control in a row
+// already carries its own `aria-label` and a screen reader would hear each
+// heading twice.
+.place-cols {
+  display: grid;
+  grid-template-columns: minmax(0, 2fr) minmax(0, 1fr) minmax(0, 1.5fr) auto;
+  gap: 0.6rem;
+  margin-bottom: 0.35rem;
+  padding: 0 0.7rem;
+  color: $neutral-43;
+  font-size: 0.8rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
 }
 
 .place-list {
@@ -1146,7 +1167,8 @@ h1 + .transfer-head {
     grid-template-columns: minmax(0, 1fr) auto;
   }
 
-  .place-meta {
+  .place-meta,
+  .place-cols {
     display: none;
   }
 
@@ -1166,21 +1188,24 @@ h1 + .transfer-head {
   margin: 0;
   padding: 0;
   display: grid;
-  gap: 0.75rem;
+  gap: 1rem;
 }
 
 // Photo, fields, actions. The photo is a fixed track so a paddock of bikes
 // lines up down the page whatever shape each picture is; the fields take the
 // rest and wrap internally.
+// A BIKE IS A CARD (#336): the same hairline-and-surface card the rest of the
+// site draws, with room inside it, so two bikes read as two things and the
+// fields inside one are not shoulder to shoulder.
 .bike {
   display: grid;
   grid-template-columns: 10rem minmax(0, 1fr) auto;
-  gap: 0.75rem;
+  gap: 1.25rem;
   align-items: start;
-  padding: 0.75rem;
+  padding: 1.2rem 1.5rem;
   background: $white;
+  border: 1px solid $neutral-88;
   border-radius: 10px;
-  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.1);
 }
 
 .bike-photo {
@@ -1219,24 +1244,28 @@ h1 + .transfer-head {
 
 .bike-fields {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(8rem, 1fr));
-  gap: 0.4rem;
+  grid-template-columns: repeat(auto-fit, minmax(10rem, 1fr));
+  gap: 0.85rem 0.75rem;
 }
 
 .bike-name {
   grid-column: 1 / -1;
-  margin: 0;
+  margin: 0 0 0.15rem;
+  font-size: 1.1rem;
   font-weight: 600;
 }
 
+// The label sits at the `.field` label's size and weight rather than as a
+// 0.75em caption — a paddock is a form, and its labels read like one.
 .bike-field {
   display: grid;
-  gap: 0.15rem;
+  gap: 0.3rem;
   min-width: 0;
 
   span {
-    color: $neutral-50;
-    font-size: 0.75em;
+    color: $neutral-43;
+    font-size: 0.92rem;
+    font-weight: 600;
   }
 
   input,
@@ -1256,11 +1285,13 @@ h1 + .transfer-head {
 
 .bike-add {
   display: flex;
-  gap: 0.5rem;
+  gap: 0.75rem;
   align-items: center;
-  margin-top: 0.75rem;
+  margin-top: 1rem;
 
   input {
+    @include controls.text-control;
+
     flex: 0 1 20rem;
     min-width: 0;
   }
