@@ -1,10 +1,23 @@
 # Status and handoff
 
-**Branch:** `chore/release-notes-shape`, pushed, PR pending review. **2,986 tests across 114 files** (2 skipped, 2,988 total).
-**Merged 2026-09-13 as [#324](https://github.com/feralcreative/routeloop/pull/324)** (drag the drawer's edge to set its width), **[#322](https://github.com/feralcreative/routeloop/pull/322)** (the account sprint: one account page with four tabs, `/account`, Vehicle × Power vocabulary) **and [#318](https://github.com/feralcreative/routeloop/pull/318)** (the wordmark under a dark scheme). `main` is `6f37a57`.
-**What this branch is:** [#325](https://github.com/feralcreative/routeloop/issues/325), the release notes reshaped—every item a kind, a sentence and bullets; one section per day; the date as an eyebrow; a stamp and a commit on every entry, reconstructed from git; an accordion with the newest open; cards with a sign-arrow disc; plain titles throughout. No migration.
-**Open and worth doing next:** the retitled headings mint new announcement ids, and `announceReleases()` now renames each rider's rows in place on the first boot after this deploys—verified on dev (285 rows, 7 unread, before and after). Watch the boot log for `[announce] moved 35 release(s)` on prod. `utils/deploy/both.sh` is on local `main` and may not be on origin.
+**Branch:** `feat/account-polish`, PR pending review. **2,986 tests across 114 files** (2 skipped, 2,988 total).
+**Merged 2026-09-13 as [#331](https://github.com/feralcreative/routeloop/pull/331)** (the release notes reshaped), **[#333](https://github.com/feralcreative/routeloop/pull/333)** (`both.sh`), **[#324](https://github.com/feralcreative/routeloop/pull/324)** (the resizable drawer), **[#322](https://github.com/feralcreative/routeloop/pull/322)** (the account sprint) **and [#318](https://github.com/feralcreative/routeloop/pull/318)** (the dark wordmark). `main` is `ed30b12`.
+**What this branch is:** the `area:account` half of the 2026-09-13 brainstorm (#334–#339): every text box takes the theme's surface and the dark palettes declare `color-scheme`; the vocabulary table lines up; Places and Paddock are roomier with labels and a card per bike; the tabs read Preferences, Profile, Paddock, Places; Preferences opens on Appearance and Units; Show me around is a folding card at the top of Profile, remembered per browser. No migration.
+**Still to build from that brainstorm:** `area:chrome` (#340 the yield tour sign, #341 rider cards) and `area:dashboard` (#342 the stat-row clue, #343 the Recycle bin tab), each its own branch.
+**PROD IS BEHIND** by every PR above plus migration `0042`; `utils/deploy/both.sh` is the command, prod first.
 **For:** the next agent, or the owner returning cold
+
+## Account polish, 2026-09-13
+
+The six `area:account` issues from the day's brainstorm, on `feat/account-polish`.
+
+**One drawing of a text box.** `controls.text-control` in the new mixin-only `style/_controls.scss`; `.field` takes it, and so do the Places and Paddock rows, the vocabulary Custom box, the confirm box, the group and bike adders, and the roster search. A mixin-only partial because a mixin in `_forms.scss` would have needed `_chrome` to `@use` forms, and Sass emits a module's CSS at its first load—forms' rules would have landed above chrome's. `color-scheme` rides on `_theme.scss`'s `-emit` so native controls follow the palette.
+
+**Measured, not eyeballed.** The vocabulary radio sat 1.8px low (the UA's 3px top margin inside a centered flex row) and the term's 24px line sat 8px above a 40px pill; both numbers are in the stylesheet's comments.
+
+**The fold is shared.** `style/_fold.scss` holds the card, the eased `::details-content` and the sign-arrow disc that #328 settled for the release notes; `.rn-fold` and the Profile card both take it. The Profile card's summary is a flex bar—heading, lead, disc—so the folded state is the same element and needs no second drawing.
+
+**Order is a cut-and-paste.** Tabs and topics are self-contained sections posting to their own actions; the only copy that changed is the comment above Vocabulary saying why it is third.
 
 ## The release notes reshaped, 2026-09-13
 
