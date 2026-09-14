@@ -430,6 +430,72 @@ body.modal-open {
       margin-bottom: 0;
     }
   }
+
+  // EVERY ITEM IS A KIND, A SENTENCE, AND BULLETS (#325). Ziad's call,
+  // 2026-09-13: the notes were paragraphs nobody read through. The list of
+  // items carries no marker — the badge is the marker — and each item is the
+  // badge and the sentence on one line, with the detail bullets under it in
+  // the ordinary list style, a shade quieter and a size smaller so the
+  // sentence is what a skim lands on.
+  .rn-items {
+    padding-left: 0;
+    list-style: none;
+  }
+
+  .rn-item {
+    margin-bottom: 0.85rem;
+    padding-left: 0;
+  }
+
+  .rn-summary {
+    display: inline;
+    margin: 0;
+    color: $text;
+    font-weight: 600;
+  }
+
+  .rn-details {
+    margin-top: 0.3rem;
+    padding-left: 1.15rem;
+    font-size: 0.93em;
+
+    li {
+      margin-bottom: 0.25rem;
+      color: $neutral-43;
+    }
+  }
+
+  // The kind, as a small sign. Four of the road-sign fields, one per kind, so
+  // a column of badges reads as a legend without one: new is the guide-sign
+  // green, fixed the regulatory blue, changed the work-zone orange with its
+  // black legend, removed a neutral. Each field carries the legend the palette
+  // audit clears it for — see BLACK_LEGEND in test/palette-contrast.test.ts.
+  .rn-kind {
+    display: inline-block;
+    margin: 0 0.5rem 0 0;
+    padding: 0.1em 0.5em 0.05em;
+    border-radius: 4px;
+    font-size: 0.7rem;
+    font-weight: 700;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+    vertical-align: 0.15em;
+    color: $ink-light;
+    background: $interstate;
+  }
+
+  .rn-item[data-kind="fixed"] .rn-kind {
+    background: $disabled;
+  }
+
+  .rn-item[data-kind="changed"] .rn-kind {
+    background: $detour;
+    color: $black;
+  }
+
+  .rn-item[data-kind="removed"] .rn-kind {
+    background: $neutral-50;
+  }
 }
 
 // The one line of the fragment's own preamble that the dialog does NOT hide: it
