@@ -29,7 +29,7 @@ import { Hono } from 'hono'
 import type { Context } from 'hono'
 import { and, eq, ne, sql } from 'drizzle-orm'
 import { db } from '../db/index'
-import { users } from '../db/schema'
+import { userProfiles, users } from '../db/schema'
 import { currentUser, requireActive, type AuthEnv } from '../auth/middleware'
 import { allow, clientIp } from '../auth/ratelimit'
 import {
@@ -45,7 +45,8 @@ import { followingSet } from '../follows/service'
 import { FriendActions } from '../views/friend-actions'
 import { FriendForm } from '../views/friend-form'
 import { FollowForm } from '../views/follow-form'
-import { page } from '../views/layout'
+import { raw } from 'hono/html'
+import { avatarSrc, initialsOf, page } from '../views/layout'
 import { tourAssets } from '../views/tour-assets'
 import { asset } from '../views/assets'
 
@@ -53,27 +54,101 @@ export const riderRoutes = new Hono<AuthEnv>()
 
 type Tab = 'friends' | 'all'
 
-/** A roster row. Exactly what a public profile shows, which is the whole rule. */
-type RosterRow = { id: number; displayName: string; username: string }
+/** A roster row. Exactly what a public profile shows, which is the whole rule —
+ *  the face included, since a profile page shows that too. */
+type RosterRow = RiderCard
 
-function RiderRow({ rider, children }: { rider: { displayName: string; username: string }; children?: unknown }) {
+/**
+ * A RIDER IS A CARD, IN A SIZE THE RIDER PICKS PER SECTION (#341). Ziad's
+ * call, 2026-09-13: a face, the name, the handle and the verb, on a grid —
+ * large, medium or small, chosen by the segmented control over each section
+ * and remembered per section per browser under `routeloop.riderCards` (the
+ * drawer's rule: localStorage, restored by an inline script before the page
+ * settles so the grid does not reflow on load). Medium is the default.
+ *
+ * The face is the account chip's rule: the upload first, then the provider
+ * picture, then initials on a tinted disc. `avatarSrc` already knew where a
+ * face lives; the lists simply never asked for one.
+ */
+const SIZES = ['lg', 'md', 'sm'] as const
+type CardSize = (typeof SIZES)[number]
+const SIZE_LABEL: Record<CardSize, string> = { lg: 'Large', md: 'Medium', sm: 'Small' }
+const DEFAULT_SIZE: CardSize = 'md'
+
+function RiderFace({ rider }: { rider: RiderCard }) {
+  const src = avatarSrc(rider)
+  return src ? (
+    <img class="rider-face" src={src} alt="" loading="lazy" />
+  ) : (
+    <span class="rider-face is-initials" aria-hidden="true">
+      {initialsOf(rider.displayName) || '?'}
+    </span>
+  )
+}
+
+function RiderCardItem({ rider, children }: { rider: RiderCard; children?: unknown }) {
   return (
-    <li>
-      <a class="friend-who" href={`/@${rider.username}`}>
-        <span class="rider-display">{rider.displayName}</span>
-        <span class="rider-handle">@{rider.username}</span>
+    <li class="rider-card">
+      <a class="rider-card-who" href={`/@${rider.username}`}>
+        <RiderFace rider={rider} />
+        <span class="rider-card-name">
+          <span class="rider-display">{rider.displayName}</span>
+          <span class="rider-handle">@{rider.username}</span>
+        </span>
       </a>
-      <div class="friend-acts">{children}</div>
+      <div class="rider-card-acts">{children}</div>
     </li>
   )
 }
 
+/**
+ * The grid and its switch. `name` is the section's key in localStorage and the
+ * value the switch and the inline restore both read, so the two cannot drift.
+ * `role="group"` with `aria-pressed` rather than a radiogroup, the Route | Ride
+ * pill's reasoning: a radiogroup promises arrow-key roving this does not do.
+ */
+function RiderCards({
+  name,
+  riders,
+  children,
+}: {
+  name: string
+  riders: RiderCard[]
+  children: (r: RiderCard) => unknown
+}) {
+  return (
+    <div class="rider-cards-block" data-cards={name}>
+      <div class="card-size" role="group" aria-label="Card size">
+        {SIZES.map((size) => (
+          <button type="button" data-size={size} aria-pressed={size === DEFAULT_SIZE ? 'true' : 'false'}>
+            {SIZE_LABEL[size]}
+          </button>
+        ))}
+      </div>
+      <ul class={`rider-cards rider-cards--${DEFAULT_SIZE}`}>
+        {riders.map((r) => (
+          <RiderCardItem rider={r}>{children(r)}</RiderCardItem>
+        ))}
+      </ul>
+    </div>
+  )
+}
+
+/**
+ * Sizes back before first paint. Inline and at the end of the body for the
+ * reason FOLD_RESTORE in layout.tsx is: the elements have to exist, and a
+ * deferred script arrives a frame after the grid has already drawn at medium.
+ */
+const CARDS_RESTORE = `<script>(function(){try{var s=JSON.parse(localStorage.getItem("routeloop.riderCards")||"{}");var b=document.querySelectorAll("[data-cards]");for(var i=0;i<b.length;i++){var z=s[b[i].getAttribute("data-cards")];if(z!=="lg"&&z!=="md"&&z!=="sm")continue;var u=b[i].querySelector(".rider-cards");u.className="rider-cards rider-cards--"+z;var k=b[i].querySelectorAll(".card-size button");for(var j=0;j<k.length;j++)k[j].setAttribute("aria-pressed",k[j].getAttribute("data-size")===z?"true":"false");}}catch(e){}})();</script>`
+
 function Section({
+  name,
   title,
   note,
   riders,
   children,
 }: {
+  name: string
   title: string
   note?: string
   riders: RiderCard[]
@@ -86,11 +161,9 @@ function Section({
         {title} <span class="friend-count">{riders.length}</span>
       </h2>
       {note && <p class="lede">{note}</p>}
-      <ul class="rider-list friend-list">
-        {riders.map((r) => (
-          <RiderRow rider={r}>{children(r)}</RiderRow>
-        ))}
-      </ul>
+      <RiderCards name={name} riders={riders}>
+        {children}
+      </RiderCards>
     </section>
   )
 }
@@ -114,8 +187,15 @@ function Section({
  */
 async function loadRoster(meId: number, q: string): Promise<RosterRow[]> {
   const rows = await db
-    .select({ id: users.id, displayName: users.displayName, username: users.username })
+    .select({
+      id: users.id,
+      displayName: users.displayName,
+      username: users.username,
+      avatarUrl: users.avatarUrl,
+      avatarBytes: sql<number>`coalesce(${userProfiles.avatarBytes}, 0)`,
+    })
     .from(users)
+    .leftJoin(userProfiles, eq(userProfiles.userId, users.id))
     .where(
       and(
         q
@@ -134,7 +214,7 @@ async function loadRoster(meId: number, q: string): Promise<RosterRow[]> {
     )
     .orderBy(users.displayName)
     .limit(200)
-  return rows.map((r) => ({ id: r.id, displayName: r.displayName, username: r.username! }))
+  return rows.map((r) => ({ ...r, username: r.username! }))
 }
 
 /**
@@ -229,7 +309,7 @@ async function ridersPage(c: Context<AuthEnv>, tab: Tab) {
         {/* Incoming first, and above the friends list rather than below it: it
             is the only section here that is waiting on the rider to do
             something. */}
-        <Section title="Waiting on you" riders={incoming}>
+        <Section name="incoming" title="Waiting on you" riders={incoming}>
           {(r) => (
             <>
               <FriendForm verb="accept" handle={r.username} label="Accept" back={back} />
@@ -244,11 +324,11 @@ async function ridersPage(c: Context<AuthEnv>, tab: Tab) {
           )}
         </Section>
 
-        <Section title="Your friends" riders={friends}>
+        <Section name="friends" title="Your friends" riders={friends}>
           {(r) => <FriendForm verb="remove" handle={r.username} label="Unfriend" back={back} variant="btn-quiet" />}
         </Section>
 
-        <Section title="Asked" note="Sent and not yet answered." riders={sent}>
+        <Section name="sent" title="Asked" note="Sent and not yet answered." riders={sent}>
           {(r) => <FriendForm verb="remove" handle={r.username} label="Withdraw" back={back} variant="btn-quiet" />}
         </Section>
 
@@ -256,6 +336,7 @@ async function ridersPage(c: Context<AuthEnv>, tab: Tab) {
             — a list that told you would be the notification a block must never
             be. */}
         <Section
+          name="blocked"
           title="Blocked"
           note="They cannot find you on the roster, and neither can you find them."
           riders={blocked}
@@ -292,18 +373,19 @@ async function ridersPage(c: Context<AuthEnv>, tab: Tab) {
           </button>
         </form>
         {roster.length > 0 ? (
-          <ul class="rider-list">
-            {roster.map((r) => (
-              <RiderRow rider={r}>
+          <RiderCards name="all" riders={roster}>
+            {(r) => (
+              <>
                 <FriendActions handle={r.username} view={views.get(r.id) ?? 'none'} back={back} />
                 <FollowForm handle={r.username} view={followed.has(r.id) ? 'following' : 'none'} back={back} />
-              </RiderRow>
-            ))}
-          </ul>
+              </>
+            )}
+          </RiderCards>
         ) : (
           <p class="empty">{q ? 'Nobody matches that.' : 'Nobody else here yet.'}</p>
         )}
       </div>
+      {raw(CARDS_RESTORE)}
     </>
   ).toString()
 
@@ -317,7 +399,7 @@ async function ridersPage(c: Context<AuthEnv>, tab: Tab) {
       // The tour visits this page, so it carries the tour's assets while one
       // is running and nothing extra otherwise.
       head: tourAssets(me).head,
-      scripts: `<script src="${asset('/js/tabs.js')}" defer></script>\n  ${tourAssets(me).scripts}`,
+      scripts: `<script src="${asset('/js/tabs.js')}" defer></script>\n  <script src="${asset('/js/riders.js')}" defer></script>\n  ${tourAssets(me).scripts}`,
     }),
   )
 }
