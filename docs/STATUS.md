@@ -1,12 +1,26 @@
 # Status and handoff
 
-**Branch:** `feat/show-me-around`, unmerged and **unpushed**. **2,970 tests across 112 files** (2 skipped, 2,972 total).
-**Merged 2026-09-10 as [#308](https://github.com/feralcreative/routeloop/pull/308)** (binned rides off the dashboard, the 404 page, the hamburger's unread dot, `$signal` split three ways, American English enforced by script and test) **and 2026-09-09 as [#306](https://github.com/feralcreative/routeloop/pull/306)** (stage on the production database). `main` is `f24d30e`.
-**PROD IS STILL BEHIND.** Nothing has been deployed since 2026-09-09 04:16 UTC, so production has none of #302, #303, #306 or #308. The order is written in [deployment.md](deployment.md#the-cutover-once): prod first, because stage no longer applies a migration of its own. This branch adds four additive migrations (`0038`–`0041`), all expand/contract-safe.
-**What this branch is:** [#133](https://github.com/feralcreative/routeloop/issues/133) grown into the real tour—a five-part, canned, cross-page walkthrough of the whole app that plans one ride in front of a new rider—plus the hover tips, the header sign, and the three guide riders. It carries the second approved CDN dependency, Shepherd.js 15.3.0.
-**Open and worth doing next:** the tour has been driven end to end by me in Chrome at 1440 and 400 wide, on a dev account; Ziad has not walked the five-part version. The first tour on prod creates the three guide rows (`is_guide`), which is the one write the deploy makes on a rider's behalf. The tour has never been run against the CDN failing. The San Jose crew's approach carries a riding time estimated from its geometry at the trunk's average speed—the one number in the fixture that was not routed—see `utils/build-tour-fixture.ts`.
-**Two local branches are merged and redundant:** `feat/release-notes-as-notifications` and `feat/icon-workbench-and-notification-marks`. Both have `[gone]` upstreams and no content `main` lacks; delete when convenient. `fix/binned-rides-on-dashboard` and `chore/stage-on-prod-database` joined them on 2026-09-10.
+**Branch:** `chore/release-notes-shape`, pushed, PR pending review. **2,986 tests across 114 files** (2 skipped, 2,988 total).
+**Merged 2026-09-13 as [#324](https://github.com/feralcreative/routeloop/pull/324)** (drag the drawer's edge to set its width), **[#322](https://github.com/feralcreative/routeloop/pull/322)** (the account sprint: one account page with four tabs, `/account`, Vehicle × Power vocabulary) **and [#318](https://github.com/feralcreative/routeloop/pull/318)** (the wordmark under a dark scheme). `main` is `6f37a57`.
+**What this branch is:** [#325](https://github.com/feralcreative/routeloop/issues/325), the release notes reshaped—every item a kind, a sentence and bullets; one section per day; the date as an eyebrow; a stamp and a commit on every entry, reconstructed from git; an accordion with the newest open; cards with a sign-arrow disc; plain titles throughout. No migration.
+**Open and worth doing next:** the retitled headings mint new announcement ids, and `announceReleases()` now renames each rider's rows in place on the first boot after this deploys—verified on dev (285 rows, 7 unread, before and after). Watch the boot log for `[announce] moved 35 release(s)` on prod. `utils/deploy/both.sh` is on local `main` and may not be on origin.
 **For:** the next agent, or the owner returning cold
+
+## The release notes reshaped, 2026-09-13
+
+[#325](https://github.com/feralcreative/routeloop/issues/325), on branch `chore/release-notes-shape`. Ziad's call: "for each feature, fix, etc., mark it as such, give it a sentence summary then bullets for details." Ten commits, each a step he asked for after seeing the previous one.
+
+**The item shape.** `<li class="rn-item" data-kind="new|fixed|changed|removed">` with a `.rn-kind` sign, a `.rn-summary` sentence and `.rn-details` bullets. The four kinds take four sign fields—guide-sign green, regulatory blue, work-zone orange with black ink, and gray—all one width with the inset white keyline every sign carries. Thirteen bullets that had been split into fragments (", on the builder too.") were folded back into their sentences.
+
+**One section per day.** Eight days that had several sections were merged. Every heading is `DATE — title`, and every title was rewritten plain and descriptive in the last commit; the July catch-all is "July 2026, where it started".
+
+**Every entry has a stamp and a commit.** Thirty-four were reconstructed from `origin/main` author dates—author, not committer, because a rebase-merge puts the 11 September entry on the 13th otherwise.
+
+**Rendered, not authored.** `splitHeadings()` in `src/releases/latest.ts` turns the heading into an eyebrow (date, stamp, hash) and a title inside a `<details class="rn-fold" name="rn-fold">`; the newest ships `open` and folds when another opens. Cards with a hairline and the page's own surface; `::details-content` eases with `interpolate-size: allow-keywords`, off under `motion.still`. The fold's disc is the app's sign arrow on `$disabled`, south when closed, north when open. Opening an entry scrolls its section to the top after the neighbor's fold finishes, with a hand-driven cubic ease-out—the native smooth scroll stops dead. `site.js` also opens the entry a notification's anchor names.
+
+**The heading is the id, so retitling renames rows.** `announceReleases()` pairs an orphaned claim with the live release on the same day and moves the rows, keeping read state and `created_at`; it also re-syncs title and summary on every boot. The earlier delete-and-rewrite would have cleared every rider's unread badge on a rename.
+
+**Found on the way:** three `<strong>` tags left open by the reshape nested every later section inside one—cards sat pulled up and the wrong entry got the brand dot. `test/content.test.ts` counts every tag now.
 
 ## The real tour, 2026-09-11
 
