@@ -227,6 +227,44 @@ export function withAnchors(html: string): string {
     const title = head ? stripStamp(head[1]) : ''
     out += title ? `<section class="rn-release" id="${releaseId(title)}">` : tag
   }
+  return splitHeadings(out + html.slice(last))
+}
+
+/**
+ * The date as an eyebrow over the title, at render (#325).
+ *
+ * **THE FILE KEEPS "DATE — TITLE" IN ONE `<h3>`, and this is what makes that
+ * safe to leave alone.** The heading is the announcement id and the thing the
+ * date is read from, so moving the date out of it in the FILE would mint a new
+ * id for every release — thirty-six quiet re-announcements — and leave the
+ * date parser nothing to read. Splitting at render costs nothing and changes
+ * no identity: `<h3>DATE — TITLE STAMP</h3>` renders as an eyebrow carrying
+ * the date and the stamp, then an `<h3>` carrying the title alone. A heading
+ * with no title (the early history) keeps the date as its heading.
+ */
+function splitHeadings(html: string): string {
+  const masked = maskComments(html)
+  const re = /<h3>([^]*?)<\/h3>/g
+  let out = ''
+  let last = 0
+  let m: RegExpExecArray | null
+  while ((m = re.exec(masked)) !== null) {
+    const inner = html.slice(m.index + 4, m.index + m[0].length - 5)
+    out += html.slice(last, m.index)
+    last = m.index + m[0].length
+    const stamp = /<code>[^<]*<\/code>(?:\s*<a class="rn-sha"[^]*?<\/a>)?/.exec(inner)
+    const text = (stamp ? inner.slice(0, stamp.index) : inner).trim()
+    const split = /^(.*?\d{4})\s*(?:&mdash;|—)\s*([^]+)$/.exec(text)
+    if (!split) {
+      out += `<h3>${inner}</h3>`
+      continue
+    }
+    const eyebrow = `${split[1].trim()}${stamp ? ` ${stamp[0].trim()}` : ''}`
+    // The title stood after a dash and was written lowercase; alone on its
+    // line it opens the sentence. An entity or a tag at the front is left be.
+    const title = split[2].trim().replace(/^[a-z]/, (c) => c.toUpperCase())
+    out += `<p class="rn-date">${eyebrow}</p>\n  <h3>${title}</h3>`
+  }
   return out + html.slice(last)
 }
 
