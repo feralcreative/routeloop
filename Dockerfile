@@ -39,6 +39,12 @@ COPY style ./style
 # public/style/main.min.css is gitignored (a build artifact), so it is compiled
 # here rather than copied in. Without this the deployed site has no stylesheet.
 RUN npm run sass
+# Minify public/js and strip the comments out of src/content — these are the
+# two kinds of file the server sends VERBATIM, so nothing else in the build
+# touches them. --in-place refuses to run where a .git directory exists, which
+# is what keeps this line from ever rewriting a laptop's sources; the image has
+# none because nothing above copies one.
+RUN npm run minify -- --in-place
 
 # User KML/GPX files live on a mounted volume, never baked into the image.
 RUN mkdir -p /app/storage && chown -R node:node /app

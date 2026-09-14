@@ -26,7 +26,8 @@
     "fix:english": "node utils/us-english.mjs --write",
     "check:english": "node utils/us-english.mjs --check",
     "test": "vitest run",
-    "test:watch": "vitest"
+    "test:watch": "vitest",
+    "minify": "node utils/minify-dist.mjs"
   },
   "dependencies": {
     "@hono/node-server": "^2.0.10",
@@ -47,6 +48,7 @@
     "@types/pg": "^8.20.0",
     "@types/qrcode": "^1.5.6",
     "drizzle-kit": "^0.31.10",
+    "esbuild": "^0.28.1",
     "sass": "^1.102.0",
     "tsx": "^4.19.2",
     "typescript": "^5.7.2",
