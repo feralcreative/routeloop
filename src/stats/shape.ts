@@ -356,8 +356,19 @@ export type Tile = {
   label: string
   value: string
   hint?: string
-  spread?: { avg: string; top: string }
+  spread?: Spread
 }
+
+/**
+ * What everyone else has, beside the rider's own figure, as three bars (#137,
+ * reshaped 2026-09-14). `avg` and `top` are the printed figures; `youPct` and
+ * `avgPct` are each bar's width as a share of the top rider's, who is always
+ * the full track — the rider's own figure never exceeds the top because the
+ * top is a maximum over every rider including them, and it is clamped in case
+ * a cached tally disagrees for a moment. A top of zero means nobody has any,
+ * and both bars are empty rather than dividing by it.
+ */
+export type Spread = { avg: string; top: string; youPct: number; avgPct: number }
 
 export type Meter = { usedBytes: number; quotaBytes: number; pct: number; used: string; quota: string } | null
 
@@ -463,23 +474,25 @@ export function shapeStats(
   const hasRides = t.rides > 0
 
   // Absent rather than zeroed when there is no cohort figure — see the Tile type.
-  const spread = (s: RawSpread | undefined) => (s ? { avg: fmtAvg(s.avg), top: fmtCount(s.top) } : undefined)
+  const pct = (n: number, top: number) => (top > 0 ? Math.round(Math.min(100, Math.max(0, (n / top) * 100)) * 10) / 10 : 0)
+  const spread = (s: RawSpread | undefined, you: number): Spread | undefined =>
+    s ? { avg: fmtAvg(s.avg), top: fmtCount(s.top), youPct: pct(you, s.top), avgPct: pct(s.avg, s.top) } : undefined
 
   const tiles: Tile[] = [
-    { label: wn(w, 'journey', t.rides), value: fmtCount(t.rides), spread: spread(global?.rides) },
-    { label: wn(w, 'route', t.routes), value: fmtCount(t.routes), spread: spread(global?.routes) },
+    { label: wn(w, 'journey', t.rides), value: fmtCount(t.rides), spread: spread(global?.rides, t.rides) },
+    { label: wn(w, 'route', t.routes), value: fmtCount(t.routes), spread: spread(global?.routes, t.routes) },
     // LEGS IS ON THIS LIST KNOWINGLY. A leg is an internal artifact, one per pair
     // of consecutive points, and it is not a unit any rider thinks in. It was put
     // in the scope deliberately on 2026-08-16 rather than by omission, so it is
     // not to be quietly dropped as a cleanup.
-    { label: t.legs === 1 ? 'leg' : 'legs', value: fmtCount(t.legs), spread: spread(global?.legs) },
+    { label: t.legs === 1 ? 'leg' : 'legs', value: fmtCount(t.legs), spread: spread(global?.legs, t.legs) },
     {
       label: t.points === 1 ? 'waypoint' : 'waypoints',
       value: fmtCount(t.points),
       // Named because rides.stop_count would give a different, smaller number and
       // someone will eventually wonder why the two disagree.
       hint: `${fmtCount(t.stops)} stops, ${fmtCount(t.pois)} points of interest`,
-      spread: spread(global?.points),
+      spread: spread(global?.points, t.points),
     },
   ]
 

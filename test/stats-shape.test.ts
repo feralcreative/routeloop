@@ -603,10 +603,21 @@ describe('the comparison columns', () => {
 
   it('gives all four counting tiles a spread', () => {
     const t = tilesFor(global)
-    expect(t.rides.spread).toEqual({ avg: '6.7', top: '17' })
-    expect(t.routes.spread).toEqual({ avg: '13', top: '34' })
-    expect(t.legs.spread).toEqual({ avg: '44.3', top: '95' })
-    expect(t.waypoints.spread).toEqual({ avg: '67.3', top: '154' })
+    expect(t.rides.spread).toEqual({ avg: '6.7', top: '17', youPct: 17.6, avgPct: 39.2 })
+    expect(t.routes.spread).toEqual({ avg: '13', top: '34', youPct: 26.5, avgPct: 38.2 })
+    expect(t.legs.spread).toEqual({ avg: '44.3', top: '95', youPct: 31.6, avgPct: 46.7 })
+    expect(t.waypoints.spread).toEqual({ avg: '67.3', top: '154', youPct: 32.5, avgPct: 43.7 })
+  })
+
+  // The bars are shares of the top rider's figure (2026-09-14). The top rider
+  // is the full track by definition, a rider AT the top fills it, and a cohort
+  // with nothing at all draws no bar rather than dividing by zero.
+  it('scales the bars to the top rider and never past the track', () => {
+    const atTop = tilesFor({ ...global, rides: { avg: 1.5, top: 3 } })
+    expect(atTop.rides.spread?.youPct).toBe(100)
+    expect(atTop.rides.spread?.avgPct).toBe(50)
+    const empty = tilesFor({ ...global, rides: { avg: 0, top: 0 } })
+    expect(empty.rides.spread).toEqual({ avg: '0', top: '0', youPct: 0, avgPct: 0 })
   })
 
   // Legs was put in scope deliberately on 2026-08-16 rather than by omission,

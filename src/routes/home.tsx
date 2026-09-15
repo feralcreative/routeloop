@@ -204,15 +204,49 @@ function StatTile({ tile }: { tile: Tile }) {
         because the pair was deliberately held small when the tiles grew (#176)
         and a clue that grows it undoes that.
       */}
+      {/*
+        THREE BARS, NOT TWO CAPTIONS (2026-09-14). Ziad's call, after #342's
+        labels: "everyone 29 · most 80" still read as two more numbers, and
+        what the tile is FOR is the comparison. Three rows in a fixed order —
+        you, the average rider, the top rider — each a bar scaled to the top
+        rider's figure with the number at its end, in three of the validated
+        categorical slots. The rider's own row repeats their figure, which is
+        deliberate: the bar has to carry a number to be read against the two
+        under it, and the headline above is the same number said louder.
+
+        Still a dl: three label/value pairs, and the width is data rather than
+        decoration, so it rides on the row as a custom property and the
+        stylesheet draws it. A row with a zero share draws an empty track,
+        which is the honest picture of a rider with none.
+      */}
       {tile.spread && (
-        <dl class="stat-spread">
-          <div>
-            <dt>everyone</dt>
-            <dd>{tile.spread.avg}</dd>
+        <dl class="stat-bars">
+          <div class="stat-bar is-you" style={`--share:${tile.spread.youPct}%`}>
+            <dt>You</dt>
+            <dd>
+              <span class="stat-bar-track">
+                <span class="stat-bar-fill"></span>
+              </span>
+              <span class="stat-bar-num">{tile.value}</span>
+            </dd>
           </div>
-          <div>
-            <dt>most</dt>
-            <dd>{tile.spread.top}</dd>
+          <div class="stat-bar is-avg" style={`--share:${tile.spread.avgPct}%`}>
+            <dt>Average rider</dt>
+            <dd>
+              <span class="stat-bar-track">
+                <span class="stat-bar-fill"></span>
+              </span>
+              <span class="stat-bar-num">{tile.spread.avg}</span>
+            </dd>
+          </div>
+          <div class="stat-bar is-top" style="--share:100%">
+            <dt>Top rider</dt>
+            <dd>
+              <span class="stat-bar-track">
+                <span class="stat-bar-fill"></span>
+              </span>
+              <span class="stat-bar-num">{tile.spread.top}</span>
+            </dd>
           </div>
         </dl>
       )}
@@ -703,7 +737,7 @@ homeRoutes.get('/', requireActive, async (c) => {
             numbers they were; one line captions the whole row once, at the
             `.rn-date` size, and the pair inside each tile finishes the thought.
           */}
-          <p class="stat-eyebrow">Your numbers, beside everyone&rsquo;s</p>
+          <p class="stat-eyebrow">Your numbers, beside the average rider&rsquo;s and the top rider&rsquo;s</p>
           <ul class="stat-tiles">
             {s.tiles.map((t) => (
               <StatTile tile={t} />
