@@ -491,7 +491,7 @@ Remaining: device-aware GPX flavors (#13)—`buildGpx` writes GPX 1.1 with `<trk
 - [ ] Error tracking / structured request logging in production.
 - [ ] Rate limiting on public and auth endpoints.
 - [ ] An accessibility pass (keyboard, focus, contrast, ARIA) and groundwork for i18n.
-- [ ] Installable PWA with an offline view of a saved ride.
+- [x] Installable PWA with an offline view of a saved ride. **Shipped 2026-09-14 with item 15** ([#69](https://github.com/feralcreative/routeloop/issues/69)): `public/js/sw.js` served at `/sw.js`, a shell precache keyed on the build, and a per-ride Keep on this phone that is the only thing ever served from cache. Not push—`notifications.js` is unchanged.
 
 **Touches.** repo-wide; new `test/`, `.github/workflows/`.
 
@@ -553,11 +553,11 @@ Remaining: device-aware GPX flavors (#13)—`buildGpx` writes GPX 1.1 with `<trk
 
 **Work.**
 
-- [ ] A mobile layout for a ride: large tap targets, high contrast for sunlight, minimal chrome, usable one-handed. Reachable from any ride under the same visibility gate as the viewer—no account needed for a public or unlisted one.
-- [x] **The Google Maps leg-loader (the headline).** List every batch from item 5 as a big button—"Day 2 · part 2 of 4"—that opens the Google Maps app on tap. Highlight the current batch, mark the finished ones, and make loading the next a single obvious tap the moment the last one ends. Remember progress per device (localStorage; no account required).
-- [ ] **Send files to the device.** Offer the ride's exports (GPX, KML, …) through the phone's native share sheet / "open in"—the Web Share API with files where supported, a plain download otherwise—so a file lands in Garmin Drive, TomTom, or wherever the rider's app picks it up.
-- [ ] Usable on spotty signal: once loaded, the leg-loader and its links should work without a connection, since the whole point is loading the next leg in the middle of nowhere. Leans on the PWA/offline groundwork in item 12.
-- [ ] Fold in the roadbook data (stop order, leg and cumulative miles, miles since fuel, dwell) as an at-a-glance list, so the mobile page is the roadbook and the live hand-off in one.
+- [x] A mobile layout for a ride: large tap targets, high contrast for sunlight, minimal chrome, usable one-handed. Reachable from any ride under the same visibility gate as the viewer—no account needed for a public or unlisted one. `/m/:slug/go`, the splash variant with its own bar, `style/_go.scss`.
+- [x] **The Google Maps leg-loader (the headline).** List every batch from item 5 as a big button—"Day 2 · part 2 of 4"—that opens the Google Maps app on tap. Highlight the current batch, mark the finished ones, and make loading the next a single obvious tap the moment the last one ends. Remember progress per device (localStorage; no account required). Progress is `routeloop.go.<slug>`, one place per density, keyed on the route uid and the part; `public/js/go-progress.js` is the arithmetic.
+- [x] **Send files to the device.** Offer the ride's exports (GPX, KML, …) through the phone's native share sheet / "open in"—the Web Share API with files where supported, a plain download otherwise—so a file lands in Garmin Drive, TomTom, or wherever the rider's app picks it up. GPX, KML and the native JSON, held in memory before the tap because Safari drops the gesture at the first await. **Verified in Chromium's source: Android Chrome's Web Share refuses `.gpx` and `.kml`**, so Android is always a download to Downloads. **Reported, to confirm on hardware: a web-shared GPX on iOS does not surface the nav apps in the sheet**, so the hint says Save to Files and open it from there.
+- [x] Usable on spotty signal: once loaded, the leg-loader and its links should work without a connection, since the whole point is loading the next leg in the middle of nowhere. Leans on the PWA/offline groundwork in item 12. Keep on this phone, and only a kept ride is ever served from cache.
+- [x] Fold in the roadbook data (stop order, leg and cumulative miles, miles since fuel, dwell) as an at-a-glance list, so the mobile page is the roadbook and the live hand-off in one. Same rows as the printed sheet, from `src/maps/roadbook-rows.ts`.
 
 **Open questions to settle when building.**
 
@@ -568,7 +568,7 @@ Remaining: device-aware GPX flavors (#13)—`buildGpx` writes GPX 1.1 with `<trk
 
 **Touches.** new mobile route under `src/routes/` (a JSX page) plus a small `public/js/` controller, `src/maps/gmaps-links.ts` (item 5) and `src/maps/export.ts` as the data sources, the roadbook data, SCSS for the mobile layout, and the PWA groundwork in item 12.
 
-**Status.** in progress—the leg-loader shipped as `/m/:slug/navigate` on `feat/expand-route`, listing every link per day with the density control. What remains is what makes it usable _on the bike_ rather than at a desk: glove-sized targets, marking finished legs, remembering progress per device without an account, and tolerating no signal. Overlaps the PWA/offline item (item 12).
+**Status.** **shipped 2026-09-14** on `feat/on-the-road`, closing [#69](https://github.com/feralcreative/routeloop/issues/69). The four open questions were settled: it lives at `/m/:slug/go` and `/navigate` 301s; the offline mechanism is a full service worker with an explicit per-ride Keep, because `localStorage` cannot make a page load; a batch does pre-fill from the previous one—every link starts from the rider (`fromCurrentLocation: 'every'`), which the old page claimed and did not do; and the Web Share fallback is a blob download, always on Android. **The manifest went `standalone` → `minimal-ui`**, because iOS standalone has no download manager and a GPX link traps the rider in a preview. Driven end to end in headless Chrome with the worker target taken offline; **the hardware pass against Google Maps, Rever, Kurviger, Scenic, Calimoto, OsmAnd and Garmin Explore is still to do**, and its checklist is in `docs/STATUS.md`. The leg-loader had been marked done above since August with progress memory that did not exist; it exists now.
 
 ### 16. The builder panel
 
