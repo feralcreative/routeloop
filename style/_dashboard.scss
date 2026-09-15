@@ -148,7 +148,10 @@
   // 960px .page-wrap cap that still fits five across with the gap, which is the
   // count the row has to survive, and four across it reads as a deliberately
   // wider row rather than as a hole.
-  grid-template-columns: repeat(auto-fit, minmax(10.5rem, 1fr));
+  // 12rem since the tiles carry three bars (2026-09-14): a label column, a
+  // track and a number need the width, and five across still fit at the
+  // 960px cap (5 × 12rem + 4 × 0.75rem = 63rem against 68.5rem).
+  grid-template-columns: repeat(auto-fit, minmax(12rem, 1fr));
 }
 
 .stat-tile {
@@ -182,56 +185,115 @@
   color: $neutral-50;
 }
 
-// The yours/average/top comparison, #137. Two label-value pairs under the tile's
-// own figure, so a number has something to be read against.
+// The yours/average/top comparison, #137, as three bars since 2026-09-14.
+// Ziad's call: two small captions under the figure ("everyone 29 · most 80")
+// still read as more numbers, and the tile exists for the comparison — so each
+// tile is a three-row bar chart, you / average rider / top rider, in a FIXED
+// order so the eye reads the same row across the whole strip.
 //
-// Pushed to the bottom of the tile with margin-top:auto rather than sitting
-// directly under the label, because .stat-tile is a flex column and the tiles in
-// a row have different label lengths — "roads you insisted on" wraps to two lines
-// where "routes" does not. Without this the comparison rows sit at different
-// heights across the row and the eye cannot scan them.
+// THREE OF THE FOUR CATEGORICAL SLOTS, and the assignment follows the meaning:
+// the rider's own row takes the guide-sign green (--viz-cat-3, the color the
+// app already paints "yours" in — the Plan a ride sign), the average the
+// regulatory blue (--viz-cat-1), the top the work-zone orange (--viz-cat-2).
+// The set is validated together by test/viz-categories.test.ts, which is what
+// lets three of them sit in one tile. The bar carries the color and the number
+// stays $text, so nothing here is colored TYPE and the palette audit's text
+// bars do not apply — the figures read at full contrast in all six.
 //
-// Deliberately quiet. The rider's own figure is the headline at 2rem/800; these
-// are context and are sized and colored to lose against it. A comparison that
-// competes with the number it explains is a worse tile.
+// Pushed to the bottom with margin-top:auto for the reason the old pair was:
+// the tiles are a flex column and "roads you insisted on" wraps where "routes"
+// does not, so the charts would otherwise start at different heights.
 //
-// HELD AT ITS OLD SIZE WHEN THE TILES GREW (#176), which is a decision and not an
-// omission: growing everything by the same factor keeps the ratio and makes the
-// block merely bigger, where the point was to make the FIGURE louder. Leaving
-// these where they were widens the gap, which is the direction that was wanted.
-.stat-spread {
-  display: flex;
-  gap: 0.75rem;
-  margin: 0.45rem 0 0;
-  padding: 0.4rem 0 0;
+// The share rides in as `--share` on the row, set by the template from the
+// stats shape; the fill is `width: var(--share)`. A row at 0% is an empty
+// track, which is the honest drawing of a rider with none.
+// ONE GRID FOR THE THREE ROWS, with each row and its dd flattened into it by
+// `display: contents`: the label column is then the width of the WIDEST label
+// in the tile, so the three tracks start on one line. Three separate grids
+// each sized their own label, and on a phone the bars started at three
+// different x positions and could not be compared — which is the one thing
+// they are for. The custom properties on the row still reach the fill,
+// because inheritance does not care that the box is not generated.
+//
+// The label takes what it needs, so "Average rider" is never ellipsized where
+// there is room, and the track gives way first on a narrow tile — a truncated
+// label is a lost meaning, a shorter bar is not.
+.stat-bars {
+  display: grid;
+  grid-template-columns: max-content minmax(2.5em, 1fr) auto;
+  align-items: center;
+  column-gap: 0.45rem;
+  row-gap: 0.3rem;
+  margin: 0.7rem 0 0;
+  padding: 0.6rem 0 0;
   border-top: 1px solid $neutral-94;
   margin-top: auto;
+  font-size: 0.72rem;
+}
 
-  div {
-    display: flex;
-    align-items: baseline;
-    gap: 0.25rem;
-  }
+.stat-bar {
+  display: contents;
+  // The row's own slot; each modifier below sets it and the fill reads it.
+  --bar: var(--viz-cat-4);
 
   dt {
-    font-size: 0.7rem;
-    text-transform: uppercase;
-    letter-spacing: 0.04em;
-    // -50, the muted-text gray the rest of the app captions with, not -63:
-    // at 0.7rem uppercase on the dark card's near-black, -63 read as dim
-    // even after the dark ramp was lifted (2026-09-14).
     color: $neutral-50;
+    letter-spacing: 0.02em;
+    white-space: nowrap;
   }
 
   dd {
+    display: contents;
     margin: 0;
-    font-size: 0.8rem;
-    font-weight: 600;
-    color: $neutral-36;
-    // Tabular, matching .stat-value — these are read down a row of tiles and
-    // proportional digits make the columns wander.
-    font-variant-numeric: tabular-nums;
   }
+
+  &.is-you {
+    --bar: var(--viz-cat-3);
+
+    dt {
+      color: $text;
+      font-weight: 700;
+    }
+  }
+
+  &.is-avg {
+    --bar: var(--viz-cat-1);
+  }
+
+  &.is-top {
+    --bar: var(--viz-cat-2);
+  }
+}
+
+.stat-bar-track {
+  display: block;
+  height: 0.6rem;
+  border-radius: 999px;
+  background: var(--viz-track);
+  overflow: hidden;
+}
+
+.stat-bar-fill {
+  display: block;
+  height: 100%;
+  width: var(--share, 0%);
+  border-radius: inherit;
+  background: var(--bar);
+  // A hairline of the same color at the left keeps a 0.4% bar visible as a
+  // sliver rather than vanishing: a rider with one ride against a top of 200
+  // still has a ride.
+  min-width: 2px;
+}
+
+.stat-bar-num {
+  font-size: 0.8rem;
+  font-weight: 600;
+  color: $text;
+  font-variant-numeric: tabular-nums;
+  // Right-aligned figures line up down the three rows, and a fixed minimum
+  // keeps the tracks the same length whatever the digits.
+  min-width: 2.4em;
+  text-align: right;
 }
 
 // --- Blocks ------------------------------------------------------------------
