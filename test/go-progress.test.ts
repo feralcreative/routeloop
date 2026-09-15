@@ -128,7 +128,7 @@ describe('staleness of a kept copy', () => {
     })
     const s = G.staleness(kept, '2026-09-13T00:00:00Z', now)
     expect(s.changed).toBe(true)
-    expect(s.text).toBe('Kept 3 days ago — the ride has changed since')
+    expect(s.text).toBe('Kept 3 days ago – the ride has changed since')
   })
 
   // Offline the rendered page IS the kept copy: nothing newer is known, so
