@@ -732,17 +732,22 @@ homeRoutes.get('/', requireActive, async (c) => {
           </p>
 
           {/*
-            ONE EYEBROW OVER THE ROW, NOT A PARAGRAPH (#342). The tiles sat
-            directly under the Plan a ride sign with nothing saying whose
-            numbers they were; one line captions the whole row once, at the
-            `.rn-date` size, and the pair inside each tile finishes the thought.
+            A SECTION LIKE THE OTHERS, HEADED "Your stats" (2026-09-14). Ziad's
+            call, replacing #342's eyebrow: once each tile carried its own
+            three labeled bars the row stopped needing a caption to say whose
+            numbers they were, and a small uppercase line over four charts
+            read as a label on a control rather than as the division it is.
+            It takes the same `.stat-block` and h2 as Your records, so the
+            page has one heading size for its sections.
           */}
-          <p class="stat-eyebrow">Your numbers, beside the average rider&rsquo;s and the top rider&rsquo;s</p>
-          <ul class="stat-tiles">
-            {s.tiles.map((t) => (
-              <StatTile tile={t} />
-            ))}
-          </ul>
+          <section class="stat-block">
+            <h2>Your stats</h2>
+            <ul class="stat-tiles">
+              {s.tiles.map((t) => (
+                <StatTile tile={t} />
+              ))}
+            </ul>
+          </section>
 
           {s.records.length > 0 && <Records records={s.records} />}
 
