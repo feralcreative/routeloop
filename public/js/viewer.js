@@ -566,6 +566,11 @@
     // another app" but "give me this ride on paper".
     if (state.ride.roadbookUrl)
       dls.push(dlButton(state.ride.roadbookUrl, Wc("roadbook"), false, "A page to print and carry"));
+    // The phone page (#69): the Google Maps legs one at a time, the files
+    // handed to a nav app, and a copy kept for no signal. A page, like the
+    // roadbook, and it sits beside it for the same reason.
+    if (state.ride.goUrl)
+      dls.push(dlButton(state.ride.goUrl, "On the road", false, "The phone page: legs, files, and a copy for no signal"));
     if (state.ride.nativeUrl) {
       dls.push(
         dlButton(

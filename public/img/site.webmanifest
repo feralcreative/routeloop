@@ -1,6 +1,7 @@
 {
   "name": "routeloop",
   "short_name": "routeloop",
+  "description": "Plan a multi-day motorcycle ride on one map, share it by link, and carry it on the road.",
   "id": "/",
   "start_url": "/",
   "scope": "/",
@@ -32,5 +33,5 @@
   ],
   "theme_color": "#ffffff",
   "background_color": "#ffffff",
-  "display": "standalone"
+  "display": "minimal-ui"
 }
