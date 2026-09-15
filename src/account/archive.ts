@@ -327,6 +327,7 @@ export function buildAccountJson(input: AccountArchiveInput): AccountArchive {
           theme: profile.theme,
           scheme: profile.scheme,
           motion: profile.motion,
+          mapScheme: profile.mapScheme,
           units: profile.units,
           clock: profile.clock,
           volumeUnits: profile.volumeUnits,

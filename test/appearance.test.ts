@@ -17,14 +17,19 @@
 // forever. That is invisible to anyone testing on a light machine.
 import { describe, expect, it } from 'vitest'
 import {
+  DEFAULT_MAP_SCHEME,
   DEFAULT_SCHEME,
   DEFAULT_THEME,
+  MAP_SCHEMES,
+  MAP_SCHEME_CHOICES,
   SCHEMES,
   SCHEME_CHOICES,
   THEMES,
   THEME_CHOICES,
+  mapSchemeAttr,
   schemeAttr,
   themeAttr,
+  toMapScheme,
   toScheme,
   toTheme,
 } from '../src/views/appearance'
@@ -89,5 +94,30 @@ describe('the preference page offers exactly what the enums allow', () => {
       expect(c.label.length).toBeGreaterThan(0)
       expect(c.hint.length).toBeGreaterThan(0)
     }
+  })
+})
+
+// THE MAP'S OWN AXIS (2026-09-14). The one rule that matters is the same
+// absence rule `system` carries: map-common.js reads `data-map-scheme` first
+// and falls through to `data-scheme` and the OS, so `follow` has to stamp
+// nothing — a stamped "follow" would be a value the map has to know to skip.
+describe('the map scheme', () => {
+  it('accepts every member and falls back to follow', () => {
+    for (const m of MAP_SCHEMES) expect(toMapScheme(m)).toBe(m)
+    for (const bad of [undefined, null, '', 'system', 'DARK', 42]) expect(toMapScheme(bad)).toBe(DEFAULT_MAP_SCHEME)
+  })
+
+  it('defaults to following the page, so a dark rider gets dark tiles unasked', () => {
+    expect(DEFAULT_MAP_SCHEME).toBe('follow')
+  })
+
+  it('stamps nothing for follow and the value for the other two', () => {
+    expect(mapSchemeAttr('follow')).toBe(null)
+    expect(mapSchemeAttr('light')).toBe('light')
+    expect(mapSchemeAttr('dark')).toBe('dark')
+  })
+
+  it('offers every member exactly once', () => {
+    expect(MAP_SCHEME_CHOICES.map((c) => c.id)).toEqual([...MAP_SCHEMES])
   })
 })

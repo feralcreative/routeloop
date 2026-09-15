@@ -1205,6 +1205,7 @@ export function page(opts: PageOpts): string {
         theme?: string
         scheme?: string
         motion?: string
+        mapScheme?: string
         dateFormat?: string
         clock?: string
         tips?: string
@@ -1218,6 +1219,11 @@ export function page(opts: PageOpts): string {
   const themeAttr_ = theme && theme !== 'default' ? ` data-theme="${esc(theme)}"` : ''
   const schemeAttr_ = scheme && scheme !== 'system' ? ` data-scheme="${esc(scheme)}"` : ''
   const motionAttr_ = motion && motion !== 'system' ? ` data-motion="${esc(motion)}"` : ''
+  // The map's own scheme (2026-09-14), read by map-common.js and by nothing
+  // in CSS. `follow` is omitted, the `data-clock`/`data-motion` rule: the
+  // absence is what sends the map to `data-scheme` and then to the OS.
+  const mapScheme = u?.mapScheme
+  const mapSchemeAttr_ = mapScheme && mapScheme !== 'follow' ? ` data-map-scheme="${esc(mapScheme)}"` : ''
   // TWO MORE STAMPS, AND THEY ARE FOR THE CLIENT RATHER THAN FOR THE CSS (#270).
   // Three client formatters — fmtClockMin in builder.js, fmtStamp in
   // map-common.js and fmtMoment in ride-time.js — were calling
@@ -1268,7 +1274,7 @@ export function page(opts: PageOpts): string {
   const body = isMap ? opts.body : `<div class="page-wrap">\n${opts.body}\n${siteFooter(variant === 'splash')}\n</div>`
 
   return `<!doctype html>
-<html lang="en-US"${htmlClass}${themeAttr_}${schemeAttr_}${motionAttr_}${localeAttr_}${clockAttr_}${tipsAttr_}${tourAttr_}${tourRideAttr_}>
+<html lang="en-US"${htmlClass}${themeAttr_}${schemeAttr_}${motionAttr_}${mapSchemeAttr_}${localeAttr_}${clockAttr_}${tipsAttr_}${tourAttr_}${tourRideAttr_}>
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">

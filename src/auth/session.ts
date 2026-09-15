@@ -9,7 +9,7 @@ import { getCookie, setCookie, deleteCookie } from 'hono/cookie'
 import { IS_HTTPS_ORIGIN } from '../config'
 import { db } from '../db/index'
 import { notifications, sessions, userProfiles, users, type UserRow } from '../db/schema'
-import { type Scheme, type Theme, toScheme, toTheme } from '../views/appearance'
+import { type MapScheme, type Scheme, type Theme, toMapScheme, toScheme, toTheme } from '../views/appearance'
 import { type Motion, toMotion } from '../views/motion'
 import { type Clock, toClock } from '../views/clock'
 import { type Tips, toTips } from '../views/tips'
@@ -82,6 +82,7 @@ export type SessionUser = {
     theme: Theme
     scheme: Scheme
     motion: Motion
+    mapScheme: MapScheme
     dateFormat: DateFormat
     clock: Clock
     tips: Tips
@@ -131,6 +132,7 @@ export async function validateSessionToken(token: string): Promise<SessionUser |
       theme: userProfiles.theme,
       scheme: userProfiles.scheme,
       motion: userProfiles.motion,
+      mapScheme: userProfiles.mapScheme,
       dateFormat: userProfiles.dateFormat,
       clock: userProfiles.clock,
       tips: userProfiles.tips,
@@ -185,6 +187,7 @@ export async function validateSessionToken(token: string): Promise<SessionUser |
       theme: toTheme(row.theme),
       scheme: toScheme(row.scheme),
       motion: toMotion(row.motion),
+      mapScheme: toMapScheme(row.mapScheme),
       dateFormat: toDateFormat(row.dateFormat),
       clock: toClock(row.clock),
       // NOTE THE COERCER'S DEFAULT IS `on` HERE, WHICH IS THE ONE PLACE IN THIS

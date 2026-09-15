@@ -125,6 +125,18 @@
       google.maps.importLibrary("marker"),
     ]);
 
+    // See `colorScheme` below. Strings rather than google.maps.ColorScheme,
+    // which the reference documents as usable either way and which lets this
+    // be decided before the library has loaded.
+    function colorScheme() {
+      const root = document.documentElement;
+      const own = root.getAttribute("data-map-scheme");
+      if (own === "dark" || own === "light") return own.toUpperCase();
+      const page = root.getAttribute("data-scheme");
+      if (page === "dark" || page === "light") return page.toUpperCase();
+      return "FOLLOW_SYSTEM";
+    }
+
     const map = new Maps.Map(
       el,
       Object.assign(
@@ -134,6 +146,12 @@
           // Advanced Markers render nothing at all without a Map ID — no error,
           // no marker, which reads as a data bug rather than a config one.
           mapId: window.TB.mapId,
+          // The tiles' light/dark (2026-09-14): the rider's own map choice
+          // first, then the page's scheme, then the OS. INITIAL-ONLY in the
+          // Maps API — setOptions cannot change it — which is why a saved
+          // preference reaches the map on its next load and the dev flip in
+          // devtools.js repaints the page and not the tiles.
+          colorScheme: colorScheme(),
           // Google's own POI pins open their own info windows and would fight
           // the builder's click-to-add-a-stop.
           clickableIcons: false,
