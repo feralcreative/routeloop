@@ -132,7 +132,7 @@
     return {
       changed: changed,
       agoText: "Kept " + ago,
-      text: changed ? "Kept " + ago + "—the ride has changed since" : "Kept " + ago,
+      text: changed ? "Kept " + ago + " – the ride has changed since" : "Kept " + ago,
     };
   }
 
