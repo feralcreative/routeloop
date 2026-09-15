@@ -185,6 +185,10 @@ app.use('/font/*', serveStatic({ root: './public' }))
 // The guided tour's fixture — the canned ride it replays. See utils/build-tour-fixture.ts.
 app.use('/tour/*', serveStatic({ root: './public' }))
 app.use('/favicon.ico', serveStatic({ path: './public/img/favicon/favicon.ico' }))
+// The signs gallery: every sign, badge and button in every palette, for checking
+// a color by eye. A static file rather than a route because it needs no session
+// and no data, and the same file also opens from file://.
+app.use('/signs.html', serveStatic({ path: './public/signs.html' }))
 
 // Live reload, development only — see src/dev/livereload.ts. Mounted up here
 // with the static assets so a connection that stays open for the whole session

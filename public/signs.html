@@ -1,0 +1,270 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Signs and buttons, every palette</title>
+<!--
+  Internal check page. Every sign, badge, pill and button the app draws, in one
+  place, so a color that goes wrong under one palette is seen beside the five
+  that did not. Static on purpose: no route, no session, no data.
+
+  Open /signs.html for all six palettes side by side (six iframes of this same
+  file). Open /signs.html?theme=contrast&scheme=dark for one of them alone.
+  Works from file:// too — the stylesheet link is relative — but the webfont
+  paths in main.min.css are absolute, so the type falls back off the server.
+
+  Hover states are real: point at a sign to see its lit field.
+-->
+<link rel="stylesheet" href="style/main.min.css">
+<script>
+  (function () {
+    var q = new URLSearchParams(location.search);
+    var theme = q.get('theme');
+    var scheme = q.get('scheme');
+    if (theme === 'contrast' || theme === 'colorblind') document.documentElement.setAttribute('data-theme', theme);
+    if (scheme === 'light' || scheme === 'dark') document.documentElement.setAttribute('data-scheme', scheme);
+    document.documentElement.setAttribute('data-signs', theme || scheme ? 'one' : 'six');
+  })();
+</script>
+<style>
+  /* The gallery’s own layout. Nothing here paints a color on a sign. */
+  .sg-wrap { max-width: 64rem; margin: 0 auto; padding: 1rem 1.25rem 3rem; }
+  .sg-head { display: flex; align-items: baseline; gap: 1rem; flex-wrap: wrap; margin: 0 0 1rem; }
+  .sg-head h1 { margin: 0; font-size: 1.25rem; }
+  .sg-head code { font-size: 0.85em; }
+  .sg-group { margin: 0 0 1.5rem; }
+  .sg-group > h2 { margin: 0 0 0.5rem; font-size: 0.85rem; letter-spacing: 0.06em; text-transform: uppercase; opacity: 0.7; }
+  .sg-row { display: flex; flex-wrap: wrap; align-items: center; gap: 0.75rem; margin: 0 0 0.75rem; }
+  .sg-row > * { flex: none; }
+  .sg-label { width: 100%; font-size: 0.8rem; opacity: 0.65; margin: 0; }
+  /* The banner is position: fixed in the app; pinned in flow here so it sits in its row. */
+  .sg-wrap .tb-banner { position: static; }
+  /* The toggle dot is absolutely positioned on the hamburger; give it a box to sit in. */
+  .sg-dot-host { position: relative; width: 44px; height: 44px; border: 1px dashed currentColor; opacity: 0.8; }
+  /* Shepherd’s own stylesheet is not loaded; the card just needs to be a box here. */
+  .sg-wrap .shepherd-element { display: inline-block; padding: 0.75rem; }
+  .sg-wrap .fb-fork { max-width: 40rem; }
+  .sg-wrap .rn-release { border-left: 0; padding-left: 0; }
+  .sg-wrap .notif-more { position: static; }
+
+  /* The numbering layer: one tag per sign, in document order, so a sign can
+     be named across the six palettes by its number. Fixed colors on purpose,
+     so the tag itself never changes with the palette it is checking. */
+  .sg-numbers { position: absolute; inset: 0 auto auto 0; width: 0; height: 0; pointer-events: none; z-index: 5000; }
+  .sg-num { position: absolute; transform: translate(-75%, -75%); min-width: 1.1rem; padding: 0 0.25rem; border-radius: 999px; background: #ff00c8; color: #fff; font: 700 0.68rem/1.4rem system-ui, sans-serif; text-align: center; box-shadow: 0 0 0 2px #fff, 0 1px 3px rgb(0 0 0 / 50%); }
+  body { position: relative; }
+
+  /* Six-up index. */
+  html[data-signs=“six”] body { margin: 0; }
+  .sg-six { display: grid; grid-template-columns: repeat(3, 1fr); gap: 2px; background: #888; }
+  .sg-six figure { margin: 0; background: #fff; }
+  .sg-six figcaption { padding: 0.4rem 0.75rem; font: 600 0.8rem/1.4 system-ui, sans-serif; background: #222; color: #eee; display: flex; justify-content: space-between; }
+  .sg-six figcaption a { color: #9cf; }
+  .sg-six iframe { display: block; width: 100%; height: 2200px; border: 0; }
+  @media (max-width: 1100px) { .sg-six { grid-template-columns: 1fr 1fr; } }
+  @media (max-width: 700px) { .sg-six { grid-template-columns: 1fr; } }
+</style>
+</head>
+<body>
+<template id="sg-gallery">
+<div class="sg-wrap">
+  <header class="sg-head">
+    <h1>Signs and buttons</h1>
+    <code id="sg-mode"></code>
+  </header>
+
+  <section class="sg-group">
+    <h2>Guide sign, .btn</h2>
+    <div class="sg-row">
+      <a class="btn" href="#">Plan a ride</a>
+      <a class="btn arrow-left" href="#">Back</a>
+      <a class="btn btn-sign arrow-right arrow-n" href="#">Save</a>
+      <a class="btn btn-sign arrow-both arrow-n" href="#">Both</a>
+      <button class="btn arrow-s" type="button">South</button>
+    </div>
+    <p class="sg-label">Eight bearings</p>
+    <div class="sg-row">
+      <a class="btn arrow-n" href="#">N</a>
+      <a class="btn arrow-ne" href="#">NE</a>
+      <a class="btn arrow-e" href="#">E</a>
+      <a class="btn arrow-se" href="#">SE</a>
+      <a class="btn arrow-s" href="#">S</a>
+      <a class="btn arrow-sw" href="#">SW</a>
+      <a class="btn arrow-w" href="#">W</a>
+      <a class="btn arrow-nw" href="#">NW</a>
+    </div>
+  </section>
+
+  <section class="sg-group">
+    <h2>Sign variants, .btn-sign.btn-*</h2>
+    <div class="sg-row">
+      <a class="btn btn-sign btn-recreation" href="#">Recreation</a>
+      <a class="btn btn-sign btn-regulatory" href="#">Regulatory</a>
+      <a class="btn btn-sign btn-services" href="#">Services</a>
+      <a class="btn btn-sign btn-warning" href="#">Warning</a>
+      <a class="btn btn-sign btn-stop" href="#">Delete my account</a>
+    </div>
+  </section>
+
+  <section class="sg-group">
+    <h2>Flat, $btn-flat</h2>
+    <div class="sg-row">
+      <button class="btn btn-sm" type="button">Small</button>
+      <button class="btn btn-quiet" type="button">Quiet</button>
+      <button class="btn btn-sm btn-quiet" type="button">Small quiet</button>
+      <button class="btn btn-danger" type="button">Danger</button>
+      <button class="btn btn-sm btn-danger" type="button">Small danger</button>
+      <button class="btn btn-approve" type="button">Approve</button>
+      <button class="btn btn-sm btn-sign btn-services" type="button">Small services</button>
+      <button class="linkbtn" type="button">Link button →</button>
+    </div>
+  </section>
+
+  <section class="sg-group">
+    <h2>Release note kinds, .rn-kind</h2>
+    <section class="rn-release">
+      <ul class="rn-items">
+        <li class="rn-item" data-kind="new"><span class="rn-kind">New</span><p class="rn-summary">Guide-sign green, white legend.</p></li>
+        <li class="rn-item" data-kind="fixed"><span class="rn-kind">Fixed</span><p class="rn-summary">Regulatory blue, white legend.</p></li>
+        <li class="rn-item" data-kind="changed"><span class="rn-kind">Changed</span><p class="rn-summary">Work-zone orange, black legend.</p></li>
+        <li class="rn-item" data-kind="removed"><span class="rn-kind">Removed</span><p class="rn-summary">Neutral, white legend.</p></li>
+      </ul>
+    </section>
+  </section>
+
+  <section class="sg-group">
+    <h2>Nav and notifications</h2>
+    <div class="sg-row">
+      <a class="nav-tour" href="#">Take the tour</a>
+      <span class="nav-badge" aria-hidden="true">3</span>
+      <span class="sg-dot-host"><span class="nav-toggle-dot" aria-hidden="true"></span></span>
+      <span class="notif-more" aria-hidden="true">Read more</span>
+    </div>
+  </section>
+
+  <section class="sg-group">
+    <h2>Timeline pills, .time-scope</h2>
+    <div class="sg-row">
+      <div class="time-scope-set" role="group" aria-label="What the slider covers">
+        <button type="button" class="time-seg" aria-pressed="true">Route</button>
+        <button type="button" class="time-seg" aria-pressed="false">Ride</button>
+      </div>
+      <button type="button" class="time-scope" id="range-ring" aria-pressed="true">Range</button>
+      <button type="button" class="time-scope" aria-pressed="false">Range</button>
+    </div>
+  </section>
+
+  <section class="sg-group">
+    <h2>Card size pill, .card-size</h2>
+    <div class="sg-row">
+      <div class="card-size" role="group" aria-label="Card size">
+        <button type="button" aria-pressed="true">Large</button>
+        <button type="button" aria-pressed="false">Medium</button>
+        <button type="button" aria-pressed="false">Small</button>
+      </div>
+      <div class="page-tabs" role="tablist">
+        <button class="page-tab is-active" role="tab" type="button">Active tab</button>
+        <button class="page-tab" role="tab" type="button">Tab</button>
+      </div>
+    </div>
+  </section>
+
+  <section class="sg-group">
+    <h2>Feedback fork, .fb-card</h2>
+    <div class="fb-fork">
+      <button class="fb-card" data-kind="bug" type="button"><span class="fb-card-label">Something is broken</span><span class="fb-card-blurb">A stop condition.</span></button>
+      <button class="fb-card" data-kind="idea" type="button"><span class="fb-card-label">I have an idea</span><span class="fb-card-blurb">A different way.</span></button>
+      <button class="fb-card" data-kind="question" type="button"><span class="fb-card-label">I have a question</span><span class="fb-card-blurb">Nobody is held up.</span></button>
+    </div>
+    <div class="sg-row">
+      <span class="fb-kind is-bug">bug</span>
+      <span class="fb-kind is-idea">idea</span>
+      <span class="fb-kind is-question">question</span>
+    </div>
+  </section>
+
+  <section class="sg-group">
+    <h2>Tour part signs, .tour-start</h2>
+    <div class="sg-row">
+      <div class="shepherd-element tour-step tour-part-1"><button class="btn tour-start" type="button">Part 1</button></div>
+      <div class="shepherd-element tour-step tour-part-2"><button class="btn tour-start" type="button">Part 2</button></div>
+      <div class="shepherd-element tour-step tour-part-3"><button class="btn tour-start" type="button">Part 3</button></div>
+      <div class="shepherd-element tour-step tour-part-4"><button class="btn tour-start" type="button">Part 4</button></div>
+      <div class="shepherd-element tour-step tour-part-5"><button class="btn tour-start" type="button">Part 5</button></div>
+    </div>
+  </section>
+
+  <section class="sg-group">
+    <h2>Dots and discs</h2>
+    <div class="sg-row">
+      <button type="button" class="help-dot" aria-label="More about this">?</button>
+      <a class="faq-link" href="#"><span aria-hidden="true">?</span></a>
+      <details class="fold-card setting-topic" open style="flex:1 1 20rem"><summary><h2 style="margin:0;font-size:1rem">Fold card</h2><span class="fold-lead">Disc at the right</span></summary><p>Body.</p></details>
+      <details class="fold-card setting-topic" style="flex:1 1 20rem"><summary><h2 style="margin:0;font-size:1rem">Fold card, shut</h2><span class="fold-lead">Disc at the right</span></summary><p>Body.</p></details>
+    </div>
+  </section>
+
+  <section class="sg-group">
+    <h2>Banners</h2>
+    <div class="sg-row">
+      <div class="tb-banner" role="status">You have unsaved changes.</div>
+      <div class="tb-banner is-stage" role="status">This is stage. The data is real: a delete here is a delete for everybody.</div>
+    </div>
+  </section>
+</div>
+</template>
+
+<script>
+  var SIGNS = [
+    '.btn', '.linkbtn', '.rn-kind', '.nav-tour', '.nav-badge', '.nav-toggle-dot', '.notif-more',
+    '.time-seg', '.time-scope', '.card-size > button', '.page-tab', '.fb-card', '.fb-kind',
+    '.help-dot', '.faq-link', '.fold-card > summary', '.tb-banner'
+  ];
+  // Every sign gets a number in document order; the order is the same in all
+  // six iframes, so a number names the same sign in every palette.
+  function numberSigns() {
+    var layer = document.querySelector('.sg-numbers');
+    if (!layer) { layer = document.createElement('div'); layer.className = 'sg-numbers'; document.body.appendChild(layer); }
+    layer.innerHTML = '';
+    var els = document.querySelectorAll(SIGNS.map(function (x) { return '.sg-wrap ' + x; }).join(', '));
+    for (var i = 0; i < els.length; i++) {
+      var r = els[i].getBoundingClientRect();
+      var n = document.createElement('span');
+      n.className = 'sg-num';
+      n.textContent = String(i + 1);
+      n.style.left = (r.left + scrollX) + 'px';
+      n.style.top = (r.top + scrollY) + 'px';
+      layer.appendChild(n);
+    }
+  }
+  (function () {
+    var root = document.documentElement;
+    if (root.getAttribute('data-signs') === 'one') {
+      document.body.appendChild(document.getElementById('sg-gallery').content.cloneNode(true));
+      var t = root.getAttribute('data-theme') || 'default';
+      var s = root.getAttribute('data-scheme') || 'system';
+      document.getElementById('sg-mode').textContent = 'theme=' + t + ' scheme=' + s;
+      numberSigns();
+      addEventListener('resize', numberSigns);
+      if (document.fonts) document.fonts.ready.then(numberSigns);
+      return;
+    }
+    var themes = ['default', 'contrast', 'colorblind'];
+    var schemes = ['light', 'dark'];
+    var grid = document.createElement('div');
+    grid.className = 'sg-six';
+    schemes.forEach(function (s) {
+      themes.forEach(function (t) {
+        var href = location.pathname + '?theme=' + t + '&scheme=' + s;
+        var f = document.createElement('figure');
+        f.innerHTML = '<figcaption><span>' + t + ' · ' + s + '</span><a href="' + href + '" target="_blank">open</a></figcaption>' +
+          '<iframe src="' + href + '" title="' + t + ' ' + s + '" loading="lazy"></iframe>';
+        grid.appendChild(f);
+      });
+    });
+    document.body.appendChild(grid);
+  })();
+</script>
+</body>
+</html>

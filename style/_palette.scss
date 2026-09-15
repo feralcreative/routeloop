@@ -83,11 +83,20 @@ $-neutrals-light: (
 // the step between them (muted text against a mid gray, a border against a fill)
 // simply vanished after dark, with nothing to say so. The complement rule stated
 // above is what fixes it: 50 -> 50 is #777777, not #888888.
+// **THE TEXT END IS LIFTED ONE STEP PAST THE COMPLEMENT, 2026-09-14.** Ziad's
+// call: -21 at #bbbbbb read as dim everywhere on a dark page — body copy,
+// headings, the release-note summaries — and the complement rule's caveat
+// above cuts the other way in practice: the bloom it hedges against is a
+// problem for pure white, not for a light gray, and text at L*76 on a
+// near-black ground simply looks gray. The four text steps move up one hex
+// pair each (21 -> #dddddd, the light ramp's -88); -50 and below stay, because
+// -50 is a FIELD under a white legend (the Removed badge) and -57 is $concrete,
+// which the audit holds to a black legend at 4.5:1.
 $-neutrals-dark: (
-  21: #bbbbbb,
-  29: #aaaaaa,
-  36: #999999,
-  43: #888888,
+  21: #dddddd,
+  29: #cccccc,
+  36: #bbbbbb,
+  43: #aaaaaa,
   // 50 WAS #888888 TOO, WHICH COLLAPSED IT INTO 43. Corrected to sit BETWEEN its
   // neighbors rather than to the complement rule's literal answer: -57 is
   // $concrete, a sign post that has to carry a black legend at 4.5:1, and

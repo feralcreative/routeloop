@@ -614,9 +614,17 @@ body.modal-open {
     --rn-field: #{$disabled};
   }
 
+  // $ink-dark AND NOT $black: `--black` is the page INK and lifts to
+  // near-white under a dark scheme, so the legend went gray on orange there
+  // (#282 from the other side). The keyline goes black with it — a
+  // black-legend field takes a black border, the rule `sign-field()` and the
+  // yield sign follow.
   .rn-item[data-kind="changed"] .rn-kind {
     --rn-field: #{$detour};
-    color: $black;
+    color: $ink-dark;
+    box-shadow:
+      inset 0 0 0 1px var(--rn-field),
+      inset 0 0 0 2px $ink-dark;
   }
 
   .rn-item[data-kind="removed"] .rn-kind {
