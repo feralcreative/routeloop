@@ -179,6 +179,16 @@
   gap: 0.15rem;
 }
 
+// The figure and its label on one baseline, the way the hero reads
+// (2026-09-14): "13 rides" rather than a 13 with "rides" under it. Wraps on
+// a tile too narrow for both, which the hero also allows.
+.stat-head {
+  display: flex;
+  align-items: baseline;
+  flex-wrap: wrap;
+  gap: 0 0.45rem;
+}
+
 .stat-value {
   // Up from 1.6rem (#176). Still below .record-figure's 1.9–2.4rem, which is the
   // ordering the page depends on: a tile is a count, a record is an achievement,

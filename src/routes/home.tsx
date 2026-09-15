@@ -179,8 +179,13 @@ function OwnRideCard({ ride, color, units }: { ride: RideRow; color: string | nu
 function StatTile({ tile }: { tile: Tile }) {
   return (
     <li class="stat-tile" title={tile.hint}>
-      <span class="stat-value">{tile.value}</span>
-      <span class="stat-label">{tile.label}</span>
+      {/* One line, the figure then its unit — "13 rides" — the hero's own
+          shape (2026-09-14). The wrapper is what lets the two sit on a
+          baseline while the bars below stay a separate block. */}
+      <span class="stat-head">
+        <span class="stat-value">{tile.value}</span>
+        <span class="stat-label">{tile.label}</span>
+      </span>
       {/*
         The comparison columns (#137). A number alone says nothing about whether
         it is a lot, so each tile carries what the average rider has and what the
