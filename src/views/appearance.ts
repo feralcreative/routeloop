@@ -30,6 +30,21 @@ export const SCHEMES = ['system', 'light', 'dark'] as const
 export type Scheme = (typeof SCHEMES)[number]
 export const DEFAULT_SCHEME: Scheme = 'system'
 
+// THE MAP'S OWN AXIS (2026-09-14). Ziad's call: a dark page must not force a
+// dark map on anyone — the tiles are the thing a planner reads, and a dark
+// basemap is a taste rather than a consequence. `follow` is the default and
+// means "whatever the page resolves to", so the ordinary rider who picks Dark
+// gets dark tiles and never sees this control do anything; the control exists
+// for the rider who wants one and not the other.
+//
+// It reaches the map as google.maps' `colorScheme`, which is INITIAL-ONLY —
+// the option cannot be changed on a live map — so a change here takes effect
+// on the next map page load, and the autosave restamps <html> for the next
+// one rather than repainting the map under the rider.
+export const MAP_SCHEMES = ['follow', 'light', 'dark'] as const
+export type MapScheme = (typeof MAP_SCHEMES)[number]
+export const DEFAULT_MAP_SCHEME: MapScheme = 'follow'
+
 /**
  * Coerces anything to a supported value.
  *
@@ -40,6 +55,8 @@ export const DEFAULT_SCHEME: Scheme = 'system'
  */
 export const toTheme = (v: unknown): Theme => (THEMES.includes(v as Theme) ? (v as Theme) : DEFAULT_THEME)
 export const toScheme = (v: unknown): Scheme => (SCHEMES.includes(v as Scheme) ? (v as Scheme) : DEFAULT_SCHEME)
+export const toMapScheme = (v: unknown): MapScheme =>
+  MAP_SCHEMES.includes(v as MapScheme) ? (v as MapScheme) : DEFAULT_MAP_SCHEME
 
 /**
  * What to stamp on <html>, or null to stamp nothing.
@@ -51,6 +68,13 @@ export const toScheme = (v: unknown): Scheme => (SCHEMES.includes(v as Scheme) ?
  */
 export const themeAttr = (t: Theme): string | null => (t === 'default' ? null : t)
 export const schemeAttr = (s: Scheme): string | null => (s === 'system' ? null : s)
+/**
+ * `follow` stamps nothing, for the reason `system` does: the map reads
+ * `data-map-scheme` first and falls through to `data-scheme` and then to the
+ * OS, so absence IS the delegation and a stamped "follow" would be a value
+ * map-common.js has to know to ignore.
+ */
+export const mapSchemeAttr = (m: MapScheme): string | null => (m === 'follow' ? null : m)
 
 /** The preferences page's radio sets. */
 export const THEME_CHOICES: { id: Theme; label: string; hint: string }[] = [
@@ -71,4 +95,10 @@ export const SCHEME_CHOICES: { id: Scheme; label: string; hint: string }[] = [
   { id: 'system', label: 'Match my device', hint: 'Follows whatever your phone or computer is set to.' },
   { id: 'light', label: 'Light', hint: 'Always light, even at night.' },
   { id: 'dark', label: 'Dark', hint: 'Always dark, even in daylight.' },
+]
+
+export const MAP_SCHEME_CHOICES: { id: MapScheme; label: string; hint: string }[] = [
+  { id: 'follow', label: 'Match the page', hint: 'Dark tiles on a dark page, light on a light one.' },
+  { id: 'light', label: 'Light', hint: 'Light tiles whatever the page is.' },
+  { id: 'dark', label: 'Dark', hint: 'Dark tiles whatever the page is.' },
 ]

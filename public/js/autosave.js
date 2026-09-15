@@ -70,6 +70,9 @@
     theme: { attr: "data-theme", bare: "default" },
     scheme: { attr: "data-scheme", bare: "system" },
     motion: { attr: "data-motion", bare: "system" },
+    // The map reads this on its NEXT load; google.maps' colorScheme is
+    // initial-only, so the stamp is for the next map page, not this one.
+    mapScheme: { attr: "data-map-scheme", bare: "follow" },
     dateFormat: { attr: "data-date-format", bare: null },
     clock: { attr: "data-clock", bare: "locale" },
   };

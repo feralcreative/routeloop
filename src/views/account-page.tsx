@@ -45,7 +45,7 @@ import { MOTION_CHOICES, toMotion } from './motion'
 import { UNITS_CHOICES, toUnits } from './units'
 import { TIPS_CHOICES, toTips } from './tips'
 import { POWER_CHOICES, TERMS, VEHICLE_CHOICES, Wd, cap, vocabOf, wd, wds, wordsFor, type Words } from './vocab'
-import { SCHEME_CHOICES, THEME_CHOICES } from './appearance'
+import { MAP_SCHEME_CHOICES, SCHEME_CHOICES, THEME_CHOICES } from './appearance'
 import { GROUPS, eventsInGroup } from '../notifications/catalog'
 import { channelsFor } from '../notifications/policy'
 import { prefsOf } from '../notifications/service'
@@ -221,6 +221,7 @@ export async function accountPage(
   // coerced there so there is no null to interpret here.
   const theme = user.theme
   const scheme = user.scheme
+  const mapScheme = user.mapScheme
 
   const tabOn = (t: AccountTab) => opts.tab === t
 
@@ -442,6 +443,25 @@ export async function accountPage(
                 {MOTION_CHOICES.map((choice) => (
                   <label class="choice">
                     <input type="radio" name="motion" value={choice.id} checked={choice.id === motion} />
+                    <span class="choice-label">{choice.label}</span>
+                    <span class="choice-example">{choice.hint}</span>
+                  </label>
+                ))}
+              </fieldset>
+
+              {/*
+                THE MAP HAS ITS OWN LIGHT/DARK (2026-09-14). Ziad's call: a dark
+                page must not force dark tiles on anyone, because the tiles are
+                what a planner reads and a dark basemap is a taste. It defaults
+                to following the page, so the control changes nothing for the
+                rider who never touches it. The fourth cell wraps under the
+                three at LG; that is the grid doing its job.
+              */}
+              <fieldset class="choice-set">
+                <legend class="choice-legend">Map tiles</legend>
+                {MAP_SCHEME_CHOICES.map((choice) => (
+                  <label class="choice">
+                    <input type="radio" name="mapScheme" value={choice.id} checked={choice.id === mapScheme} />
                     <span class="choice-label">{choice.label}</span>
                     <span class="choice-example">{choice.hint}</span>
                   </label>

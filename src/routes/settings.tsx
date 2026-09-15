@@ -21,7 +21,7 @@ import { db } from '../db/index'
 import { userProfiles } from '../db/schema'
 import { toDurationFormat } from '../maps/duration'
 import { fromAcceptLanguage, toDateFormat } from '../views/date-format'
-import { toScheme, toTheme } from '../views/appearance'
+import { toMapScheme, toScheme, toTheme } from '../views/appearance'
 import { toMotion } from '../views/motion'
 import { toUnits } from '../views/units'
 import { toClock } from '../views/clock'
@@ -152,8 +152,9 @@ settingsRoutes.post('/settings/appearance', requireActive, requireSameOrigin, as
   const theme = toTheme(body.theme)
   const scheme = toScheme(body.scheme)
   const motion = toMotion(body.motion)
+  const mapScheme = toMapScheme(body.mapScheme)
 
-  // ONE HANDLER FOR ALL THREE AXES, unlike the date, duration and units
+  // ONE HANDLER FOR ALL FOUR AXES, unlike the date, duration and units
   // preferences which each write themselves alone. They are three questions but
   // one answer: a rider has one appearance, sees all three controls at once, and
   // would be surprised if saving the palette silently reverted the light/dark or
@@ -180,12 +181,13 @@ settingsRoutes.post('/settings/appearance', requireActive, requireSameOrigin, as
       theme,
       scheme,
       motion,
+      mapScheme,
       dateFormat: fromAcceptLanguage(c.req.header('Accept-Language')),
       updatedAt: new Date(),
     })
     .onConflictDoUpdate({
       target: userProfiles.userId,
-      set: { theme, scheme, motion, updatedAt: new Date() },
+      set: { theme, scheme, motion, mapScheme, updatedAt: new Date() },
     })
 
   return c.redirect('/account?saved=appearance#appearance', 303)

@@ -87,6 +87,13 @@ export const schemeEnum = pgEnum('scheme', ['system', 'light', 'dark'])
 // two-state toggle defaulting to on would silently override the OS setting of
 // every rider who already asked for less motion. See src/views/motion.ts.
 export const motionEnum = pgEnum('motion', ['system', 'always', 'never'])
+// The map tiles' own light/dark, separate from the page's (2026-09-14). A dark
+// page with a light map is a real preference — the tiles are the thing being
+// read and a dark basemap loses the road hierarchy — so the map is not simply
+// slaved to `scheme`. `follow` means "whatever the page is", which is the
+// default, and it is the ABSENCE of a `data-map-scheme` stamp the way `system`
+// is for the page. See src/views/appearance.ts.
+export const mapSchemeEnum = pgEnum('map_scheme', ['follow', 'light', 'dark'])
 
 // Miles or kilometers. ITS OWN AXIS rather than derived from `date_format`,
 // although the two look like siblings: `en-GB` writes 24/08/2026 and measures
@@ -428,6 +435,9 @@ export const userProfiles = pgTable('user_profiles', {
   // browser through its own `system` member rather than through a header, and
   // there is no Accept-Units.
   motion: motionEnum('motion').notNull().default('system'),
+  // Defaulted for the same reason as the three above. `follow` delegates to
+  // `scheme`, so no reader ever has to answer "null means what?".
+  mapScheme: mapSchemeEnum('map_scheme').notNull().default('follow'),
   units: unitsEnum('units').notNull().default('imperial'),
   // Defaulted for the same reason as the five above: no third state for a reader
   // to interpret. Neither is seeded from a header — `clock` delegates to the
