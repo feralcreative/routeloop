@@ -76,6 +76,25 @@ describe('starting from where the rider is', () => {
     expect(params(links[1].url).has('origin')).toBe(true)
   })
 
+  // The on-the-road page (#69): every link is tapped standing at the point the
+  // previous one ended on, so every link starts from the rider.
+  it("drops the origin on every link for 'every', and every link still fits", () => {
+    const { links } = routeLinks(routeOf(Array.from({ length: 30 }, (_, i) => stop(i))), {
+      fromCurrentLocation: 'every',
+    })
+    expect(links.length).toBeGreaterThan(1)
+    for (const l of links) {
+      expect(params(l.url).has('origin')).toBe(false)
+      expect(waypointsOf(l.url).length).toBeLessThanOrEqual(9)
+      expect(l.points.length).toBeLessThanOrEqual(MAX_POINTS_PER_LINK - 1)
+    }
+    // The overlap holds: the point a link ends on is the first waypoint of the next.
+    for (let i = 1; i < links.length; i++) {
+      const prevEnd = links[i - 1].points[links[i - 1].points.length - 1]
+      expect(waypointsOf(links[i].url)[0]).toBe(`${prevEnd.lat},${prevEnd.lng}`)
+    }
+  })
+
   it('keeps the dropped origin as a waypoint rather than losing the stop', () => {
     const withOrigin = routeLinks(routeOf([stop(1), stop(2), stop(3)]))
     const without = routeLinks(routeOf([stop(1), stop(2), stop(3)]), { fromCurrentLocation: true })
@@ -93,7 +112,7 @@ describe('batching a long route', () => {
   // carry without saying so, and a rider finds out by missing the road.
   it('never exceeds what Maps will carry', () => {
     for (const n of [2, 11, 12, 25, 40, 97]) {
-      for (const opts of [{}, { fromCurrentLocation: true }]) {
+      for (const opts of [{}, { fromCurrentLocation: true }, { fromCurrentLocation: 'every' as const }]) {
         const links = routeLinks(routeOf(Array.from({ length: n }, (_, i) => stop(i))), opts).links
         for (const l of links) {
           expect(l.points.length).toBeLessThanOrEqual(MAX_POINTS_PER_LINK)

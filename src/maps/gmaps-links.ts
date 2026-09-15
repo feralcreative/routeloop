@@ -70,7 +70,15 @@ export type LinkOptions = {
   // Leave the first link's origin off so Maps starts from wherever the rider
   // is. Only ever right for the leg being ridden now — a shared plan someone
   // reads at home wants the real start.
-  fromCurrentLocation?: boolean
+  //
+  // `'every'` drops the origin from EVERY link, and it is what the on-the-road
+  // page asks for (#69). Consecutive links overlap by one point, so when a rider
+  // taps part 2 they are standing at the point part 1 ended on — "where you
+  // are" is true of every link, not only the first, and Start rather than
+  // Preview at every fuel stop is the whole reason the ritual was worth
+  // removing. The overlap point still rides along as the first waypoint, so
+  // the road out of the stop is the planned one.
+  fromCurrentLocation?: boolean | 'every'
   // `two-wheeler` exists but is only honored in some countries and silently
   // degrades elsewhere, so driving is the default until there is a reason.
   travelMode?: 'driving' | 'two-wheeler' | 'bicycling' | 'walking'
@@ -91,7 +99,7 @@ type LinkPoint = { lat: number; lng: number; stop: ExportPoint | null }
 
 function buildUrl(batch: LinkPoint[], opts: LinkOptions, isFirst: boolean): string {
   const params = new URLSearchParams({ api: '1' })
-  const dropOrigin = Boolean(opts.fromCurrentLocation) && isFirst
+  const dropOrigin = opts.fromCurrentLocation === 'every' || (Boolean(opts.fromCurrentLocation) && isFirst)
 
   const origin = batch[0]
   const destination = batch[batch.length - 1]
@@ -200,7 +208,8 @@ export function routeLinks(route: ExportRoute, opts: LinkOptions = {}): GmapsRou
   const MIN_FILL = 0.6
   const batches: LinkPoint[][] = []
   for (let i = 0, first = true; i < seq.length - 1; first = false) {
-    const cap = first && opts.fromCurrentLocation ? MAX_POINTS_PER_LINK - 1 : MAX_POINTS_PER_LINK
+    const dropped = opts.fromCurrentLocation === 'every' || (first && Boolean(opts.fromCurrentLocation))
+    const cap = dropped ? MAX_POINTS_PER_LINK - 1 : MAX_POINTS_PER_LINK
     let end = Math.min(i + cap, seq.length) // exclusive
     if (end < seq.length) {
       for (let j = end - 1; j > i + Math.ceil(cap * MIN_FILL); j--) {
