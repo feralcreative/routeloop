@@ -59,6 +59,12 @@
 
 // --- Hero --------------------------------------------------------------------
 
+// Air between the greeting and the figure under it (2026-09-14). Ziad's
+// call: 0.5em of the h1's own size, so it scales with the greeting.
+.home > h1 {
+  padding-bottom: 0.5em;
+}
+
 // The hero figure and the onramp on one line (2026-09-14): figure at the
 // left, sign at the right, bottoms flush. `align-items: flex-end` is what
 // puts the sign's bottom edge on the figure's — the figure's line box ends
