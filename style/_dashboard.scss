@@ -217,7 +217,10 @@
     font-size: 0.7rem;
     text-transform: uppercase;
     letter-spacing: 0.04em;
-    color: $neutral-63;
+    // -50, the muted-text gray the rest of the app captions with, not -63:
+    // at 0.7rem uppercase on the dark card's near-black, -63 read as dim
+    // even after the dark ramp was lifted (2026-09-14).
+    color: $neutral-50;
   }
 
   dd {

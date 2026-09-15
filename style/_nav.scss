@@ -843,20 +843,25 @@ html.map-page {
 
   // The same lift the hamburger gets, or the sign reads as painted on the map
   // beside a button that floats over it. The keyline layers are restated
-  // because box-shadow is one property and the drop shadow joins them.
+  // because box-shadow is one property and the drop shadow joins them — and
+  // THEY MUST MATCH THE BASE RULE'S FIELD AND INK. This restatement kept the
+  // guide-sign green and white ring after #340 turned the sign yellow, so on
+  // every map page the yield sign wore a green border with a white line
+  // inside it until 2026-09-14. $yield and $ink-dark, lifted on hover, as the
+  // base rule is.
   .nav-tour {
     box-shadow:
-      inset 0 0 0 2px $interstate,
-      inset 0 0 0 3px $ink-light,
+      inset 0 0 0 2px $yield,
+      inset 0 0 0 3px $ink-dark,
       0 2px 8px $panel-shadow;
 
     &:hover,
     &:focus-visible {
-      $lit: color-mix(in oklab, #{$interstate}, black 12%);
+      $lit: color-mix(in oklab, #{$yield}, white 14%);
 
       box-shadow:
         inset 0 0 0 2px $lit,
-        inset 0 0 0 3px $ink-light,
+        inset 0 0 0 3px $ink-dark,
         0 2px 8px $panel-shadow;
     }
   }

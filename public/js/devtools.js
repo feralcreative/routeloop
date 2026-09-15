@@ -38,7 +38,35 @@
     "#dev-toggle:hover{opacity:1}" +
     "html." +
     CLASS +
-    " #dev-toggle{background:#f0f;color:#000}";
+    " #dev-toggle{background:#f0f;color:#000}" +
+    "#dev-scheme{position:fixed;right:64px;bottom:12px;z-index:99998;padding:4px 10px;" +
+    "border:2px solid #f0f;border-radius:6px;background:#000;color:#f0f;" +
+    "font:700 12px/1.4 system-ui,sans-serif;cursor:pointer;opacity:0.7}" +
+    "#dev-scheme:hover{opacity:1}";
+
+  // Light/dark, flipped in place. Ziad's call, 2026-09-14, while lifting the
+  // dark ramp: the preference is a saved setting and a round trip, and
+  // checking one color in both schemes wants a button. It writes the same
+  // `data-scheme` attribute the layout stamps, so every palette rule follows
+  // with no reload; the choice is remembered in localStorage and re-applied
+  // on boot OVER the server's stamp, for as long as it is set. Note it does
+  // not touch the stored preference — Preferences still says what it said.
+  var SCHEME_KEY = "routeloop.devScheme";
+
+  function currentScheme() {
+    var s = document.documentElement.getAttribute("data-scheme");
+    if (s === "dark" || s === "light") return s;
+    return matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light";
+  }
+
+  function setScheme(v) {
+    document.documentElement.setAttribute("data-scheme", v);
+    try {
+      localStorage.setItem(SCHEME_KEY, v);
+    } catch (e) {}
+    var b = document.getElementById("dev-scheme");
+    if (b) b.textContent = v === "dark" ? "Dark" : "Light";
+  }
 
   function on() {
     try {
@@ -109,6 +137,20 @@
     });
     document.body.appendChild(b);
     set(on());
+
+    var sb = document.createElement("button");
+    sb.type = "button";
+    sb.id = "dev-scheme";
+    sb.title = "Flip light/dark for this browser (dev only)";
+    sb.addEventListener("click", function () {
+      setScheme(currentScheme() === "dark" ? "light" : "dark");
+    });
+    document.body.appendChild(sb);
+    var saved = null;
+    try {
+      saved = localStorage.getItem(SCHEME_KEY);
+    } catch (e) {}
+    setScheme(saved === "dark" || saved === "light" ? saved : currentScheme());
 
     sweep(document.body);
     new MutationObserver(function (records) {

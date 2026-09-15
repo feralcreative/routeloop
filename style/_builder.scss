@@ -409,8 +409,13 @@
     margin: calc(-0.5em + 1px) 0 calc(-0.5em + 1px) calc(-0.6em + 1px);
     border-radius: 6px 0 0 6px;
     cursor: grab;
-    background: color-mix(in srgb, var(--route-color, #{$neutral-88}) 16%, #{$white});
-    color: color-mix(in srgb, var(--route-color, #{$neutral-50}) 55%, #{$white});
+    // 32% AND 75%, UP FROM 16% AND 55% (2026-09-14): on a dark scheme $white
+    // is near-black, and a sixth of a route color mixed into it was a dark
+    // tab with a hint of hue — the grips read as one gray column down the
+    // drawer. The rest state is now what the hover was, and the hover moved
+    // up with it.
+    background: color-mix(in srgb, var(--route-color, #{$neutral-88}) 32%, #{$white});
+    color: color-mix(in srgb, var(--route-color, #{$neutral-50}) 75%, #{$white});
 
     // Two columns by three rows: an 8x12 box on the same 4px tile the row grips
     // use, so the two read as one gesture at two scales. `0 0` rather than
@@ -429,8 +434,8 @@
     }
 
     &:hover {
-      background: color-mix(in srgb, var(--route-color, #{$neutral-76}) 32%, #{$white});
-      color: color-mix(in srgb, var(--route-color, #{$neutral-29}) 80%, #{$white});
+      background: color-mix(in srgb, var(--route-color, #{$neutral-76}) 50%, #{$white});
+      color: color-mix(in srgb, var(--route-color, #{$neutral-29}) 95%, #{$white});
     }
 
     &:active {
@@ -1605,8 +1610,10 @@
       //
       // --route-color is inherited from .route-section. The fallbacks are the greys
       // it used to be, so a row rendered outside a route section still looks right.
-      background: color-mix(in srgb, var(--route-color, #{$neutral-88}) 20%, #{$white});
-      color: color-mix(in srgb, var(--route-color, #{$neutral-50}) 60%, #{$white});
+      // Lifted with .route-drag's (2026-09-14): 20% and 60% were a gray
+      // column under a dark scheme.
+      background: color-mix(in srgb, var(--route-color, #{$neutral-88}) 38%, #{$white});
+      color: color-mix(in srgb, var(--route-color, #{$neutral-50}) 80%, #{$white});
 
       // Two columns by four rows: an 8x16 box over a 4px tile, one dot per tile.
       //
@@ -1633,8 +1640,8 @@
       }
 
       &:hover {
-        background: color-mix(in srgb, var(--route-color, #{$neutral-76}) 38%, #{$white});
-        color: color-mix(in srgb, var(--route-color, #{$neutral-29}) 85%, #{$white});
+        background: color-mix(in srgb, var(--route-color, #{$neutral-76}) 55%, #{$white});
+        color: color-mix(in srgb, var(--route-color, #{$neutral-29}) 95%, #{$white});
       }
 
       &:active {

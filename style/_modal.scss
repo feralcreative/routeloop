@@ -627,8 +627,15 @@ body.modal-open {
       inset 0 0 0 2px $ink-dark;
   }
 
+  // $concrete with black ink, like Changed: it is the one gray the palette
+  // holds to a legend at 4.5:1 in all six, and a text gray under a white
+  // legend stopped clearing that when the dark ramp's text end was lifted.
   .rn-item[data-kind="removed"] .rn-kind {
-    --rn-field: #{$neutral-50};
+    --rn-field: #{$concrete};
+    color: $ink-dark;
+    box-shadow:
+      inset 0 0 0 1px var(--rn-field),
+      inset 0 0 0 2px $ink-dark;
   }
 }
 
