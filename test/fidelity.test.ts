@@ -36,6 +36,7 @@ const RIDE: ExportRide = {
   hiddenAlts: 0,
   routes: [
     {
+      uid: 'r1',
       title: 'Named route',
       color: '#cc0000',
       distanceM: 12000,

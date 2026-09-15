@@ -276,6 +276,7 @@ describe('a ride survives export and re-import', () => {
     hiddenAlts: 0,
     routes: [
       {
+        uid: 'r1',
         title: 'Route 1',
         color: '#cc0000',
         distanceM: Math.round(trackMeters(EXPECTED_TRACK)),
@@ -386,6 +387,7 @@ describe('the fidelity that is knowingly lost', () => {
     hiddenAlts: 0,
     routes: [
       {
+        uid: 'r1',
         title: 'Route 1',
         color: '#cc0000',
         distanceM: 1000,
@@ -413,6 +415,7 @@ describe('the fidelity that is knowingly lost', () => {
         ],
       },
       {
+        uid: 'r2',
         title: 'Route 2',
         color: '#0000cc',
         distanceM: 2000,
@@ -481,6 +484,7 @@ describe('the fidelity that is knowingly lost', () => {
 // parser kept only its longest line. The app could not read its own export.
 describe('a multi-route ride survives its own export', () => {
   const route = (n: number, pts: Track): ExportRide['routes'][number] => ({
+    uid: `r${n}`,
     title: `Route ${n}`,
     color: '#cc0000',
     distanceM: 1000,
