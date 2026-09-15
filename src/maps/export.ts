@@ -34,6 +34,10 @@ export type ExportPoint = {
 }
 
 export type ExportRoute = {
+  // The route's stored uid — the one identity that survives a save, since
+  // routes.id churns on every one. The on-the-road page keys a rider's progress
+  // through the Google Maps legs on it (#69).
+  uid: string
   title: string | null
   color: string
   distanceM: number
@@ -150,6 +154,7 @@ export async function loadRideForExport(
       .orderBy(routeLegs.position)
 
     out.push({
+      uid: r.uid,
       title: r.title,
       color: r.color,
       distanceM: r.distanceM,

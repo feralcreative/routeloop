@@ -22,6 +22,7 @@ const pt = (over: Partial<ExportPoint> & { distFromStartM: number | null }): Exp
 })
 
 const route = (points: ExportPoint[], over: Partial<ExportRoute> = {}): ExportRoute => ({
+  uid: 'r1',
   title: 'Route 1',
   color: '#0066cc',
   distanceM: 200 * MI,

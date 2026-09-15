@@ -150,6 +150,7 @@ describe('buildCsv → processCsv round-trip', () => {
     hiddenAlts: 0,
     routes: [
       {
+        uid: 'r1',
         title: 'Route 1',
         color: '#cc0000',
         distanceM: 16000,

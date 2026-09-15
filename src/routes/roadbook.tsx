@@ -15,9 +15,10 @@
 // No JavaScript. It is a page you print.
 import { Hono } from 'hono'
 import type { AuthEnv } from '../auth/middleware'
-import { loadRideForExport, type ExportPoint, type ExportRoute } from '../maps/export'
+import { loadRideForExport } from '../maps/export'
 import { METERS_PER_MILE } from '../maps/kml'
 import { ROLE_META, type Role } from '../maps/roles'
+import { fmtDuration, routeRows } from '../maps/roadbook-rows'
 import { fmtClock, fmtDateLong } from '../views/date-format'
 import { clockFor, dateFormatFor } from '../views/prefs'
 import { page, wordsOf } from '../views/layout'
@@ -43,108 +44,12 @@ const mi = (m: number) => m / METERS_PER_MILE
  */
 const fmtMi = (m: number, units: Units) => distanceFrom(m, units).toFixed(1)
 
-// "4h 20m", or "35m" under the hour. A dash rather than "0m" when the router
-// never answered for a leg — a dash reads as unknown, 0m reads as instant.
-//
-// Used for dwell too, where the raw minutes are unreadable: an overnight camp
-// stop printed "658m" before this, which nobody parses at a glance.
-function fmtDuration(seconds: number): string {
-  if (seconds <= 0) return '—'
-  const h = Math.floor(seconds / 3600)
-  const m = Math.round((seconds % 3600) / 60)
-  return h > 0 ? `${h}h ${m}m` : `${m}m`
-}
-
-// fmtClock and fmtDate used to live here with a hardcoded 'en-US'. They are in
-// src/views/date-format.ts now and take the rider's format, because this is the
-// one page that gets PRINTED and carried — a rider who plans a route in 24/08 and
-// prints a sheet saying 08/24 is reading two different products. Both still read
-// in UTC, which is now the right answer rather than a workaround: a route's clock
-// is a wall clock at the departure point, carried as UTC. See that file, and the
-// header of public/js/route-clock.js.
+// The rows themselves live in src/maps/roadbook-rows.ts since 2026-09-14, when
+// the on-the-road page (#69) became a second reader. Re-exported here so the
+// test and anything else that imported them from the route keep working.
+export { fmtDuration, routeRows, type Row } from '../maps/roadbook-rows'
 
 const roleTitles = (roles: Role[]) => roles.map((r) => ROLE_META[r]?.title ?? r).join(SEP)
-
-// A row is a stop or a POI, already in along-the-route order.
-export type Row = {
-  point: ExportPoint
-  n: number | null // stop number; POIs are not numbered
-  fromPrevM: number | null
-  atM: number | null
-  sinceFuelM: number | null
-  arrive: Date | null
-}
-
-// Everything the sheet needs, computed once per route.
-//
-// `sinceFuel` is the column that earns its place: the distance since the last
-// stop that could fill a tank. A rider with a 180-mile range needs to see 210
-// coming, and no other view in the app says it.
-//
-// It reads *as you arrive*, so a fuel stop shows the distance you just covered
-// on that tank rather than the 0 you are about to reset to. That is the number
-// worth printing: it tells you what the bike actually did on the last tank, and
-// the 0 says nothing you did not already know from the word "Gas" in the row.
-export function routeRows(route: ExportRoute): Row[] {
-  // THE RIDER'S OWN ORDER, which is the order the rows arrive in — every point
-  // carries a position now and loadRideForExport reads by it.
-  //
-  // This used to sort by `distFromStartM`, because a POI had no stored order and
-  // its projection onto the track was the only thing that could place it. That
-  // is no longer true, and the projection is now the worse answer of the two: it
-  // is null on a trackless import and on any point nothing measured, and a null
-  // sorted to the end moved a point the rider had put in the middle. The printed
-  // sheet should say what the rider planned.
-  const ordered = route.points
-
-  // Riding seconds are known per route, not per leg-between-stops, so they are
-  // spread across the route's distance. That is an estimate and the header says
-  // so; the alternative is no clock at all, which is worse on a sheet whose
-  // whole job is telling you whether you are behind.
-  const perMeter = route.distanceM > 0 ? route.durationS / route.distanceM : 0
-
-  const rows: Row[] = []
-  let n = 0
-  let prevM = 0
-  let fuelAtM = 0
-  let sawFuel = false
-  let clock = route.startAt ? new Date(route.startAt) : null
-
-  for (const p of ordered) {
-    const isPoi = p.kind === 'poi'
-    const at = p.distFromStartM
-
-    if (at == null) {
-      rows.push({ point: p, n: isPoi ? null : ++n, fromPrevM: null, atM: null, sinceFuelM: null, arrive: null })
-      continue
-    }
-
-    if (clock) clock = new Date(clock.getTime() + (at - prevM) * perMeter * 1000)
-    const arrive = clock ? new Date(clock) : null
-    if (clock && p.durationMin) clock = new Date(clock.getTime() + p.durationMin * 60_000)
-
-    rows.push({
-      point: p,
-      n: isPoi ? null : ++n,
-      // null, not 0, for the first point of the route: there is no leg before it.
-      // Same convention as atM and sinceFuelM — a dash means "no answer", and
-      // relying on 0 being falsy in the template would make the value itself a
-      // lie for anything that read it directly.
-      fromPrevM: rows.length === 0 ? null : at - prevM,
-      atM: at,
-      sinceFuelM: sawFuel ? at - fuelAtM : null,
-      arrive,
-    })
-
-    // Charge counts: an EV rider's range question is the same question.
-    if (p.roles.includes('gas') || p.roles.includes('charge')) {
-      fuelAtM = at
-      sawFuel = true
-    }
-    prevM = at
-  }
-  return rows
-}
 
 roadbookRoutes.get('/m/:slug/roadbook', async (c) => {
   // c.get('user'), not currentUser() — this route is open to anyone with the

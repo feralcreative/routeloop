@@ -15,6 +15,7 @@
 // format is defined as agreeing with it rather than the other way round.
 import { describe, expect, it, beforeAll } from 'vitest'
 import { readFileSync } from 'node:fs'
+import { fmtDuration } from '../src/maps/roadbook-rows'
 import {
   DEFAULT_DURATION_FORMAT,
   DURATION_FORMATS,
@@ -221,16 +222,11 @@ describe('the format identifier', () => {
 })
 
 describe('the roadbook prints the same "hm" the builder does', () => {
-  // fmtDuration() in src/routes/roadbook.tsx is the oldest copy and the one a
-  // rider prints, so hoursMinutes() is defined as matching it. Reproduced here
-  // rather than imported because it is private to a route module; if that ever
-  // changes, import it instead and delete this.
-  const roadbook = (seconds: number): string => {
-    if (seconds <= 0) return '—'
-    const h = Math.floor(seconds / 3600)
-    const m = Math.round((seconds % 3600) / 60)
-    return h > 0 ? `${h}h ${m}m` : `${m}m`
-  }
+  // fmtDuration() is the oldest copy and the one a rider prints, so
+  // hoursMinutes() is defined as matching it. It was reproduced here by hand
+  // while it was private to the roadbook route; it lives in
+  // src/maps/roadbook-rows.ts now, so it is imported.
+  const roadbook = fmtDuration
 
   it('agrees on every positive duration up to a full route', () => {
     for (let m = 1; m <= 1440; m++) {

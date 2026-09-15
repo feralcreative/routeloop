@@ -20,6 +20,7 @@ const stop = (n: number, kind: 'stop' | 'poi' = 'stop'): ExportPoint => ({
 })
 
 const routeOf = (points: ExportPoint[], title: string | null = 'Route 1'): ExportRoute => ({
+  uid: 'r1',
   title,
   color: '#cc0000',
   distanceM: 0,
