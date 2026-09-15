@@ -59,8 +59,23 @@
 
 // --- Hero --------------------------------------------------------------------
 
+// The hero figure and the onramp on one line (2026-09-14): figure at the
+// left, sign at the right, bottoms flush. `align-items: flex-end` is what
+// puts the sign's bottom edge on the figure's — the figure's line box ends
+// at its baseline plus descent, which is what the eye reads as "flush". The
+// row's own bottom margin replaces the two the children carried, and the
+// children keep none so a wrap does not double it.
+.hero-row {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 1rem 2rem;
+  margin: 0 0 2rem;
+}
+
 .hero-stat {
-  margin: 0 0 1.5rem;
+  margin: 0;
   display: flex;
   align-items: baseline;
   flex-wrap: wrap;
@@ -100,7 +115,7 @@
 //
 // `inline-flex` so the sign is as wide as its own legend rather than the column.
 .dash-cta {
-  margin: 0 0 2rem;
+  margin: 0;
 
   .btn {
     display: inline-flex;
