@@ -732,6 +732,24 @@
     if (bar && window.ResizeObserver) new ResizeObserver(refreshBanner).observe(bar);
   }
 
+  // The service worker (#69) — what makes a kept ride open with no signal.
+  // Registered from here because this file is on every page, and a rider who
+  // presses Keep on the go page needs the worker to already be controlling the
+  // site by the time they are standing in a gravel lot.
+  //
+  // SKIPPED ON A DEV HOST unless asked for, because `npm run dev` live-reloads on
+  // every save and a worker holding yesterday's stylesheet is an afternoon lost
+  // to a cache. `routeloop.sw=1` in localStorage turns it on for testing the
+  // feature itself. `updateViaCache: "none"` is the browser-side half of the
+  // no-cache header /sw.js sends: the script is re-fetched on every check.
+  function initServiceWorker() {
+    if (!("serviceWorker" in navigator)) return;
+    if (IS_LOCAL && readStore("routeloop.sw") !== "1") return;
+    navigator.serviceWorker.register("/sw.js", { scope: "/", updateViaCache: "none" }).catch(function () {
+      /* a refused registration is a site with no offline copy, which is what it was before */
+    });
+  }
+
   function init() {
     initNav();
     initSplash();
@@ -740,6 +758,7 @@
     initSplashVideo();
     initFaq();
     initBanner();
+    initServiceWorker();
   }
 
   // `defer` normally guarantees DOM readiness, but this file is also safe to

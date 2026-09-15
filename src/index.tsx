@@ -46,7 +46,7 @@ import { profileRoutes } from './routes/profile'
 import { builderRoutes } from './routes/builder'
 import { importRoutes } from './routes/import'
 import { trashRoutes } from './routes/trash'
-import { handoffRoutes } from './routes/handoff'
+import { goRoutes } from './routes/go'
 import { roadbookRoutes } from './routes/roadbook'
 import { brandRoutes } from './routes/brand'
 import { iconRoutes } from './routes/icons'
@@ -64,6 +64,7 @@ import { googleMapsLoader, page, panelShell, rideTimeline, wordsOf } from './vie
 import { DEFAULT_VOCAB, Wds, wd, wordsFor, type Words } from './views/vocab'
 import { notFoundPage } from './views/not-found'
 import { asset } from './views/assets'
+import { swScript } from './views/sw'
 import { devReloadRoutes, startLiveReload } from './dev/livereload'
 import { raw } from 'hono/html'
 import { shareQr } from './maps/qr'
@@ -190,6 +191,39 @@ app.use('/favicon.ico', serveStatic({ path: './public/img/favicon/favicon.ico' }
 // and no data, and the same file also opens from file://.
 app.use('/signs.html', serveStatic({ path: './public/signs.html' }))
 
+// The service worker (#69), at the root so its scope is the whole site. A
+// route rather than a static file: it has to carry the build and the hashed
+// precache URLs, and it has to be sent with no-cache so a deploy reaches
+// installed phones on their next visit rather than after the edge TTL. See
+// src/views/sw.ts. Above withSession because a worker fetch carries no session
+// worth looking up.
+app.get('/sw.js', (c) =>
+  c.body(swScript(), 200, {
+    'Content-Type': 'text/javascript; charset=utf-8',
+    'Cache-Control': 'no-cache, max-age=0, must-revalidate',
+    'X-Content-Type-Options': 'nosniff',
+  }),
+)
+// The page a rider lands on with no signal: what this phone has kept, drawn by
+// go.js from the cache. In the worker's precache, so it is always there.
+// Rendered with no user — it is served from cache, so it must not carry one.
+app.get('/offline', (c) =>
+  c.html(
+    page({
+      title: 'No signal',
+      user: null,
+      variant: 'splash',
+      splash: false,
+      bodyClass: 'offline-page',
+      body: `<h1>No signal</h1>
+<p class="offline-lede">Rides kept on this phone open here without a connection. Everything else needs one.</p>
+<div id="offline-kept"><p class="offline-empty">Reading what this phone has kept…</p></div>`,
+      scripts: `<script src="${asset('/js/go-progress.js')}" defer></script>
+<script src="${asset('/js/go.js')}" defer></script>`,
+    }),
+  ),
+)
+
 // Live reload, development only — see src/dev/livereload.ts. Mounted up here
 // with the static assets so a connection that stays open for the whole session
 // never holds a session lookup behind it.
@@ -248,7 +282,7 @@ app.route('/', settingsRoutes)
 app.route('/', tourRoutes)
 app.route('/', notificationRoutes)
 app.route('/', accountRoutes)
-app.route('/', handoffRoutes)
+app.route('/', goRoutes)
 app.route('/', rosterRoutes)
 app.route('/', commentRoutes)
 app.route('/', liveRoutes)
@@ -524,6 +558,8 @@ app.get('/api/public/rides/:slug/ride.json', async (c) => {
     routeZipBase: routesOut.length > 1 ? `/api/public/maps/${m.slug}/zip` : null,
     // A page, not a file: the printable stop-by-stop sheet.
     roadbookUrl: `/m/${m.slug}/roadbook`,
+    // Also a page: the phone surface (#69).
+    goUrl: `/m/${m.slug}/go`,
     externalUrl: m.externalUrl || null,
     routes: routesOut,
   })

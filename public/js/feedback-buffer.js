@@ -132,6 +132,7 @@
     [/^\/build\/[^/]+/, "/build/:slug"],
     [/^\/build$/, "/build"],
     [/^\/m\/[^/]+\/roadbook/, "/m/:slug/roadbook"],
+    [/^\/m\/[^/]+\/go/, "/m/:slug/go"],
     [/^\/m\/[^/]+\/send/, "/m/:slug/send"],
     [/^\/m\/[^/]+/, "/m/:slug"],
     [/^\/feedback\/[^/]+/, "/feedback/:publicId"],

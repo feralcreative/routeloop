@@ -1,0 +1,483 @@
+@use "tokens" as *;
+
+// The on-the-road page (#69), /m/:slug/go. One audience: a rider on a phone in
+// gloves, in sunlight, at a fuel stop. Everything here follows from that —
+// targets a thumb cannot miss, type that reads at arm's length, and no color
+// that is only decoration. The splash variant renders it with no site header,
+// so the page's own bar is the only chrome.
+
+.go-page {
+  // The wrapper is sized for reading on a desk. A phone page wants its gutters
+  // back: the wrapper's 2rem is a third of a small screen.
+  .page-wrap {
+    padding: 1rem 1rem 3rem;
+    max-width: 44rem;
+  }
+
+  h2 {
+    margin: 0 0 0.4rem;
+    font-size: 1.05rem;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    color: $neutral-36;
+  }
+
+  h3 {
+    display: flex;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 0.5rem;
+    margin: 1rem 0 0.4rem;
+    font-size: 1.1rem;
+  }
+
+  section {
+    margin: 0 0 2rem;
+  }
+
+  // --- The bar -----------------------------------------------------------------
+
+  .go-bar {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: 1rem;
+    margin: 0 0 0.25rem;
+  }
+
+  .go-title {
+    margin: 0;
+    font-size: 1.5rem;
+    line-height: 1.15;
+    min-width: 0;
+  }
+
+  .go-bar-links {
+    display: flex;
+    gap: 0.75rem;
+    flex: none;
+    font-weight: 600;
+
+    a {
+      // 44px is Apple's minimum and the one a glove needs; declared in pixels for
+      // the reason .time-scope gives.
+      min-height: 44px;
+      display: inline-flex;
+      align-items: center;
+      padding: 0 0.25rem;
+      text-decoration: none;
+      color: $brand;
+    }
+  }
+
+  .go-summary {
+    margin: 0 0 0.75rem;
+    color: $neutral-36;
+    font-weight: 600;
+  }
+
+  .go-note {
+    margin: 0 0 0.75rem;
+    color: $neutral-43;
+    font-size: 0.9rem;
+    text-wrap: pretty;
+  }
+
+  .go-hint {
+    margin: 0.5rem 0 0;
+    color: $neutral-36;
+    font-size: 0.9rem;
+    text-wrap: pretty;
+  }
+
+  // --- Send --------------------------------------------------------------------
+
+  .go-files {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+    display: grid;
+    gap: 0.6rem;
+
+    li {
+      display: grid;
+      gap: 0.2rem;
+    }
+
+    // GPX is the one every nav app reads and it is the biggest thing on the
+    // page below the legs.
+    li:first-child .go-file {
+      font-size: 1.25rem;
+      padding-top: 0.9rem;
+      padding-bottom: 0.9rem;
+    }
+  }
+
+  // `.btn.go-file` and not `.go-file`: the sign rule in _chrome.scss is
+  // `.btn:not(…):not([hidden])`, which is three classes' worth, so a two-class
+  // selector here loses to it and the legend stays centered.
+  .btn.go-file {
+    width: 100%;
+    box-sizing: border-box;
+    min-height: 48px;
+    justify-content: space-between;
+    font-size: 1.05rem;
+
+    // go.js swaps the download for the share sheet and holds the file in
+    // memory first; until it has it the button says so and does nothing.
+    &[aria-disabled="true"] {
+      opacity: 0.6;
+      pointer-events: none;
+    }
+  }
+
+  .go-file-note {
+    color: $neutral-43;
+    font-size: 0.8rem;
+    padding: 0 0.2rem;
+  }
+
+  // --- Keep --------------------------------------------------------------------
+
+  .go-keep-why {
+    margin: 0 0 0.6rem;
+    color: $neutral-43;
+    font-size: 0.9rem;
+    text-wrap: pretty;
+  }
+
+  .go-keep-actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.6rem;
+    margin: 0 0 0.4rem;
+
+    .btn {
+      min-height: 48px;
+    }
+  }
+
+  .go-keep-status {
+    margin: 0;
+    font-size: 0.9rem;
+    color: $neutral-36;
+    min-height: 1.3em;
+
+    &.is-kept {
+      color: $go;
+      font-weight: 600;
+    }
+
+    &.is-stale {
+      // Advice, not a verdict: the copy still works, it is behind.
+      color: $detour-text;
+      font-weight: 600;
+    }
+
+    &.is-error {
+      color: $stop;
+      font-weight: 600;
+    }
+  }
+
+  .go-install {
+    margin: 0.6rem 0 0;
+    font-size: 0.9rem;
+    color: $neutral-43;
+    text-wrap: pretty;
+
+    .btn {
+      min-height: 44px;
+      margin-right: 0.5rem;
+    }
+  }
+
+  // --- Legs --------------------------------------------------------------------
+
+  .go-legs-head {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.5rem 1rem;
+    margin: 0 0 0.4rem;
+
+    h2 {
+      margin: 0;
+    }
+  }
+
+  // The Route | Ride pill from the timeline bar, at glove size. Same
+  // construction: one bordered pill, segments with no gap, the one you are on
+  // filled with $disabled under $ink-light — see .time-scope-set in _map.scss
+  // for why that field and not $brand.
+  .go-density-set {
+    display: inline-flex;
+    align-items: stretch;
+    min-height: 44px;
+    border: 1px solid $disabled;
+    border-radius: 999px;
+    overflow: hidden;
+  }
+
+  .go-density-btn {
+    min-width: 44px;
+    padding: 0 0.9rem;
+    border: 0;
+    background: transparent;
+    color: $disabled-text;
+    font: inherit;
+    font-size: 0.9rem;
+    font-weight: 600;
+    cursor: pointer;
+
+    & + & {
+      border-left: 1px solid $disabled;
+    }
+
+    &[aria-pressed="true"] {
+      background: $disabled;
+      color: $ink-light;
+    }
+  }
+
+  .go-density-line {
+    margin: 0 0 0.5rem;
+    color: $neutral-43;
+    font-size: 0.9rem;
+    text-wrap: pretty;
+  }
+
+  .go-density[hidden] {
+    display: none;
+  }
+
+  .go-route-swatch {
+    display: inline-block;
+    width: 0.85em;
+    height: 0.85em;
+    border-radius: 3px;
+    flex: none;
+  }
+
+  .go-route-meta {
+    font-size: 0.85rem;
+    font-weight: 400;
+    color: $neutral-43;
+  }
+
+  .go-empty {
+    margin: 0;
+    color: $neutral-50;
+    font-style: italic;
+  }
+
+  .go-legs {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+    display: grid;
+    gap: 0.6rem;
+  }
+
+  // A leg is a guide sign the size of a thumb. Two lines: the label, then the
+  // stops it runs through in smaller type, so a rider can check "is this the
+  // one to the gas station" without opening it.
+  .btn.go-leg {
+    width: 100%;
+    box-sizing: border-box;
+    min-height: 64px;
+    justify-content: space-between;
+    text-align: left;
+    font-size: 1.15rem;
+    padding-top: 0.75rem;
+    padding-bottom: 0.75rem;
+
+    .go-leg-label {
+      display: block;
+      font-weight: 700;
+    }
+
+    .go-leg-stops {
+      display: block;
+      margin-top: 0.15rem;
+      font-size: 0.8rem;
+      font-weight: 400;
+      opacity: 0.9;
+      text-wrap: pretty;
+    }
+
+    // The label and the stops are stacked in ONE flex child, .go-leg-stack,
+    // so the sign's arrow keeps its place at the right: a .btn is a reversed
+    // flex row with the arrow as ::before, and two direct children would sit
+    // side by side.
+    .go-leg-stack {
+      display: block;
+      min-width: 0;
+      flex: 1 1 auto;
+    }
+
+    // Done legs step back; the current one stays a full sign and carries the
+    // outline, because at a glance it has to be the one thing on the list.
+    &.is-done {
+      opacity: 0.55;
+      filter: saturate(0.4);
+    }
+
+    &.is-current {
+      outline: 4px solid $warning;
+      outline-offset: 3px;
+    }
+  }
+
+  .go-next-row {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.6rem;
+    margin: 1rem 0 0;
+    // Sticky at the bottom of the screen so the one obvious tap is always
+    // under the thumb, whatever leg the list is scrolled to.
+    position: sticky;
+    bottom: 0.75rem;
+
+    .btn.go-next {
+      flex: 1 1 auto;
+      min-height: 56px;
+      font-size: 1.15rem;
+      justify-content: space-between;
+      box-shadow: 0 6px 18px rgba(0, 0, 0, 0.25);
+    }
+
+    .btn-quiet {
+      min-height: 56px;
+    }
+  }
+
+  // --- The roadbook as a list --------------------------------------------------
+
+  .go-stops {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+  }
+
+  .go-stop {
+    display: grid;
+    grid-template-columns: 2rem minmax(0, 1fr);
+    gap: 0.15rem 0.5rem;
+    padding: 0.55rem 0;
+    border-bottom: 1px solid $grey;
+    align-items: baseline;
+
+    &:last-child {
+      border-bottom: 0;
+    }
+  }
+
+  .go-stop-n {
+    text-align: right;
+    color: $neutral-50;
+    font-variant-numeric: tabular-nums;
+    font-weight: 600;
+  }
+
+  .go-stop-main {
+    min-width: 0;
+  }
+
+  .go-stop-name {
+    display: block;
+    font-weight: 600;
+    font-size: 1.05rem;
+  }
+
+  .go-stop-roles {
+    display: block;
+    color: $neutral-43;
+    font-size: 0.8rem;
+  }
+
+  // The numbers wrap under the name on a phone rather than fighting it for the
+  // line. Each one is labeled by shape — a leading + is the leg, ⛽ is since
+  // fuel, a clock is a clock — because there is no header row to read them
+  // against.
+  .go-stop-nums {
+    grid-column: 2;
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.2rem 0.9rem;
+    font-variant-numeric: tabular-nums;
+    font-size: 0.9rem;
+    color: $neutral-36;
+  }
+
+  .go-num-total {
+    font-weight: 700;
+    color: $text;
+  }
+
+  .go-num-fuel {
+    color: $detour-text;
+  }
+
+  // A POI is not a stop and must not read as one at a glance.
+  .go-poi {
+    .go-stop-name {
+      font-weight: 300;
+      font-style: italic;
+    }
+  }
+
+  // --- Caveats -----------------------------------------------------------------
+
+  .go-caveats {
+    ul {
+      margin: 0;
+      padding-left: 1.2rem;
+      color: $neutral-43;
+      font-size: 0.9rem;
+    }
+
+    li {
+      margin: 0 0 0.4rem;
+      text-wrap: pretty;
+    }
+  }
+}
+
+// The page you land on with no signal: a heading and the rides kept on this
+// phone, drawn by go.js from the cache. Shares the go page's gutters.
+.offline-page {
+  .page-wrap {
+    padding: 1rem 1rem 3rem;
+    max-width: 44rem;
+  }
+
+  .offline-list {
+    list-style: none;
+    margin: 1rem 0 0;
+    padding: 0;
+    display: grid;
+    gap: 0.6rem;
+  }
+
+  .btn.offline-ride {
+    width: 100%;
+    box-sizing: border-box;
+    min-height: 56px;
+    justify-content: space-between;
+    text-align: left;
+
+    .offline-ride-when {
+      display: block;
+      font-size: 0.8rem;
+      font-weight: 400;
+      opacity: 0.9;
+    }
+  }
+
+  .offline-empty {
+    color: $neutral-43;
+    text-wrap: pretty;
+  }
+}

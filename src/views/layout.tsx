@@ -10,6 +10,7 @@ import { esc } from './esc'
 import { raw } from 'hono/html'
 import { wordmark } from './logo'
 import { asset } from './assets'
+import { THEME_COLOR } from './sw'
 import { DEFAULT_VOCAB, Wd, Wds, aWd, clientTerms, vocabOf, wordsFor, type Words } from './vocab'
 import { IS_DEV, IS_STAGE } from '../config'
 import { APP_VERSION, BUILD_SHA, IS_DEV_BUILD, commitUrl } from '../version'
@@ -1166,6 +1167,20 @@ const FOLD_RESTORE = `<script>(function(){try{var f=document.querySelectorAll("d
 
 const DRAWER_RESTORE = `<script>(function(){try{var d=JSON.parse(localStorage.getItem("routeloop.drawer")||"null");if(!d)return;var h=document.documentElement,p=document.getElementById("info-panel");if(d.w>0)h.style.setProperty("--panel-width",d.w+"px");if(d.collapsed&&p){p.classList.add("collapsed");var r=p.querySelector(".drawer-rail");if(r)r.setAttribute("aria-hidden","false");var t=p.querySelector(".collapse-toggle");if(t){t.setAttribute("aria-expanded","false");t.setAttribute("aria-label","Expand panel");}}}catch(e){}})();</script>`
 
+// The browser chrome's color on an installed phone (#69): the page surface,
+// which is white in a light scheme and the near-black `$white` in a dark one.
+// The same rule as the appearance attributes — a stamped scheme gets one
+// answer, and an unstamped one gets both under `media` so the OS decides,
+// which is what lets `prefers-color-scheme` answer for a rider who has not.
+// The two values live in src/views/sw.ts beside the precache, pinned to the
+// palette by test/theme-color.test.ts.
+function themeColorMeta(scheme: string | undefined): string {
+  if (scheme === 'dark') return `<meta name="theme-color" content="${THEME_COLOR.dark}">`
+  if (scheme === 'light') return `<meta name="theme-color" content="${THEME_COLOR.light}">`
+  return `<meta name="theme-color" media="(prefers-color-scheme: light)" content="${THEME_COLOR.light}">
+  <meta name="theme-color" media="(prefers-color-scheme: dark)" content="${THEME_COLOR.dark}">`
+}
+
 export function page(opts: PageOpts): string {
   const variant: PageVariant = opts.variant ?? 'chrome'
   const isMap = variant === 'map'
@@ -1278,6 +1293,7 @@ export function page(opts: PageOpts): string {
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
+  ${themeColorMeta(scheme)}
   <title>${title}</title>
   ${siteIconLinks()}
   <meta property="og:title" content="${title}">
