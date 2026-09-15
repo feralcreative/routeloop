@@ -89,23 +89,35 @@ $-neutrals-light: (
 // above cuts the other way in practice: the bloom it hedges against is a
 // problem for pure white, not for a light gray, and text at L*76 on a
 // near-black ground simply looks gray. The four text steps move up one hex
-// pair each (21 -> #dddddd, the light ramp's -88); -50 and below stay, because
-// -50 is a FIELD under a white legend (the Removed badge) and -57 is $concrete,
-// which the audit holds to a black legend at 4.5:1.
+// pair each (see the second note below), and so do the muted-text steps under them, down to -70: -50 is the
+// most-used muted text in the app (84 rules) and -57 the third (39), and at
+// #808080 and #777777 on the near-black page they were 4.9 and 4.0 to one —
+// legal, and unreadable. -76 and below are borders and fills and stay where the
+// complement put them. Two consequences worth recording: -57 is $concrete,
+// which carries a BLACK legend, so lifting it only widens that pair; and the
+// Removed badge in _modal.scss moved off -50 onto $concrete with black ink,
+// because a lifted -50 no longer holds a white legend at 4.5:1 in either scheme.
 $-neutrals-dark: (
-  21: #dddddd,
-  29: #cccccc,
-  36: #bbbbbb,
-  43: #aaaaaa,
-  // 50 WAS #888888 TOO, WHICH COLLAPSED IT INTO 43. Corrected to sit BETWEEN its
-  // neighbors rather than to the complement rule's literal answer: -57 is
-  // $concrete, a sign post that has to carry a black legend at 4.5:1, and
-  // pushing it to the complement's #6e6e6e drops it to 4.14 and fails the audit.
-  // The rule is a guide; the contrast test is the authority.
-  50: #808080,
-  57: #777777,
-  63: #666666,
-  70: #555555,
+  // TWO STEPS UP FROM THE COMPLEMENT, NOT ONE: #dddddd text with #999999 muted
+  // was checked on the dashboard and still read as dim, so the whole text half
+  // of the ramp sits one hex pair higher again. Body text is L*94 now, which
+  // is where most dark interfaces put it; the eye reads a light gray on
+  // near-black as "gray" until it is nearly white.
+  21: #eeeeee,
+  29: #dddddd,
+  36: #cccccc,
+  43: #bbbbbb,
+  // 50 AND 43 WERE BOTH #888888 UNTIL 2026-09-07, which collapsed the two
+  // most-used grays into one; they are a full step apart now.
+  50: #aaaaaa,
+  // -57 IS $concrete AND IT HOLDS AT #888888: the roster mark paints a WHITE
+  // knockout glyph on it, and one pair lighter measures 2.85 against the 3:1
+  // graphical bar `src/views/legend.ts` holds it to. Muted text on -57 is
+  // 5.9:1 on the page here, which is enough; the step below it keeps its
+  // distance so the two stay distinguishable.
+  57: #888888,
+  63: #777777,
+  70: #666666,
   76: #444444,
   82: #3b3b3b,
   88: #333333,
