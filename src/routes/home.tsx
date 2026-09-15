@@ -676,11 +676,19 @@ homeRoutes.get('/', requireActive, async (c) => {
 
       {s.hasRides ? (
         <>
-          <section class="hero-stat">
-            <span class="hero-value">{s.heroMiles}</span>
-            <span class="hero-label">
-              {s.heroUnit} planned
-              {/*
+          {/*
+            THE HERO AND THE ONRAMP SHARE ONE ROW (2026-09-14). Ziad's call:
+            the sign sits at the right, its bottom flush with the miles
+            figure, instead of under it — one line says what has been planned
+            and where to plan more. On a phone the row wraps and the sign
+            drops under the figure, which is where it was.
+          */}
+          <div class="hero-row">
+            <section class="hero-stat">
+              <span class="hero-value">{s.heroMiles}</span>
+              <span class="hero-label">
+                {s.heroUnit} planned
+                {/*
                 Saddle time rides in the hero rather than as a fifth tile: the
                 four tiles are counts of things, this is a duration, and #137 is
                 about to give each of those four a yours/average/top row that a
@@ -691,23 +699,23 @@ homeRoutes.get('/', requireActive, async (c) => {
                 the page can admit that part of the figure is a guess without
                 putting a caveat in the middle of a headline.
               */}
-              {s.saddle && (
-                <span title={s.saddle.note}>
-                  {SEP}
-                  {s.saddle.hours} hours {wd(w, 'travel')}
-                  {s.saddle.estimated && '*'}
-                </span>
-              )}
-              {s.twist && (
-                <>
-                  {SEP}
-                  {s.twist.label} overall
-                </>
-              )}
-            </span>
-          </section>
+                {s.saddle && (
+                  <span title={s.saddle.note}>
+                    {SEP}
+                    {s.saddle.hours} hours {wd(w, 'travel')}
+                    {s.saddle.estimated && '*'}
+                  </span>
+                )}
+                {s.twist && (
+                  <>
+                    {SEP}
+                    {s.twist.label} overall
+                  </>
+                )}
+              </span>
+            </section>
 
-          {/*
+            {/*
             THE ONRAMP, and it is directly under the hero because planning a ride
             is what this site is for. Ziad's call, 2026-08-29.
             /builder was reachable in one click already — it is the second item
@@ -725,11 +733,12 @@ homeRoutes.get('/', requireActive, async (c) => {
             is already three steps and two doors in. Two different first-visit
             answers on one page would be the noise this is trying to cut.
           */}
-          <p class="dash-cta">
-            <a class="btn" href="/builder">
-              Plan {aWd(w, 'journey')}
-            </a>
-          </p>
+            <p class="dash-cta">
+              <a class="btn" href="/builder">
+                Plan {aWd(w, 'journey')}
+              </a>
+            </p>
+          </div>
 
           {/*
             A SECTION LIKE THE OTHERS, HEADED "Your stats" (2026-09-14). Ziad's
