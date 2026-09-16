@@ -207,6 +207,13 @@
   left: var(--drawer-current);
   width: calc(100vw - var(--drawer-current));
   height: calc(100vh - var(--banner-h));
+  // `dvh` where the browser has it, since 2026-09-15: on a phone `100vh` is
+  // the height with the URL bar HIDDEN, so the bottom of the map — and the
+  // zoom control and the credit line with it — sat under the bar until the
+  // rider scrolled it away, which a fixed map page never does. The dynamic
+  // unit tracks the bar. The `vh` line above stays as the fallback and must
+  // come first, or it wins.
+  height: calc(100dvh - var(--banner-h));
   transition:
     left 0.28s cubic-bezier(0.4, 0, 0.2, 1),
     width 0.28s cubic-bezier(0.4, 0, 0.2, 1);
@@ -1297,7 +1304,17 @@ table.route-table {
     // --timeline-height is: collapsed, the sheet is the drawer head and nothing
     // in it can grow. Measured at 393x852 and 852x393: 52px.
     --sheet-height: clamp(320px, 62vh, calc(100vh - var(--panel-top-clearance)));
-    --sheet-collapsed-height: 52px;
+    // `svh`, NOT `dvh`, and not the map's choice: the sheet must not resize
+    // (see above), and the dynamic unit resizes with the URL bar on every
+    // scroll-settle. The SMALL viewport is the stable one — the height with
+    // the bar showing — so the sheet is sized once for the worst case and
+    // never moves. The `vh` line above is the fallback and comes first.
+    --sheet-height: clamp(320px, 62svh, calc(100svh - var(--panel-top-clearance)));
+    // Plus the bottom inset, since 2026-09-15 with `viewport-fit=cover`: the
+    // 52px was measured on a phone whose home indicator the page did not
+    // extend under. It does now, so the collapsed sheet's head — the only
+    // thing left to grab — would sit behind the indicator without this.
+    --sheet-collapsed-height: calc(52px + env(safe-area-inset-bottom, 0px));
   }
 
   // THE SHEET CLOSES DOWNWARD AT THIS WIDTH, not sideways, so the arrow pair
@@ -1322,6 +1339,10 @@ table.route-table {
     height: var(--sheet-height);
     border-radius: 14px 14px 0 0;
     box-shadow: 0 -2px 14px $panel-shadow;
+    // The drawer's foot clears the home indicator; the sheet paints under it
+    // with `viewport-fit=cover`, and a Download row half under a system
+    // gesture strip is a row that cannot be pressed.
+    padding-bottom: env(safe-area-inset-bottom, 0px);
     // THE SHEET SLIDES, IT DOES NOT SHRINK — and the rule this replaced did
     // neither. It declared `transition: height 0.28s …` against a collapsed
     // state of `height: auto`, and a length cannot be interpolated toward a
@@ -1395,9 +1416,12 @@ table.route-table {
   // there on a ride with dates; if :has() ever fails the bar sits under the sheet
   // rather than breaking, which is the right way round for a progressive check.
   .map-timeline {
-    left: var(--panel-inset);
-    right: calc(var(--panel-inset) + var(--map-control-gutter));
-    bottom: calc(var(--panel-inset) + var(--map-credit-height));
+    // `max()` against the inset on each side: a phone held sideways has its
+    // notch on the left or the right, and the bar would otherwise run under
+    // it. Zero everywhere the browser reports no inset.
+    left: max(var(--panel-inset), env(safe-area-inset-left, 0px));
+    right: max(calc(var(--panel-inset) + var(--map-control-gutter)), env(safe-area-inset-right, 0px));
+    bottom: calc(var(--panel-inset) + var(--map-credit-height) + env(safe-area-inset-bottom, 0px));
     // The base rule transitions `left`, which is the drawer's axis and does not
     // move at this width. Here the bar's `bottom` is what changes, by the whole
     // height of the sheet, so it gets the slide's duration and easing — without
@@ -1854,6 +1878,67 @@ body.is-arming #map div {
 // it is dimmed by paintFocus for the same reason.
 .route-row.is-theirs {
   opacity: 0.55;
+}
+
+// A row a TAP singled out (viewer.js `pin()`). The map's dimming is the real
+// signal; this is the row saying it is the one held, with the route's own
+// color as the mark so it reads beside the checkbox rather than as a second
+// selection state.
+.route-row.is-pinned .route-name {
+  font-weight: 600;
+  text-decoration: underline;
+  text-decoration-color: var(--route-color, $brand);
+  text-underline-offset: 0.2em;
+}
+
+//@ Phone — targets
+// The viewer's legend at 393px was full of targets under 44px, worst the
+// 13×13 day-visibility checkboxes (STATUS.md, the dark-mode pass), and the
+// collapse toggle at 30×30. Since 2026-09-15 under the seam: the LABEL is the
+// target and it is 44px tall, with the box drawn at 22px so a thumb can see
+// what it is pressing; the collapse toggle is 44px square (its `!important`
+// width is inherited from the rule it overrides, which fought a Google
+// control stylesheet and still does); the download chips and the archive
+// links are 44px tall with the padding doing it, not the type.
+@media (max-width: $bp-phone) {
+  .route-table {
+    .route-row td {
+      padding: 0.15em 0.25em;
+    }
+
+    .route-toggle {
+      min-height: 44px;
+
+      input {
+        width: 22px;
+        height: 22px;
+        flex: none;
+      }
+    }
+
+    .route-twist {
+      margin-left: 2.1em;
+    }
+  }
+
+  #info-panel .collapse-toggle {
+    width: 44px !important;
+    height: 44px;
+  }
+
+  .route-dl-btn,
+  .route-zip {
+    display: inline-flex;
+    align-items: center;
+    // border-box, or the chip's own padding lands on top of the 44 — there is
+    // no global reset, see the gotcha on `.btn-stop` in AGENTS.md.
+    box-sizing: border-box;
+    min-height: 44px;
+  }
+
+  .route-zip {
+    padding: 0 0.3em;
+  }
 }
 
 // A SEARCH RESULT, WHILE THE DROPDOWN IS OPEN. Numbered, because twelve names

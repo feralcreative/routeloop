@@ -87,6 +87,15 @@
     // "which one is this?" — so while it lasts it outranks the timeline, and
     // releasing it puts the timeline's emphasis straight back.
     hover: null,
+    // The route a TAP singled out, since 2026-09-15 — the phone's answer to the
+    // same question. A hover cannot exist on a touch screen, and what a touch
+    // screen did with the mouseenter handler was worse than nothing: the
+    // browser fires an emulated mouseenter on the first tap and never a
+    // mouseleave, so the emphasis stuck to the last row tapped and the checkbox
+    // toggled underneath it at the same time. A pin is explicit — tap a row to
+    // light it, tap it again to let go — and it ranks between a hover and the
+    // timeline: a hover still wins while it lasts, and a pin outlasts it.
+    pinned: null,
   };
 
   function allTrackPoints() {
@@ -150,8 +159,11 @@
   // everything and silently threw the timeline's state away.
   function paintFocus() {
     const active = state.moment == null ? null : activeAtMoment(state.ride.routes, state.moment);
-    const hovering = state.hover != null;
-    const lit = hovering ? state.hover : active && active.routeIndex;
+    // A hover outranks a pin, a pin outranks the timeline. Both are the same
+    // question asked two ways, so everything below treats them as one.
+    const singled = state.hover != null ? state.hover : state.pinned;
+    const hovering = singled != null;
+    const lit = hovering ? singled : active && active.routeIndex;
     const dimming = hovering || active != null;
 
     // WHOSE PATH THIS READER IS ON. `mySubgroup` is derived server-side from
@@ -289,6 +301,44 @@
 
   function highlight(i) {
     state.hover = i;
+    paintFocus();
+  }
+
+  // WHERE THE MAP CAN ACTUALLY BE SEEN, for the fit. On a desk the drawer takes
+  // its own column and #map is sized to what is left, so fitTo's even padding
+  // is right. On a phone the sheet is DRAWN OVER the bottom 62% of the map and
+  // the timeline bar floats above that, so an even fit put the whole ride
+  // under the sheet — a rider opening a ride on a phone saw Alberta and no
+  // route (seen 2026-09-15 on ride 2021 Colorado at 390px). MEASURED, not read
+  // off --sheet-height: the sheet may be collapsed, the bar may be absent on
+  // an undated ride, and a declared number is how --timeline-height came to
+  // be three pixels short for two weeks. Undefined on a desk, which hands
+  // fitTo its own default.
+  function fitPadding() {
+    const map = document.getElementById("map");
+    const panel = document.getElementById("info-panel");
+    if (!map || !panel) return undefined;
+    const m = map.getBoundingClientRect();
+    const p = panel.getBoundingClientRect();
+    // The drawer sits beside the map; the sheet sits on it. Full width and
+    // overlapping the map's bottom is the sheet.
+    if (p.width < m.width - 1 || p.top >= m.bottom) return undefined;
+    let covered = m.bottom - p.top;
+    const bar = document.querySelector(".map-timeline");
+    if (bar) {
+      const b = bar.getBoundingClientRect();
+      if (b.height > 0 && b.top < p.top) covered = m.bottom - b.top;
+    }
+    return { top: 60, right: 40, bottom: Math.round(covered) + 40, left: 40 };
+  }
+
+  // Tap to single a route out, and tap the same row to let go. The row class
+  // is the only visible sign of a pin — the map's dimming says the rest.
+  function pin(i) {
+    state.pinned = state.pinned === i ? null : i;
+    document.querySelectorAll(".route-row").forEach((row) => {
+      row.classList.toggle("is-pinned", Number(row.dataset.i) === state.pinned);
+    });
     paintFocus();
   }
 
@@ -570,7 +620,9 @@
     // handed to a nav app, and a copy kept for no signal. A page, like the
     // roadbook, and it sits beside it for the same reason.
     if (state.ride.goUrl)
-      dls.push(dlButton(state.ride.goUrl, "On the road", false, "The phone page: legs, files, and a copy for no signal"));
+      dls.push(
+        dlButton(state.ride.goUrl, "On the road", false, "The phone page: legs, files, and a copy for no signal"),
+      );
     if (state.ride.nativeUrl) {
       dls.push(
         dlButton(
@@ -626,8 +678,24 @@
       cb.addEventListener("change", () => setVisible(Number(cb.dataset.i), cb.checked));
     });
     table.querySelectorAll(".route-row").forEach((row) => {
-      row.addEventListener("mouseenter", () => highlight(Number(row.dataset.i)));
-      row.addEventListener("mouseleave", () => highlight(null));
+      // POINTER EVENTS GUARDED ON THE MOUSE, not mouse events. A touch raises
+      // an emulated mouseenter on the first tap and never the mouseleave, so
+      // the old pair left the emphasis stuck on whichever row was tapped last.
+      // pointerenter carries the pointer type, and a pen counts as a mouse
+      // here: it hovers.
+      row.addEventListener("pointerenter", (e) => {
+        if (e.pointerType !== "touch") highlight(Number(row.dataset.i));
+      });
+      row.addEventListener("pointerleave", (e) => {
+        if (e.pointerType !== "touch") highlight(null);
+      });
+      // A tap on the row's own furniture — the checkbox label, a link, a button
+      // — keeps its job and is not a pin. The rest of the row is: the mileage,
+      // the badges, the gap between them.
+      row.addEventListener("click", (e) => {
+        if (e.target.closest(".route-toggle, a, button, input")) return;
+        pin(Number(row.dataset.i));
+      });
     });
   }
 
@@ -647,7 +715,7 @@
       // because of what it is, and nothing has to happen for that to be true.
       // Without this the alternates drew solid until the first pointer move.
       paintFocus();
-      fitTo(state.map, allTrackPoints());
+      fitTo(state.map, allTrackPoints(), fitPadding());
       buildLegend();
       renderTimeline();
       wireTimeline();
