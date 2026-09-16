@@ -64,6 +64,30 @@
     font-style: italic;
   }
 
+  //@ Phone
+  // THE TABLE SCROLLS SIDEWAYS on a phone rather than stacking, since
+  // 2026-09-15 — see the comment on `.rb-scroll` in routes/roadbook.tsx. The
+  // wrapper bleeds into the page gutter on both sides so the cut-off edge of
+  // the last column shows there is more, which is the only affordance a
+  // scroller with a hidden scrollbar has. `min-width` on the table is what
+  // makes it scroll at all: without it the table shrinks to fit and the
+  // wrapper never overflows. 34rem holds every column at its natural width
+  // on a typical route; a long stop name wraps inside its column as it does
+  // on a desk. Not `scrollbar-width: none` — a rider on a roadbook may well
+  // want the bar, and a table is not a tab strip.
+  @media (max-width: $bp-phone) {
+    .rb-scroll {
+      overflow-x: auto;
+      -webkit-overflow-scrolling: touch;
+      margin: 0 -1rem;
+      padding: 0 1rem;
+    }
+
+    .rb-table {
+      min-width: 34rem;
+    }
+  }
+
   .rb-table {
     width: 100%;
     border-collapse: collapse;
@@ -171,7 +195,16 @@
       margin-bottom: 1.2rem;
     }
 
+    // Paper does not scroll. The wrapper is a plain block again and the table
+    // takes the sheet's width, whatever the screen rule said.
+    .rb-scroll {
+      overflow: visible;
+      margin: 0;
+      padding: 0;
+    }
+
     .rb-table {
+      min-width: 0;
       font-size: 9.5pt;
 
       // Repeat the header when a long route does have to break.

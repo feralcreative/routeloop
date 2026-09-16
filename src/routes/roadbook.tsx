@@ -173,42 +173,56 @@ roadbookRoutes.get('/m/:slug/roadbook', async (c) => {
                 {rows.length === 0 ? (
                   <p class="rb-empty">No stops on this route.</p>
                 ) : (
-                  <table class="rb-table">
-                    <thead>
-                      <tr>
-                        <th class="rb-n">#</th>
-                        <th>Stop</th>
-                        <th class="rb-num">Leg</th>
-                        <th class="rb-num">Total</th>
-                        <th class="rb-num">Fuel</th>
-                        {r.startAt && <th class="rb-num">At</th>}
-                        <th class="rb-num">Stay</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {rows.map((row) => (
-                        <tr class={row.n === null ? 'rb-poi' : undefined}>
-                          <td class="rb-n">{row.n ?? '·'}</td>
-                          <td>
-                            <span class="rb-name">{row.point.name || 'Unnamed'}</span>
-                            {row.point.roles.length > 0 && <span class="rb-roles">{roleTitles(row.point.roles)}</span>}
-                            {row.point.description && <span class="rb-desc">{row.point.description}</span>}
-                          </td>
-                          <td class="rb-num">{row.fromPrevM ? fmtMi(row.fromPrevM, units) : '—'}</td>
-                          <td class="rb-num">{row.atM == null ? '—' : fmtMi(row.atM, units)}</td>
-                          {/* Blank until the first fuel stop: "miles since fuel" has no
-                              answer before there has been any. */}
-                          <td class="rb-num">{row.sinceFuelM == null ? '—' : fmtMi(row.sinceFuelM, units)}</td>
-                          {r.startAt && (
-                            <td class="rb-num">{row.arrive ? fmtClock(row.arrive, dateFormat, clock) : '—'}</td>
-                          )}
-                          <td class="rb-num">
-                            {row.point.durationMin ? fmtDuration(row.point.durationMin * 60) : '—'}
-                          </td>
+                  /* THE WRAPPER IS FOR THE PHONE. Eight columns at 0.9rem do
+                     not fit 358px, and on screen the table had no narrow rule
+                     at all: it squeezed every column to a word and wrapped the
+                     stop names three lines deep. `.rb-scroll` scrolls sideways
+                     under the seam (_roadbook.scss) and is a plain div at every
+                     other width and in print. Sideways rather than stacked
+                     rows, because a mileage column is read by scanning DOWN
+                     it — that is what the tabular figures are for — and
+                     stacking the rows would destroy the one thing the sheet
+                     exists to line up. */
+                  <div class="rb-scroll">
+                    <table class="rb-table">
+                      <thead>
+                        <tr>
+                          <th class="rb-n">#</th>
+                          <th>Stop</th>
+                          <th class="rb-num">Leg</th>
+                          <th class="rb-num">Total</th>
+                          <th class="rb-num">Fuel</th>
+                          {r.startAt && <th class="rb-num">At</th>}
+                          <th class="rb-num">Stay</th>
                         </tr>
-                      ))}
-                    </tbody>
-                  </table>
+                      </thead>
+                      <tbody>
+                        {rows.map((row) => (
+                          <tr class={row.n === null ? 'rb-poi' : undefined}>
+                            <td class="rb-n">{row.n ?? '·'}</td>
+                            <td>
+                              <span class="rb-name">{row.point.name || 'Unnamed'}</span>
+                              {row.point.roles.length > 0 && (
+                                <span class="rb-roles">{roleTitles(row.point.roles)}</span>
+                              )}
+                              {row.point.description && <span class="rb-desc">{row.point.description}</span>}
+                            </td>
+                            <td class="rb-num">{row.fromPrevM ? fmtMi(row.fromPrevM, units) : '—'}</td>
+                            <td class="rb-num">{row.atM == null ? '—' : fmtMi(row.atM, units)}</td>
+                            {/* Blank until the first fuel stop: "miles since fuel" has no
+                              answer before there has been any. */}
+                            <td class="rb-num">{row.sinceFuelM == null ? '—' : fmtMi(row.sinceFuelM, units)}</td>
+                            {r.startAt && (
+                              <td class="rb-num">{row.arrive ? fmtClock(row.arrive, dateFormat, clock) : '—'}</td>
+                            )}
+                            <td class="rb-num">
+                              {row.point.durationMin ? fmtDuration(row.point.durationMin * 60) : '—'}
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
                 )}
               </section>
             )
