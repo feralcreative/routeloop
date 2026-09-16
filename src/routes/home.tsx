@@ -1,26 +1,26 @@
 // THE DASHBOARD, at `/`. This is the page with the numbers on it: hero miles,
-// tiles, the storage meter, the twist rollup, role bars, the twelve-month chart.
+// tiles, the storage meter, the twist rollup, role bars, the twelve-month chart
+// — and, since 2026-09-15, one link to the rides rather than the rides.
 //
-// AND THE RIDER'S OWN RIDES, since 2026-08-24. That is the second time this page
-// has held a list and the two are not the same mistake, so the history matters.
-//
-// It was once the first ten of your rides beside the first ten popular public
-// ones — a ride list with a copy of /explore?sort=popular bolted on. Splitting
-// that out to /rides in August fixed the /explore half and left the other: `/`
-// kept a six-ride "picking up where you left off" strip, so the nav still had two
-// doors onto a rider's own rides. Ziad's call on 2026-08-24, answering the third
-// of #103's four open questions: one door. /rides 302s here and the full list
-// sits under the stats.
-//
-// The list is CAPPED at RIDE_PAGE with `?rides=all` to lift it. The page it
-// absorbed was unpaginated, and an unbounded list hanging under eight blocks of
-// stats gets worse the more a rider uses the app.
+// THE RIDES WERE HERE FROM 2026-08-24 TO 2026-09-15. That was the second time
+// this page held a list and the two were not the same mistake, so the history
+// matters. It was once the first ten of your rides beside the first ten popular
+// public ones — a ride list with a copy of /explore?sort=popular bolted on.
+// Splitting that out to /rides in August fixed the /explore half and left the
+// other: `/` kept a six-ride "picking up where you left off" strip, so the nav
+// still had two doors onto a rider's own rides. Ziad's call on 2026-08-24,
+// answering the third of #103's four open questions: one door, the full list
+// under the stats. Ziad's call on 2026-09-15 (#359), reversing it: the phone.
+// The job on a phone is to look up a planned ride and load it, and a list
+// under eight blocks of stats is not a page a thumb can use, so the list is
+// src/routes/rides.tsx again and this page ends with a count and a link. There
+// are two doors because there are two pages, and the nav labels both.
 //
 // Naming, because it has confused everyone including its own author: the file
 // is `home.tsx` and the route is `/`, but `public/js/dashboard.js` and
 // `style/_dashboard.scss` are BOTH THIS PAGE'S. They are named for what the page
 // is rather than for what the file is called, and they were the honest names even
-// while `src/routes/rides.tsx` held the list. That file is now a redirect.
+// while `src/routes/rides.tsx` held the list — and still are now that it does.
 //
 // EVERY NUMBER HERE IS RENDERED SERVER-SIDE AS TEXT. The one chart is progressive
 // enhancement over a table that is already correct without it — the roadbook and

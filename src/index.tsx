@@ -250,15 +250,18 @@ if (IS_DEV) {
 app.use('*', withSession)
 
 // /dashboard was the rides list until 2026-08-15, when it became /rides — see
-// the header of src/routes/rides.tsx for why the old name was wrong, and for
-// why /rides then folded into / on 2026-08-24. This keeps a bookmark or a pasted
-// link working.
+// the header of src/routes/rides.tsx for why the old name was wrong, for why
+// /rides then folded into / on 2026-08-24, and for why it came back out on
+// 2026-09-15. This keeps a bookmark or a pasted link working. STILL POINTED AT
+// `/` after the list moved back to /rides: Dash is `/`, this 301 is cached in
+// every browser that ever saw it, and a bookmark this old was to "the app"
+// rather than to a list that has moved three times since.
 //
 // It sits ahead of every route module rather than inside one, next to the
 // LEGACY_HOSTS redirect it is the path-level twin of, so there is one place to
 // look for "why did this URL move". A 301 rather than a 302: this URL is gone
-// for good and a browser caching that is the desired outcome, which is not true
-// of the /rides → / hop.
+// for good and a browser caching that is the desired outcome, which was not
+// true of the /rides → / hop — and that hop is gone, which is the proof.
 //
 // POINTED STRAIGHT AT THE DESTINATION rather than at /rides, which would work
 // and would cost every one of these visitors a second round trip. A redirect
