@@ -369,8 +369,11 @@ function SiteHeader({
               this sign and the hamburger did not fit 358px together, and the
               sign is the one with words to spare. The accessible name stays
               "Take the tour" through aria-label, because a sign reading "Tour"
-              is fine to look at and poor to have read out. */}
-          <span class="nav-tour-lead">Take the </span>tour
+              is fine to look at and poor to have read out. The space is a
+              non-breaking one because the sign is inline-flex: the span and
+              the bare word are two flex items, and a plain space at the end
+              of the first is collapsed, which rendered "Take thetour". */}
+          <span class="nav-tour-lead">Take the&nbsp;</span>tour
         </a>
       )}
       {/*
