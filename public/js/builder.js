@@ -2320,6 +2320,58 @@
   }
 
   /**
+   * Swaps the PLACE under an existing point and keeps everything the rider has
+   * written on it.
+   *
+   * EVERY ROW'S NAME FIELD IS A SEARCH BOX, since 2026-09-15 — Ziad's call, after
+   * finding that the only way to put a different place at stop 3 was to delete
+   * it and search again from the add-row, losing its dwell, its notes and its
+   * place in the list. Typing in the name still just renames; picking a result
+   * from the dropdown lands here instead of in addPoint().
+   *
+   * WHAT SURVIVES: the uid (so comments, votes and private details keyed on it
+   * stay attached), the kind, the dwell, both notes boxes and the roles. Roles
+   * and details are FILLED FROM the pick only when the point has none — a Gas
+   * stop swapped for another station is still Gas, and a stop swapped from a
+   * saved place does not get its reservation overwritten by the library's phone
+   * number. A roleless POI that takes a category IS promoted, which is the
+   * "a category is a reason to stop" rule addPoint() follows.
+   *
+   * WHAT MOVES: name, address and coordinates — the marker-drag surgery exactly:
+   * both neighboring legs lose their shaping points, because a via belongs to
+   * the PAIR its leg joined and one end of each pair just moved, and both are
+   * routed again. The leg count is unchanged, so `legSeq` is left alone.
+   *
+   * `key` is the typing step's coalesce key. The search text the rider typed
+   * into the name and the pick that replaced it fold into ONE undo step, which
+   * gives back the original point; a separate step would undo to a stop named
+   * "chev" at the old coordinates.
+   */
+  function replacePoint(r, i, lng, lat, name, pt, key) {
+    const route = state.routes[r];
+    const point = route && route.points[i];
+    if (!point) return;
+    beginEdit("replace point", key);
+    point.name = name || "";
+    point.lng = +lng.toFixed(6);
+    point.lat = +lat.toFixed(6);
+    point.address = (pt && pt.address) || "";
+    if (!(point.roles || []).length && pt && (pt.roles || []).length) {
+      point.roles = pt.roles.slice();
+      point.kind = "stop";
+    }
+    if (!point.details && pt && pt.details) point.details = pt.details;
+    if (route.legs[i - 1]) route.legs[i - 1].viaPoints = [];
+    if (route.legs[i]) route.legs[i].viaPoints = [];
+    computeLegsAround(r, [i - 1, i]);
+    renderTrack(r);
+    renderMarkers();
+    renderRouteList(r);
+    refreshDerived();
+    markDirty();
+  }
+
+  /**
    * Promotes a POI to a stop, or demotes a stop back to a POI.
    *
    * A FLAG FLIP AND NOTHING ELSE, as of 2026-08-24. Every point anchors a leg
@@ -7533,7 +7585,7 @@
         : isStop
           ? '<span class="row-num">' + n + "</span>"
           : '<span class="row-num poi-dot"></span>') +
-      '<input class="row-name" name="' +
+      '<input class="row-name" data-tip="row-name" title="Type to rename, or search for a different place" name="' +
       kind +
       "-name-" +
       i +
@@ -8345,6 +8397,12 @@
     el.title = text;
   }
 
+  // The undo-coalesce key for one field on one row. Shared with replacePoint(),
+  // which folds a pick into the typing that found it. It read `row.dataset.index`
+  // until 2026-09-15 — an attribute no row carries — so every row's name field
+  // coalesced into one step and renaming two stops was one undo.
+  const rowEditKey = (kind, i, field) => "row:" + (kind || "") + ":" + i + ":" + field;
+
   // Delegated events for both lists.
   function wireList(listEl) {
     listEl.addEventListener("input", (e) => {
@@ -8354,10 +8412,7 @@
       if (!point) return;
       // Keyed by the row and the field, so a run of keystrokes folds into one
       // step and moving to another field starts a new one.
-      beginEdit(
-        "edit stop",
-        "row:" + (row.dataset.kind || "") + ":" + (row.dataset.index || "") + ":" + e.target.className,
-      );
+      beginEdit("edit stop", rowEditKey(row.dataset.kind, row.dataset.i, e.target.className));
       if (e.target.classList.contains("row-name")) point.name = e.target.value;
       if (e.target.classList.contains("row-desc")) {
         point.description = e.target.value;
@@ -9474,8 +9529,13 @@
      * reasons — a slot is the rider pointing at a stretch of road, and it
      * outranks the scope.
      */
-    async function typedCategoryHits(cat, q, r, at) {
+    async function typedCategoryHits(cat, q, r, at, rep) {
       if (namesAPlace(q)) return nearbySearch(cat.text, null);
+      // A REPLACE SEARCHES AROUND THE POINT BEING REPLACED. It is the one
+      // anchor the rider has unambiguously pointed at — the row they are typing
+      // in — and it outranks the scope for the reason a slot does.
+      const old = rep == null ? null : state.routes[r] && state.routes[r].points[rep];
+      if (old) return nearbySearch(cat.text, [old.lng, old.lat]);
       const leg = at == null ? null : legAnchor(state.routes[r], at);
       if (leg) return corridorRun(cat.text, leg.track, leg.totalM, leg.near);
       if (state.corridorOn) {
@@ -9497,8 +9557,10 @@
      * half of what was asked. Telling a rider the wrong area sends them looking
      * in the wrong place, which is the complaint #232 was filed about.
      */
-    function typedEmptyText(q, cat, at) {
+    function typedEmptyText(q, cat, at, rep) {
       const named = "“" + q + "”";
+      if (cat && rep != null)
+        return "No matches for " + named + " near this point or on screen. Zoom out to search wider.";
       if (cat && at != null)
         return "No matches for " + named + " along this leg or on screen. Zoom out to search wider.";
       if (cat && state.corridorOn)
@@ -9632,10 +9694,8 @@
           // it always did, which is right for On screen.
           const slot = openSlot(host);
           const at = slot != null ? slot : typeof h.insertAt === "number" ? h.insertAt : null;
-          addPoint(h.lngLat[0], h.lngLat[1], h.name, r, pt, at);
+          landPick(host, h.lngLat[0], h.lngLat[1], h.name, pt, at);
           panTo(state.map, h.lngLat, 13);
-          const next = document.querySelector('.add-row[data-route="' + r + '"] .add-search');
-          if (next) next.focus();
         });
       });
     }
@@ -9680,6 +9740,40 @@
     // reason the search field itself is delegated rather than bound per input.
     const openSlot = (host) => (host.dataset.at === "" || host.dataset.at == null ? null : Number(host.dataset.at));
 
+    // Which field the open list is answering: a route's add-row (`at` is the
+    // insert slot, or null for the bottom row) or an existing row's name field
+    // (`rep` is that point's index). One writer, so the stamps cannot disagree.
+    function aimResults(results, route, at, rep) {
+      results.dataset.route = String(route);
+      results.dataset.at = at == null ? "" : String(at);
+      results.dataset.replace = rep == null ? "" : String(rep);
+    }
+    const replacing = (results) => (results.dataset.replace === "" || results.dataset.replace == null ? null : Number(results.dataset.replace));
+
+    // Where a pick lands: a NEW point, or the place under an existing one. The
+    // dropdown is one element serving every add-row and every row's name field,
+    // so it carries which it was opened for, and the three pick handlers ask
+    // here rather than each deciding. `at` overrides the open slot for the one
+    // caller that projects a corridor hit onto the route.
+    function landPick(results, lng, lat, name, pt, at) {
+      const r = Number(results.dataset.route);
+      const rep = replacing(results);
+      if (rep != null) {
+        const point = state.routes[r] && state.routes[r].points[rep];
+        if (!point) return;
+        replacePoint(r, rep, lng, lat, name, pt, rowEditKey(point.kind, rep, "row-name"));
+        // The kind is read AFTER the replace: a POI that took a category is a stop now.
+        focusRow(point.kind, rep, r);
+        return;
+      }
+      addPoint(lng, lat, name, r, pt, at === undefined ? openSlot(results) : at);
+      // The add above re-rendered the list, so the row is a new element. Put the
+      // cursor in its replacement: adding several stops in a row is the common
+      // case and should not need a click between each one.
+      const next = document.querySelector('.add-row[data-route="' + r + '"] .add-search');
+      if (next) next.focus();
+    }
+
     function wireSavedResults(host, list) {
       host.querySelectorAll("li.hit-saved").forEach((li) => {
         li.addEventListener("click", () => {
@@ -9692,10 +9786,8 @@
           // point: the roles and the durable details are the reason a saved
           // place is worth having.
           const pt = stopFromPlace(pl);
-          addPoint(pl.lng, pl.lat, pl.name, r, pt, openSlot(host));
+          landPick(host, pl.lng, pl.lat, pl.name, pt);
           panTo(state.map, [pl.lng, pl.lat], 11);
-          const next = document.querySelector('.add-row[data-route="' + r + '"] .add-search');
-          if (next) next.focus();
         });
       });
     }
@@ -9704,10 +9796,16 @@
     // fields on any structural change. Binding per input would either be lost
     // on the next render or leak a listener per render.
     host.addEventListener("input", (e) => {
-      const input = e.target.closest(".add-search");
+      // A ROW'S NAME FIELD IS THE SAME SEARCH. Typing renames — wireList()'s
+      // handler already wrote the keystroke into point.name — and a pick from
+      // the list that opens under it REPLACES the place through replacePoint().
+      // The row knows its point, so `rep` is its index and there is no slot.
+      const input = e.target.closest(".add-search, .row-name");
       if (!input) return;
-      const route = Number(input.closest(".add-row").dataset.route);
-      const at = slotOf(input);
+      const isRow = input.classList.contains("row-name");
+      const route = Number(input.closest(isRow ? ".point-row" : ".add-row").dataset.route);
+      const rep = isRow ? Number(input.closest(".point-row").dataset.i) : null;
+      const at = isRow ? null : slotOf(input);
       clearTimeout(searchTimer);
       const q = input.value.trim();
 
@@ -9718,8 +9816,7 @@
       // later and are appended rather than replacing these.
       const saved = matchSavedPlaces(q);
       if (saved.length) {
-        results.dataset.route = String(route);
-        results.dataset.at = at == null ? "" : String(at);
+        aimResults(results, route, at, rep);
         results.innerHTML = savedResultsHtml(saved);
         results.hidden = false;
         placeResults(input, results);
@@ -9757,7 +9854,7 @@
             // No anchor when the text names a place: Text Search reads it out of
             // the query, and biasing to the rider's current position as well
             // would pull the answer back home.
-            cat ? typedCategoryHits(cat, q, route, at) : [],
+            cat ? typedCategoryHits(cat, q, route, at, rep) : [],
           ]);
           if (mine !== searchSeq) return;
           const hits = nameRes.status === "fulfilled" ? nameRes.value : [];
@@ -9771,8 +9868,7 @@
           // The rows may have been rebuilt out from under this response, in
           // which case the field it was for no longer exists.
           if (!input.isConnected) return;
-          results.dataset.route = String(route);
-          results.dataset.at = at == null ? "" : String(at);
+          aimResults(results, route, at, rep);
           // Saved matches keep their place at the top; the predictions are
           // appended under them. Re-derived rather than read off the DOM so a
           // response that arrives after the query changed cannot pair the new
@@ -9801,7 +9897,7 @@
             // rider who is told only "no matches" has no reason to think
             // zooming out would help. See searchPlaces() in map-common.js for
             // why there is no automatic fallback to widen it for them.
-            (nothing ? noticeHtml(typedEmptyText(q, cat, at)) : "") +
+            (nothing ? noticeHtml(typedEmptyText(q, cat, at, rep)) : "") +
             // One half down while the other answered: the results still show,
             // with a line saying what is missing. Silently returning half an
             // answer is how a broken category search would go unnoticed for a
@@ -9830,9 +9926,6 @@
               // the same value, and taking it from one place means a stale
               // closure can never put a stop on the wrong route.
               const r = Number(results.dataset.route);
-              // The row's own radio, not the panel's + Stop / + POI pair. That
-              // pair belongs to the map click; a searched address is a separate
-              // gesture and deserves its own answer.
               hideSearchResults();
               // The route whose row was used becomes the active one, so a map
               // click afterwards continues where the rider is working rather
@@ -9840,14 +9933,8 @@
               setActive(r);
               // A point rather than a bare add, only so the address travels: it
               // is the one thing addPoint() cannot re-derive from coordinates.
-              addPoint(lng, lat, picked.name, r, newPoint(lng, lat, picked.name, picked.address), openSlot(results));
+              landPick(results, lng, lat, picked.name, newPoint(lng, lat, picked.name, picked.address));
               panTo(state.map, picked.lngLat, 11);
-              // The add above re-rendered the list, so this row is a new
-              // element. Put the cursor in its replacement: adding several
-              // stops in a row is the common case and should not need a click
-              // between each one.
-              const next = document.querySelector('.add-row[data-route="' + r + '"] .add-search');
-              if (next) next.focus();
             });
           });
         } catch (e) {
@@ -9856,8 +9943,7 @@
           // The failure REACHES THE RIDER. This was a bare console.warn, so a
           // referrer-restricted key, a pending account or a Places API that was
           // never enabled all presented as an empty dropdown and no explanation.
-          results.dataset.route = String(route);
-          results.dataset.at = at == null ? "" : String(at);
+          aimResults(results, route, at, rep);
           results.innerHTML = noticeHtml(searchErrorText(e));
           results.hidden = false;
           placeResults(input, results);
@@ -9987,8 +10073,7 @@
     async function categorySearch({ r, at, spec, input, track, near }) {
       if (!spec || !state.routes[r]) return;
       const results = searchResultsEl();
-      results.dataset.route = String(r);
-      results.dataset.at = at == null ? "" : String(at);
+      aimResults(results, r, at, null);
       const mine = ++searchSeq;
       // Something in the box immediately: a billed round trip with no feedback
       // reads as a dead button, and this one is a button.
@@ -10059,7 +10144,7 @@
     // Escape dismisses the suggestions without clearing the query — the rider
     // may have meant to close the list, not to start over.
     host.addEventListener("keydown", (e) => {
-      if (e.key !== "Escape" || !e.target.closest(".add-search")) return;
+      if (e.key !== "Escape" || !e.target.closest(".add-search, .row-name")) return;
       // The dropdown first, then the row. Two presses to back all the way out of
       // an insert, which is the same shape as closing a menu inside a dialog —
       // one Escape should not dismiss two things.
@@ -10077,7 +10162,7 @@
     });
 
     document.addEventListener("click", (e) => {
-      if (e.target.closest(".add-row") || e.target.closest("#search-results")) return;
+      if (e.target.closest(".add-row") || e.target.closest(".row-name") || e.target.closest("#search-results")) return;
       hideSearchResults();
 
       // THE + THAT OPENS A SLOT IS AN OUTSIDE CLICK BY THIS TEST. Both handlers
