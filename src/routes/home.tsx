@@ -36,16 +36,17 @@
 // src/maps/ride-time.ts and src/stats/shape.ts.
 import { Hono } from 'hono'
 import { raw } from 'hono/html'
-import { fmtRideDistance, rideCards } from '../views/cards'
-import { type Units, distanceUnit } from '../views/units'
+import { rideCards } from '../views/cards'
 import { and, desc, eq } from 'drizzle-orm'
 import { db } from '../db/index'
-import { rides, routes as routesTable, type RideRow, type Rsvp } from '../db/schema'
+import { rides, routes as routesTable } from '../db/schema'
 import { currentUser, requireActive, type AuthEnv } from '../auth/middleware'
 import { page, wordsOf } from '../views/layout'
 import { asset } from '../views/assets'
 import { icon } from '../views/icon'
 import { CardFace } from '../views/cards'
+import { JoinedRideCard, OwnRideCard } from '../views/ride-lists'
+import { RIDE_CEILING, RIDE_PAGE, pageOwned, rideTabOf } from '../rides/tabs'
 import { cachedGlobalStats, cachedUsedBytes, loadStats } from '../stats/query'
 import { shapeStats } from '../stats/shape'
 import type { DashboardStats, MonthPoint, RecordTile, RoleBar, Tile } from '../stats/shape'
@@ -54,127 +55,13 @@ import { LIVE_RIDE, listBinnedRides } from '../trash/service'
 import { binRidesHtml } from '../views/bin'
 import { dateFormatFor } from '../views/prefs'
 import { ridesImOn } from '../members/service'
-import { RSVP_LABELS } from '../members/policy'
 import { unitsFor } from '../views/prefs'
 import { Wd, Wds, aWd, cap, wd, wds, wn, type Words } from '../views/vocab'
 import { SEP } from '../views/sep'
 
 export const homeRoutes = new Hono<AuthEnv>()
 
-// How many of a rider's own rides this page draws before it offers the rest.
-//
-// It was RECENT = 6, a "picking up where you left off" strip beside a full list
-// at /rides. That page folded into this one on 2026-08-24, so this number stopped
-// being a teaser and became a cap — and a cap is what it has to be: the old list
-// was unpaginated, and hanging an unbounded one under eight blocks of stats
-// makes the page worse the more a rider uses the app.
-//
-// `?rides=all` renders every one. A query parameter rather than script, because
-// this page renders every number as text and a "show all" that needs JavaScript
-// would be the first thing on it that does not.
-const RIDE_PAGE = 24
-
-// The ceiling `?rides=all` raises the cap to, rather than removing it. Nobody is
-// near this — the largest dev corpus is twenty rides — and it exists so the page
-// cannot be made slow by a rider who imports a folder every week for a year.
-const RIDE_CEILING = 500
-
 // --- Pieces ------------------------------------------------------------------
-
-// Deliberately not views/cards.tsx's own Card: this one carries a visibility pill
-// and an edit link that the public card must never show. Same shape, different
-// contract — merging them would mean a flag that only ever means "am I the
-// owner", which is the thing the two separate components already say.
-//
-// What IS shared is CardFace, the picture-or-color-block, because that part has
-// no contract of its own. It is also the part with the traps in it — the `?v=`
-// immutability hash, the lazy loading, the source dimensions that keep the grid
-// from reflowing — and those had already been copied once.
-//
-// Moved here from src/routes/rides.tsx on 2026-08-24 when that page folded into
-// this one. Became a card on 2026-08-25 with the rest of them (#135).
-//
-// THE EDIT LINK AND THE PILL SIT OUTSIDE THE ANCHOR, and that is not a layout
-// preference: an <a> inside an <a> is invalid HTML and browsers recover from it
-// by closing the outer one early, which silently drops half the card out of the
-// link. The foot is a sibling of the link, and the card's own padding is what
-// makes the two read as one object.
-// A ride the viewer is ON but does not own.
-//
-// A THIRD CARD RATHER THAN A FLAG ON THE OTHER TWO, for the same reason
-// OwnRideCard is not views/cards.tsx's Card: the contract is different. There is
-// no visibility pill, because the setting is not this rider's to know or change;
-// there is no edit link, because they cannot; and there is an RSVP, which
-// neither of the others has anywhere to put. A flag meaning "am I the owner"
-// plus a flag meaning "am I a member" is two booleans encoding three cards.
-//
-// No color block: `ridesImOn` does not join routes, and a fourth query per
-// dashboard render to tint a short list is not worth it. CardFace draws the
-// thumbnail when there is one and a neutral field when there is not.
-function JoinedRideCard({ ride, rsvp, units }: { ride: RideRow; rsvp: Rsvp; units: Units }) {
-  return (
-    <li class="ride-card">
-      <a class="ride-card-link" href={`/m/${ride.slug}`}>
-        <CardFace slug={ride.slug} thumbHash={ride.thumbHash} color={null} />
-        <span class="ride-card-body">
-          <span class="ride-card-title">{ride.title}</span>
-          <span class="ride-card-meta">
-            {ride.stopCount} stops{SEP}
-            {fmtRideDistance(ride.totalMiles, units)} {distanceUnit(units)}
-          </span>
-        </span>
-      </a>
-      <div class="ride-card-foot">
-        <span class="pill">{RSVP_LABELS[rsvp]}</span>
-        {/* Straight to the roster rather than to the ride, because answering is
-            the thing this card is asking for. */}
-        <a class="editlink" href={`/m/${ride.slug}/riders`}>
-          Riders
-        </a>
-      </div>
-    </li>
-  )
-}
-
-function OwnRideCard({ ride, color, units }: { ride: RideRow; color: string | null; units: Units }) {
-  return (
-    <li class="ride-card">
-      <a class="ride-card-link" href={`/m/${ride.slug}`}>
-        <CardFace slug={ride.slug} thumbHash={ride.thumbHash} color={color} />
-        <span class="ride-card-body">
-          <span class="ride-card-title">{ride.title}</span>
-          <span class="ride-card-meta">
-            {ride.stopCount} stops{SEP}
-            {fmtRideDistance(ride.totalMiles, units)} {distanceUnit(units)}
-          </span>
-        </span>
-      </a>
-      <div class="ride-card-foot">
-        <span class="pill">{ride.visibility}</span>
-        {/* Every own ride is editable now, imported ones included — this used to
-            test `ride.source === 'native'` because the builder could not open an
-            import. It can; see canEditRide in ./maps. */}
-        <a class="editlink" href={`/builder/${ride.id}`}>
-          Edit
-        </a>
-        {/* NO "are you sure?". This moves the ride to the recycle bin, where it
-            sits for thirty days with a button to undo — the bin is the
-            confirmation. A dialog in front of a reversible action is how riders
-            learn to click through the one that is not. */}
-        {/* data-ride-id is for dashboard.js, which bins this in place rather than
-            letting the POST navigate — see #175. The id is already in the action,
-            but parsing it back out of a URL is a second place the route shape has
-            to be known; an attribute says it once. With script off nothing reads
-            it and the plain POST is unchanged. */}
-        <form method="post" action={`/trash/rides/${ride.id}/bin`} class="ride-card-del" data-ride-id={ride.id}>
-          <button class="linkbtn" type="submit" data-tip="ride-delete" title="Move to the recycle bin">
-            Delete
-          </button>
-        </form>
-      </div>
-    </li>
-  )
-}
 
 function StatTile({ tile }: { tile: Tile }) {
   return (
@@ -577,14 +464,9 @@ homeRoutes.get('/', requireActive, async (c) => {
   // query, so this tests for the one string rather than for truthiness.
   const showAll = c.req.query('rides') === 'all'
 
-  // WHICH TAB OPENS (#343). The strip was always server-rendered on Your rides
-  // and tabs.js took it from there; `/trash` now lands here with `?tab=bin`,
-  // so the server has to be able to open a tab. Anything but a known name is
-  // the first tab, which is what a bot's invented value should get.
-  const TABS = ['mine', 'friends', 'following', 'public', 'bin'] as const
-  type RideTab = (typeof TABS)[number]
-  const tabQ = c.req.query('tab')
-  const tab: RideTab = (TABS as readonly string[]).includes(tabQ ?? '') ? (tabQ as RideTab) : 'mine'
+  // Which tab opens (#343): `/trash` lands here with `?tab=bin`. The rule is
+  // rideTabOf's, in src/rides/tabs.ts.
+  const tab = rideTabOf(c.req.query('tab'))
   const binError = c.req.query('error')
 
   const [stats, cached, owned, global, joined, friendly, publik, feed, binned, dateFormat] = await Promise.all([
@@ -639,8 +521,7 @@ homeRoutes.get('/', requireActive, async (c) => {
     dateFormatFor(c),
   ])
 
-  const hasMore = !showAll && owned.length > RIDE_PAGE
-  const visibleRides = hasMore ? owned.slice(0, RIDE_PAGE) : owned
+  const { visible: visibleRides, hasMore } = pageOwned(owned, showAll)
 
   const units = await unitsFor(c)
   // What the app calls things (#321) — the rider's own preset, since this
