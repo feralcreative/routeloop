@@ -1,0 +1,34 @@
+// THE RIDE LIST AT /rides, since 2026-09-15. Everything the cards and the tab
+// strip need is generic and lives in _chrome.scss (.ride-cards, .page-tabs,
+// .ride-card-del, .ride-card--binned, .trash-list); this partial holds only
+// what the PAGE adds — the section's heading spacing, the empty state, the
+// owner line on a joined card — and, further down, its phone rules.
+//
+// The heading numbers are the dashboard's `.stat-block h2`, restated rather
+// than shared: that rule is _dashboard.scss's and a list page that reached
+// into the dashboard's sheet for its type would break the first time the
+// dashboard was restyled for a reason that had nothing to do with rides.
+@use "tokens" as *;
+
+.rides-section {
+  margin: 0 0 2.25rem;
+}
+
+.rides-empty {
+  padding: 1rem 0 0;
+}
+
+.rides-empty-doors {
+  display: flex;
+  align-items: center;
+  gap: 1.25rem;
+  flex-wrap: wrap;
+}
+
+// Whose ride, on a card in Your rides that is not yours. Same size as the meta
+// line above it, its own line so a long name wraps without the mileage.
+.ride-card-owner {
+  display: block;
+  font-size: 0.85em;
+  color: $neutral-57;
+}

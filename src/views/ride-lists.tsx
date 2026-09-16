@@ -40,7 +40,17 @@ import { SEP } from './sep'
 // No color block: `ridesImOn` does not join routes, and a fourth query per
 // dashboard render to tint a short list is not worth it. CardFace draws the
 // thumbnail when there is one and a neutral field when there is not.
-export function JoinedRideCard({ ride, rsvp, units }: { ride: RideRow; rsvp: Rsvp; units: Units }) {
+export function JoinedRideCard({
+  ride,
+  rsvp,
+  owner,
+  units,
+}: {
+  ride: RideRow
+  rsvp: Rsvp
+  owner: string
+  units: Units
+}) {
   return (
     <li class="ride-card">
       <a class="ride-card-link" href={`/m/${ride.slug}`}>
@@ -51,6 +61,11 @@ export function JoinedRideCard({ ride, rsvp, units }: { ride: RideRow; rsvp: Rsv
             {ride.stopCount} stops{SEP}
             {fmtRideDistance(ride.totalMiles, units)} {distanceUnit(units)}
           </span>
+          {/* WHOSE RIDE, since 2026-09-15: this card sits in the same list as the
+              rider's own now, and the RSVP pill below says they were asked but
+              not by whom. Its own line rather than a third meta term, so a
+              long name wraps on a phone without taking the mileage with it. */}
+          <span class="ride-card-owner">Planned by {owner}</span>
         </span>
       </a>
       <div class="ride-card-foot">

@@ -145,10 +145,10 @@ export function areaFromPath(path: string): AreaId | null {
   const p = path.split(/[?#]/)[0].replace(/\/+$/, '') || '/'
   if (p === '/build' || p.startsWith('/build/')) return 'planning'
   if (p === '/m' || p.startsWith('/m/')) return 'map'
-  // `/` IS the rider's ride list as of 2026-08-24, not just the stats page —
-  // /rides folded into it, so a rider reporting something from the dashboard is
-  // almost always talking about their rides. `/rides` is kept alongside it
-  // because the old URL is bookmarked and a stale client may still send it.
+  // `/rides` IS the list again as of 2026-09-15 (it was folded into `/` from
+  // 2026-08-24). `/` stays in the bucket: the dashboard is the rider's own
+  // numbers and one link to their rides, and a report filed from it is still
+  // about their rides far more often than about a chart.
   if (p === '/' || p === '/rides' || p.startsWith('/rides/')) return 'my_rides'
   if (p === '/import' || p.startsWith('/import/')) return 'saving'
   if (p === '/account' || p.startsWith('/account/') || p.startsWith('/login')) return 'account'

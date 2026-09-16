@@ -1086,7 +1086,9 @@
     }
     state.dirty = false;
     state.saving = false;
-    window.location.href = "/";
+    // The list, not the dashboard: a rider who just binned a ride wants to see
+    // it gone from the rides, and the bin tab that can undo it is on that page.
+    window.location.href = "/rides";
   }
 
   // --- Save status ----------------------------------------------------------

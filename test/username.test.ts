@@ -65,7 +65,7 @@ describe('usernameSchema', () => {
 
 describe('reserved list', () => {
   it('covers the paths a handle could otherwise shadow', () => {
-    for (const p of ['admin', 'api', 'builder', 'login', 'profile', 'welcome']) {
+    for (const p of ['admin', 'api', 'builder', 'login', 'profile', 'rides', 'welcome']) {
       expect(RESERVED_USERNAMES.has(p)).toBe(true)
     }
   })
