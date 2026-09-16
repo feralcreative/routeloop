@@ -364,8 +364,13 @@ function SiteHeader({
         gone gets no tab stop either.
       */}
       {user && !hideTourOf(user) && (
-        <a class="nav-tour" href="/builder?tour" data-tour-start>
-          Take the tour
+        <a class="nav-tour" href="/builder?tour" data-tour-start aria-label="Take the tour">
+          {/* TWO WORDS OF THE THREE HIDE ON A PHONE (_nav.scss): the wordmark,
+              this sign and the hamburger did not fit 358px together, and the
+              sign is the one with words to spare. The accessible name stays
+              "Take the tour" through aria-label, because a sign reading "Tour"
+              is fine to look at and poor to have read out. */}
+          <span class="nav-tour-lead">Take the </span>tour
         </a>
       )}
       {/*
@@ -1305,7 +1310,7 @@ export function page(opts: PageOpts): string {
 <html lang="en-US"${htmlClass}${themeAttr_}${schemeAttr_}${motionAttr_}${mapSchemeAttr_}${localeAttr_}${clockAttr_}${tipsAttr_}${tourAttr_}${tourRideAttr_}>
 <head>
   <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
   ${themeColorMeta(scheme)}
   <title>${title}</title>
   ${siteIconLinks()}

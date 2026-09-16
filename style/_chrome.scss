@@ -20,6 +20,21 @@
   padding: 2rem;
 }
 
+//@ Phone
+// 1rem gutters, since 2026-09-15. Two rem at every width was 64px of margin
+// on a 390px phone, a sixth of the screen given to nothing, and it was the one
+// number no phone rule had ever touched. `.site-header` in _nav.scss carries
+// the SAME phone padding and has to — the two are content-box at $page-max, so
+// the logo lines up with the content only while their paddings agree, at
+// every width and not only at the desk one. The insets are for a phone held
+// sideways with a notch; `env()` is 0 wherever there is none.
+@media (max-width: $bp-phone) {
+  .page-wrap {
+    padding: 1.25rem max(1rem, env(safe-area-inset-right, 0px)) calc(1.5rem + env(safe-area-inset-bottom, 0px))
+      max(1rem, env(safe-area-inset-left, 0px));
+  }
+}
+
 // A page laid out as two columns of independent blocks—settings sections on
 // /prefs, fieldsets on /profile. Each cell keeps its own height, so the shorter
 // column simply ends early instead of stretching to match its neighbor.
@@ -1048,6 +1063,27 @@ ul.cards {
   }
 }
 
+//@ Phone
+// The card's foot is a row of text links at 0.85em, which on a desk is a
+// mouse target and on a phone is not. 44px tall each, since 2026-09-15, with
+// the padding doing it rather than the type so the words stay the size they
+// are. `.ride-card--binned .linkbtn` is Undo, which is the one that matters
+// most: it is the thing a rider is reaching for a second after a mistake.
+@media (max-width: $bp-phone) {
+  .ride-card-foot .editlink,
+  .ride-card-del .linkbtn,
+  .ride-card--binned .linkbtn {
+    display: inline-flex;
+    align-items: center;
+    min-height: 44px;
+    padding: 0 0.5rem;
+  }
+
+  .ride-card-foot {
+    padding-bottom: 0.25rem;
+  }
+}
+
 // What stands where a ride card was, after it went to the bin in place (#175).
 //
 // It keeps .ride-card so it holds the grid track — a card that collapsed would
@@ -1753,7 +1789,8 @@ ul.cards {
   display: flex;
   // NOT wrapping any more. With equal-width tabs a wrap would put one tab alone
   // on a second row at full width, which reads as a heading rather than as a
-  // tab. They share the row and shrink together instead.
+  // tab. They share the row and shrink together instead — at desk width. On a
+  // phone they scroll instead; see the block below.
   gap: 0.25rem;
   margin: 0 0 1rem;
   border-bottom: 1px solid $grey;
@@ -1823,6 +1860,40 @@ ul.cards {
     background: $neutral-94;
     border-radius: 999px;
     padding: 0 0.45em;
+  }
+}
+
+//@ Phone
+// THE STRIP SCROLLS SIDEWAYS rather than shrinking or wrapping, since
+// 2026-09-15. Five nowrap tabs with a count on each do not fit 358px however
+// the padding gives, and the equal-width rule above then overflowed the page.
+// Wrapping was the other answer and is worse: the tab that lands alone on the
+// second row reads as a heading, which is the exact failure the rule above
+// records. So each tab takes its own width and the row scrolls, snapping tab
+// by tab, with the scrollbar hidden because the cut-off edge of the next tab
+// is the affordance. tabs.js brings the active tab into view on load. Applies
+// to /riders' two tabs as well, where it changes nothing they fit.
+//
+// AFTER `.page-tab`, NOT BESIDE `.page-tabs`: the `flex: 0 0 auto` here has
+// the same specificity as the `flex: 1` above and wins only by coming later.
+// It sat above that rule for ten minutes and did nothing.
+@media (max-width: $bp-phone) {
+  .page-tabs {
+    overflow-x: auto;
+    scrollbar-width: none;
+    scroll-snap-type: x proximity;
+    -webkit-overflow-scrolling: touch;
+
+    &::-webkit-scrollbar {
+      display: none;
+    }
+  }
+
+  .page-tab {
+    flex: 0 0 auto;
+    scroll-snap-align: start;
+    // 44px, the phone target. The strip's own height follows.
+    min-height: 44px;
   }
 }
 

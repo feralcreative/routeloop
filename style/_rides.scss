@@ -32,3 +32,17 @@
   font-size: 0.85em;
   color: $neutral-57;
 }
+
+//@ Phone
+// ONE COLUMN. `.ride-cards--dense` is `minmax(11rem, 1fr)`, which on a 390px
+// phone is two 11rem cards with the title truncated to a word each. One card
+// across, the face at the width of the screen, is what the list is FOR on a
+// phone: find the ride, read its name, tap it. `min(100%, 16rem)` rather than
+// a bare `16rem` so the track can never be wider than its container — a bare
+// minimum overflows the page on anything narrower than the number.
+@media (max-width: $bp-phone) {
+  .rides-page .ride-cards--dense {
+    grid-template-columns: repeat(auto-fill, minmax(min(100%, 16rem), 1fr));
+    gap: 1rem;
+  }
+}

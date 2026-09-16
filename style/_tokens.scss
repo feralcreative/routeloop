@@ -414,6 +414,17 @@ $splash-ink: #0a0e11;
 // width are two different numbers and this is only the second one.
 $page-max: 1200px;
 
+// THE PHONE SEAM, since 2026-09-15. 767px is the width the map drawer already
+// becomes a bottom sheet at (_map.scss) and the feedback dock already clears
+// it at — the one seam the app had been using consistently before it had a
+// name. FOR NEW RULES ONLY: the 767/768/992 literals already in the sheets
+// stay as they are. Retrofitting them is a forty-odd-query diff that changes
+// nothing on screen, and a literal beside a token is a reader's cue that the
+// rule predates the token rather than a defect. `min-width` counterparts use
+// `$bp-phone + 1`. There are deliberately no other breakpoint tokens: the
+// chrome pages had no shared seam at all, and one is enough to start with.
+$bp-phone: 767px;
+
 $z-map-panel: 1000;
 $z-header: 1200;
 $z-nav: 1300;
