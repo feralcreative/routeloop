@@ -36,25 +36,14 @@
 // src/maps/ride-time.ts and src/stats/shape.ts.
 import { Hono } from 'hono'
 import { raw } from 'hono/html'
-import { rideCards } from '../views/cards'
-import { and, desc, eq } from 'drizzle-orm'
-import { db } from '../db/index'
-import { rides, routes as routesTable } from '../db/schema'
 import { currentUser, requireActive, type AuthEnv } from '../auth/middleware'
 import { page, wordsOf } from '../views/layout'
 import { asset } from '../views/assets'
 import { icon } from '../views/icon'
 import { CardFace } from '../views/cards'
-import { JoinedRideCard, OwnRideCard } from '../views/ride-lists'
-import { RIDE_CEILING, RIDE_PAGE, pageOwned, rideTabOf } from '../rides/tabs'
 import { cachedGlobalStats, cachedUsedBytes, loadStats } from '../stats/query'
 import { shapeStats } from '../stats/shape'
 import type { DashboardStats, MonthPoint, RecordTile, RoleBar, Tile } from '../stats/shape'
-import { followingRides, friendsRides, publicRides } from '../access/query'
-import { LIVE_RIDE, listBinnedRides } from '../trash/service'
-import { binRidesHtml } from '../views/bin'
-import { dateFormatFor } from '../views/prefs'
-import { ridesImOn } from '../members/service'
 import { unitsFor } from '../views/prefs'
 import { Wd, Wds, aWd, cap, wd, wds, wn, type Words } from '../views/vocab'
 import { SEP } from '../views/sep'
@@ -459,69 +448,15 @@ function Sharing({ stats }: { stats: DashboardStats }) {
 homeRoutes.get('/', requireActive, async (c) => {
   const user = currentUser(c)
 
-  // `?rides=all` lifts the cap. Anything else, including a missing parameter and
-  // any value a bot invents, reads as "capped" — the safe answer is the bounded
-  // query, so this tests for the one string rather than for truthiness.
-  const showAll = c.req.query('rides') === 'all'
-
-  // Which tab opens (#343): `/trash` lands here with `?tab=bin`. The rule is
-  // rideTabOf's, in src/rides/tabs.ts.
-  const tab = rideTabOf(c.req.query('tab'))
-  const binError = c.req.query('error')
-
-  const [stats, cached, owned, global, joined, friendly, publik, feed, binned, dateFormat] = await Promise.all([
+  const [stats, cached, global] = await Promise.all([
     loadStats(user.id),
     cachedUsedBytes(user.id),
-    db
-      .select({ ride: rides, color: routesTable.color })
-      .from(rides)
-      .leftJoin(routesTable, and(eq(routesTable.rideId, rides.id), eq(routesTable.position, 0)))
-      .where(and(eq(rides.ownerId, user.id), LIVE_RIDE))
-      // updatedAt, not createdAt. /rides sorted by creation because it was a
-      // catalog; this list has to do that job AND the "pick up where you left
-      // off" one the strip above it used to do, and the ride you touched last is
-      // the answer to the second.
-      .orderBy(desc(rides.updatedAt))
-      // One more than the cap, which is what tells us there IS more without a
-      // second count query. The extra row is sliced off before rendering.
-      //
-      // `?rides=all` raises the ceiling rather than removing it. The list this
-      // replaced had no limit at all and that was the defect, so "all" must not
-      // reintroduce it — a rider with ten thousand rides gets a bounded page and
-      // a query that finishes.
-      .limit(showAll ? RIDE_CEILING : RIDE_PAGE + 1),
     // Cohort averages, shared by every viewer and cached for a minute — four
     // aggregates per dashboard render becomes four per minute. In the same
     // Promise.all as the rest because a cache hit resolves immediately and a
     // miss should not be serialized behind the rider's own queries.
     cachedGlobalStats(),
-    // THE RIDES SOMEBODY ELSE PUT THIS RIDER ON. Without this a membership is
-    // unfindable: a member can open a private ride they were added to, but only
-    // if they were separately handed the link — which makes the invite do
-    // nothing the link was not already doing. Owned rides are excluded inside
-    // ridesImOn, because they are the list below.
-    ridesImOn(user.id),
-    // THE TWO TABS BESIDE THE RIDER'S OWN. Both are bounded lists rather than
-    // the whole corpus — this is a strip on a dashboard, not /explore — and both
-    // exclude the viewer's own rides, which are the first tab.
-    //
-    // friendsRides is the viewer-dependent list src/access/query.ts's header
-    // spent a paragraph saying nothing needed yet. Its rule is isFriendListed()
-    // and test/access-lists.test.ts pins it against canView().
-    friendsRides(user.id, RIDE_PAGE),
-    publicRides(user.id, RIDE_PAGE),
-    // THE FEED (#34). Public rides by riders this one follows — LISTED rides
-    // only, because following grants no visibility: it is one-way and never
-    // agreed to, so it cannot open anything a stranger could not already open.
-    // See the note on the `follows` table in src/db/schema.ts.
-    followingRides(user.id, RIDE_PAGE),
-    // THE BIN'S RIDES (#343): the fifth tab. Owner-only by construction, soonest
-    // purge first, and the places half of the bin lives on /places.
-    listBinnedRides(user.id),
-    dateFormatFor(c),
   ])
-
-  const { visible: visibleRides, hasMore } = pageOwned(owned, showAll)
 
   const units = await unitsFor(c)
   // What the app calls things (#321) — the rider's own preset, since this
@@ -537,11 +472,6 @@ homeRoutes.get('/', requireActive, async (c) => {
   // nothing.
   const countsUp = s.records.some((r) => r.numeric)
   const needsScript = drawChart || countsUp
-  // tabs.js ships on its own schedule, because the ride tabs render whenever the
-  // rider has any rides at all — which includes every rider whose library is
-  // older than twelve months and who therefore gets no chart, and every rider
-  // with no numeric records to count up. Tying it to needsScript would have left
-  // exactly those riders with three headings and one list.
 
   if (s.storageDrift) {
     // Still not shown to the rider — the number they see is the authoritative
@@ -652,261 +582,23 @@ homeRoutes.get('/', requireActive, async (c) => {
           <Meter stats={s} />
 
           {/*
-            The whole list, not a strip. This was six rides under "Picking up
-            where you left off" with a link out to /rides; that page folded into
-            this one on 2026-08-24, so the heading names what it now holds.
+            THE RIDES LEFT THIS PAGE ON 2026-09-15. They sat under the stats from
+            2026-08-24 (see the header) and the phone is why they went: the list
+            is the page a rider opens on a phone to load a ride, and eight
+            blocks of stats above it is not a page a thumb can use. /rides is the
+            list; this is the one link to it, sized like the sections above so
+            the page still ends on something rather than on a chart.
 
-            OwnRideRow rather than rideCards(): every ride here is the viewer's
-            own, so each carries a visibility pill and an edit link that the
-            public card must never show.
+            One link and not a second sign beside Plan a ride: the hero comment
+            above says one CTA, and it still does.
           */}
-          {/*
-            ABOVE the rider's own rides, not below. This is the short list and
-            the one carrying news — somebody added you to something — where the
-            list below is the one they already know about. A rider on no rides
-            sees nothing at all rather than an empty heading.
-          */}
-          {joined.length > 0 && (
-            <section class="stat-block">
-              <h2>{Wd(w, 'travel')} with others</h2>
-              <p class="sub">
-                {joined.length} {wn(w, 'journey', joined.length)} you were added to
-              </p>
-              <ul class="ride-cards ride-cards--dense">
-                {joined.map((j) => (
-                  <JoinedRideCard ride={j.ride} rsvp={j.rsvp} units={units} />
-                ))}
-              </ul>
-            </section>
-          )}
-
-          {/*
-            THREE TABS: the rider's own rides, their friends', and everyone's.
-            Ziad's call, 2026-08-26. One strip rather than three stacked sections
-            because they answer the same question about three audiences, and a
-            dashboard that ran all three at full length would be a page nobody
-            reaches the bottom of.
-
-            RIDING WITH OTHERS IS NOT ONE OF THEM and stays above — see the note
-            on it. It is a different question: membership, not visibility.
-
-            The behavior is public/js/tabs.js, shared with the builder's panel.
-            `data-tabs` is the auto-wiring hook, so this strip needs no code of
-            its own. It also means the page WORKS WITH JAVASCRIPT OFF, just not
-            as a tab strip: every panel below is rendered, and only the two that
-            are `hidden` are hidden — a rider with no JS sees the first list and
-            can still reach /explore and /friends from the nav. That is the same
-            bargain the chart makes two blocks up.
-          */}
-          <section class="stat-block ride-tabs-block">
-            {/*
-              A HEADING ABOVE THE STRIP, because the tabs replaced one — this
-              block used to be `<h2>Your rides</h2>` and a list, and converting it
-              to tabs took the only thing naming the section with it. Every other
-              block on the page has an h2 and this one looked like it had lost
-              one.
-
-              It names the SECTION and the tabs name the audiences, which is why
-              it is "Rides" and not "Your rides": that phrase is now the first
-              tab's label, and a heading repeating its own first tab reads as a
-              mistake.
-
-              The tablist keeps its own aria-label rather than being labeled by
-              this heading. They are two different things to a screen reader —
-              the section is "Rides" and the control inside it is a tab list —
-              and aria-labelledby here would announce the heading twice.
-            */}
-            <h2>Rides</h2>
-            <div class="page-tabs" role="tablist" aria-label="Rides" data-tabs>
-              <button
-                type="button"
-                class={`page-tab${tab === 'mine' ? ' is-active' : ''}`}
-                role="tab"
-                id="tab-mine"
-                aria-controls="rides-mine"
-                aria-selected={tab === 'mine' ? 'true' : 'false'}
-                tabindex={tab === 'mine' ? undefined : -1}
-              >
-                Your {wds(w, 'journey')} <span class="tab-count">{stats.totals.rides}</span>
-              </button>
-              <button
-                type="button"
-                class={`page-tab${tab === 'friends' ? ' is-active' : ''}`}
-                role="tab"
-                id="tab-friends"
-                data-tip="rides-friends"
-                title="Rides your friends have shared"
-                aria-controls="rides-friends"
-                aria-selected={tab === 'friends' ? 'true' : 'false'}
-                tabindex={tab === 'friends' ? undefined : -1}
-              >
-                Friends <span class="tab-count">{friendly.length}</span>
-              </button>
-              {/*
-                FOLLOWING SITS BEFORE PUBLIC, because the strip runs from the
-                narrowest audience to the widest — yours, your friends', the
-                riders you chose to watch, then everyone. Following after Public
-                would put the general case in the middle of two specific ones.
-              */}
-              <button
-                type="button"
-                class={`page-tab${tab === 'following' ? ' is-active' : ''}`}
-                role="tab"
-                id="tab-following"
-                data-tip="rides-following"
-                title={`${Wds(w, 'journey')} from ${wds(w, 'person')} you follow`}
-                aria-controls="rides-following"
-                aria-selected={tab === 'following' ? 'true' : 'false'}
-                tabindex={tab === 'following' ? undefined : -1}
-              >
-                Following <span class="tab-count">{feed.length}</span>
-              </button>
-              <button
-                type="button"
-                class={`page-tab${tab === 'public' ? ' is-active' : ''}`}
-                role="tab"
-                id="tab-public"
-                aria-controls="rides-public"
-                aria-selected={tab === 'public' ? 'true' : 'false'}
-                tabindex={tab === 'public' ? undefined : -1}
-              >
-                Public <span class="tab-count">{publik.length}</span>
-              </button>
-              {/*
-                THE BIN IS THE LAST TAB (#343). Ziad's call, 2026-09-13: the bin
-                is where a ride goes, so it belongs beside the lists it left.
-                The count shows even at zero — an empty bin reading 0 is the
-                answer to "did that delete work", where a tab that vanishes is
-                a question.
-              */}
-              <button
-                type="button"
-                class={`page-tab${tab === 'bin' ? ' is-active' : ''}`}
-                role="tab"
-                id="tab-bin"
-                aria-controls="rides-bin"
-                aria-selected={tab === 'bin' ? 'true' : 'false'}
-                tabindex={tab === 'bin' ? undefined : -1}
-              >
-                Recycle bin <span class="tab-count">{binned.length}</span>
-              </button>
-            </div>
-
-            {/*
-              OwnRideCard rather than views/cards.tsx's Card: every ride here is
-              the viewer's own, so each carries a visibility pill and an edit
-              link that the other two tabs must never show.
-            */}
-            <div
-              class={`page-tabpanel${tab === 'mine' ? ' is-active' : ''}`}
-              role="tabpanel"
-              id="rides-mine"
-              aria-labelledby="tab-mine"
-              tabindex={0}
-              hidden={tab !== 'mine'}
-            >
-              <ul class="ride-cards ride-cards--dense">
-                {visibleRides.map((r) => (
-                  <OwnRideCard {...r} units={units} />
-                ))}
-              </ul>
-              {hasMore && (
-                <p>
-                  <a class="linkbtn" href="/?rides=all">
-                    Show all {stats.totals.rides}
-                  </a>
-                </p>
-              )}
-            </div>
-
-            {/*
-              Rides a friend set to Friends — isFriendListed() in
-              src/access/policy.ts, which is the rule, and NOT their public ones:
-              those are the next tab, and a ride in both reads as a duplicate
-              rather than as two answers.
-            */}
-            <div
-              class={`page-tabpanel${tab === 'friends' ? ' is-active' : ''}`}
-              role="tabpanel"
-              id="rides-friends"
-              aria-labelledby="tab-friends"
-              tabindex={0}
-              hidden={tab !== 'friends'}
-            >
-              {raw(
-                rideCards(friendly, false, {
-                  units,
-                  dense: true,
-                  empty: `Nothing here yet. ${cap(aWd(w, 'journey'))} shows up when a friend sets one to Friends.`,
-                }),
-              )}
-            </div>
-
-            {/*
-              Every row here is a ride /explore would also show — following is
-              not a key to anything. The empty state names the verb rather than
-              the tab, because a rider whose feed is empty has almost always not
-              followed anybody rather than followed quiet people.
-            */}
-            <div
-              class={`page-tabpanel${tab === 'following' ? ' is-active' : ''}`}
-              role="tabpanel"
-              id="rides-following"
-              aria-labelledby="tab-following"
-              tabindex={0}
-              hidden={tab !== 'following'}
-            >
-              {raw(
-                rideCards(feed, false, {
-                  units,
-                  dense: true,
-                  empty: `Nothing here yet. Follow ${aWd(w, 'person')} and their public ${wds(w, 'journey')} show up in this tab.`,
-                }),
-              )}
-              <p>
-                <a class="linkbtn" href="/riders">
-                  Find {wds(w, 'person')} to follow
-                </a>
-              </p>
-            </div>
-
-            {/*
-              Ordered by update rather than by view count, because this strip is
-              "what is happening" and /explore is still the surface that ranks —
-              which is what the link below it is for.
-            */}
-            <div
-              class={`page-tabpanel${tab === 'public' ? ' is-active' : ''}`}
-              role="tabpanel"
-              id="rides-public"
-              aria-labelledby="tab-public"
-              tabindex={0}
-              hidden={tab !== 'public'}
-            >
-              {raw(
-                rideCards(publik, false, {
-                  units,
-                  dense: true,
-                  empty: `Nobody else has published ${aWd(w, 'journey')} yet.`,
-                }),
-              )}
-              <p>
-                <a class="linkbtn" href="/explore">
-                  Explore all public {wds(w, 'journey')}
-                </a>
-              </p>
-            </div>
-
-            <div
-              class={`page-tabpanel${tab === 'bin' ? ' is-active' : ''}`}
-              role="tabpanel"
-              id="rides-bin"
-              aria-labelledby="tab-bin"
-              tabindex={0}
-              hidden={tab !== 'bin'}
-            >
-              {raw(binRidesHtml(binned, dateFormat, binError, w))}
-            </div>
+          <section class="stat-block">
+            <h2>{Wds(w, 'journey')}</h2>
+            <p class="sub">
+              {stats.totals.rides} {wn(w, 'journey', stats.totals.rides)} planned
+              {SEP}
+              <a href="/rides">All your {wds(w, 'journey')}</a>
+            </p>
           </section>
         </>
       ) : (
@@ -929,14 +621,12 @@ homeRoutes.get('/', requireActive, async (c) => {
       // inlined into _dashboard.scss instead, so the chart costs one request
       // rather than two and can be themed with the rest of the page.
       tb: drawChart ? { months: s.months } : undefined,
-      scripts:
-        needsScript || s.hasRides
-          ? [
-              s.hasRides ? `<script src="${asset('/js/tabs.js')}" defer></script>` : '',
-              drawChart ? `<script src="${asset('/js/uplot.min.js')}"></script>` : '',
-              needsScript ? `<script src="${asset('/js/dashboard.js')}"></script>` : '',
-            ].join('')
-          : undefined,
+      scripts: needsScript
+        ? [
+            drawChart ? `<script src="${asset('/js/uplot.min.js')}"></script>` : '',
+            `<script src="${asset('/js/dashboard.js')}"></script>`,
+          ].join('')
+        : undefined,
     }),
   )
 })

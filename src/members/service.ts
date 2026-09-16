@@ -313,8 +313,9 @@ export async function invitableFriends(rideId: number, viewerId: number) {
   return rows.filter((r): r is { id: number; displayName: string; username: string } => r.username !== null)
 }
 
-/** Rides this rider is on but does not own — what the dashboard shows under
- *  "riding with". Their own rides are already the page's main list.
+/** Rides this rider is on but does not own — the tail of Your rides on /rides,
+ *  after the rides they own. `owner` is who put them on it, because a card in
+ *  a list of your own rides needs to say why this one is not.
  *
  *  LIVE_RIDE IS LOAD-BEARING HERE FOR THE SAME REASON IT IS IN EVERY OTHER RIDE
  *  LIST, AND THIS WAS THE ONE THAT DID NOT HAVE IT. Binning a ride kills its
@@ -328,7 +329,7 @@ export async function invitableFriends(rideId: number, viewerId: number) {
  *  keeps them visible. */
 export async function ridesImOn(viewerId: number) {
   return db
-    .select({ ride: rides, role: rideMembers.role, rsvp: rideMembers.rsvp })
+    .select({ ride: rides, role: rideMembers.role, rsvp: rideMembers.rsvp, owner: users.displayName })
     .from(rideMembers)
     .innerJoin(rides, eq(rides.id, rideMembers.rideId))
     .innerJoin(users, and(eq(users.id, rides.ownerId), isNull(users.deletionRequestedAt)))

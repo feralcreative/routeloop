@@ -1,6 +1,7 @@
 // THE RECYCLE BIN'S TWO HALVES, AS FRAGMENTS (#343). Ziad's call, 2026-09-13:
-// binned things sit beside the list they left — the rides on the dashboard's
-// last Rides tab, the places and groups in a fold under the list on /places —
+// binned things sit beside the list they left — the rides on the last tab of
+// /rides (the dashboard's, until 2026-09-15), the places and groups in a fold
+// under the list on /places —
 // so there is no bin page any more and these are what those two pages render.
 // A view rather than a piece of routes/trash.tsx because account-page.tsx
 // composes it, and that file imports no route module by rule. The verbs stay
@@ -37,11 +38,11 @@ function RestoreForm({ action, label, back }: { action: string; label: string; b
   )
 }
 
-export const RIDES_BIN = '/?tab=bin'
+export const RIDES_BIN = '/rides?tab=bin'
 export const PLACES_BIN = '/places'
 
 /**
- * The rides half of the bin, for the dashboard's Recycle bin tab (#343).
+ * The rides half of the bin, for the Recycle bin tab on /rides (#343).
  * Storage is freed the moment a ride is binned, so that is said plainly — a
  * rider looking at the bin while up against their limit should not think these
  * are still costing them.

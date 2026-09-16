@@ -210,12 +210,14 @@ describe('areaFromPath', () => {
     expect(areaFromPath('/rides/')).toBe('my_rides')
   })
 
-  // `/` used to return null. It holds the rider's ride list as of 2026-08-24 —
-  // /rides folded into it — so a report filed from the dashboard is about their
-  // rides far more often than not.
-  it('maps the dashboard to my_rides, because it is now the ride list too', () => {
+  // `/` used to return null. The list lived on it from 2026-08-24 and left for
+  // /rides on 2026-09-15; the dashboard stays in the bucket because it is the
+  // rider's own numbers and a report filed from it is about their rides far
+  // more often than about a chart.
+  it('maps the dashboard and the ride list to my_rides', () => {
     expect(areaFromPath('/')).toBe('my_rides')
-    expect(areaFromPath('/?rides=all')).toBe('my_rides')
+    expect(areaFromPath('/rides?tab=bin')).toBe('my_rides')
+    expect(areaFromPath('/rides?show=all')).toBe('my_rides')
   })
 
   // Inference, not truth. Null is always safe: the flow falls back to the cold

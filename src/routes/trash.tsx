@@ -9,11 +9,12 @@
 // that genuinely are JavaScript.
 //
 // THE BIN HAS NO PAGE OF ITS OWN SINCE #343. Ziad's call, 2026-09-13: binned
-// things sit beside the list they left — the rides on the dashboard's last
-// Rides tab, the places and groups under the list on /places — so `/trash`
-// redirects to the dashboard's bin tab (the purge-warning email links to it)
-// and the two fragments below are what those pages render. The verbs stay
-// here, and each carries its caller back to where it pressed the button.
+// things sit beside the list they left — the rides on the last tab of /rides
+// (the dashboard's, until the list moved on 2026-09-15), the places and groups
+// under the list on /places — so `/trash` redirects to that bin tab (the
+// purge-warning email links to it) and the two fragments in views/bin.tsx are
+// what those pages render. The verbs stay here, and each carries its caller
+// back to where it pressed the button.
 //
 // There is deliberately NO "empty the bin" and no per-item "delete forever".
 // Leaving something here costs nothing — the quota is already freed and the
@@ -87,9 +88,9 @@ trashRoutes.post('/trash/rides/:id/bin', requireActive, requireSameOrigin, async
   const user = currentUser(c)
   const id = idOf(c.req.param('id'))
   if (id) await trashRide(user.id, id)
-  // Home either way. A missing id means the ride was already gone, which is the
-  // state the rider was asking for.
-  return c.redirect('/', 302)
+  // The list either way. A missing id means the ride was already gone, which is
+  // the state the rider was asking for.
+  return c.redirect('/rides', 302)
 })
 
 trashRoutes.post('/trash/rides/:id/restore', requireActive, requireSameOrigin, async (c) => {
