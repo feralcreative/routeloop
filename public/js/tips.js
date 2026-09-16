@@ -61,6 +61,8 @@
       "Who is on this stretch of road. Leave it alone and the {route} is taken by everyone who was on the {route} before it; tick a group to say somebody joins or peels off here.",
 
     // ——— A point row ———
+    "row-name":
+      "Type to rename this point. Keep typing and a list opens under it—pick a place from the list and it replaces this one, keeping its notes, its stop time and its place in the {route}.",
     "row-drag":
       "Drag to move this point earlier or later in the {route}, or tab to it and use the up and down arrow keys. The legs either side are re-routed once you let go.",
     "row-dur":
