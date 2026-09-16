@@ -11,7 +11,7 @@ import { raw } from 'hono/html'
 import { wordmark } from './logo'
 import { asset } from './assets'
 import { THEME_COLOR } from './sw'
-import { DEFAULT_VOCAB, Wd, Wds, aWd, clientTerms, vocabOf, wordsFor, type Words } from './vocab'
+import { DEFAULT_VOCAB, Wd, Wds, aWd, clientTerms, vocabOf, wds, wordsFor, type Words } from './vocab'
 import { IS_DEV, IS_STAGE } from '../config'
 import { APP_VERSION, BUILD_SHA, IS_DEV_BUILD, commitUrl } from '../version'
 import { icon } from './icon'
@@ -60,10 +60,13 @@ export type NavKey =
   | 'home'
   | 'explore'
   | 'riders'
-  // No 'rides' member. It was removed on 2026-08-24 when /rides folded into /,
-  // and removing it is the point rather than tidiness: a key no NavItem carries
-  // is an aria-current state that is wired and can never fire, which is exactly
-  // the bug 'home' sat in for months. See docs/main-menu.md.
+  // 'rides' IS BACK, since 2026-09-15, set by /rides and carried by the first
+  // item of the Rides group. It was removed on 2026-08-24 when /rides folded
+  // into /, and removing it was the point rather than tidiness: a key no
+  // NavItem carries is an aria-current state that is wired and can never fire,
+  // which is exactly the bug 'home' sat in for months. The rule stands — the
+  // member returns only because an item carries it again. See docs/main-menu.md.
+  | 'rides'
   | 'builder'
   | 'import'
   | 'places'
@@ -207,11 +210,14 @@ type NavItem = { key: NavKey; href: string; label: string }
 // LABELED, which a logo is not.
 const DASH_LINK: NavItem = { key: 'home', href: '/', label: 'Dash' }
 
-// Three verbs, which is what the group reads as now that the destination came
-// out of it.
+// A destination and three verbs. The destination left the group on 2026-08-27
+// when the list folded into /, and came back first on 2026-09-15 when the list
+// got its own page again — under the "Rides" label, the label "Your rides"
+// says what the 2026-08-27 entry in docs/main-menu.md said it needed.
 // A FUNCTION OF THE WORDS since #321: "Plan a ride" is "Plan a trip" to a
 // rider whose preset is a car, and the group is labeled with their plural.
 const ridesLinks = (w: Words): NavItem[] => [
+  { key: 'rides', href: '/rides', label: `Your ${wds(w, 'journey')}` },
   { key: 'builder', href: '/builder', label: `Plan ${aWd(w, 'journey')}` },
   { key: 'explore', href: '/explore', label: `Find ${aWd(w, 'journey')}` },
   { key: 'import', href: '/import', label: 'Import / Export' },

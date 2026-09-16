@@ -16,6 +16,7 @@ Exit map              /                (map pages only)
 Dash                  /                (plain link, no panel)
 
 Rides ▾
+  Your rides          /rides
   Plan a ride         /builder
   Find a ride         /explore
   Import / Export     /import
@@ -47,9 +48,11 @@ About ▾
 
 **`Admin` left the bar on 2026-08-29** (#194). It was a fourth top-level group holding four links, taking a top-level slot from every rider-facing destination on the widest nav the app has—and only the one rider who owns the site ever saw it. It sits under the account on the same argument that put the recycle bin there: that menu holds what acts on WHO YOU ARE rather than on what you are planning, and "I am the person who approves riders" is exactly that. **Flattened behind a rule rather than nested as a second disclosure**—a menu that opens into another menu is two taps to reach a link that was one, and the four labels say what they are without a heading over them. **Last, above Sign out**, because an admin is still a rider first and their own profile, settings and bin should not sit below four moderation queues.
 
-**`Recycle bin` left the menu on 2026-09-13** (#343). It sat under the account because the bin held saved places and place groups as well as rides. The bin has no page now: binned rides are the last tab under Rides on the dashboard, binned places and groups a fold under the list on `/places`, and `/trash` redirects to the dashboard's bin tab because the purge-warning email links to it. The old reasoning—that the bin belongs to the rider rather than to their rides—is struck rather than left to be rediscovered: binned things sit beside the list they left.
+**`Recycle bin` left the menu on 2026-09-13** (#343). It sat under the account because the bin held saved places and place groups as well as rides. The bin has no page now: binned rides are the last tab on `/rides` (the dashboard until 2026-09-15), binned places and groups a fold under the list on `/places`, and `/trash` redirects to that tab because the purge-warning email links to it. The old reasoning—that the bin belongs to the rider rather than to their rides—is struck rather than left to be rediscovered: binned things sit beside the list they left.
 
 **`Dash` is first and it is not in the Rides group.** Decided 2026-08-27. It was `Your rides` at the head of that menu, labeled for the destination rather than the location on the grounds that the group was already called Rides. Outside the group that reasoning inverts: with no "Rides" above it the label competes with the three verbs still in the menu, and the page is the stat tiles and Your records before it is a list of rides. The key stays `home`, so `navKey` and the `aria-current` it drives are untouched. The wordmark links to `/` as well, which is ordinary—`Dash` earns its place by being labeled, which a logo is not.
+
+**`Your rides` is back in the Rides group, first, since 2026-09-15.** Ziad's call, reversing the 2026-08-24 fold of `/rides` into `/` and answering the 2026-08-27 entry above in the other direction: the list has its own page again, so the label sits under the "Rides" heading that the entry said it needed, and Dash stays first as the page with the numbers on it. The phone is why. The job on a phone is to look up a planned ride and load it, and a list under eight blocks of stats is not a page a thumb can use; `/rides` is also what the installed app opens on. `NavKey` regains `'rides'`, carried by this item, so the union's rule—a key with no item is a dead `aria-current`—is met on both sides.
 
 Plus one thing that is not in the tree: a floating dock holding a **bug** mark and a **what's new** mark, on every page a signed-in rider can reach. See the decision below.
 
