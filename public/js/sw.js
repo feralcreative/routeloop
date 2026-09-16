@@ -201,6 +201,11 @@
       return;
     }
 
+    // Every other navigation, INCLUDING /rides — the manifest's start_url since
+    // 2026-09-15. A signed-in page is never stored, and it is deliberately not
+    // in DENY: this branch is what turns an installed app opened with no
+    // signal into the offline page listing the kept rides, where a denied
+    // path would get the browser's own error page.
     if (request.mode === "navigate") {
       event.respondWith(
         fetch(request).catch(function () {

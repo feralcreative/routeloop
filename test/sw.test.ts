@@ -291,6 +291,27 @@ describe('a kept ride', () => {
     const any = await drive(handlers, '/', { mode: 'navigate' })
     expect(await any.response!.text()).toBe('no signal')
   })
+
+  // THE START URL RIDES THE PLAIN NAVIGATE BRANCH, on purpose. /rides is a
+  // signed-in page, so it is never stored — but it is deliberately NOT on the
+  // denylist either: denied, an installed app opened with no signal would get
+  // the browser's own error page, where this branch hands it /offline, which
+  // lists the rides kept on the phone. That is the whole point of the app
+  // opening on the list.
+  it('passes the start URL through online, stores nothing, and answers /offline without a network', async () => {
+    const online = boot()
+    await runInstallActivate(online.handlers)
+    const r = await drive(online.handlers, '/rides', { mode: 'navigate' })
+    expect(r.taken).toBe(true)
+    expect(r.response!.status).toBe(200)
+    expect((await online.caches.open('routeloop-kept')).puts).toEqual([])
+    expect((await online.caches.open('routeloop-shell-test-build')).puts).not.toContain(ORIGIN + '/rides')
+
+    const offline = boot({ network: async () => Promise.reject(new TypeError('offline')) })
+    ;(await offline.caches.open('routeloop-shell-test-build')).store.set(ORIGIN + '/offline', new Response('no signal'))
+    const o = await drive(offline.handlers, '/rides', { mode: 'navigate' })
+    expect(await o.response!.text()).toBe('no signal')
+  })
 })
 
 // --- What has to agree across files ---------------------------------------------
@@ -341,7 +362,11 @@ describe('the pieces agree', () => {
     // GPX link traps the rider in a full-screen preview with no way back.
     expect(m.display).toBe('minimal-ui')
     expect(m.scope).toBe('/')
-    expect(m.start_url).toBe('/')
+    // /rides, since 2026-09-15: the phone job is to look up a planned ride and
+    // load it, and that is the list. The id and the scope stay `/` — an id
+    // change is a different app to the platform, and a scope narrower than
+    // the ride pages would open every /m/:slug/go in the browser instead.
+    expect(m.start_url).toBe('/rides')
     expect(m.id).toBe('/')
     expect(Array.isArray(m.icons) && m.icons.length).toBeGreaterThan(0)
     for (const icon of m.icons) expect(existsSync(join('public', icon.src)), icon.src).toBe(true)
