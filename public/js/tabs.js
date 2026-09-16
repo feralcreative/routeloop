@@ -49,11 +49,24 @@
     const tabs = tabsIn(strip);
     if (tabs.length === 0) return;
 
+    // THE ACTIVE TAB IS SCROLLED INTO VIEW, on load and on every selection. On
+    // a phone the page strip scrolls sideways (_chrome.scss), so a strip opened
+    // on its last tab — /rides?tab=bin, where /trash lands — would otherwise
+    // show the first three tabs and no sign of which one is lit. `nearest`
+    // moves nothing when the tab is already visible, and a strip that does not
+    // scroll (the builder's, every strip at desk width) is a no-op. `block`
+    // is `nearest` too, or a page opened on a tab would scroll to the strip.
+    function reveal(tab) {
+      if (tab && tab.scrollIntoView) tab.scrollIntoView({ block: "nearest", inline: "nearest" });
+    }
+    reveal(tabs.find((t) => t.getAttribute("aria-selected") === "true"));
+
     function select(tab) {
       for (const t of tabs) {
         const on = t === tab;
         t.setAttribute("aria-selected", on ? "true" : "false");
         t.classList.toggle("is-active", on);
+        if (on) reveal(t);
         // The roving half: only the selected tab is tabbable.
         if (on) t.removeAttribute("tabindex");
         else t.setAttribute("tabindex", "-1");

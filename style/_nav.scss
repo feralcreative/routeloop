@@ -17,6 +17,15 @@
   margin: 0 auto 1.5rem;
   padding: 1.5rem 2rem 0;
   position: relative;
+
+  //@ Phone
+  // The same 1rem `.page-wrap` takes under the seam, for the reason the 2rem
+  // above is the same 2rem: the logo lines up with the content under it only
+  // while the two paddings agree. Change one and change both.
+  @media (max-width: $bp-phone) {
+    padding-left: max(1rem, env(safe-area-inset-left, 0px));
+    padding-right: max(1rem, env(safe-area-inset-right, 0px));
+  }
 }
 
 .site-logo {
@@ -119,6 +128,34 @@
 
 .nav-tour + .site-menu {
   margin-left: 0;
+}
+
+//@ Phone
+// THREE THINGS DID NOT FIT THE HEADER at 390px and overflowed the page by
+// 36px to the right — the 228px wordmark, the tour sign and the hamburger,
+// with a 1rem gap between each — and had since the sign landed (#340). Seen
+// on 2026-09-15, the day the phone got 1rem gutters, which made it worse by
+// nothing and visible for the first time. Three things give: the wordmark
+// drops to 22px (179px wide, and still the biggest thing in the row), the
+// sign says "tour" with a capital drawn by CSS, and the gaps halve. 179 + 8 +
+// 58 + 8 + 40 fits a 360px Android with the gutters, which is the narrowest
+// phone worth the arithmetic.
+@media (max-width: $bp-phone) {
+  .site-header {
+    gap: 0.5rem;
+  }
+
+  .site-logo img {
+    height: 22px;
+  }
+
+  .nav-tour {
+    text-transform: capitalize;
+
+    .nav-tour-lead {
+      display: none;
+    }
+  }
 }
 
 //@ Motion — the sign's only movement
