@@ -379,7 +379,11 @@ ridesRoutes.get('/rides', requireActive, async (c) => {
       title: `Your ${wds(w, 'journey')}`,
       user,
       navKey: 'rides',
-      bodyClass: 'content-page rides-page',
+      // NOT `content-page`: that caps the page at a 44rem reading measure, which
+      // is right for prose and wrong for a grid of cards — the dashboard drew
+      // this same grid at the full $page-max, and three columns of thumbnails
+      // in a 44rem column is a strip down the middle of a wide screen.
+      bodyClass: 'rides-page',
       body,
       // Both UNCONDITIONAL. tabs.js because the strip is always here; rides.js
       // because the in-place binning is the page's job — on the dashboard it
