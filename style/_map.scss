@@ -2054,56 +2054,84 @@ body.is-arming #map div {
 // show them a code. So the open state is a card over the map at a size someone
 // can scan from arm's length, not a thumbnail in the drawer.
 //
-// A <details>, so it opens with no JavaScript at all — a rider on one bar of
-// signal at a gravel meeting point is exactly who needs this, and a dialog
-// would need the page's scripts to have arrived first.
+// A NATIVE POPOVER (since 2026-09-16; a <details> before), so it opens with no
+// JavaScript at all — a rider on one bar of signal at a gravel meeting point is
+// exactly who needs this, and a dialog would need the page's scripts to have
+// arrived first. See the comment on the markup in src/index.tsx for why the
+// <details> went: its card could not get out from under the timeline bar.
 .qr-share {
   margin-top: 0.6em;
 
-  > summary {
+  > .qr-open {
     display: inline-block;
     padding: 0.5em 0.9em;
     border: 1px solid $grey;
     border-radius: 6px;
+    background: none;
     color: $text;
+    font: inherit;
     font-weight: 600;
     cursor: pointer;
-    // The disclosure triangle reads as "expand a section", and this opens a
-    // panel over the map — closer to a button than to an accordion.
-    list-style: none;
-
-    &::-webkit-details-marker {
-      display: none;
-    }
 
     &:focus-visible {
       outline: 2px solid $brand;
       outline-offset: 2px;
     }
   }
-
-  &[open] > summary {
-    background: $neutral-94;
-  }
 }
 
-// FIXED, CENTERED, AND OVER EVERYTHING. Inside the drawer it would be capped at
-// the drawer's width, which on a phone is most of the screen and on a desktop is
-// 380px — and the desktop case is the one where somebody is holding a laptop up
-// for a group.
+// IN THE TOP LAYER, CENTERED, AND OVER EVERYTHING — which "over everything" was
+// claiming and not delivering while this was a fixed box inside the drawer:
+// the drawer is a stacking context at $z-map-panel and the timeline bar a
+// sibling at the same level, so on every dated ride the code sat under the
+// scrubber. The top layer is above every stacking context on the page and the
+// popover's ::backdrop is the scrim. Inside the drawer it would also be capped
+// at the drawer's width, which on a phone is most of the screen and on a
+// desktop is 380px — and the desktop case is the one where somebody is holding
+// a laptop up for a group.
+//
+// `display: flex` ONLY WHILE OPEN. A popover hides through the UA sheet's
+// `display: none`, and an author `display` on the element outranks it — a
+// plain `display: flex` here would draw the card at all times.
 .qr-card {
+  // The UA gives a popover `position: fixed; inset: 0; margin: auto` and a
+  // border; inset-and-auto-margins is the centering, so it is kept and the
+  // border and padding are replaced.
   position: fixed;
-  top: 50%;
-  left: 50%;
-  transform: translate(-50%, -50%);
-  z-index: 60;
+  inset: 0;
+  margin: auto;
+  width: fit-content;
+  height: fit-content;
+  border: 0;
   box-sizing: border-box;
-  display: flex;
+  display: none;
   flex-direction: column;
   align-items: center;
   gap: 0.5em;
   padding: 1.2em;
   border-radius: 12px;
+
+  &:popover-open {
+    display: flex;
+  }
+
+  // THE DARK BACKDROP. Ziad's call, 2026-09-16: the map and the drawer go
+  // behind a scrim so the code is the only bright thing on the screen — which
+  // is also what a camera wants to lock onto. A tap on it closes the card,
+  // which `popover="auto"` gives for free.
+  &::backdrop {
+    background: rgb(0 0 0 / 62%);
+  }
+
+  // NO POPOVER SUPPORT: the attribute is ignored, the button does nothing, and
+  // the card renders as a plain block under it, in the drawer, at the drawer's
+  // width. Small and legible beats floating and unreachable.
+  @supports not selector(:popover-open) {
+    position: static;
+    display: flex;
+    margin: 0.6em 0 0;
+    width: auto;
+  }
   // WHITE REGARDLESS OF THEME, and this is not an oversight. A camera reads a QR
   // by contrast, and while the spec's decoders handle an inverted code plenty of
   // phone cameras do not — a dark-theme rider holding up a white-on-black code
