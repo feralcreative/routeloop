@@ -62,7 +62,7 @@ import { groupRange } from './bikes/group-range'
 import { liveRoutes } from './routes/live'
 import { routingRoutes } from './routes/routing'
 import { googleMapsLoader, page, panelShell, rideTimeline, wordsOf } from './views/layout'
-import { DEFAULT_VOCAB, Wds, wd, wordsFor, type Words } from './views/vocab'
+import { DEFAULT_VOCAB, Wd, wd, wordsFor, type Words } from './views/vocab'
 import { notFoundPage } from './views/not-found'
 import { asset } from './views/assets'
 import { swScript } from './views/sw'
@@ -853,7 +853,7 @@ function viewerPanel(
               data-tip="viewer-roster"
               title={`Who is on this ${wd(w, 'journey')}`}
             >
-              {Wds(w, 'person')} and the vote
+              {Wd(w, 'journey')} roster
             </a>
           )}
           {/*
