@@ -817,15 +817,16 @@ function viewerPanel(
           */}
           {/*
             The three actions are one wrapping row. Since 2026-09-16 the Edit
-            link and the roster link are signs — a guide sign and a recreation
-            sign — and a sign is inline-flex, so it cannot be made to take its
-            own line by the old `display: block`. The row handles the layout
-            and each control handles only its own field.
+            link and the roster link are signs — a guide sign with no arrow and
+            a recreation sign, so the two stand the same height — and a sign is
+            inline-flex, so it cannot be made to take its own line by the old
+            `display: block`. The row handles the layout and each control
+            handles only its own field.
           */}
           <div class="panel-actions">
             {builderLink && (
               <a
-                class="btn panel-edit"
+                class="btn btn-sign btn-guide panel-edit"
                 href={builderLink.href}
                 data-tip="viewer-edit"
                 title={`Open this ${wd(w, 'journey')} in the builder`}

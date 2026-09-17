@@ -711,6 +711,15 @@ $octagon: polygon(
   }
 }
 
+// A fifth member, 2026-09-16: the guide sign's own field with the arrow off,
+// for a sign that sits BESIDE one of the flat-field signs. The arrow's box is
+// taller than the text line, so an arrowed sign in a row with an arrowless one
+// stood 3px taller and read as a different size — the viewer's Edit and Ride
+// roster pair. Ziad's call.
+.btn.btn-sign.btn-guide {
+  @include sign-field($interstate);
+}
+
 .btn.btn-sign.btn-recreation {
   @include sign-field($recreation);
 }
