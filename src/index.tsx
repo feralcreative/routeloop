@@ -857,27 +857,44 @@ function viewerPanel(
             </a>
           )}
           {/*
-            #226. A <details> rather than a dialog, and that is what makes it
-            work with JavaScript off — a rider standing at a meeting point on one bar
-            of signal is exactly who needs this, and showModal() would need the
-            page's scripts to have arrived. The open state is drawn as a card
-            over the map in _map.scss; nothing here decides that.
+            #226. A NATIVE POPOVER, since 2026-09-16, and a <details> before
+            that. Both open with JavaScript off — a rider standing at a meeting
+            point on one bar of signal is exactly who needs this, and
+            showModal() would need the page's scripts to have arrived — and the
+            popover is what the <details> could not be: IN THE TOP LAYER. The
+            card was `position: fixed` inside the drawer, and the drawer is a
+            stacking context at $z-map-panel with the timeline bar a sibling at
+            the same level, so the code sat under the scrubber; on a phone the
+            sheet's transform also made "fixed" mean "fixed to the sheet". The
+            top layer is above every stacking context on the page, `::backdrop`
+            is the dark scrim, and Escape and a tap outside close it.
+
+            `popovertarget` is declarative, so the button works with no script.
+            A browser without popover ignores the attribute and shows the card
+            inline under the button — _map.scss makes that case a plain card in
+            the drawer rather than a floating one.
 
             The link is printed under the code as well. A QR is unreadable to
             anyone who cannot point a camera at it, and reading the URL out is
             the fallback that always works.
           */}
           {qrSvg && (
-            <details class="qr-share">
-              <summary data-tip="viewer-qr" title="A code a phone camera can read">
+            <div class="qr-share">
+              <button
+                type="button"
+                class="qr-open"
+                popovertarget="qr-card"
+                data-tip="viewer-qr"
+                title="A code a phone camera can read"
+              >
                 Show a QR code
-              </summary>
-              <div class="qr-card">
+              </button>
+              <div class="qr-card" id="qr-card" popover="auto">
                 <div class="qr-code">{raw(qrSvg)}</div>
                 <p class="qr-url">{`${APP_ORIGIN}/m/${m.slug}`}</p>
                 <p class="qr-hint">Point a camera at this to open the {wd(w, 'journey')}.</p>
               </div>
-            </details>
+            </div>
           )}
         </div>
         {/*
