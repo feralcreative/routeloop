@@ -1647,11 +1647,8 @@ ul.cards {
   margin: 0.5rem 0 0;
 }
 
-.panel-roster-link {
-  display: block;
-  margin-top: 0.5rem;
-  font-size: 0.9em;
-}
+// `.panel-roster-link` is a hook and draws nothing since 2026-09-16: the link
+// is a `.btn.btn-sign.btn-recreation`, laid out by `.panel-actions` in _map.
 
 // Rider roster.
 .rider-search {
