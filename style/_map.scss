@@ -1801,9 +1801,10 @@ table.route-table {
 }
 
 // The viewer panel's three actions — Edit, Clone, the roster — in one wrapping
-// row. Since 2026-09-16 Edit is the default guide sign (`.btn`, $interstate,
-// arrow east: it goes somewhere) and the roster is a recreation sign
-// (`.btn-recreation`, $recreation, no arrow) — Ziad's call, both. A sign is
+// row. Since 2026-09-16 Edit is a guide sign with no arrow (`.btn-guide`,
+// $interstate) and the roster is a recreation sign (`.btn-recreation`,
+// $recreation) — Ziad's call, both, and the arrow came off so the two stand
+// the same height, since the arrow's box is taller than the text. A sign is
 // `inline-flex` at (0,3,0), so neither `display: block` nor a `margin-top` on
 // the link itself can lay them out; the row does. Each control carries only
 // its own class as a hook and nothing that fights the sign construction.
