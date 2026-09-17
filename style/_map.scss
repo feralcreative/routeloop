@@ -1800,12 +1800,30 @@ table.route-table {
   }
 }
 
+// The viewer panel's three actions — Edit, Clone, the roster — in one wrapping
+// row. Since 2026-09-16 Edit is the default guide sign (`.btn`, $interstate,
+// arrow east: it goes somewhere) and the roster is a recreation sign
+// (`.btn-recreation`, $recreation, no arrow) — Ziad's call, both. A sign is
+// `inline-flex` at (0,3,0), so neither `display: block` nor a `margin-top` on
+// the link itself can lay them out; the row does. Each control carries only
+// its own class as a hook and nothing that fights the sign construction.
+.panel-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.5rem;
+  margin-top: 0.6em;
+
+  &:empty {
+    display: none;
+  }
+}
+
 // Shown in the viewer panel only to a rider who can open this ride in the
 // builder. Distinct from .route-dl-btn: those are file downloads, this changes
 // the ride, so it reads as an action rather than another gray chip.
 .panel-clone {
   display: inline-block;
-  margin-top: 0.6em;
   padding: 0.4em 0.9em;
   border: 1px solid $grey;
   border-radius: 6px;
@@ -1826,24 +1844,9 @@ table.route-table {
   }
 }
 
-.panel-edit {
-  display: inline-block;
-  margin-top: 0.6em;
-  padding: 0.4em 0.9em;
-  border-radius: 6px;
-  background: $brand;
-  color: $white;
-  text-decoration: none;
-  font-weight: 600;
-  font-size: 0.9em;
-
-  // brightness() rather than a Sass color function: the button's background is
-  // whatever --route-color happens to be at runtime, so there is no compile-time
-  // value to adjust in the first place.
-  &:hover {
-    filter: brightness(0.92);
-  }
-}
+// `.panel-edit` is a hook and draws nothing: the link is a `.btn`, and until
+// 2026-09-16 this rule painted it $brand under $white — the #282 pairing, on
+// the one control every member of a ride presses.
 
 // While a route's "+ Stop" is armed, the whole map is a target. Google writes its
 // own cursor INLINE on the panes it owns, and an author `!important` is what

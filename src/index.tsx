@@ -815,47 +815,56 @@ function viewerPanel(
             A rider who is not on the roster is shown nothing rather than a
             disabled control, since there is no action to enable.
           */}
-          {builderLink && (
-            <a
-              class="panel-edit"
-              href={builderLink.href}
-              data-tip="viewer-edit"
-              title={`Open this ${wd(w, 'journey')} in the builder`}
-            >
-              {builderLink.label}
-            </a>
-          )}
           {/*
-            Offered to a signed-in rider who does not own this public ride —
-            cloning your own is what the builder is for.
+            The three actions are one wrapping row. Since 2026-09-16 the Edit
+            link and the roster link are signs — a guide sign and a recreation
+            sign — and a sign is inline-flex, so it cannot be made to take its
+            own line by the old `display: block`. The row handles the layout
+            and each control handles only its own field.
           */}
-          {clonable && (
-            <button
-              class="panel-clone"
-              type="button"
-              data-clone={m.id}
-              data-tip="viewer-clone"
-              title="Make a copy that is yours"
-            >
-              Clone this {wd(w, 'journey')}
-            </button>
-          )}
-          {/*
-            Members only, and rendered as nothing for everyone else rather than
-            as a disabled control — the same rule the Edit link above follows.
-            Who is coming on a ride is a fact about people; a share link is
-            permission to see a route, not to see the roster.
-          */}
-          {rosterUrl && (
-            <a
-              class="panel-roster-link"
-              href={rosterUrl}
-              data-tip="viewer-roster"
-              title={`Who is on this ${wd(w, 'journey')}`}
-            >
-              {Wd(w, 'journey')} roster
-            </a>
-          )}
+          <div class="panel-actions">
+            {builderLink && (
+              <a
+                class="btn panel-edit"
+                href={builderLink.href}
+                data-tip="viewer-edit"
+                title={`Open this ${wd(w, 'journey')} in the builder`}
+              >
+                {builderLink.label}
+              </a>
+            )}
+            {/*
+              Offered to a signed-in rider who does not own this public ride —
+              cloning your own is what the builder is for.
+            */}
+            {clonable && (
+              <button
+                class="panel-clone"
+                type="button"
+                data-clone={m.id}
+                data-tip="viewer-clone"
+                title="Make a copy that is yours"
+              >
+                Clone this {wd(w, 'journey')}
+              </button>
+            )}
+            {/*
+              Members only, and rendered as nothing for everyone else rather than
+              as a disabled control — the same rule the Edit link above follows.
+              Who is coming on a ride is a fact about people; a share link is
+              permission to see a route, not to see the roster.
+            */}
+            {rosterUrl && (
+              <a
+                class="btn btn-sign btn-recreation panel-roster-link"
+                href={rosterUrl}
+                data-tip="viewer-roster"
+                title={`Who is on this ${wd(w, 'journey')}`}
+              >
+                {Wd(w, 'journey')} roster
+              </a>
+            )}
+          </div>
           {/*
             #226. A NATIVE POPOVER, since 2026-09-16, and a <details> before
             that. Both open with JavaScript off — a rider standing at a meeting
