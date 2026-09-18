@@ -390,7 +390,9 @@ ridesRoutes.get('/rides', requireActive, async (c) => {
       // rode along with dashboard.js, which shipped only when there was a chart
       // to draw or a record to count up, so a rider with neither got a Delete
       // that navigated. That gate was about the chart and never about this.
-      scripts: `<script src="${asset('/js/tabs.js')}" defer></script>\n  <script src="${asset('/js/rides.js')}" defer></script>`,
+      // go-progress.js for staleness(), keep.js for the cache, both ahead of
+      // rides.js, which reads them for the Keep sign on each card.
+      scripts: `<script src="${asset('/js/tabs.js')}" defer></script>\n  <script src="${asset('/js/go-progress.js')}" defer></script>\n  <script src="${asset('/js/keep.js')}" defer></script>\n  <script src="${asset('/js/rides.js')}" defer></script>`,
     }),
   )
 })

@@ -33,9 +33,13 @@
   color: $neutral-57;
 }
 
-// The two big buttons on a card — Load and Edit, or Load and Riders. Rendered
-// on every card and shown only on a phone; see RideCardGo in ride-lists.tsx.
-.ride-card-go {
+// The phone's signs on a card — Load and Keep in their own row, Edit or Riders
+// in the foot. Rendered on every card and shown only on a phone; see
+// RideCardGo in ride-lists.tsx. The foot's sign needs four classes to hide,
+// because `.btn.btn-sign:not([hidden])` in _chrome.scss sets its display three
+// deep and a one-class rule here would lose to it silently.
+.ride-card-go,
+.ride-card-foot .btn.btn-sign.ride-card-foot-sign {
   display: none;
 }
 
@@ -92,11 +96,13 @@
     padding: 0.55rem 0.6rem 0.25rem 0;
   }
 
-  // Load takes the width that is left and Edit sits beside it at its own
+  // Load takes the width that is left and Keep sits beside it at its own
   // size — the number one use of a phone here is loading a planned ride into
-  // a GPS, and Edit is deliberately much smaller and off the green so it
-  // cannot compete. A sign is inline-flex and a grid cell blockifies it to
-  // the track, so Load is as wide as its column with no rule on the sign.
+  // a GPS, and everything else is deliberately much smaller and off the green
+  // so it cannot compete. A sign is inline-flex and a grid cell blockifies it
+  // to the track, so Load is as wide as its column with no rule on the sign.
+  // Keep ships `hidden` and rides.js un-hides it where a copy can be held;
+  // hidden, the row is Load alone at the full width.
   .ride-card-go {
     grid-column: 2;
     grid-row: 2;
@@ -111,14 +117,15 @@
       padding: 0.7rem 0.5rem;
       font-size: 1.05em;
     }
+  }
 
-    // Four classes deep because `sign-field()` sets its padding on
-    // `.btn.btn-sign.btn-services`, three deep, and a two-deep rule here
-    // loses to it silently — the sign stayed 43px tall for a build.
-    .btn.btn-sign.ride-card-go-minor {
-      padding: calc(0.3rem + 0.1em) 0.7rem calc(0.3rem - 0.1em);
-      font-size: 0.8em;
-    }
+  // The small signs — Keep beside Load, Edit or Riders in the foot. Four
+  // classes deep because `sign-field()` sets its padding on
+  // `.btn.btn-sign.btn-services`, three deep, and a two-deep rule here loses
+  // to it silently — the sign stayed 43px tall for a build.
+  .rides-page .btn.btn-sign.ride-card-go-minor {
+    padding: calc(0.3rem + 0.1em) 0.7rem calc(0.3rem - 0.1em);
+    font-size: 0.8em;
   }
 
   .rides-page .ride-card-foot {
@@ -127,9 +134,14 @@
     padding: 0 0.6rem 0.55rem 0;
   }
 
-  // The small Edit and Riders links say what the signs above them now say
-  // louder. The pill and Delete stay: nothing else carries either.
+  // The foot swaps its text link for the sign: Edit ride in amber, the work
+  // zone, or Riders in brown. The pill and Delete stay: nothing else carries
+  // either. Five deep to beat the four-deep hide above.
   .rides-page .ride-card-foot .editlink {
     display: none;
+  }
+
+  .rides-page .ride-card-foot .btn.btn-sign.ride-card-foot-sign {
+    display: inline-flex;
   }
 }

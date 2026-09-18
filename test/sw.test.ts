@@ -17,7 +17,9 @@ import { PRECACHE_PATHS, OFFLINE_PATH, precacheUrls, swBuild, swScript } from '.
 
 const ORIGIN = 'https://routeloop.app'
 const SW_SRC = readFileSync('public/js/sw.js', 'utf8')
-const GO_SRC = readFileSync('public/js/go.js', 'utf8')
+// keep.js, not go.js: the kept cache moved into its own module on 2026-09-17
+// when the ride list grew a Keep sign, and go.js no longer names the cache.
+const KEEP_SRC = readFileSync('public/js/keep.js', 'utf8')
 
 // --- A tiny Cache API ---------------------------------------------------------
 
@@ -317,12 +319,12 @@ describe('a kept ride', () => {
 // --- What has to agree across files ---------------------------------------------
 
 describe('the pieces agree', () => {
-  it('names the kept cache the same in go.js and sw.js', () => {
-    const inGo = /KEPT_CACHE = "([^"]+)"/.exec(GO_SRC)?.[1]
+  it('names the kept cache the same in keep.js and sw.js', () => {
+    const inKeep = /KEPT_CACHE = "([^"]+)"/.exec(KEEP_SRC)?.[1]
     const inSw = /var KEPT = "([^"]+)"/.exec(SW_SRC)?.[1]
-    expect(inGo).toBe('routeloop-kept')
-    expect(inSw).toBe(inGo)
-    expect(/REGISTRY_PREFIX = "\/_kept\/"/.test(GO_SRC)).toBe(true)
+    expect(inKeep).toBe('routeloop-kept')
+    expect(inSw).toBe(inKeep)
+    expect(/REGISTRY_PREFIX = "\/_kept\/"/.test(KEEP_SRC)).toBe(true)
     expect(/REGISTRY_PREFIX = "\/_kept\/"/.test(SW_SRC)).toBe(true)
   })
 

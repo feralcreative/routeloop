@@ -28,26 +28,45 @@ import { SEP } from './sep'
 // by closing the outer one early, which silently drops half the card out of the
 // link. The foot is a sibling of the link, and the card's own padding is what
 // makes the two read as one object.
-// THE BIG BUTTON A THUMB GETS, AND THE SMALL ONE UNDER IT, 2026-09-17. Ziad's
-// call: on a phone the list is two columns, and a big Load matters more than a
-// big map — the number one use of a phone here, by leaps and bounds, is to
-// load a ride that is already planned into a GPS. Load is the guide sign with
-// its arrow, full width. The second sign is deliberately MUCH SMALLER AND A
-// DIFFERENT COLOR, so it cannot compete: a blue services sign for Edit, a
-// recreation sign for Riders. They render on EVERY card, because the markup
+// THE BIG BUTTON A THUMB GETS, AND THE SMALL ONES AROUND IT, 2026-09-17.
+// Ziad's calls, in passes on an emulated phone: the list is rows, and a big
+// Load matters more than a big map — the number one use of a phone here, by
+// leaps and bounds, is to load a ride that is already planned into a GPS. Load
+// is the guide sign with its arrow and takes the width; beside it a small blue
+// Keep, which stores the ride on the phone for when there is no signal — the
+// same act as Keep on this phone on the On the road page, through the same
+// keep.js — and, in the foot, a small amber Edit (work zone) or a brown Riders.
+// Every one of them is deliberately much smaller and off the green so it
+// cannot compete with Load. They render on EVERY card, because the markup
 // cannot know the width; the phone rule in _rides.scss is what shows them, and
-// the foot's small Edit and Riders links are what it hides in exchange. On a
-// desktop the block is `display: none` and the card is exactly what it was.
+// the foot's small text links are what it hides in exchange. On a desktop the
+// row is `display: none` and the card is exactly what it was.
+//
+// KEEP SHIPS `hidden` AND rides.js UN-HIDES IT, only where the browser has a
+// Cache API and a service worker — a sign that promises a copy on a phone that
+// cannot hold one is worse than no sign. It is a <button>, not a link: nothing
+// navigates, the manifest is fetched from /m/:slug/keep.json when pressed.
 //
 // OUTSIDE THE CARD'S ANCHOR, like the foot and for the same reason: an <a>
 // inside an <a> is invalid and a browser closes the outer one early.
-function RideCardGo({ slug, children }: { slug: string; children?: unknown }) {
+function RideCardGo({ ride }: { ride: RideRow }) {
   return (
     <div class="ride-card-go">
-      <a class="btn btn-sign" href={`/m/${slug}`}>
+      <a class="btn btn-sign" href={`/m/${ride.slug}`}>
         Load ride
       </a>
-      {children}
+      {/* data-updated is what lets a kept copy say it has gone stale: the
+          registry row remembers the updatedAt it was kept at, and this is the
+          live one. */}
+      <button
+        type="button"
+        class="btn btn-sign btn-services ride-card-go-minor"
+        data-keep={ride.slug}
+        data-updated={ride.updatedAt.toISOString()}
+        hidden
+      >
+        Keep
+      </button>
     </div>
   )
 }
@@ -92,16 +111,16 @@ export function JoinedRideCard({
           <span class="ride-card-owner">Planned by {owner}</span>
         </span>
       </a>
-      <RideCardGo slug={ride.slug}>
-        <a class="btn btn-sign btn-recreation ride-card-go-minor" href={`/m/${ride.slug}/riders`}>
-          Riders
-        </a>
-      </RideCardGo>
+      <RideCardGo ride={ride} />
       <div class="ride-card-foot">
         <span class="pill">{RSVP_LABELS[rsvp]}</span>
         {/* Straight to the roster rather than to the ride, because answering is
-            the thing this card is asking for. */}
+            the thing this card is asking for. Twice: the text link for a
+            desktop, the small sign for a phone; _rides.scss shows one. */}
         <a class="editlink" href={`/m/${ride.slug}/riders`}>
+          Riders
+        </a>
+        <a class="btn btn-sign btn-recreation ride-card-go-minor ride-card-foot-sign" href={`/m/${ride.slug}/riders`}>
           Riders
         </a>
       </div>
@@ -122,18 +141,18 @@ export function OwnRideCard({ ride, color, units }: { ride: RideRow; color: stri
           </span>
         </span>
       </a>
-      <RideCardGo slug={ride.slug}>
-        <a class="btn btn-sign btn-services ride-card-go-minor" href={`/builder/${ride.id}`}>
-          Edit ride
-        </a>
-      </RideCardGo>
+      <RideCardGo ride={ride} />
       <div class="ride-card-foot">
         <span class="pill">{ride.visibility}</span>
         {/* Every own ride is editable now, imported ones included — this used to
             test `ride.source === 'native'` because the builder could not open an
-            import. It can; see canEditRide in ./maps. */}
+            import. It can; see canEditRide in ./maps. Twice: the text link for
+            a desktop, the small amber sign for a phone; _rides.scss shows one. */}
         <a class="editlink" href={`/builder/${ride.id}`}>
           Edit
+        </a>
+        <a class="btn btn-sign btn-warning ride-card-go-minor ride-card-foot-sign" href={`/builder/${ride.id}`}>
+          Edit ride
         </a>
         {/* NO "are you sure?". This moves the ride to the recycle bin, where it
             sits for thirty days with a button to undo — the bin is the

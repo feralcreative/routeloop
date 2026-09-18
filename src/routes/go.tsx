@@ -95,6 +95,48 @@ const FILES = [
   { format: 'native', label: 'Routeloop file', ext: NATIVE_EXT, mime: 'application/json', note: 'Everything, for bringing the ride back into Routeloop' },
 ] as const
 
+// THE KEEP MANIFEST: the six fields a kept ride's registry row holds (see
+// public/js/keep.js), built once here for the page's `window.TB.go` and for the
+// endpoint below, so the two cannot describe different files. The URLs carry
+// `?group` forward so a kept copy is whose copy the page is, and `?dl` so the
+// server names the files; names come from the same convention the download
+// route uses, because the client never parses a Content-Disposition header it
+// may not see through a cache.
+async function keepManifest(m: { id: number; slug: string; title: string; updatedAt: Date }, groupQ: string | undefined) {
+  const group = groupQ ? `&group=${encodeURIComponent(groupQ)}` : ''
+  const startDate = await rideStartDate(m.id)
+  const files = FILES.map((f) => ({
+    format: f.format,
+    label: f.label,
+    note: f.note,
+    mime: f.mime,
+    url: `/api/public/maps/${m.slug}/${f.format === 'native' ? NATIVE_EXT : f.format}?dl${group}`,
+    name: buildExportName({ ride: m.title, date: startDate, ext: f.ext }),
+  }))
+  const q = groupQ ? `?group=${encodeURIComponent(groupQ)}` : ''
+  return {
+    slug: m.slug,
+    title: m.title,
+    updatedAt: m.updatedAt.toISOString(),
+    pageUrl: `/m/${m.slug}/go${q}`,
+    roadbookUrl: `/m/${m.slug}/roadbook${q}`,
+    files,
+  }
+}
+
+// The manifest on its own, for a Keep sign pressed somewhere other than the go
+// page — the ride list, since 2026-09-17. Same gate as the page: a manifest
+// names a ride's files, and it must not be a way to learn a private ride's
+// title. `no-store` because a rider keeping a ride wants the ride as it is now,
+// and the `updatedAt` in here is what tells a kept copy it has gone stale.
+goRoutes.get('/m/:slug/keep.json', async (c) => {
+  const user = c.get('user') ?? null
+  const m = await viewableRide(c.req.param('slug'), user)
+  if (!m) return c.json({ error: 'not found' }, 404)
+  c.header('Cache-Control', 'no-store')
+  return c.json(await keepManifest(m, c.req.query('group')))
+})
+
 goRoutes.get('/m/:slug/go', async (c) => {
   // c.get('user'), not currentUser(): open to anyone with the link, and
   // currentUser() throws outside an auth gate.
@@ -147,23 +189,8 @@ goRoutes.get('/m/:slug/go', async (c) => {
     }
   })
 
-  // The file URLs carry `?group` forward so a kept copy is whose copy the page
-  // is, and `?dl` so the server names them. Names come from the same
-  // convention the download route uses — the client never parses a
-  // Content-Disposition header it may not see through a cache.
-  const group = groupQ ? `&group=${encodeURIComponent(groupQ)}` : ''
-  const startDate = await rideStartDate(m.id)
-  const files = FILES.map((f) => ({
-    format: f.format,
-    label: f.label,
-    note: f.note,
-    mime: f.mime,
-    url: `/api/public/maps/${m.slug}/${f.format === 'native' ? NATIVE_EXT : f.format}?dl${group}`,
-    name: buildExportName({ ride: m.title, date: startDate, ext: f.ext }),
-  }))
-
-  const pageUrl = `/m/${m.slug}/go${groupQ ? `?group=${encodeURIComponent(groupQ)}` : ''}`
-  const roadbookUrl = `/m/${m.slug}/roadbook${groupQ ? `?group=${encodeURIComponent(groupQ)}` : ''}`
+  // The same six fields the keep.json endpoint serves; see keepManifest above.
+  const { files, pageUrl, roadbookUrl } = await keepManifest(m, groupQ)
 
   const totalM = ride.routes.reduce((n, r) => n + r.distanceM, 0)
   const anyClock = ride.routes.some((r) => r.startAt)
@@ -191,6 +218,7 @@ goRoutes.get('/m/:slug/go', async (c) => {
         },
       },
       scripts: `<script src="${asset('/js/go-progress.js')}" defer></script>
+<script src="${asset('/js/keep.js')}" defer></script>
 <script src="${asset('/js/go.js')}" defer></script>`,
       body: (
         <>

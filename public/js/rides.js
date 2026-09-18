@@ -141,3 +141,67 @@
     });
   });
 })();
+
+// KEEP, FROM THE LIST. The Keep sign on each card (RideCardGo in
+// src/views/ride-lists.tsx) does what Keep on this phone does on the On the
+// road page, through the same keep.js: fetch the ride's manifest from
+// /m/:slug/keep.json, store the page, the roadbook and the files, write the
+// registry row. Its own IIFE because the one above returns early on a page
+// with nothing to bin, and a rider on somebody else's rides still keeps them.
+//
+// THE SIGN SHIPS HIDDEN AND THIS IS THE ONLY THING THAT SHOWS IT, and only
+// where the browser can hold a copy — a Cache API and a service worker. The
+// label is the state: Keep, Kept, or Update when the ride has changed since
+// the copy was made; pressing Kept keeps it again, which is harmless. Remove
+// stays on the On the road page, where the copy's size and age are shown too.
+(() => {
+  "use strict";
+
+  const K = window.TBKeep;
+  const G = window.TBGo;
+  const signs = document.querySelectorAll("button[data-keep]");
+  if (!signs.length || !K || !G || !K.canCache) return;
+
+  function paint(sign, row) {
+    const s = row ? G.staleness(row, sign.dataset.updated || null, Date.now()) : null;
+    const stale = !!(s && s.changed);
+    sign.hidden = false;
+    sign.disabled = false;
+    sign.classList.toggle("is-kept", !!row && !stale);
+    sign.classList.toggle("is-stale", stale);
+    sign.classList.remove("is-error");
+    sign.textContent = !row ? "Keep" : stale ? "Update" : "Kept";
+    sign.title = !row
+      ? "Keep this ride on this phone, for when there is no signal"
+      : (s ? s.text : "Kept") + (row.bytes ? " \u00b7 " + G.fmtBytes(row.bytes) : "");
+  }
+
+  signs.forEach((sign) => {
+    const slug = sign.dataset.keep;
+    K.readRow(slug)
+      .then((row) => paint(sign, row))
+      .catch(() => paint(sign, null));
+
+    sign.addEventListener("click", () => {
+      sign.disabled = true;
+      sign.textContent = "Keeping\u2026";
+      fetch("/m/" + encodeURIComponent(slug) + "/keep.json", { credentials: "same-origin", cache: "no-store" })
+        .then((r) => {
+          if (!r.ok) throw new Error("HTTP " + r.status);
+          return r.json();
+        })
+        .then((m) =>
+          K.keep(m, (done, total) => {
+            sign.textContent = done + " of " + total;
+          }),
+        )
+        .then((row) => paint(sign, row))
+        .catch((err) => {
+          sign.disabled = false;
+          sign.classList.add("is-error");
+          sign.textContent = "Try again";
+          sign.title = "Could not keep it: " + (err && err.message ? err.message : "unknown error");
+        });
+    });
+  });
+})();
