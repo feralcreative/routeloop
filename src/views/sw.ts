@@ -33,6 +33,10 @@ export const PRECACHE_PATHS = [
   '/js/feedback-buffer.js',
   '/js/site.js',
   '/js/notifications.js',
+  // Emitted by page() on every prod page (src/views/analytics.ts). Offline it
+  // loads and finds no Google to talk to, which is fine; a kept page that
+  // 404s one of its own scripts is not, so it is in the shell like the rest.
+  '/js/consent.js',
   '/js/go-progress.js',
   '/js/go.js',
   '/font/overpass-latin.woff2',
