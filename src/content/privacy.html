@@ -4,8 +4,9 @@
 
 <h2>The short version</h2>
 <ul>
-  <li>Your rides are yours. They are not sold, shared, or used to build a profile of you.</li>
-  <li>There is no advertising here, so there is nothing to feed.</li>
+  <li>Your rides are yours. They are not sold, shared, traded, or monetized—not now, not ever.</li>
+  <li>How the site is used is counted: which pages get opened, how long people stay, what gets clicked. That is so I can see what is working and what is not, and it is the whole purpose of it. The numbers are read by me and by nobody else.</li>
+  <li>There is no advertising here, so there is nothing to feed. You are not the product.</li>
   <li>Nothing you did not choose is shown to anyone else. Your name, your handle and what appears on a shared ride are all yours to set.</li>
   <li>You can ask for a copy of everything, or for all of it to be deleted, and I will do it by hand until there is a button.</li>
 </ul>
@@ -30,16 +31,19 @@
 
 <h3>Technical</h3>
 <p>Your IP address is used briefly to rate-limit sign-in emails, so the form cannot be used to flood someone’s inbox.</p>
-<p>Three cookies exist, and that is the whole list. One keeps you signed in. The other two appear only while you are signing in with Google, protect that handshake against tampering, and expire ten minutes later. All three are strictly functional—the site does not work without them. There is no advertising cookie, no tracking pixel, and no third-party cookie, because there is no advertising here to feed.</p>
-<p>Page views are counted with Cloudflare Web Analytics, and have been since July 2026. It is cookieless: it stores nothing on your device, does not follow you from site to site, and builds no profile of you. Visitors in the EU are excluded from it entirely. What it records is that a page was opened—which page, the site you arrived from, the country, and the sort of browser, device and operating system—and nothing that identifies you.</p>
-<p>One thing there is worth saying plainly. It records the full address of the page, which means the link to a shared ride appears in my analytics as its own line. It does not record anything after a question mark. Cloudflare already carries every request to this site and sees those addresses regardless; what I cannot do on the plan this runs on is stop them being listed. If that matters for a particular ride, keep it private rather than unlisted.</p>
+<p>Three cookies are the site’s own, and that is the whole list of ours. One keeps you signed in. The other two appear only while you are signing in with Google, protect that handshake against tampering, and expire ten minutes later. All three are strictly functional—the site does not work without them. Where Google Analytics runs, Google sets two more, <code>_ga</code> and one named for this site, which hold a random number and nothing else, so that a return visit counts as one visitor rather than two; they last two years. There is still no advertising cookie and no tracking pixel, because there is still no advertising here to feed.</p>
+<p>How the site is used is counted with Google Analytics. It records that a page was opened and which one, how long you stayed on it, how far down you scrolled, which outside links you followed, the site you arrived from, your country, and the sort of browser, device, and operating system—each visit tied to that random number and to nothing about you: not your name, not your email, not your rides. Google Signals and ad personalization are switched off, so Google does not join these visits to your Google account or use them for advertising, and Google Analytics does not store your IP address. Google processes the numbers on my behalf under its own terms and keeps them for fourteen months. They are read by me and by nobody else, and they are not for sale.</p>
+<p>If Cloudflare says you are in the EU, the EEA, the UK, or Switzerland—or you arrive over Tor, where it cannot say—Google Analytics waits. A bar at the top of the page asks first, and nothing from Google loads until you say yes. Your answer is kept in your own browser and never sent to me, so I cannot see who said no, and a no is honored wherever you open the site from afterward. Nobody outside those places is asked, because nobody else’s law asks, and a cookie bar on every site is the thing everybody hates. You can change your answer at any time under Your choices below.</p>
+<p>Page views are also counted with Cloudflare Web Analytics, and have been since July 2026. It is cookieless: it stores nothing on your device, does not follow you from site to site, and builds no profile of you. What it records is that a page was opened—which page, the site you arrived from, the country, and the sort of browser, device, and operating system—and nothing that identifies you. It runs for everyone, because there is nothing in it to consent to.</p>
+<p>One thing there is worth saying plainly. Both record the address of the page, which means the link to a shared ride appears in my analytics as its own line. Cloudflare records nothing after a question mark; Google Analytics does, though nothing on this site puts anything secret there—a tab name, a saved flag, an error code. The one page whose address is itself a secret, an invitation link, sends nothing to either. Cloudflare already carries every request to this site and sees those addresses regardless; what I cannot do on the plan this runs on is stop them being listed. If that matters for a particular ride, keep it private rather than unlisted.</p>
 
 <h2>Who else sees it</h2>
-<p>Four services are involved in running the app. None of them is sent your rides as a body of data.</p>
+<p>Five services are involved in running the app. None of them is sent your rides as a body of data.</p>
 <ul>
   <li><strong>Google Maps, Places and Routes</strong> draw the map, answer your place searches, and work out the roads between two stops. That means Google sees the search terms you type and the coordinates it is asked to route between, in the moment it is asked.</li>
   <li><strong>Google Sign-In</strong>, if you use it, tells Routeloop your email address, whether Google has verified it, and your first and last name. Nothing else is requested.</li>
-  <li><strong>Gmail</strong> carries the sign-in email if you use a magic link instead.</li>
+  <li><strong>Google Analytics</strong> is sent the page views described above, filed under the random number in its cookie, and nothing about your account or your rides.</li>
+  <li><strong>Resend</strong> carries every email the app sends: the sign-in link if you use a magic link, and whichever notifications you have switched on.</li>
   <li><strong>Cloudflare</strong> passes traffic between the internet and the server, and counts page views as described above.</li>
 </ul>
 <p>The application and its database run on hardware I own and administer. Your rides are not held by a cloud provider.</p>
@@ -54,6 +58,8 @@
   <li><strong>Change it</strong>—everything on your profile is editable, including clearing fields you would rather not store.</li>
   <li><strong>Take it</strong>—ask and I will send you a copy of your account and rides.</li>
   <li><strong>Delete it</strong>—ask and your account and everything attached to it is removed. There is no self-service button yet; until there is, one email does it.</li>
+  <li><strong>Block it</strong>—any content blocker stops both counters, and the site works exactly the same without them.</li>
+  <li><strong>Count me out</strong>—<button type="button" class="btn btn-quiet" data-consent-reset hidden>Change your analytics choice</button> If you were asked on your way in, this puts the question back. If you were not, it switches Google Analytics off for this browser, or back on. It is a setting of the browser rather than of your account, so it is per device.</li>
 </ul>
 
 <h2>How long things are kept</h2>
@@ -65,6 +71,7 @@
 
 <h2>Changes</h2>
 <p>If this page changes in a way that affects what is collected or who sees it, the date above changes and I will say what moved. Silent rewrites defeat the point of publishing it.</p>
+<p><strong>17 September 2026.</strong> Google Analytics now counts how the site is used, beside Cloudflare, and the “Technical” section says what it records and what it is switched off from. Three things changed with it. The cookie list grew by two, Google’s, where Google Analytics runs. Cloudflare’s counter no longer skips visitors in the EU—it is cookieless, and it is now a snippet this site ships rather than one Cloudflare injects at the edge. And visitors in the EU, the EEA, the UK, and Switzerland are asked before Google Analytics loads, with a bar that appears once and takes no for an answer. Also a correction: this page said Gmail carried the sign-in email. It has been Resend since the app moved off a personal Gmail account, and the list above now says so. What has not changed is what the numbers are for: seeing what gets used, and nothing else—not sold, not shared, not traded, ever.</p>
 <p><strong>16 August 2026.</strong> Routeloop can now be sent a bug report, an idea or a question from inside the app, and doing that collects things this page did not previously describe: what you wrote, any screenshot you attach, and a snapshot of what your browser was doing when you sent it. The “What you tell us” section above sets out exactly what that snapshot holds, and the two things it refuses to hold—your location, and anything after a question mark in a web address. Nothing starts collecting unless you actually send something.</p>
 <p><strong>3 August 2026.</strong> A correction rather than a change. This page said there were no analytics. That was wrong: Cloudflare Web Analytics has counted page views since July 2026, and the section above now describes it properly—including that the link to a shared ride is listed in it. The cookie list was wrong in the same way. It described only the sign-in cookie, and the two ten-minute cookies used during a Google sign-in were there the whole time. Nothing new started collecting on this date; the page caught up with what was already true.</p>
 
