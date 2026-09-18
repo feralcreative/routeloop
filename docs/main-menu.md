@@ -13,7 +13,7 @@ At LG (≥992px) this renders as a bar. Below that, and on map pages at any widt
 ```text
 Exit map              /                (map pages only)
 
-Dash                  /                (plain link, no panel)
+Dash                  /dash            (plain link, no panel)
 
 Rides ▾
   Your rides          /rides
@@ -51,6 +51,8 @@ About ▾
 **`Recycle bin` left the menu on 2026-09-13** (#343). It sat under the account because the bin held saved places and place groups as well as rides. The bin has no page now: binned rides are the last tab on `/rides` (the dashboard until 2026-09-15), binned places and groups a fold under the list on `/places`, and `/trash` redirects to that tab because the purge-warning email links to it. The old reasoning—that the bin belongs to the rider rather than to their rides—is struck rather than left to be rediscovered: binned things sit beside the list they left.
 
 **`Dash` is first and it is not in the Rides group.** Decided 2026-08-27. It was `Your rides` at the head of that menu, labeled for the destination rather than the location on the grounds that the group was already called Rides. Outside the group that reasoning inverts: with no "Rides" above it the label competes with the three verbs still in the menu, and the page is the stat tiles and Your records before it is a list of rides. The key stays `home`, so `navKey` and the `aria-current` it drives are untouched. The wordmark links to `/` as well, which is ordinary—`Dash` earns its place by being labeled, which a logo is not.
+
+**`Dash` links to `/dash`, not `/`, since 2026-09-17.** Ziad's call: on a phone `/` is a 302 to `/rides`, because the job on a phone is to look up a planned ride and load it, so an item pointing at `/` would be a link a phone could never follow. `/dash` is the same page with no redirect, on every device; the wordmark keeps `/`, which lands a thumb on the list and a mouse on the dashboard. The key is still `home` and nothing about `aria-current` changed.
 
 **`Your rides` is back in the Rides group, first, since 2026-09-15.** Ziad's call, reversing the 2026-08-24 fold of `/rides` into `/` and answering the 2026-08-27 entry above in the other direction: the list has its own page again, so the label sits under the "Rides" heading that the entry said it needed, and Dash stays first as the page with the numbers on it. The phone is why. The job on a phone is to look up a planned ride and load it, and a list under eight blocks of stats is not a page a thumb can use; `/rides` is also what the installed app opens on. `NavKey` regains `'rides'`, carried by this item, so the union's rule—a key with no item is a dead `aria-current`—is met on both sides.
 

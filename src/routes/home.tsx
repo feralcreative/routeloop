@@ -34,9 +34,10 @@
 // distance now, the same way both clients estimate an unrouted leg, and the hero
 // says when part of the figure was figured rather than measured. See
 // src/maps/ride-time.ts and src/stats/shape.ts.
-import { Hono } from 'hono'
+import { Hono, type Context } from 'hono'
 import { raw } from 'hono/html'
 import { currentUser, requireActive, type AuthEnv } from '../auth/middleware'
+import { isPhone } from '../device'
 import { page, wordsOf } from '../views/layout'
 import { asset } from '../views/assets'
 import { icon } from '../views/icon'
@@ -445,7 +446,28 @@ function Sharing({ stats }: { stats: DashboardStats }) {
 
 // --- The page ----------------------------------------------------------------
 
+// TWO ADDRESSES, ONE PAGE, AND A PHONE IS SENT PAST THE FIRST. Ziad's call,
+// 2026-09-17: on a phone the job is to look up a planned ride and load it, so
+// /rides is home there and the dashboard is the numbers. `/` on a phone is a
+// 302 to /rides, decided by isPhone() from the client hint and the User-Agent;
+// `/dash` is the same dashboard with no redirect, and it is what the Dash item
+// in the menu links to, so the page stays one tap away on the phone that was
+// sent past it. Deterministic on purpose — a redirect that consulted the
+// Referer to tell "arrived" from "chose Dash" would trap any phone whose
+// privacy extension strips it. The wordmark keeps linking to `/`, which is
+// what makes it land on rides for a thumb and on the dashboard for a mouse.
+//
+// A 302 and not a 301: the answer depends on the device asking, and a cached
+// permanent redirect would follow a rider's bookmark from their phone onto
+// their laptop.
 homeRoutes.get('/', requireActive, async (c) => {
+  if (isPhone((name) => c.req.header(name))) return c.redirect('/rides', 302)
+  return dashboard(c)
+})
+
+homeRoutes.get('/dash', requireActive, (c) => dashboard(c))
+
+async function dashboard(c: Context<AuthEnv>) {
   const user = currentUser(c)
 
   const [stats, cached, global] = await Promise.all([
@@ -629,4 +651,4 @@ homeRoutes.get('/', requireActive, async (c) => {
         : undefined,
     }),
   )
-})
+}

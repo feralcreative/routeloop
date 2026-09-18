@@ -27,6 +27,7 @@ export const RESERVED_USERNAMES: ReadonlySet<string> = new Set([
   'admin',
   'api',
   'builder',
+  'dash',
   'dashboard',
   'favicon',
   'i',
