@@ -337,7 +337,9 @@ echo ""
 # deploy fails after a full build.
 #
 # TURNSTILE_SITE_KEY and TURNSTILE_SECRET_KEY are in the printf block and
-# deliberately NOT here, for exactly that reason.
+# deliberately NOT here, for exactly that reason. GA_MEASUREMENT_ID and
+# CF_BEACON_TOKEN are the same shape: a server without them runs with the
+# analytics off, and a deploy is never refused over a counter.
 #
 # APP_ENV is the same: sent, not required. It names the environment so the app
 # can say "this is staging" on every page, and src/config.ts falls back to
@@ -414,6 +416,8 @@ printf '%s\n' \
   "PURGE_ACCOUNTS=${PURGE_ACCOUNTS:-}" \
   "TURNSTILE_SITE_KEY=${TURNSTILE_SITE_KEY:-}" \
   "TURNSTILE_SECRET_KEY=${TURNSTILE_SECRET_KEY:-}" \
+  "GA_MEASUREMENT_ID=${GA_MEASUREMENT_ID:-}" \
+  "CF_BEACON_TOKEN=${CF_BEACON_TOKEN:-}" \
   "DRAIN_GRACE_MS=${DRAIN_GRACE_MS:-10000}" \
   "BLUE_CONTAINER_NAME=${BLUE_CONTAINER_NAME}" \
   "GREEN_CONTAINER_NAME=${GREEN_CONTAINER_NAME}" \
@@ -434,9 +438,14 @@ printf '%s\n' \
 # DEV_LOGIN_EMAIL was set. That was wrong: the variable was never going to be
 # shipped, so the check only ever cost a manual edit before every deploy — which
 # is how a guard earns itself deleted.
-for FORBIDDEN in DEV_LOGIN_EMAIL DEV_AUTH_EMAIL; do
+#
+# ANALYTICS_DEV_COUNTRY is in the list for a different reason: it makes a laptop
+# render the analytics as though it were prod, and src/config.ts already refuses
+# to read it outside dev — but that is a property of one `if`, and this makes
+# the exclusion a checked fact about the bytes rather than a trusted one.
+for FORBIDDEN in DEV_LOGIN_EMAIL DEV_AUTH_EMAIL ANALYTICS_DEV_COUNTRY; do
   if grep -q "^${FORBIDDEN}=" "$REMOTE_ENV"; then
-    log_error "${FORBIDDEN} is in the generated remote .env. That is a passwordless sign-in."
+    log_error "${FORBIDDEN} is in the generated remote .env. That is a dev-only variable and must never reach a server."
     log_error "Remove it from the allow-list in this script. Refusing to continue."
     rm -f "$REMOTE_ENV"
     exit 1

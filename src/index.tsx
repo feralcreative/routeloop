@@ -1,5 +1,6 @@
 import 'dotenv/config'
 import { Hono } from 'hono'
+import { contextStorage } from 'hono/context-storage'
 import { serve } from '@hono/node-server'
 import { serveStatic } from '@hono/node-server/serve-static'
 import { readFile } from 'node:fs/promises'
@@ -163,6 +164,18 @@ const LEGACY_HOSTS: Readonly<Record<string, string>> = {
   'www.rollchart.app': 'routeloop.app',
   'www.routeloop.app': 'routeloop.app',
 }
+
+// One AsyncLocalStorage per request, so the current context is reachable from
+// code that was never handed it. BELOW /healthz on purpose (a probe needs no
+// store) and above everything else. It exists for exactly one reader:
+// viewerCountry() in src/views/analytics.ts, which asks the CF-IPCountry header
+// whether this visitor is somewhere the law wants a consent prompt before an
+// analytics cookie. page() is `(opts) => string` with three dozen call sites,
+// and threading a country through all of them for one boolean is what this
+// replaces. Do not start reading getContext() from views for anything else
+// without a recorded call — the view layer never sees a path, and that is what
+// keeps routing decisions out of it.
+app.use('*', contextStorage())
 
 app.use('*', async (c, next) => {
   const host = (c.req.header('host') ?? '').split(':', 1)[0].toLowerCase()

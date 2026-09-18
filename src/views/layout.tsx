@@ -29,17 +29,12 @@ export function siteIconLinks(): string {
   <link rel="manifest" href="${asset('/img/site.webmanifest')}">`
 }
 
-// Inlining JSON into a <script> is only safe if the payload cannot close the
-// tag. `</script>` inside any string would end the block and drop the rest of
-// the document into HTML; U+2028/2029 are literal newlines to a JS parser.
-export function jsonScript(varName: string, value: unknown): string {
-  const json = JSON.stringify(value)
-    .replace(/</g, '\\u003c')
-    .replace(/>/g, '\\u003e')
-    .replace(/\u2028/g, '\\u2028')
-    .replace(/\u2029/g, '\\u2029')
-  return `<script>window.${varName} = ${json};</script>`
-}
+// jsonScript() lived here until 2026-09-17 and moved to its own module when
+// views/analytics.ts became a second caller; re-exported so nothing that imports
+// it from here has to know. See json-script.ts for the escaping it does.
+export { jsonScript } from './json-script'
+import { jsonScript } from './json-script'
+import { analyticsMarkup } from './analytics'
 
 // Google's inline bootstrap loader, verbatim from their docs, which defines
 // google.maps.importLibrary() and nothing else. Map pages emit this instead of
@@ -148,6 +143,12 @@ export type PageOpts = {
   ride?: { vehicle?: string | null; power?: string | null } | null
   /** Set false to suppress the alpha modal on a page. */
   splash?: boolean
+  /**
+   * Set false to emit no analytics on a page. A page view sends the page's
+   * address to Google, so a page whose PATH carries a secret — the invite page,
+   * `/i/:token` — opts out. Absence is on; see src/views/analytics.ts.
+   */
+  analytics?: boolean
   /** Plain message; page() supplies the <noscript> wrapper and markup. */
   noscript?: string
   /**
@@ -886,8 +887,7 @@ export const wordsOf = (opts: { user: UserRow | null; words?: Words; ride?: Page
  * riding on the session user exactly as `unread` does and read the same
  * defensive way, for the same reason.
  */
-const hideTourOf = (u: UserRow | null): boolean =>
-  (u as unknown as { hideTour?: unknown } | null)?.hideTour === true
+const hideTourOf = (u: UserRow | null): boolean => (u as unknown as { hideTour?: unknown } | null)?.hideTour === true
 
 /** Up to two initials for the tinted disc a rider with no picture gets — the
  *  account chip's rule, shared with the rider cards on /riders (#341). */
@@ -1169,6 +1169,13 @@ const DRAWER_RESTORE = `<script>(function(){try{var d=JSON.parse(localStorage.ge
 export function page(opts: PageOpts): string {
   const variant: PageVariant = opts.variant ?? 'chrome'
   const isMap = variant === 'map'
+  // Computed once: the bar goes in the staging banner's slot and the scripts at
+  // the tail, and the plan behind both reads the request's country. No html
+  // class is set for the consent bar here, unlike the stage banner: it renders
+  // HIDDEN and consent.js adds `has-consent-bar` only when it shows it, so a
+  // reserve at first paint would be a strip of blank page for every rider who
+  // has already answered.
+  const analytics = analyticsMarkup({ enabled: opts.analytics !== false })
   // `has-stage-banner` is what reserves the space the stage banner occupies. It
   // is server-rendered rather than set by script for the same reason the three
   // appearance attributes below are: the reserve has to be right at the FIRST
@@ -1323,7 +1330,7 @@ export function page(opts: PageOpts): string {
   <link rel="stylesheet" href="${asset('/style/main.min.css')}">${opts.head ? `\n  ${opts.head}` : ''}
 </head>
 <body${bodyClass ? ` class="${bodyClass}"` : ''}>
-${stageBanner()}
+${stageBanner()}${analytics.bar}
 ${variant === 'splash' ? '' : (<SiteHeader user={opts.user} navKey={opts.navKey} isMap={isMap} unread={unreadOf(opts.user)} words={wordsOf(opts)} />).toString()}
 ${body}
 ${isMap ? DRAWER_RESTORE : FOLD_RESTORE}
@@ -1391,6 +1398,14 @@ ${variant === 'splash' ? '' : `<script src="${asset('/js/tips.js')}" defer></scr
 -->
 ${opts.user ? `<script src="${asset('/js/notifications.js')}" defer></script>` : ''}
 ${opts.scripts ?? ''}
+<!--
+  Usage analytics — the Cloudflare beacon and the GA bootstrap — PROD ONLY and
+  empty everywhere else, on every variant including the splash and the 404. In
+  the EU the GA half is behind the consent bar at the top of <body>. The id and
+  token are interpolated unescaped, which is safe only because config.ts admits
+  them through character classes that cannot close a tag; see analytics.ts.
+-->
+${analytics.scripts}
 ${IS_DEV ? liveReloadScript() : ''}
 ${IS_DEV ? `<script src="${asset('/js/devtools.js')}" defer></script>` : ''}
 </body>

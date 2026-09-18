@@ -728,8 +728,15 @@
   function initBanner() {
     refreshBanner();
     window.addEventListener("resize", refreshBanner);
-    const bar = document.querySelector(".tb-banner");
-    if (bar && window.ResizeObserver) new ResizeObserver(refreshBanner).observe(bar);
+    // EVERY banner, not the first. The consent bar (consent.js) is the first
+    // .tb-banner in the DOM on every page it renders on, so observing only the
+    // first would leave the builder's recovery bar unwatched exactly when a
+    // rider from the EU opens the builder with a draft to recover.
+    if (window.ResizeObserver) {
+      document.querySelectorAll(".tb-banner").forEach(function (bar) {
+        new ResizeObserver(refreshBanner).observe(bar);
+      });
+    }
   }
 
   function init() {
