@@ -40,37 +40,67 @@
 }
 
 //@ Phone
-// TWO COLUMNS AND TWO BIG BUTTONS. Ziad's call, 2026-09-17, reversing the
-// one-column rule of 2026-09-15 that stood here for two days: the list is for
-// finding a ride and loading it, and what a thumb needs for that is a big Load
-// and a big Edit, not a big map. Two fixed tracks rather than auto-fill, so a
-// rider with one ride gets a half-width card and not a stretched one; the face
-// is still there at half the screen, which is plenty to recognize a route by.
-// `minmax(0, 1fr)` and not `1fr`, or a long unbroken title makes its track
-// wider than half and the pair overflows the page.
+// ROWS, WITH THE PICTURE AT THE LEFT. Ziad's calls, 2026-09-17, in three
+// passes on an emulated phone: one column of cards (2026-09-15), then two
+// across with big signs, then this — one row per ride, the thumbnail at about
+// a quarter of the screen on the left, and everything else to its right. The
+// list is for finding a ride and loading it, and a row reads like a list where
+// a grid of pictures reads like a gallery.
+//
+// THE CARD BECOMES THE GRID AND THE LINK DISSOLVES INTO IT. The face and the
+// body are children of one <a>, and a row wants the face in the left column
+// with the body, the signs and the foot stacked in the right one — so the
+// anchor takes `display: contents`, which lifts its two children into the
+// card's grid while it stays the link they are inside. The card's own
+// `:focus-within` ring is what draws focus, and it was already, because the
+// link's own outline is switched off in _chrome.scss.
+//
+// The picture keeps its 16:10 rather than filling the row: Google's
+// attribution is baked into the bottom of the image, and a portrait crop cuts
+// it off. `25vw` is the ask; `minmax(0, 1fr)` on the other track is what stops
+// a long title from widening it past the screen.
 @media (max-width: $bp-phone) {
   .rides-page .ride-cards--dense {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
+    grid-template-columns: minmax(0, 1fr);
     gap: 0.75rem;
   }
 
-  .rides-page .ride-card-body {
-    padding: 0.55rem 0.6rem;
+  .rides-page .ride-card {
+    display: grid;
+    grid-template-columns: 25vw minmax(0, 1fr);
+    grid-template-rows: auto auto auto;
+    column-gap: 0.6rem;
   }
 
-  // Load: full width, 44px tall. A sign is inline-flex, and a grid cell
-  // blockifies it to the track, so it is the card's whole width with no rule
-  // about the sign itself. Centered because a label at the left of a
-  // full-width sign with its arrow at the far right reads as two things.
-  //
-  // The second sign is small and off the green on purpose — the number one
-  // use of a phone here is loading a planned ride into a GPS, and Edit must
-  // not compete with that. `justify-self: start` keeps it at its own width
-  // rather than the track's, which is most of what makes it read as minor.
+  .rides-page .ride-card-link {
+    display: contents;
+  }
+
+  .rides-page .ride-card-face {
+    grid-column: 1;
+    grid-row: 1 / span 3;
+    align-self: start;
+  }
+
+  .rides-page .ride-card-body {
+    grid-column: 2;
+    grid-row: 1;
+    padding: 0.55rem 0.6rem 0.25rem 0;
+  }
+
+  // Load takes the width that is left and Edit sits beside it at its own
+  // size — the number one use of a phone here is loading a planned ride into
+  // a GPS, and Edit is deliberately much smaller and off the green so it
+  // cannot compete. A sign is inline-flex and a grid cell blockifies it to
+  // the track, so Load is as wide as its column with no rule on the sign.
   .ride-card-go {
+    grid-column: 2;
+    grid-row: 2;
     display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    align-items: center;
     gap: 0.5rem;
-    padding: 0 0.6rem 0.6rem;
+    padding: 0 0.6rem 0.4rem 0;
 
     .btn {
       justify-content: center;
@@ -82,13 +112,18 @@
     // `.btn.btn-sign.btn-services`, three deep, and a two-deep rule here
     // loses to it silently — the sign stayed 43px tall for a build.
     .btn.btn-sign.ride-card-go-minor {
-      justify-self: start;
       padding: calc(0.3rem + 0.1em) 0.7rem calc(0.3rem - 0.1em);
       font-size: 0.8em;
     }
   }
 
-  // The small Edit and Riders links say what the big signs above them now say
+  .rides-page .ride-card-foot {
+    grid-column: 2;
+    grid-row: 3;
+    padding: 0 0.6rem 0.55rem 0;
+  }
+
+  // The small Edit and Riders links say what the signs above them now say
   // louder. The pill and Delete stay: nothing else carries either.
   .rides-page .ride-card-foot .editlink {
     display: none;
