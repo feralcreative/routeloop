@@ -985,6 +985,7 @@ function viewHtml(
   <script src="${asset('/js/twist.js')}" defer></script>
   <script src="${asset('/js/alts.js')}" defer></script>
   <script src="${asset('/js/route-shape.js')}" defer></script>
+  <script src="${asset('/js/route-ink.js')}" defer></script>
   <script src="${asset('/js/route-distance.js')}" defer></script>
   <script src="${asset('/js/range-circle.js')}" defer></script>
   <script src="${asset('/js/viewer.js')}" defer></script>
