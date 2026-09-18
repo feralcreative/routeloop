@@ -55,10 +55,12 @@
 // `:focus-within` ring is what draws focus, and it was already, because the
 // link's own outline is switched off in _chrome.scss.
 //
-// The picture keeps its 16:10 rather than filling the row: Google's
-// attribution is baked into the bottom of the image, and a portrait crop cuts
-// it off. `25vw` is the ask; `minmax(0, 1fr)` on the other track is what stops
-// a long title from widening it past the screen.
+// The picture fills the row's height and is cropped to it — Ziad's call,
+// 2026-09-17, over a 16:10 picture that left a strip of card under itself.
+// `object-fit: cover` is already on the face; what changes here is the box it
+// covers, which is the whole left column. `25vw` is the ask; `minmax(0, 1fr)`
+// on the other track is what stops a long title from widening it past the
+// screen.
 @media (max-width: $bp-phone) {
   .rides-page .ride-cards--dense {
     grid-template-columns: minmax(0, 1fr);
@@ -79,7 +81,9 @@
   .rides-page .ride-card-face {
     grid-column: 1;
     grid-row: 1 / span 3;
-    align-self: start;
+    align-self: stretch;
+    height: 100%;
+    aspect-ratio: auto;
   }
 
   .rides-page .ride-card-body {
