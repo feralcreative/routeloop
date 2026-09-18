@@ -137,6 +137,7 @@
       return "FOLLOW_SYSTEM";
     }
 
+    const scheme = colorScheme();
     const map = new Maps.Map(
       el,
       Object.assign(
@@ -151,7 +152,7 @@
           // Maps API — setOptions cannot change it — which is why a saved
           // preference reaches the map on its next load and the dev flip in
           // devtools.js repaints the page and not the tiles.
-          colorScheme: colorScheme(),
+          colorScheme: scheme,
           // Google's own POI pins open their own info windows and would fight
           // the builder's click-to-add-a-stop.
           clickableIcons: false,
@@ -182,6 +183,13 @@
         },
         opts || {},
       ),
+    );
+    darkTiles.set(
+      map,
+      scheme === "DARK" ||
+        (scheme === "FOLLOW_SYSTEM" &&
+          typeof window.matchMedia === "function" &&
+          window.matchMedia("(prefers-color-scheme: dark)").matches),
     );
     rememberMapType(map);
     return map;
@@ -364,6 +372,30 @@
     return m;
   }
 
+  // WHETHER THIS MAP'S TILES ARE DARK, decided once, when the map was made,
+  // from the same answer the tiles took — not read live off <html>, because
+  // the tiles' scheme is initial-only and the dev flip repaints the page and
+  // not them. `FOLLOW_SYSTEM` is what the tiles do with no stamp, so it is
+  // resolved the way they resolve it.
+  const darkTiles = new WeakMap();
+
+  function tilesAreDark(map) {
+    return darkTiles.get(map) === true;
+  }
+
+  // THE COLOR A ROUTE IS DRAWN IN ON THIS MAP. Ziad's call, 2026-09-17: the
+  // route palette was authored for light tiles and its navies, plums and the
+  // forest green were nearly the dark tiles themselves. The stored color is
+  // the rider's and is what a light map draws; a dark map draws it lifted, hue
+  // kept, by route-ink.js. Every route line, its arrows, its dashes, the leg
+  // highlight and the pins go through this — one door, so the line and the
+  // pin standing on it cannot come out two colors.
+  function inkFor(map, color) {
+    const Ink = window.TBRouteInk;
+    if (!Ink || !tilesAreDark(map)) return color;
+    return Ink.liftForDark(color);
+  }
+
   // GHOST BEATS DIM, in all three properties. A losing alternate that happens
   // to be the focused route is still a losing alternate — the rider clicked into
   // it to edit it, which is exactly when they most need to see that it is the
@@ -416,7 +448,9 @@
         strokeWeight: 4,
         clickable: shapeable,
       }),
-      color,
+      // Lifted for dark tiles here, once, so paint(), the arrows, the dashes
+      // and the leg highlight all read the drawn color and never the stored one.
+      color: inkFor(map, color),
       visible: true,
       arrowsOn: true,
       dim: false,
@@ -1045,6 +1079,11 @@
   function addMarker(map, lngLat, element, opts) {
     requireInit("addMarker");
     const o = opts || {};
+    // A pin carries its route's color as `style.color` (markerElement); on dark
+    // tiles it takes the same lift the line took, so the two agree. Read back
+    // as rgb() by the style object, which route-ink.js reads as readily as a
+    // hex. Untouched on light tiles and for a pin that set no color.
+    if (element && element.style && element.style.color) element.style.color = inkFor(map, element.style.color);
     return new Marker.AdvancedMarkerElement({
       map,
       position: toLatLng(lngLat),
@@ -2136,6 +2175,8 @@
   window.TBMap = {
     esc,
     initMap,
+    inkFor,
+    tilesAreDark,
     fitTo,
     onMapClick,
     panTo,
