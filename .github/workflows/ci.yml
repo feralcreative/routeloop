@@ -50,6 +50,16 @@ jobs:
 
       - run: npm run typecheck
 
+      # The compiled stylesheet is gitignored and the Dockerfile builds it, so
+      # a checkout has none — and test/sw.test.ts asserts that every path the
+      # service worker precaches exists under public/, main.min.css included.
+      # Building it here is the honest fix: the file the worker names is the
+      # file the app ships, and committing a generated asset is the thing this
+      # repo's rules refuse. It also puts the SCSS compile under CI, which the
+      # definition of done already asks for and nothing here ran until
+      # 2026-09-17.
+      - run: npm run sass
+
       # No database service: the suite is deliberately scoped to pure logic
       # (see vitest.config.ts), so nothing here needs Postgres. If a test ever
       # does, adding a service container is a decision to take on purpose.
