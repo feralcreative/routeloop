@@ -28,14 +28,16 @@ import { SEP } from './sep'
 // by closing the outer one early, which silently drops half the card out of the
 // link. The foot is a sibling of the link, and the card's own padding is what
 // makes the two read as one object.
-// THE TWO BIG BUTTONS A THUMB GETS, 2026-09-17. Ziad's call: on a phone the
-// list is two columns, and a big Load and a big Edit matter more than a big
-// map. Both are signs — Load the guide sign with its arrow, the second a flat
-// guide sign or a recreation sign, the viewer's own Edit/roster pairing — and
-// they render on EVERY card, because the markup cannot know the width; the
-// phone rule in _rides.scss is what shows them, and the foot's small Edit and
-// Riders links are what it hides in exchange. On a desktop the block is
-// `display: none` and the card is exactly what it was.
+// THE BIG BUTTON A THUMB GETS, AND THE SMALL ONE UNDER IT, 2026-09-17. Ziad's
+// call: on a phone the list is two columns, and a big Load matters more than a
+// big map — the number one use of a phone here, by leaps and bounds, is to
+// load a ride that is already planned into a GPS. Load is the guide sign with
+// its arrow, full width. The second sign is deliberately MUCH SMALLER AND A
+// DIFFERENT COLOR, so it cannot compete: a blue services sign for Edit, a
+// recreation sign for Riders. They render on EVERY card, because the markup
+// cannot know the width; the phone rule in _rides.scss is what shows them, and
+// the foot's small Edit and Riders links are what it hides in exchange. On a
+// desktop the block is `display: none` and the card is exactly what it was.
 //
 // OUTSIDE THE CARD'S ANCHOR, like the foot and for the same reason: an <a>
 // inside an <a> is invalid and a browser closes the outer one early.
@@ -91,7 +93,7 @@ export function JoinedRideCard({
         </span>
       </a>
       <RideCardGo slug={ride.slug}>
-        <a class="btn btn-sign btn-recreation" href={`/m/${ride.slug}/riders`}>
+        <a class="btn btn-sign btn-recreation ride-card-go-minor" href={`/m/${ride.slug}/riders`}>
           Riders
         </a>
       </RideCardGo>
@@ -121,7 +123,7 @@ export function OwnRideCard({ ride, color, units }: { ride: RideRow; color: stri
         </span>
       </a>
       <RideCardGo slug={ride.slug}>
-        <a class="btn btn-sign btn-guide" href={`/builder/${ride.id}`}>
+        <a class="btn btn-sign btn-services ride-card-go-minor" href={`/builder/${ride.id}`}>
           Edit ride
         </a>
       </RideCardGo>
