@@ -58,19 +58,33 @@
     padding: 0.55rem 0.6rem;
   }
 
-  // Stacked, full width, 44px tall: a sign is inline-flex, and a grid cell
-  // blockifies it to the track, so each one is the card's whole width with
-  // no rule about the sign itself. Centered because a label at the left of a
+  // Load: full width, 44px tall. A sign is inline-flex, and a grid cell
+  // blockifies it to the track, so it is the card's whole width with no rule
+  // about the sign itself. Centered because a label at the left of a
   // full-width sign with its arrow at the far right reads as two things.
+  //
+  // The second sign is small and off the green on purpose — the number one
+  // use of a phone here is loading a planned ride into a GPS, and Edit must
+  // not compete with that. `justify-self: start` keeps it at its own width
+  // rather than the track's, which is most of what makes it read as minor.
   .ride-card-go {
     display: grid;
-    gap: 0.45rem;
+    gap: 0.5rem;
     padding: 0 0.6rem 0.6rem;
 
     .btn {
       justify-content: center;
       padding: 0.7rem 0.5rem;
       font-size: 1.05em;
+    }
+
+    // Four classes deep because `sign-field()` sets its padding on
+    // `.btn.btn-sign.btn-services`, three deep, and a two-deep rule here
+    // loses to it silently — the sign stayed 43px tall for a build.
+    .btn.btn-sign.ride-card-go-minor {
+      justify-self: start;
+      padding: calc(0.3rem + 0.1em) 0.7rem calc(0.3rem - 0.1em);
+      font-size: 0.8em;
     }
   }
 

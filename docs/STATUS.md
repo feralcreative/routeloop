@@ -17,7 +17,7 @@
 
 ## A phone opens on the list, two across, 2026-09-17
 
-Ziad's calls. `/` sends a phone to `/rides` (302, `isPhone()` in `src/device.ts` from the client hint and the User-Agent, tablets read as desktops) and `/dash` is the dashboard with no redirect, which is what the Dash item links to now; `dash` is a reserved handle. On a phone the ride cards are two columns with two big signs each—Load ride to the ride page, Edit ride to the builder, or Riders to the roster on a ride somebody else planned—rendered on every card and shown by the phone rule alone. Verified in emulated Chrome at 390×844 with an iPhone UA: `/` lands on `/rides`, the signs measure 49px tall at 154px wide, no horizontal overflow; at 1280px the block is `display: none` and `/` is the dashboard. **3,070 tests across 120 files.**
+Ziad's calls. `/` sends a phone to `/rides` (302, `isPhone()` in `src/device.ts` from the client hint and the User-Agent, tablets read as desktops) and `/dash` is the dashboard with no redirect, which is what the Dash item links to now; `dash` is a reserved handle. On a phone the ride cards are two columns, each a big green Load ride sign to the ride page over a small blue Edit ride sign to the builder (Riders, brown, on a ride somebody else planned)—the number one use of a phone is loading a planned ride into a GPS, so Edit must not compete—rendered on every card and shown by the phone rule alone. Verified in emulated Chrome at 390×844 with an iPhone UA: `/` lands on `/rides`, Load measures 49px tall at 154px wide and Edit 29px at 73px, no horizontal overflow; at 1280px the block is `display: none` and `/` is the dashboard. **3,070 tests across 120 files.**
 
 ## The ride lists at `/rides`, and the phone pass, 2026-09-15
 
