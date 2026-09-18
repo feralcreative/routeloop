@@ -38,6 +38,7 @@ export const PRECACHE_PATHS = [
   // 404s one of its own scripts is not, so it is in the shell like the rest.
   '/js/consent.js',
   '/js/go-progress.js',
+  '/js/keep.js',
   '/js/go.js',
   '/font/overpass-latin.woff2',
   '/font/overpass-latin-ext.woff2',

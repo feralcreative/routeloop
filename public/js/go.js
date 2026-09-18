@@ -31,10 +31,8 @@
   "use strict";
 
   var G = window.TBGo;
-  if (!G) return;
-
-  var KEPT_CACHE = "routeloop-kept";
-  var REGISTRY_PREFIX = "/_kept/";
+  var K = window.TBKeep;
+  if (!G || !K) return;
 
   function readStore(key) {
     try {
@@ -76,29 +74,8 @@
     }
   }
 
-  var canCache = typeof window.caches !== "undefined" && "serviceWorker" in navigator;
-
-  function openKept() {
-    return window.caches.open(KEPT_CACHE);
-  }
-
-  function registryUrl(slug) {
-    return REGISTRY_PREFIX + encodeURIComponent(slug);
-  }
-
-  function readRegistry(cache, slug) {
-    return cache.match(registryUrl(slug)).then(function (res) {
-      return res ? res.json().catch(function () { return null; }) : null;
-    });
-  }
-
-  function writeRegistry(cache, row) {
-    var body = JSON.stringify(row);
-    return cache.put(
-      registryUrl(row.slug),
-      new Response(body, { headers: { "Content-Type": "application/json" } }),
-    );
-  }
+  // The kept cache is keep.js's alone since 2026-09-17; this file paints.
+  var canCache = K.canCache;
 
   // ===========================================================================
   // The go page
@@ -370,77 +347,12 @@
       keepStatus.className = "go-keep-status" + (cls ? " " + cls : "");
     }
 
-    function urlsToKeep() {
-      return [tb.pageUrl, tb.roadbookUrl].concat(
-        (tb.files || []).map(function (f) {
-          return f.url;
-        }),
-      );
-    }
-
     function keep() {
       keepBtn.disabled = true;
-      var urls = urlsToKeep();
-      var bytes = 0;
-      var done = 0;
-      var cache;
-      setStatus("Keeping… 0 of " + urls.length);
-      return openKept()
-        .then(function (c) {
-          cache = c;
-          // The registry row goes in FIRST, so the worker's own network-first
-          // pass on any of these fetches also lands in the cache.
-          return writeRegistry(cache, {
-            slug: slug,
-            title: tb.title,
-            keptAt: new Date().toISOString(),
-            updatedAt: tb.updatedAt,
-            pageUrl: tb.pageUrl,
-            roadbookUrl: tb.roadbookUrl,
-            files: tb.files,
-            bytes: 0,
-          });
-        })
-        .then(function () {
-          return Promise.all(
-            urls.map(function (url) {
-              return fetch(url, { credentials: "same-origin", cache: "no-store" })
-                .then(function (res) {
-                  if (!res.ok) throw new Error("HTTP " + res.status + " for " + url);
-                  return res.blob().then(function (blob) {
-                    bytes += blob.size;
-                    // Only the headers a reader of the copy needs. The blob is
-                    // already decoded, so a Content-Encoding copied across would
-                    // describe bytes that are not there.
-                    var headers = { "Content-Type": res.headers.get("Content-Type") || "application/octet-stream" };
-                    var cd = res.headers.get("Content-Disposition");
-                    if (cd) headers["Content-Disposition"] = cd;
-                    return cache.put(url, new Response(blob, { status: 200, headers: headers }));
-                  });
-                })
-                .then(function () {
-                  done += 1;
-                  setStatus("Keeping… " + done + " of " + urls.length);
-                });
-            }),
-          );
-        })
-        .then(function () {
-          return writeRegistry(cache, {
-            slug: slug,
-            title: tb.title,
-            keptAt: new Date().toISOString(),
-            updatedAt: tb.updatedAt,
-            pageUrl: tb.pageUrl,
-            roadbookUrl: tb.roadbookUrl,
-            files: tb.files,
-            bytes: bytes,
-          });
-        })
-        .then(function () {
-          if (navigator.storage && navigator.storage.persist) navigator.storage.persist().catch(function () {});
-          return describeKept();
-        })
+      return K.keep(tb, function (done, total) {
+        setStatus("Keeping… " + done + " of " + total);
+      })
+        .then(describeKept)
         .catch(function (err) {
           setStatus("Could not keep it: " + (err && err.message ? err.message : "unknown error"), "is-error");
           keepBtn.disabled = false;
@@ -449,16 +361,7 @@
 
     function forget() {
       forgetBtn.disabled = true;
-      return openKept()
-        .then(function (cache) {
-          return Promise.all(
-            urlsToKeep()
-              .concat([registryUrl(slug)])
-              .map(function (u) {
-                return cache.delete(u, { ignoreSearch: false });
-              }),
-          );
-        })
+      return K.forget(tb)
         .then(describeKept)
         .catch(function () {
           forgetBtn.disabled = false;
@@ -466,31 +369,32 @@
     }
 
     function describeKept() {
-      return openKept()
-        .then(function (cache) {
-          return readRegistry(cache, slug);
-        })
-        .then(function (row) {
-          keepBtn.disabled = false;
-          forgetBtn.disabled = false;
-          if (!row) {
-            forgetBtn.hidden = true;
-            keepBtn.textContent = "Keep on this phone";
-            setStatus("", "");
-            return null;
-          }
-          forgetBtn.hidden = false;
-          keepBtn.textContent = "Keep again";
-          var s = G.staleness(row, navigator.onLine ? tb.updatedAt : null, Date.now());
-          var size = row.bytes ? " " + String.fromCharCode(0xb7) + " " + G.fmtBytes(row.bytes) : "";
-          setStatus((s ? s.text : "Kept") + size, s && s.changed ? "is-stale" : "is-kept");
-          if (navigator.storage && navigator.storage.estimate) {
-            navigator.storage.estimate().then(function (q) {
-              if (q && q.quota) keepStatus.textContent += " " + String.fromCharCode(0xb7) + " " + G.fmtBytes(q.quota - (q.usage || 0)) + " free";
-            }).catch(function () {});
-          }
-          return s;
-        });
+      return K.readRow(slug).then(function (row) {
+        keepBtn.disabled = false;
+        forgetBtn.disabled = false;
+        if (!row) {
+          forgetBtn.hidden = true;
+          keepBtn.textContent = "Keep on this phone";
+          setStatus("", "");
+          return null;
+        }
+        forgetBtn.hidden = false;
+        keepBtn.textContent = "Keep again";
+        var s = G.staleness(row, navigator.onLine ? tb.updatedAt : null, Date.now());
+        var size = row.bytes ? " " + String.fromCharCode(0xb7) + " " + G.fmtBytes(row.bytes) : "";
+        setStatus((s ? s.text : "Kept") + size, s && s.changed ? "is-stale" : "is-kept");
+        if (navigator.storage && navigator.storage.estimate) {
+          navigator.storage
+            .estimate()
+            .then(function (q) {
+              if (q && q.quota)
+                keepStatus.textContent +=
+                  " " + String.fromCharCode(0xb7) + " " + G.fmtBytes(q.quota - (q.usage || 0)) + " free";
+            })
+            .catch(function () {});
+        }
+        return s;
+      });
     }
 
     keepBtn.addEventListener("click", keep);
@@ -514,7 +418,9 @@
   function initInstall(el) {
     if (!el) return;
     var standalone =
-      (window.matchMedia && (window.matchMedia("(display-mode: standalone)").matches || window.matchMedia("(display-mode: minimal-ui)").matches)) ||
+      (window.matchMedia &&
+        (window.matchMedia("(display-mode: standalone)").matches ||
+          window.matchMedia("(display-mode: minimal-ui)").matches)) ||
       navigator.standalone === true;
     if (standalone) return;
     var ua = navigator.userAgent || "";
@@ -527,7 +433,8 @@
     window.addEventListener("beforeinstallprompt", function (e) {
       e.preventDefault();
       deferred = e;
-      el.innerHTML = '<button class="btn" type="button" id="go-install-btn">Install Routeloop</button> Opens like an app, with the rides you keep.';
+      el.innerHTML =
+        '<button class="btn" type="button" id="go-install-btn">Install Routeloop</button> Opens like an app, with the rides you keep.';
       el.hidden = false;
       var btn = document.getElementById("go-install-btn");
       if (btn) {
@@ -554,27 +461,11 @@
       host.innerHTML = '<p class="offline-empty">This browser cannot keep rides for offline use.</p>';
       return;
     }
-    openKept()
-      .then(function (cache) {
-        return cache.keys().then(function (reqs) {
-          var rows = reqs.filter(function (r) {
-            return new URL(r.url).pathname.indexOf(REGISTRY_PREFIX) === 0;
-          });
-          return Promise.all(
-            rows.map(function (r) {
-              return cache.match(r).then(function (res) {
-                return res ? res.json().catch(function () { return null; }) : null;
-              });
-            }),
-          );
-        });
-      })
+    K.listRows()
       .then(function (rows) {
-        rows = rows.filter(Boolean).sort(function (a, b) {
-          return Date.parse(b.keptAt) - Date.parse(a.keptAt);
-        });
         if (rows.length === 0) {
-          host.innerHTML = '<p class="offline-empty">No rides are kept on this phone. Open a ride’s On the road page while you have signal and press Keep on this phone.</p>';
+          host.innerHTML =
+            '<p class="offline-empty">No rides are kept on this phone. Open a ride’s On the road page while you have signal and press Keep on this phone.</p>';
           return;
         }
         var now = Date.now();
