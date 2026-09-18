@@ -43,6 +43,82 @@
   display: none;
 }
 
+// "On this phone" — the switch above the list that says which rides the phone
+// should hold (rides.js, keep-policy.js). The riders page's card-size pill,
+// exactly: a `role="group"` of `aria-pressed` buttons, the pressed one filled
+// `$disabled` with `$ink-light`, the blue SIGN field and never `$brand`. It
+// ships `hidden` and rides.js shows it where a copy can be held; on a desktop
+// it stays hidden with the signs, because the whole point of it is a phone.
+.keep-policy {
+  display: none;
+}
+
+//@ Phone
+@media (max-width: $bp-phone) {
+  .keep-policy:not([hidden]) {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 0.4rem 0.6rem;
+    margin: 0 0 0.9rem;
+  }
+
+  .keep-policy-label {
+    font-size: 0.85em;
+    font-weight: 600;
+    color: $neutral-43;
+  }
+
+  .keep-policy-set {
+    display: inline-flex;
+    align-items: stretch;
+    border: 1px solid $grey;
+    border-radius: 999px;
+    overflow: hidden;
+    background: $white;
+
+    button {
+      padding: 0.3em 0.75em;
+      border: 0;
+      background: transparent;
+      color: $neutral-50;
+      font: inherit;
+      font-size: 0.8rem;
+      font-weight: 600;
+      line-height: 1.5;
+      cursor: pointer;
+
+      & + button {
+        border-left: 1px solid $grey;
+      }
+
+      &:focus-visible {
+        outline: 2px solid $brand;
+        outline-offset: -2px;
+      }
+
+      &[aria-pressed="true"] {
+        background: $disabled;
+        color: $ink-light;
+      }
+
+      &:disabled {
+        cursor: default;
+        opacity: 0.6;
+      }
+    }
+  }
+
+  // The count and the size, or the step the sync is on. Its own line under
+  // the pill when the row wraps, which at 390px it does.
+  .keep-policy-status {
+    flex-basis: 100%;
+    font-size: 0.8em;
+    color: $neutral-57;
+    min-height: 1.2em;
+  }
+}
+
 //@ Phone
 // ROWS, WITH THE PICTURE AT THE LEFT. Ziad's calls, 2026-09-17, in three
 // passes on an emulated phone: one column of cards (2026-09-15), then two

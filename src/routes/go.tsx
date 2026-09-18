@@ -42,7 +42,7 @@ import { Hono } from 'hono'
 import type { AuthEnv } from '../auth/middleware'
 import { loadRideForExport, rideStartDate } from '../maps/export'
 import { linkLabel, routeLinks, type GmapsRouteLinks } from '../maps/gmaps-links'
-import { buildExportName, NATIVE_EXT } from '../maps/filename'
+import { buildExportName } from '../maps/filename'
 import { fmtDuration, routeRows } from '../maps/roadbook-rows'
 import { ROLE_META, type Role } from '../maps/roles'
 import { fmtClock, fmtDateLong } from '../views/date-format'
@@ -83,16 +83,19 @@ const DEFAULT_DENSITY: DensityKey = 'light'
 const densityOf = (raw: string | undefined): DensityKey =>
   DENSITIES.find((d) => d.key === raw)?.key ?? DEFAULT_DENSITY
 
-// The files the page hands over, in the order the buttons appear. GPX first and
-// biggest because it is the one every nav app reads; KML for the ones that
-// prefer it; the native JSON so a rider can bring the ride back into Routeloop
-// from a phone that has nothing else. GeoJSON and CSV are deliberately absent —
-// neither is a format any nav app imports, and a button that lands a file
-// nowhere is a button the rider taps once.
+// The files the page hands over: GPX, AND ONLY GPX SINCE 2026-09-17. Ziad's
+// call: it is the one format every nav app on a phone imports. KML and the
+// Routeloop file shipped beside it from the day the page landed and came off
+// the same evening, measured — on an imported ride with a dense track the
+// three together were 7.8 MB kept, and the two that went were the same
+// geometry twice more, for Google Earth and for a re-import nobody does from a
+// phone. The desktop ride page keeps all six formats. GeoJSON and CSV were
+// never here: neither is a format any nav app imports, and a button that
+// lands a file nowhere is a button the rider taps once. The list survives as a
+// list because the loop below and the kept-copy manifest are written against
+// one, and a second format would be one line.
 const FILES = [
   { format: 'gpx', label: 'GPX', ext: 'gpx', mime: 'application/gpx+xml', note: 'Rever, Kurviger, Scenic, Calimoto, OsmAnd, Garmin' },
-  { format: 'kml', label: 'KML', ext: 'kml', mime: 'application/vnd.google-earth.kml+xml', note: 'Google Earth and a few others' },
-  { format: 'native', label: 'Routeloop file', ext: NATIVE_EXT, mime: 'application/json', note: 'Everything, for bringing the ride back into Routeloop' },
 ] as const
 
 // THE KEEP MANIFEST: the six fields a kept ride's registry row holds (see
@@ -110,7 +113,7 @@ async function keepManifest(m: { id: number; slug: string; title: string; update
     label: f.label,
     note: f.note,
     mime: f.mime,
-    url: `/api/public/maps/${m.slug}/${f.format === 'native' ? NATIVE_EXT : f.format}?dl${group}`,
+    url: `/api/public/maps/${m.slug}/${f.format}?dl${group}`,
     name: buildExportName({ ride: m.title, date: startDate, ext: f.ext }),
   }))
   const q = groupQ ? `?group=${encodeURIComponent(groupQ)}` : ''
@@ -244,6 +247,8 @@ goRoutes.get('/m/:slug/go', async (c) => {
               page existed. */}
           <section class="go-send" id="go-send">
             <h2>Send to your nav app</h2>
+            {/* One button, GPX. The list markup stays for the reason FILES is
+                still a list. */}
             <ul class="go-files">
               {files.map((f) => (
                 <li>
@@ -263,7 +268,7 @@ goRoutes.get('/m/:slug/go', async (c) => {
           <section class="go-keep" id="go-keep" hidden>
             <h2>Keep on this phone</h2>
             <p class="go-keep-why">
-              This page, the {wd(w, 'roadbook')} and the files above, ready with no signal. Nothing else on the
+              This page, the {wd(w, 'roadbook')} and the GPX above, ready with no signal. Nothing else on the
               site is kept.
             </p>
             <p class="go-keep-actions">

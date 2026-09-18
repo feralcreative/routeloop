@@ -224,3 +224,187 @@
     });
   });
 })();
+
+// ON THIS PHONE: which rides the phone should hold, as a set. Ziad's call,
+// 2026-09-17. The switch above the list holds four positions — None, Last 30
+// days, This year, All — and keep-policy.js is the rule that turns one into a
+// yes or no per ride, by when the ride last changed. The choice is per phone,
+// in localStorage, and the set is RE-DERIVED ON EVERY VISIT to this page while
+// online: rides that now match and are not kept are kept, kept copies the
+// ride has moved on from are kept again, and rides the POLICY kept that no
+// longer match are removed. That last clause is the whole reason the registry
+// row carries `via`: a ride the rider kept by hand is theirs and no policy
+// touches it, so switching from All to None empties what All filled and
+// leaves a hand-kept ride where it was.
+//
+// THE LIST COMES FROM /rides/keep.json, NOT FROM THE CARDS. The page is
+// capped at a screenful and "All" means all. The cards' signs are repainted
+// afterwards from the registry, so the list and the switch agree.
+//
+// ONE RIDE AT A TIME, in order, with the count on the status line — a phone on
+// one bar of signal fetching forty GPX files at once is a phone that fails
+// forty times at once. A failure skips that ride and carries on; the line says
+// how many did not make it.
+(() => {
+  "use strict";
+
+  const K = window.TBKeep;
+  const G = window.TBGo;
+  const P = window.TBKeepPolicy;
+  const box = document.querySelector(".keep-policy");
+  if (!box || !K || !G || !P || !K.canCache) return;
+
+  const buttons = Array.from(box.querySelectorAll("button[data-policy]"));
+  const status = box.querySelector(".keep-policy-status");
+
+  function readPolicy() {
+    try {
+      const v = window.localStorage.getItem(P.STORE_KEY);
+      return P.isPolicy(v) ? v : "none";
+    } catch (e) {
+      return "none";
+    }
+  }
+
+  function writePolicy(v) {
+    try {
+      window.localStorage.setItem(P.STORE_KEY, v);
+    } catch (e) {
+      /* private mode: the choice holds for this page and is asked again */
+    }
+  }
+
+  function paintPolicy(policy) {
+    buttons.forEach((b) => b.setAttribute("aria-pressed", b.dataset.policy === policy ? "true" : "false"));
+  }
+
+  function say(text) {
+    status.textContent = text;
+  }
+
+  // "3 rides · 4.2 MB on this phone", from the registry — every kept ride,
+  // by hand or by policy, because the question is what the phone holds.
+  function describe() {
+    return K.listRows().then((rows) => {
+      const bytes = rows.reduce((n, r) => n + (r.bytes || 0), 0);
+      say(
+        rows.length === 0
+          ? "Nothing kept on this phone"
+          : rows.length + (rows.length === 1 ? " ride" : " rides") + " \u00b7 " + G.fmtBytes(bytes) + " on this phone",
+      );
+    });
+  }
+
+  // Repaint every card's sign from the registry after a sync, so a ride the
+  // policy just kept reads Kept without a reload. The signs' own IIFE above
+  // owns the painting; this only pokes each one the way it pokes itself.
+  function repaintSigns() {
+    document.querySelectorAll("button[data-keep]").forEach((sign) => {
+      K.readRow(sign.dataset.keep).then((row) => {
+        const s = row ? G.staleness(row, sign.dataset.updated || null, Date.now()) : null;
+        const stale = !!(s && s.changed);
+        sign.classList.toggle("is-kept", !!row && !stale);
+        sign.classList.toggle("is-stale", stale);
+        sign.textContent = !row ? "Keep" : stale ? "Update" : "Kept";
+      });
+    });
+  }
+
+  let running = false;
+
+  function sync(policy) {
+    if (running) return Promise.resolve();
+    running = true;
+    buttons.forEach((b) => (b.disabled = true));
+    const now = Date.now();
+    let failed = 0;
+
+    const wanted =
+      policy === "none"
+        ? Promise.resolve([])
+        : fetch("/rides/keep.json", { credentials: "same-origin", cache: "no-store" })
+            .then((r) => {
+              if (!r.ok) throw new Error("HTTP " + r.status);
+              return r.json();
+            })
+            .then((body) => (body.rides || []).filter((r) => P.matches(policy, r.updatedAt, now)));
+
+    return Promise.all([wanted, K.listRows()])
+      .then(([rides, rows]) => {
+        const kept = new Map(rows.map((r) => [r.slug, r]));
+        const want = new Set(rides.map((r) => r.slug));
+
+        // What the policy kept and no longer wants goes first, so a phone
+        // near its quota frees space before it fills it.
+        const stale = rows.filter((r) => r.via === "policy" && !want.has(r.slug));
+        const todo = rides.filter((r) => {
+          const row = kept.get(r.slug);
+          return !row || (G.staleness(row, r.updatedAt, now) || {}).changed;
+        });
+
+        let step = Promise.resolve();
+        stale.forEach((row, i) => {
+          step = step.then(() => {
+            say("Removing " + (i + 1) + " of " + stale.length);
+            return K.forget(row).catch(() => {
+              failed += 1;
+            });
+          });
+        });
+        todo.forEach((r, i) => {
+          step = step.then(() => {
+            say("Keeping " + (i + 1) + " of " + todo.length + " \u00b7 " + r.title);
+            const row = kept.get(r.slug);
+            // A hand-kept ride being refreshed stays hand-kept.
+            const via = row && row.via === "hand" ? "hand" : "policy";
+            return fetch("/m/" + encodeURIComponent(r.slug) + "/keep.json", {
+              credentials: "same-origin",
+              cache: "no-store",
+            })
+              .then((res) => {
+                if (!res.ok) throw new Error("HTTP " + res.status);
+                return res.json();
+              })
+              .then((m) => K.keep(m, null, via))
+              .catch(() => {
+                failed += 1;
+              });
+          });
+        });
+        return step;
+      })
+      .then(describe)
+      .then(() => {
+        if (failed) say(status.textContent + " \u00b7 " + failed + " could not be kept");
+      })
+      .catch((err) => {
+        say("Could not sync: " + (err && err.message ? err.message : "unknown error"));
+      })
+      .then(() => {
+        running = false;
+        buttons.forEach((b) => (b.disabled = false));
+        repaintSigns();
+      });
+  }
+
+  const policy = readPolicy();
+  paintPolicy(policy);
+  box.hidden = false;
+
+  buttons.forEach((b) => {
+    b.addEventListener("click", () => {
+      const next = b.dataset.policy;
+      if (!P.isPolicy(next)) return;
+      writePolicy(next);
+      paintPolicy(next);
+      sync(next);
+    });
+  });
+
+  // On load: say what is held, and if a policy is set and we are online, bring
+  // the phone up to date. A policy of None syncs nothing on load — it removes
+  // only when chosen, so a rider who picked None last month and kept a ride by
+  // hand since is not surprised by a sweep.
+  if (policy !== "none" && navigator.onLine) sync(policy);
+  else describe();
+})();

@@ -28,7 +28,7 @@ import { raw } from 'hono/html'
 import { and, desc, eq, sql } from 'drizzle-orm'
 import { db } from '../db/index'
 import { rides, routes as routesTable } from '../db/schema'
-import { currentUser, requireActive, type AuthEnv } from '../auth/middleware'
+import { currentUser, requireActive, requireActiveApi, type AuthEnv } from '../auth/middleware'
 import { page, wordsOf } from '../views/layout'
 import { asset } from '../views/assets'
 import { rideCards } from '../views/cards'
@@ -42,6 +42,18 @@ import { ridesImOn } from '../members/service'
 import { Wds, aWd, cap, wds, type Words } from '../views/vocab'
 
 export const ridesRoutes = new Hono<AuthEnv>()
+
+// The switch's four positions, in order. keep-policy.js is the rule and holds
+// the same four keys and labels; test/keep-policy.test.ts pins that file and
+// test/content.test.ts is not the place for this one, so the two are held
+// together by the markup reading `data-policy` and the script refusing a key
+// it does not know.
+const KEEP_POLICIES = [
+  { key: 'none', label: 'None' },
+  { key: 'recent', label: 'Last 30 days' },
+  { key: 'year', label: 'This year' },
+  { key: 'all', label: 'All' },
+] as const
 
 // The empty state of the first tab, for a rider on no rides at all. The
 // dashboard's FirstRun panel says the same thing at length and is NOT repeated
@@ -64,6 +76,34 @@ function Nothing({ w }: { w: Words }) {
     </div>
   )
 }
+
+// EVERY RIDE THE "ON THIS PHONE" SWITCH MAY KEEP, as one small list: slug,
+// title, and when it last changed. rides.js walks this rather than the cards
+// on the page, because the page is capped at RIDE_PAGE and a policy of "all"
+// means all — the same ceiling the `?show=all` query has, so a rider with ten
+// thousand rides gets a bounded answer here too. Owned rides and rides
+// somebody else put this rider on, the two lists the Your rides tab is made
+// of; nothing from the other tabs, which have no Keep sign. `no-store`
+// because updatedAt is what a kept copy is measured against for staleness.
+ridesRoutes.get('/rides/keep.json', requireActiveApi, async (c) => {
+  const user = currentUser(c)
+  const [owned, joined] = await Promise.all([
+    db
+      .select({ slug: rides.slug, title: rides.title, updatedAt: rides.updatedAt })
+      .from(rides)
+      .where(and(eq(rides.ownerId, user.id), LIVE_RIDE))
+      .orderBy(desc(rides.updatedAt))
+      .limit(RIDE_CEILING),
+    ridesImOn(user.id),
+  ])
+  c.header('Cache-Control', 'no-store')
+  return c.json({
+    rides: [
+      ...owned.map((r) => ({ slug: r.slug, title: r.title, updatedAt: r.updatedAt.toISOString() })),
+      ...joined.map((j) => ({ slug: j.ride.slug, title: j.ride.title, updatedAt: j.ride.updatedAt.toISOString() })),
+    ],
+  })
+})
 
 ridesRoutes.get('/rides', requireActive, async (c) => {
   const user = currentUser(c)
@@ -261,6 +301,26 @@ ridesRoutes.get('/rides', requireActive, async (c) => {
           tabindex={0}
           hidden={tab !== 'mine'}
         >
+          {/* ON THIS PHONE (2026-09-17). Which of these rides the phone should
+              hold, as a set by when each last changed — the rule is
+              keep-policy.js, the keeping is rides.js, and this is server-
+              rendered so the pressed state can be painted before the list is
+              walked. Ships `hidden` and rides.js shows it only where a copy
+              can be held, the Keep sign's own rule. A phone-only control: on a
+              desktop it stays hidden with the signs. */}
+          {(visibleRides.length > 0 || joined.length > 0) && (
+            <div class="keep-policy" role="group" aria-label="Rides kept on this phone" hidden>
+              <span class="keep-policy-label">On this phone</span>
+              <span class="keep-policy-set">
+                {KEEP_POLICIES.map((p) => (
+                  <button type="button" data-policy={p.key} aria-pressed={p.key === 'none' ? 'true' : 'false'}>
+                    {p.label}
+                  </button>
+                ))}
+              </span>
+              <span class="keep-policy-status" role="status" aria-live="polite"></span>
+            </div>
+          )}
           {visibleRides.length === 0 && joined.length === 0 ? (
             <Nothing w={w} />
           ) : (
@@ -392,7 +452,7 @@ ridesRoutes.get('/rides', requireActive, async (c) => {
       // that navigated. That gate was about the chart and never about this.
       // go-progress.js for staleness(), keep.js for the cache, both ahead of
       // rides.js, which reads them for the Keep sign on each card.
-      scripts: `<script src="${asset('/js/tabs.js')}" defer></script>\n  <script src="${asset('/js/go-progress.js')}" defer></script>\n  <script src="${asset('/js/keep.js')}" defer></script>\n  <script src="${asset('/js/rides.js')}" defer></script>`,
+      scripts: `<script src="${asset('/js/tabs.js')}" defer></script>\n  <script src="${asset('/js/go-progress.js')}" defer></script>\n  <script src="${asset('/js/keep.js')}" defer></script>\n  <script src="${asset('/js/keep-policy.js')}" defer></script>\n  <script src="${asset('/js/rides.js')}" defer></script>`,
     }),
   )
 })
