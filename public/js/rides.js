@@ -151,9 +151,11 @@
 //
 // THE SIGN SHIPS HIDDEN AND THIS IS THE ONLY THING THAT SHOWS IT, and only
 // where the browser can hold a copy — a Cache API and a service worker. The
-// label is the state: Keep, Kept, or Update when the ride has changed since
-// the copy was made; pressing Kept keeps it again, which is harmless. Remove
-// stays on the On the road page, where the copy's size and age are shown too.
+// label is the state and the press is the opposite of it: Keep keeps, Kept
+// removes the copy (Ziad's call, 2026-09-17 — a rider has to be able to
+// unkeep a ride from the list), and Update, the state of a copy the ride has
+// moved on from, keeps it again. Removing needs no network: the registry row
+// already names every URL the copy holds, and forget() takes it as-is.
 (() => {
   "use strict";
 
@@ -173,7 +175,9 @@
     sign.textContent = !row ? "Keep" : stale ? "Update" : "Kept";
     sign.title = !row
       ? "Keep this ride on this phone, for when there is no signal"
-      : (s ? s.text : "Kept") + (row.bytes ? " \u00b7 " + G.fmtBytes(row.bytes) : "");
+      : (s ? s.text : "Kept") +
+        (row.bytes ? " \u00b7 " + G.fmtBytes(row.bytes) : "") +
+        (stale ? " \u00b7 press to keep it again" : " \u00b7 press to remove it from this phone");
   }
 
   signs.forEach((sign) => {
@@ -185,7 +189,20 @@
     sign.addEventListener("click", () => {
       sign.disabled = true;
       // Every label the sign can carry fits the fixed width _rides.scss gives
-      // it — Keeping, "3 of 5", Retry — so the row never re-measures.
+      // it — Keeping, Removing, "3 of 5", Retry — so the row never re-measures.
+      if (sign.classList.contains("is-kept")) {
+        sign.textContent = "Removing";
+        K.readRow(slug)
+          .then((row) => (row ? K.forget(row) : null))
+          .then(() => paint(sign, null))
+          .catch((err) => {
+            sign.disabled = false;
+            sign.classList.add("is-error");
+            sign.textContent = "Retry";
+            sign.title = "Could not remove it: " + (err && err.message ? err.message : "unknown error");
+          });
+        return;
+      }
       sign.textContent = "Keeping";
       fetch("/m/" + encodeURIComponent(slug) + "/keep.json", { credentials: "same-origin", cache: "no-store" })
         .then((r) => {
