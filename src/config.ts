@@ -46,6 +46,50 @@ export const IS_DEV = !IS_HTTPS_ORIGIN
 export const APP_ENV = env('APP_ENV', '')
 export const IS_STAGE = APP_ENV === 'stage' || (APP_ENV === '' && APP_ORIGIN.startsWith('https://stage.'))
 
+// "Is this the real site?" — an https origin that is not stage. The same two
+// signals the stage banner and the background timers already trust; there is
+// deliberately no third variable to set, because a PROD flag that had to be
+// pushed to a server is a flag that is wrong on the deploy that introduces it.
+// Gates the analytics scripts (src/views/analytics.ts), which must not count a
+// laptop and must not count stage — stage shares prod's database and is not
+// prod, and a stage visit in the production numbers is a number nobody meant.
+export const IS_PROD = !IS_DEV && !IS_STAGE
+
+// --- Analytics ---------------------------------------------------------------
+//
+// Two OPTIONAL keys, the TURNSTILE_* shape: in the deploy's printf block and both
+// compose color blocks, never in REMOTE_ENV_KEYS, so a server without them runs
+// with analytics off and a deploy is never refused over a counter.
+//
+// VALIDATION IS THE ESCAPING. Both values are interpolated into page markup — a
+// <script src>, a data-cf-beacon JSON attribute, a window.TBConsent literal —
+// and nothing downstream escapes them. That is safe only because a value has to
+// match these character classes to get past this file: neither class admits `<`,
+// a quote, `&` or whitespace, so a value that reaches a template cannot close a
+// tag or an attribute. A malformed value is dropped here, at boot, with a warning
+// that names the key and never the value.
+export const isGaMeasurementId = (v: string): boolean => /^G-[A-Z0-9]{4,}$/.test(v)
+export const isCfBeaconToken = (v: string): boolean => /^[a-f0-9]{32}$/.test(v)
+
+function validated(name: string, ok: (v: string) => boolean): string {
+  const v = env(name, '').trim()
+  if (v === '' || ok(v)) return v
+  console.warn(`[config] ${name} is set but malformed; ignoring it`)
+  return ''
+}
+
+export const GA_MEASUREMENT_ID = validated('GA_MEASUREMENT_ID', isGaMeasurementId)
+export const CF_BEACON_TOKEN = validated('CF_BEACON_TOKEN', isCfBeaconToken)
+
+// Render the analytics locally as though this were prod, for a visitor from this
+// country — the only way to see the EU consent bar push a header down before a
+// deploy, since stage can never render it (IS_PROD is false there by design) and
+// a unit test cannot measure a header. Dev-only BY CONSTRUCTION: it is read only
+// when IS_DEV, which is `!IS_HTTPS_ORIGIN`, the same gate DEV_LOGIN_ENABLED
+// trusts; and it is in the deploy's FORBIDDEN list, so it cannot reach a server
+// even by accident. A real CF-IPCountry header still outranks it.
+export const ANALYTICS_DEV_COUNTRY = IS_DEV ? env('ANALYTICS_DEV_COUNTRY', '').trim().toUpperCase() : ''
+
 // Production is strict. In development the map libraries want localhost while
 // APP_ORIGIN may say 127.0.0.1, so accept both names on the same port.
 //
@@ -103,11 +147,13 @@ export const IS_LOCAL_DATABASE = isLocalDatabaseUrl(process.env.DATABASE_URL ?? 
  *     to show you which database you just pointed at.
  */
 export function redactDatabaseUrl(url: string): string {
-  return url
-    // Userinfo only: stop at the first `/` so the path can never be consumed.
-    .replace(/:\/\/[^@/]*@/, '://***@')
-    // Credentials that travel as query parameters.
-    .replace(/([?&](?:password|passwd|pwd|sslpassword)=)[^&]*/gi, '$1***')
+  return (
+    url
+      // Userinfo only: stop at the first `/` so the path can never be consumed.
+      .replace(/:\/\/[^@/]*@/, '://***@')
+      // Credentials that travel as query parameters.
+      .replace(/([?&](?:password|passwd|pwd|sslpassword)=)[^&]*/gi, '$1***')
+  )
 }
 
 // --- Dev sign-in -------------------------------------------------------------
@@ -130,7 +176,6 @@ export function redactDatabaseUrl(url: string): string {
 export const DEV_LOGIN_EMAIL = env('DEV_LOGIN_EMAIL', '').trim().toLowerCase()
 
 export const DEV_LOGIN_ENABLED = Boolean(DEV_LOGIN_EMAIL) && IS_LOCAL_DATABASE && !IS_HTTPS_ORIGIN
-
 
 // Whether the account purge actually destroys accounts, OFF unless set.
 //

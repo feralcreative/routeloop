@@ -53,7 +53,13 @@ textarea {
 // nothing. Map pages are excluded: they offset each fixed element individually
 // against the same variable (see _map.scss), and padding the body there would
 // shrink the full-viewport map by the banner's height a second time.
-html.has-stage-banner:not(.map-page) body {
+//
+// `has-consent-bar` is the same reserve for the EU consent bar, with one
+// difference: it is set by consent.js at the moment the bar is shown, never by
+// the server, because the bar ships hidden and a reserve at first paint would
+// be a strip of blank page for every rider who has already answered.
+html.has-stage-banner:not(.map-page) body,
+html.has-consent-bar:not(.map-page) body {
   padding-top: var(--banner-h, 0px);
 }
 
@@ -65,7 +71,8 @@ html.has-stage-banner:not(.map-page) body {
 // classes and two elements deep — a plain `.roadbook-page` in a print block
 // loses to it and leaves an inch of blank paper at the top of every sheet.
 @media print {
-  html.has-stage-banner:not(.map-page) body {
+  html.has-stage-banner:not(.map-page) body,
+  html.has-consent-bar:not(.map-page) body {
     padding-top: 0;
   }
 }

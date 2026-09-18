@@ -152,6 +152,8 @@ inviteRoutes.get('/i/:token', async (c) => {
       title: dead ? 'Invitation' : 'You’re invited',
       user: user ?? null,
       variant: 'splash',
+      // The path IS the token, and a page view sends the address to Google.
+      analytics: false,
       body,
       // Discord renders this as an embed card in the channel. A generic title
       // and no indexing keeps a link that is meant for one channel from being

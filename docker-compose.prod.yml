@@ -131,6 +131,13 @@ services:
       # and ships in page source; only the secret is a secret.
       TURNSTILE_SITE_KEY: ${TURNSTILE_SITE_KEY}
       TURNSTILE_SECRET_KEY: ${TURNSTILE_SECRET_KEY}
+      # Usage analytics: the GA4 measurement id and the Cloudflare Web Analytics
+      # token. Both public by design (they ship in page source), both OPTIONAL
+      # with the `:-` default for the APP_ENV reason above, and src/config.ts
+      # drops a malformed value at boot. The code emits them in PRODUCTION ONLY
+      # — stage reads the same .env and renders neither.
+      GA_MEASUREMENT_ID: ${GA_MEASUREMENT_ID:-}
+      CF_BEACON_TOKEN: ${CF_BEACON_TOKEN:-}
       # Which half of the pair this is. Reported by /healthz and by nothing else.
       APP_COLOR: blue
     volumes:
@@ -233,6 +240,13 @@ services:
       # and ships in page source; only the secret is a secret.
       TURNSTILE_SITE_KEY: ${TURNSTILE_SITE_KEY}
       TURNSTILE_SECRET_KEY: ${TURNSTILE_SECRET_KEY}
+      # Usage analytics: the GA4 measurement id and the Cloudflare Web Analytics
+      # token. Both public by design (they ship in page source), both OPTIONAL
+      # with the `:-` default for the APP_ENV reason above, and src/config.ts
+      # drops a malformed value at boot. The code emits them in PRODUCTION ONLY
+      # — stage reads the same .env and renders neither.
+      GA_MEASUREMENT_ID: ${GA_MEASUREMENT_ID:-}
+      CF_BEACON_TOKEN: ${CF_BEACON_TOKEN:-}
       # Which half of the pair this is. Reported by /healthz and by nothing else.
       APP_COLOR: green
     volumes:

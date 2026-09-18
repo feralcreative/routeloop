@@ -78,4 +78,60 @@
       text-decoration: underline;
     }
   }
+
+  // "May I count your visit?" — the EU consent bar, rendered hidden by
+  // src/views/analytics.ts and shown by consent.js only while no answer is
+  // stored. THE BLUE SIGN FIELD, NOT AMBER: it is information, not a warning,
+  // and a warning color on every first visit says something is wrong about a
+  // site that is fine. $disabled carries $ink-light in all six palettes (the
+  // contrast audit pins the pair), and a green guide sign beside a blue
+  // information sign is a pairing real gantries use.
+  //
+  // NO `display` ON THE BANNER ITSELF, and that is load-bearing rather than
+  // tidy: it ships with the `hidden` attribute, and an author `display` on the
+  // element outranks the UA's `[hidden] { display: none }` — the trap
+  // `.btn[hidden]` in _chrome.scss exists for. The flex layout lives on the
+  // row inside it instead.
+  &.is-consent {
+    background: $disabled;
+    color: $ink-light;
+
+    a {
+      color: $ink-light;
+      text-decoration: underline;
+    }
+
+    .consent-row {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      justify-content: center;
+      gap: 0.5em 1em;
+    }
+
+    .consent-text {
+      text-wrap: pretty;
+    }
+
+    .consent-actions {
+      display: flex;
+      gap: 0.5em;
+      flex: 0 0 auto;
+    }
+
+    // Both buttons sit on a colored field the button styles were not drawn
+    // for: the guide sign keeps its own green and keyline, and the quiet one
+    // (`.btn-quiet` in _survey.scss is a white box with a gray rule) takes the
+    // field's ink and a translucent rule of the same, so it reads as the
+    // secondary answer on the sign rather than as a card laid on it.
+    .btn-quiet {
+      color: $ink-light;
+      background: transparent;
+      border-color: color-mix(in srgb, $ink-light 55%, transparent);
+
+      &:hover {
+        border-color: $ink-light;
+      }
+    }
+  }
 }
