@@ -227,6 +227,16 @@ Cloudflare Turnstile guards uploads and saves but is feature-flagged off until k
 
 SonarCloud reported 258 open findings, of which 86 were shell style in the deploy scripts and 31 were optional-chaining nudges, against 16 real bugs. Nobody reads 258 of anything. Only the two secret scanners block; everything else comments. The reasoning per plugin, including why SCSS is excluded from prettier there, is in `.qlty/qlty.toml`.
 
+## Third-party analytics, with consent only where the law asks, 2026-09-17
+
+Google Analytics 4 and the Cloudflare Web Analytics beacon, on every page, in production only. The roadmap had said "self-hosted, no third-party trackers"; what settled it was the question the numbers are for—which pages get opened, how long people stay, what gets used—and the stance Ziad wrote down for the privacy page: measuring how a site is used, to improve it, is what a visitor expects, and the line that matters is that the numbers are never sold, traded, shared, or monetized and there is no advertising. GA answers that question today with no container to run; a self-hosted counter is still open if the numbers ever want to leave Google.
+
+**GA waits for consent in the EU, EEA, UK, and Switzerland, and over Tor; nobody else is asked.** The country is Cloudflare's `CF-IPCountry` header, read once per render. Three shapes were rejected: excluding those visitors from GA outright (the first answer, reversed the same hour—a prompt they can say no to is better than silence they cannot see), a banner for everyone (the thing everybody hates, on a site with mostly Californian riders), and Google's Consent Mode (which still loads the tag and sends cookieless pings on "denied", where the promise here is that nothing from Google loads at all). The choice lives in `localStorage` and never reaches the server, so the server's answer is only ever "ask" or "do not ask"—and that is why `consent.js` is the one loader in both modes rather than Google's inline snippet for the visitors nobody asks: an inline snippet could not honor a "No thanks" stored on an earlier visit from somewhere that did ask.
+
+**The country reaches `page()` through Hono's `contextStorage()`, and that is the one place a view reads the request.** `page()` is `(opts) => string` with three dozen call sites that never pass the context; threading a country through them for one boolean was rejected. The rule in `layout.tsx` that the view layer never sees a path stands—it asks one header one question. A second reader needs a recorded call.
+
+**The Cloudflare beacon is a snippet the site ships, not the edge auto-injection it had been.** The old setup ran on the pre-rename `tankbag.app` host with the EU excluded and nothing in the repo could show it was running on `routeloop.app` at all. A snippet is in view-source and in the repo, and does not depend on the edge rewriting HTML. It is cookieless and loads for everyone.
+
 ## Appendix: auth and place-search cost analysis, 2026-07-26
 
 Written before either migration, as analysis for a decision with nothing yet implemented. Both recommendations were followed on the auth side; the search side went to Google rather than trying Mapbox Search Box first. Retained because the cost model and the Apple-specific hazards are still the best record of what was weighed.
