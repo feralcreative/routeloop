@@ -84,12 +84,14 @@ $neutral-98: var(--neutral-98);
 // signal. `$tarmac` is the palette's black — road surface, and what a black
 // sign field like ONE WAY is.
 //
-// `$concrete` is the one entry that takes its value from the neutral scale
-// rather than holding its own. It is the post and the gantry — genuinely a gray,
-// so a gray it should be, rather than the slightly cool #7e8386 it was sampled
-// as. $neutral-57 is the nearest step (dE 3.4, against 5.1 for -50) and the
-// better one on the other axis too: its black legend measures 5.9:1 where the
-// sampled value managed 5.5:1.
+// `$concrete` took its value from the neutral scale until 2026-09-17 and is a
+// fixed #888888 in every palette now. It is the post and the gantry — genuinely
+// a gray, so a gray it should be, rather than the slightly cool #7e8386 it was
+// sampled as; -57 was the nearest step (dE 3.4) and it holds that step's LIGHT
+// value. It came off the ramp because it pinned the ramp: the roster mark
+// paints a white knockout glyph on it at a 3:1 graphical bar, so the dark
+// ramp's -57 could never be lifted with the muted text around it while the two
+// were one token.
 $interstate: var(--interstate);
 $speed: var(--speed);
 $stop: var(--stop);
@@ -103,6 +105,15 @@ $tarmac: var(--tarmac);
 $concrete: var(--concrete);
 $white: var(--white);
 $black: var(--black);
+// THE PAGE AND THE EDGE OF A CARD, 2026-09-17. `$white` is a SURFACE — a card,
+// a panel, a drawer — and `$page` is the ground those sit on: -96 in the
+// light, the near-black in the dark, so a card is one step above the page in
+// both schemes. `$card-edge` is a hairline for a card's outline: transparent
+// in the light, where the shadow draws the corner, and a faint light rule in
+// the dark, where a shadow on a dark page is nothing. See build() in
+// _palette.scss for why the two exist at all.
+$page: var(--page);
+$card-edge: var(--card-edge);
 
 // WHICH INK GOES ON WHICH FIELD. This is not a style preference and not derived
 // from the contrast numbers — it is copied off the signs the palette was sampled

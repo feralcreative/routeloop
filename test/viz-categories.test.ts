@@ -30,8 +30,22 @@ import { describe, expect, it } from 'vitest'
 import { PALETTE_KEYS, token, type PaletteKey } from './helpers/palettes'
 
 /** The slots, in the order _dashboard.scss assigns them. Token names, because
- *  the value depends on the palette and the assignment does not. */
-const CATEGORIES = ['disabled', 'detour', 'interstate', 'concrete']
+ *  the value depends on the palette and the assignment does not.
+ *
+ *  THE FIRST AND THIRD SLOTS ARE DIFFERENT TOKENS IN THE DARK, since
+ *  2026-09-17. The card lifted off the near-black that day (see $white in
+ *  _palette.scss) and the contrast theme's two dark fields — the guide green
+ *  #14402f and the services blue #043a72, dark by design so a white legend
+ *  clears — came within ΔE 18 of it under a deficiency, where a bar is meant
+ *  to be read against the card. The green takes `interstate-text`, the field
+ *  at the lightness the palette derives for setting type on it; the blue takes
+ *  `brand`, which is `$disabled` lifted for a near-black page — `disabled-text`
+ *  came within ΔE 7.3 of the lifted green in the colorblind theme, where both
+ *  fields are blues. They are what _dashboard.scss paints the slots with under
+ *  `data-scheme=dark`. */
+const CATEGORIES_LIGHT = ['disabled', 'detour', 'interstate', 'concrete']
+const CATEGORIES_DARK = ['brand', 'detour', 'interstate-text', 'concrete']
+const categoriesFor = (key: PaletteKey) => (key.endsWith('-dark') ? CATEGORIES_DARK : CATEGORIES_LIGHT)
 
 /** The card the chart is painted on, and the empty part of the track behind a
  *  segment. Both move with the scheme, which is why they are read rather than
@@ -133,13 +147,14 @@ function worstPair(kind: Deficiency | 'normal'): { dE: number; where: string } {
   let dE = Infinity
   let where = ''
   for (const key of PALETTE_KEYS) {
-    const seen = CATEGORIES.map((name) => simulate(parse(token(key, name)), kind))
+    const names = categoriesFor(key)
+    const seen = names.map((name) => simulate(parse(token(key, name)), kind))
     for (let i = 0; i < seen.length; i++) {
       for (let j = i + 1; j < seen.length; j++) {
         const d = deltaE(seen[i], seen[j])
         if (d < dE) {
           dE = d
-          where = `${key}: ${CATEGORIES[i]} vs ${CATEGORIES[j]}`
+          where = `${key}: ${names[i]} vs ${names[j]}`
         }
       }
     }
@@ -152,7 +167,7 @@ function worstAgainst(background: string): { dE: number; where: string } {
   let where = ''
   for (const key of PALETTE_KEYS) {
     const bg = parse(token(key, background))
-    for (const name of CATEGORIES) {
+    for (const name of categoriesFor(key)) {
       const d = deltaE(parse(token(key, name)), bg)
       if (d < dE) {
         dE = d
@@ -165,7 +180,7 @@ function worstAgainst(background: string): { dE: number; where: string } {
 
 describe('the categorical viz slots', () => {
   it('assigns one token per slot, with no repeats', () => {
-    expect(new Set(CATEGORIES).size).toBe(CATEGORIES.length)
+    for (const names of [CATEGORIES_LIGHT, CATEGORIES_DARK]) expect(new Set(names).size).toBe(names.length)
   })
 
   // 7.5 is the floor the current set actually clears, rounded down from 7.70,
@@ -215,6 +230,6 @@ describe('the categorical viz slots', () => {
   // The slots exist in every palette or the chart loses a color in one theme
   // and nothing says so. token() throws on a missing name, which is the assert.
   it.each(PALETTE_KEYS)('defines every slot in %s', (key: PaletteKey) => {
-    for (const name of [...CATEGORIES, SURFACE, TRACK]) expect(token(key, name)).toBeTruthy()
+    for (const name of [...categoriesFor(key), SURFACE, TRACK]) expect(token(key, name)).toBeTruthy()
   })
 })
