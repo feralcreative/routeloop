@@ -894,9 +894,15 @@ ul.cards {
     transform 120ms ease,
     box-shadow 120ms ease;
 
-  &:hover {
-    transform: translateY(-2px);
-    box-shadow: 0 6px 18px color-mix(in srgb, $tarmac 16%, transparent);
+  // POINTER HOVER ONLY. A touch fires :hover on tap and it sticks, so on a
+  // phone every press of a sign on the card lifted the whole card two pixels
+  // under the thumb and it read as the button jumping. Ziad's call,
+  // 2026-09-17: nothing on a card moves when pressed.
+  @media (hover: hover) {
+    &:hover {
+      transform: translateY(-2px);
+      box-shadow: 0 6px 18px color-mix(in srgb, $tarmac 16%, transparent);
+    }
   }
 
   // Focus lands on the inner <a>, so the ring has to be drawn out here or it

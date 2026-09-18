@@ -128,6 +128,17 @@
     font-size: 0.8em;
   }
 
+  // ONE WIDTH FOR EVERY WORD IT CAN SAY. The Keep sign reads Keep, Keeping,
+  // "3 of 5", Kept, Update or Retry, and an auto-width track re-measured on
+  // each, so Load ride shrank and grew beside it with every press. Sized to
+  // the widest and padded by the width rather than the text, so the label
+  // changes and nothing around it moves. Ziad's call, 2026-09-17.
+  .rides-page .btn.btn-sign.ride-card-go-minor[data-keep] {
+    width: 5.25rem;
+    padding-left: 0;
+    padding-right: 0;
+  }
+
   // KEEP IS WHITE UNTIL IT IS KEPT, THEN IT FILLS BLUE. Ziad's call,
   // 2026-09-17: a blue sign reading Keep and a blue sign reading Kept were
   // one word apart, and a rider glancing down a list of them could not tell

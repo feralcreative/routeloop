@@ -184,7 +184,9 @@
 
     sign.addEventListener("click", () => {
       sign.disabled = true;
-      sign.textContent = "Keeping\u2026";
+      // Every label the sign can carry fits the fixed width _rides.scss gives
+      // it — Keeping, "3 of 5", Retry — so the row never re-measures.
+      sign.textContent = "Keeping";
       fetch("/m/" + encodeURIComponent(slug) + "/keep.json", { credentials: "same-origin", cache: "no-store" })
         .then((r) => {
           if (!r.ok) throw new Error("HTTP " + r.status);
@@ -199,7 +201,7 @@
         .catch((err) => {
           sign.disabled = false;
           sign.classList.add("is-error");
-          sign.textContent = "Try again";
+          sign.textContent = "Retry";
           sign.title = "Could not keep it: " + (err && err.message ? err.message : "unknown error");
         });
     });
