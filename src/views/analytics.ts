@@ -11,7 +11,7 @@
 // test/analytics.test.ts pins; the two functions below it read the config and
 // the request and are the only wired part.
 //
-// THE CONSENT RULE. In the EU, EEA, UK and Switzerland — and over Tor, where
+// THE CONSENT RULE. In the EU, EEA, UK, and Switzerland — and over Tor, where
 // Cloudflare cannot say — GA is not loaded until the visitor says yes to a bar
 // at the top of the page; everyone else gets no prompt and no bar, because
 // nobody else's law asks and the cookie bar is the thing everybody hates. The

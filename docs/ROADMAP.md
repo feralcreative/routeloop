@@ -1239,7 +1239,7 @@ Not yet shaped into milestones—raw material for future issues. Grouped by them
 - ~~Autosave and undo in the builder.~~ **Both shipped**—undo 2026-08-05, autosave-to-server 2026-08-15 with item 16, which also deleted the Save and Discard buttons.
 - ~~Drag-to-reorder stops ([#39](https://github.com/feralcreative/routeloop/issues/39))—the affordance is decided, a textured drag bar replacing the arrows.~~ **Shipped 2026-08-15** with item 16, on SortableJS with the textured handle as described.
 - Keyboard shortcuts for the builder.
-- Usage analytics that respect privacy (self-hosted, no third-party trackers).
+- ~~Usage analytics that respect privacy (self-hosted, no third-party trackers).~~ Shipped 2026-09-17 as Google Analytics 4 plus the Cloudflare beacon, prod only, Signals and ad personalization off, with a consent bar where the law asks and nowhere else; see [decisions.md](decisions.md). Self-hosted stays open if the numbers ever want to leave Google.
 
 ## Non-goals
 
