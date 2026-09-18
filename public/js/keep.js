@@ -6,8 +6,9 @@
 //
 // WHAT A KEPT RIDE IS. One registry row per ride at `/_kept/<slug>` — a
 // synthetic entry in the same cache as the files, so the page and the record
-// of the page cannot come apart — plus the go page, the roadbook and the three
-// files, each stored under the exact URL the pages reference. The service
+// of the page cannot come apart — plus the go page, the roadbook and the GPX
+// (KML and the Routeloop file rode along until 2026-09-17 and were the same
+// geometry twice more), each stored under the exact URL the pages reference. The service
 // worker (public/js/sw.js) serves a ride from cache ONLY when its registry row
 // exists, which is why the row goes in FIRST: the worker's own network-first
 // pass on the fetches below then lands them in the cache as well, and a ride
@@ -59,7 +60,11 @@
     );
   }
 
-  function rowOf(m, bytes) {
+  // `via` is who asked: "hand" for a press on a sign, "policy" for the "On this
+  // phone" switch on /rides. The switch removes only what it added, so a ride
+  // a rider kept by hand outlives a change of policy — that book is kept here,
+  // on the row, and nowhere else.
+  function rowOf(m, bytes, via) {
     return {
       slug: m.slug,
       title: m.title,
@@ -69,12 +74,13 @@
       roadbookUrl: m.roadbookUrl,
       files: m.files,
       bytes: bytes,
+      via: via === "policy" ? "policy" : "hand",
     };
   }
 
   // Resolves to the finished registry row; rejects with the first failure.
   // `onProgress(done, total)` is called as each file lands.
-  function keep(m, onProgress) {
+  function keep(m, onProgress, via) {
     var urls = urlsOf(m);
     var bytes = 0;
     var done = 0;
@@ -83,7 +89,7 @@
     return openKept()
       .then(function (c) {
         cache = c;
-        return writeRegistry(cache, rowOf(m, 0));
+        return writeRegistry(cache, rowOf(m, 0, via));
       })
       .then(function () {
         return Promise.all(
@@ -110,7 +116,7 @@
         );
       })
       .then(function () {
-        var row = rowOf(m, bytes);
+        var row = rowOf(m, bytes, via);
         return writeRegistry(cache, row).then(function () {
           return row;
         });
