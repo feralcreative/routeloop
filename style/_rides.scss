@@ -33,16 +33,50 @@
   color: $neutral-57;
 }
 
+// The two big buttons on a card — Load and Edit, or Load and Riders. Rendered
+// on every card and shown only on a phone; see RideCardGo in ride-lists.tsx.
+.ride-card-go {
+  display: none;
+}
+
 //@ Phone
-// ONE COLUMN. `.ride-cards--dense` is `minmax(11rem, 1fr)`, which on a 390px
-// phone is two 11rem cards with the title truncated to a word each. One card
-// across, the face at the width of the screen, is what the list is FOR on a
-// phone: find the ride, read its name, tap it. `min(100%, 16rem)` rather than
-// a bare `16rem` so the track can never be wider than its container — a bare
-// minimum overflows the page on anything narrower than the number.
+// TWO COLUMNS AND TWO BIG BUTTONS. Ziad's call, 2026-09-17, reversing the
+// one-column rule of 2026-09-15 that stood here for two days: the list is for
+// finding a ride and loading it, and what a thumb needs for that is a big Load
+// and a big Edit, not a big map. Two fixed tracks rather than auto-fill, so a
+// rider with one ride gets a half-width card and not a stretched one; the face
+// is still there at half the screen, which is plenty to recognize a route by.
+// `minmax(0, 1fr)` and not `1fr`, or a long unbroken title makes its track
+// wider than half and the pair overflows the page.
 @media (max-width: $bp-phone) {
   .rides-page .ride-cards--dense {
-    grid-template-columns: repeat(auto-fill, minmax(min(100%, 16rem), 1fr));
-    gap: 1rem;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 0.75rem;
+  }
+
+  .rides-page .ride-card-body {
+    padding: 0.55rem 0.6rem;
+  }
+
+  // Stacked, full width, 44px tall: a sign is inline-flex, and a grid cell
+  // blockifies it to the track, so each one is the card's whole width with
+  // no rule about the sign itself. Centered because a label at the left of a
+  // full-width sign with its arrow at the far right reads as two things.
+  .ride-card-go {
+    display: grid;
+    gap: 0.45rem;
+    padding: 0 0.6rem 0.6rem;
+
+    .btn {
+      justify-content: center;
+      padding: 0.7rem 0.5rem;
+      font-size: 1.05em;
+    }
+  }
+
+  // The small Edit and Riders links say what the big signs above them now say
+  // louder. The pill and Delete stay: nothing else carries either.
+  .rides-page .ride-card-foot .editlink {
+    display: none;
   }
 }

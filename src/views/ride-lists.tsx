@@ -28,6 +28,28 @@ import { SEP } from './sep'
 // by closing the outer one early, which silently drops half the card out of the
 // link. The foot is a sibling of the link, and the card's own padding is what
 // makes the two read as one object.
+// THE TWO BIG BUTTONS A THUMB GETS, 2026-09-17. Ziad's call: on a phone the
+// list is two columns, and a big Load and a big Edit matter more than a big
+// map. Both are signs — Load the guide sign with its arrow, the second a flat
+// guide sign or a recreation sign, the viewer's own Edit/roster pairing — and
+// they render on EVERY card, because the markup cannot know the width; the
+// phone rule in _rides.scss is what shows them, and the foot's small Edit and
+// Riders links are what it hides in exchange. On a desktop the block is
+// `display: none` and the card is exactly what it was.
+//
+// OUTSIDE THE CARD'S ANCHOR, like the foot and for the same reason: an <a>
+// inside an <a> is invalid and a browser closes the outer one early.
+function RideCardGo({ slug, children }: { slug: string; children?: unknown }) {
+  return (
+    <div class="ride-card-go">
+      <a class="btn btn-sign" href={`/m/${slug}`}>
+        Load ride
+      </a>
+      {children}
+    </div>
+  )
+}
+
 // A ride the viewer is ON but does not own.
 //
 // A THIRD CARD RATHER THAN A FLAG ON THE OTHER TWO, for the same reason
@@ -68,6 +90,11 @@ export function JoinedRideCard({
           <span class="ride-card-owner">Planned by {owner}</span>
         </span>
       </a>
+      <RideCardGo slug={ride.slug}>
+        <a class="btn btn-sign btn-recreation" href={`/m/${ride.slug}/riders`}>
+          Riders
+        </a>
+      </RideCardGo>
       <div class="ride-card-foot">
         <span class="pill">{RSVP_LABELS[rsvp]}</span>
         {/* Straight to the roster rather than to the ride, because answering is
@@ -93,6 +120,11 @@ export function OwnRideCard({ ride, color, units }: { ride: RideRow; color: stri
           </span>
         </span>
       </a>
+      <RideCardGo slug={ride.slug}>
+        <a class="btn btn-sign btn-guide" href={`/builder/${ride.id}`}>
+          Edit ride
+        </a>
+      </RideCardGo>
       <div class="ride-card-foot">
         <span class="pill">{ride.visibility}</span>
         {/* Every own ride is editable now, imported ones included — this used to

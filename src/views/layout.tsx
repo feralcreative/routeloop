@@ -208,7 +208,12 @@ type NavItem = { key: NavKey; href: string; label: string }
 // The wordmark also links to `/`, so the header carries two ways to the same
 // page. That is ordinary rather than a fault — Dash earns its place by being
 // LABELED, which a logo is not.
-const DASH_LINK: NavItem = { key: 'home', href: '/', label: 'Dash' }
+//
+// `/dash` AND NOT `/` SINCE 2026-09-17: `/` sends a phone to /rides (see
+// src/routes/home.tsx), so a Dash item pointing at `/` would be a link a phone
+// could never follow. `/dash` is the same page with no redirect, on every
+// device. The wordmark keeps `/` on purpose — for a thumb, home is the list.
+const DASH_LINK: NavItem = { key: 'home', href: '/dash', label: 'Dash' }
 
 // A destination and three verbs. The destination left the group on 2026-08-27
 // when the list folded into /, and came back first on 2026-09-15 when the list
