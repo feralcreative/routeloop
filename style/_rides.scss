@@ -128,6 +128,33 @@
     font-size: 0.8em;
   }
 
+  // KEEP IS WHITE UNTIL IT IS KEPT, THEN IT FILLS BLUE. Ziad's call,
+  // 2026-09-17: a blue sign reading Keep and a blue sign reading Kept were
+  // one word apart, and a rider glancing down a list of them could not tell
+  // which rides were on the phone. Off is the services sign INVERTED — the
+  // page surface for the field, the sign's blue for the legend and the ring —
+  // and on is the sign as drawn. `is-kept` and `is-stale` are set by rides.js;
+  // a stale copy is still a copy, so it stays filled and only the word changes.
+  // The ring is restated because the base bakes the field into it (see
+  // sign-field() in _chrome.scss); the hover lifts toward the blue rather than
+  // toward white, which is what the mixin's own hover does and would vanish
+  // here. `$disabled` on `$white` is the app's link pair, audited in every
+  // palette.
+  .rides-page .btn.btn-sign.btn-services[data-keep]:not(.is-kept):not(.is-stale) {
+    background: $white;
+    color: $disabled;
+    box-shadow:
+      inset 0 0 0 3px $white,
+      inset 0 0 0 5px $disabled;
+
+    &:hover:not(:disabled) {
+      background: color-mix(in srgb, $disabled 8%, $white);
+      box-shadow:
+        inset 0 0 0 3px color-mix(in srgb, $disabled 8%, $white),
+        inset 0 0 0 5px $disabled;
+    }
+  }
+
   .rides-page .ride-card-foot {
     grid-column: 2;
     grid-row: 3;
