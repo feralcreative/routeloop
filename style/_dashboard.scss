@@ -59,6 +59,25 @@
   --viz-track: #{$neutral-94};
 }
 
+// A SIGN FIELD IS TOO DARK TO BE A BAR ON A DARK CARD, 2026-09-17. A field is
+// authored to carry a white legend, so the contrast theme's guide green
+// (#14402f) and services blue (#043a72) are dark by design — and once the card
+// lifted off the near-black, both came within ΔE 18 of it under a deficiency.
+// The green takes the tone the palette already derives for setting TYPE on the
+// field, the record figures' answer. The blue takes `$brand`, the link blue,
+// which is `$disabled` LIFTED for exactly this reason — to stay legible on a
+// near-black page — and not `disabled-text`, which was tried first and landed
+// within ΔE 7.3 of the lifted green in the colorblind theme, where the two
+// fields are both blues. The orange and the gray were never close.
+// test/viz-categories.test.ts measures the dark palettes with these names.
+// ON `.home`, NOT `:root`: the slots above are declared on `.home`, and a
+// custom property set on an ancestor loses to one set on the element itself.
+// The rule shipped on `:root[data-scheme]` for a moment and changed nothing.
+:root[data-scheme="dark"] .home {
+  --viz-cat-1: #{$brand};
+  --viz-cat-3: #{$interstate-text};
+}
+
 // --- Hero --------------------------------------------------------------------
 
 // Air between the greeting and the figure under it (2026-09-14). Ziad's

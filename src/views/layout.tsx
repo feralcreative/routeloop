@@ -1187,7 +1187,8 @@ const FOLD_RESTORE = `<script>(function(){try{var f=document.querySelectorAll("d
 const DRAWER_RESTORE = `<script>(function(){try{var d=JSON.parse(localStorage.getItem("routeloop.drawer")||"null");if(!d)return;var h=document.documentElement,p=document.getElementById("info-panel");if(d.w>0)h.style.setProperty("--panel-width",d.w+"px");if(d.collapsed&&p){p.classList.add("collapsed");var r=p.querySelector(".drawer-rail");if(r)r.setAttribute("aria-hidden","false");var t=p.querySelector(".collapse-toggle");if(t){t.setAttribute("aria-expanded","false");t.setAttribute("aria-label","Expand panel");}}}catch(e){}})();</script>`
 
 // The browser chrome's color on an installed phone (#69): the page surface,
-// which is white in a light scheme and the near-black `$white` in a dark one.
+// which is `$page`: the light gray in a light scheme and the near-black in a
+// dark one (it was `$white` until 2026-09-17, when a card lifted off the page).
 // The same rule as the appearance attributes — a stamped scheme gets one
 // answer, and an unstamped one gets both under `media` so the OS decides,
 // which is what lets `prefers-color-scheme` answer for a rider who has not.

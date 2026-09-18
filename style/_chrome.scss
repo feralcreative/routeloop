@@ -180,8 +180,11 @@
   }
 }
 
+// $page, not $neutral-96, since 2026-09-17: the two are one value in the
+// light and the page is the near-black in the dark, a step BELOW the cards on
+// it rather than a step above. See $page in _palette.scss.
 body {
-  background: $neutral-96;
+  background: $page;
 }
 
 html.map-page body {
@@ -812,6 +815,7 @@ ul.cards {
 
   li {
     background: $white;
+    border: 1px solid $card-edge;
     border-radius: 10px;
     box-shadow: 0 1px 4px rgba(0, 0, 0, 0.1);
   }
@@ -885,6 +889,10 @@ ul.cards {
   display: flex;
   flex-direction: column;
   background: $white;
+  // A hairline that is nothing in the light — the shadow below draws the
+  // corner there — and a faint light rule in the dark, where a shadow on a
+  // dark page is invisible and the card would have no edge. See $card-edge.
+  border: 1px solid $card-edge;
   border-radius: 10px;
   // Clips the face's top corners to the card's radius without a second radius
   // on the image that would have to be kept in step with this one.

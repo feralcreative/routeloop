@@ -103,26 +103,40 @@ $-neutrals-dark: (
   // of the ramp sits one hex pair higher again. Body text is L*94 now, which
   // is where most dark interfaces put it; the eye reads a light gray on
   // near-black as "gray" until it is nearly white.
+  //
+  // **AND THE MUTED HALF LIFTED AGAIN, 2026-09-17.** Ziad's call — "the
+  // contrast is still garbage" — with every pair passing 4.5:1 by the numbers,
+  // which is the lesson: the audit is a floor and not a verdict. -43 through
+  // -70 each sit about one hex pair higher than the 2026-09-14 values, so the
+  // meta line under a ride title, the tab labels and the captions read as
+  // text rather than as murk. The steps stay a pair apart, so nothing that
+  // relied on the gap between two grays collapses.
   21: #eeeeee,
-  29: #dddddd,
-  36: #cccccc,
-  43: #bbbbbb,
+  29: #e0e0e0,
+  36: #d2d2d2,
+  43: #c6c6c6,
   // 50 AND 43 WERE BOTH #888888 UNTIL 2026-09-07, which collapsed the two
   // most-used grays into one; they are a full step apart now.
-  50: #aaaaaa,
-  // -57 IS $concrete AND IT HOLDS AT #888888: the roster mark paints a WHITE
-  // knockout glyph on it, and one pair lighter measures 2.85 against the 3:1
-  // graphical bar `src/views/legend.ts` holds it to. Muted text on -57 is
-  // 5.9:1 on the page here, which is enough; the step below it keeps its
-  // distance so the two stay distinguishable.
-  57: #888888,
-  63: #777777,
-  70: #666666,
+  50: #b8b8b8,
+  // -57 WAS HELD AT #888888 BECAUSE IT WAS $concrete, and the roster mark
+  // paints a WHITE knockout glyph on $concrete at the 3:1 graphical bar
+  // `src/views/legend.ts` holds it to — one pair lighter measured 2.85. That
+  // coupling is CUT below: $concrete is its own #888888 in every palette now,
+  // and this step is free to be the muted text it is used as 39 times.
+  57: #a2a2a2,
+  63: #8e8e8e,
+  70: #727272,
   76: #444444,
   82: #3b3b3b,
   88: #333333,
   94: #262626,
-  96: #1a1a1a,
+  // -96 IS A WELL, NOT THE PAGE, SINCE 2026-09-17. A fill of -96 on a surface
+  // is a shade recessed from it in the light ramp (#f4f4f4 on white), and it
+  // has to be the same here — a shade darker than the card, which is #1a1a1a
+  // now (see $white in build()). The page itself moved off the ramp onto
+  // $page, which takes -98 in the dark: the sign-in page's ground, and the
+  // one near-black the product already had.
+  96: #121212,
   98: #0a0e11,
 );
 
@@ -295,6 +309,20 @@ $-signs-colorblind: (
   $n: $-neutrals-light;
   $white: #ffffff;
   $black: #000000;
+  // THE PAGE IS ITS OWN TOKEN, 2026-09-17, AND IN THE DARK IT IS DARKER THAN A
+  // CARD. Ziad's call. Until then the dark page was -96 (#1a1a1a) and a card
+  // was $white (#0a0e11) — every surface sat DARKER than the page it was on and
+  // read as a hole, the inverse of what a card is. Light is unchanged: the page
+  // is -96 and a card is white, one step lighter. Dark now runs the same
+  // direction: the page is the near-black and a card is lifted above it, the
+  // arrangement every dark interface uses because it is how elevation reads.
+  // $page is the page and nothing else; a fill that used to borrow -96 to mean
+  // "a shade off the surface" still means that and still says -96.
+  $page: map.get($n, 96);
+  // A hairline at the edge of a card: nothing in the light, where the shadow
+  // does the work, and a faint light rule in the dark, where a shadow on a
+  // dark page is invisible and the lift alone is not enough to draw a corner.
+  $card-edge: rgba(0, 0, 0, 0);
   $dir: 1;
   $panel-bg: rgba(255, 255, 255, 0.9);
   $panel-shadow: rgba(0, 0, 0, 0.18);
@@ -324,13 +352,20 @@ $-signs-colorblind: (
   $record-text-l: 30%;
   @if $dark {
     $n: $-neutrals-dark;
-    $white: map.get($n, 98);
+    // THE CARD, one step above the page: #1a1a1a, which is what -96 was until
+    // the page took -98 and the ramp's -96 became the well under it. A literal
+    // rather than a ramp step because it is neither — it is the surface, the
+    // thing the ramp's wells and pills are measured against.
+    $white: #1a1a1a;
+    $page: map.get($n, 98);
+    $card-edge: rgba(255, 255, 255, 0.08);
     $black: map.get($n, 21);
     // THE DERIVATION DIRECTION INVERTS. See the note below.
     $dir: -1;
     // Mixed rather than flipped: on a dark scheme a white scrim would glow, so
-    // the floating map panel takes the page's own near-black at the same opacity.
-    $panel-bg: rgba(10, 14, 17, 0.9);
+    // the floating map panel takes the SURFACE — the card gray, since it is a
+    // card floating over the map — at the same opacity.
+    $panel-bg: rgba(26, 26, 26, 0.9);
     $panel-shadow: rgba(0, 0, 0, 0.5);
     $pending-l: 70%;
     $label-l: 72%;
@@ -440,7 +475,12 @@ $-signs-colorblind: (
     "signal": map.get($s, "signal"),
     "recreation": map.get($s, "recreation"),
     "tarmac": map.get($s, "tarmac"),
-    "concrete": map.get($n, 57),
+    // $concrete IS #888888 IN EVERY PALETTE AND IS NO LONGER A RAMP STEP,
+    // 2026-09-17. It carried -57, and -57 could not be lifted with the rest of
+    // the muted text because the roster mark paints a white knockout glyph on
+    // this and one pair lighter fails the 3:1 graphical bar in legend.ts. The
+    // post is a fixed gray; the text that happened to share its value is not.
+    "concrete": #888888,
     // PAGE SURFACES, not legends. Under a dark scheme $white is the page's own
     // near-black and $black is the light ink that sits on it — the names keep
     // meaning "the page" and "the ink on the page" rather than meaning the two
@@ -448,6 +488,8 @@ $-signs-colorblind: (
     // ink-light or ink-dark above.
     "white": $white,
     "black": $black,
+    "page": $page,
+    "card-edge": $card-edge,
 
     // ONE LINK BLUE UNDER ONE NAME, 2026-09-07 — Ziad's call. It was `url`,
     // `brand` and `ride`, three names for one value in all six palettes, and

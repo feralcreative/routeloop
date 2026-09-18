@@ -9,13 +9,13 @@ import { token } from './helpers/palettes'
 
 const norm = (v: string) => v.trim().toLowerCase()
 
-describe('theme-color follows the page surface', () => {
-  it('matches --white in the default light palette', () => {
-    expect(norm(token('default-light', 'white'))).toBe(THEME_COLOR.light)
+describe('theme-color follows the page', () => {
+  it('matches --page in the default light palette', () => {
+    expect(norm(token('default-light', 'page'))).toBe(THEME_COLOR.light)
   })
 
-  it('matches --white in the default dark palette', () => {
-    expect(norm(token('default-dark', 'white'))).toBe(THEME_COLOR.dark)
+  it('matches --page in the default dark palette', () => {
+    expect(norm(token('default-dark', 'page'))).toBe(THEME_COLOR.dark)
   })
 
   it('is a six-digit hex in both, because a browser reads nothing else reliably', () => {

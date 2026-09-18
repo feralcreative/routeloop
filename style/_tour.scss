@@ -415,6 +415,35 @@ html.tour-active #search-results {
   opacity: 0.62;
 }
 
+// THE SPOTLIGHT IS A RING, NOT ONLY A SHADOW. Ziad's call, 2026-09-17: the
+// overlay is a black SVG at 62% over the page, which on a dark page is a
+// shadow on a shadow — the cut-out that is the whole point of a spotlight was
+// invisible in dark mode. Shepherd draws the overlay as ONE path, the viewport
+// rectangle with the opening cut out of it by even-odd fill, so a stroke on
+// that path draws a line around BOTH edges: the inner one is a ring around the
+// thing the step is about, and the outer one runs along the viewport's edge —
+// half of it inside the screen, which framed the whole page in yellow for a
+// build. The `clip-path` on the container trims that half off: two pixels of
+// un-dimmed page at the very edge, which nothing can see, against a frame
+// everything could. `$yield` is the tour's own sign color, reads on a map and
+// on either scheme's page, and is not a color the page uses for anything
+// else; the same width as the sign keyline. `vector-effect` because the path
+// is drawn in an SVG scaled to the viewport, and the stroke would scale with
+// it otherwise. Painted below the opacity above, so the ring is at 62% too —
+// bright enough to find, not a hazard stripe.
+.shepherd-modal-overlay-container {
+  clip-path: inset(2px);
+
+  path {
+    stroke: $yield;
+    stroke-width: 3px;
+    vector-effect: non-scaling-stroke;
+    // Shepherd leaves the fill at SVG's default black. Said out loud so a
+    // change of vendor default cannot quietly turn the dimming into nothing.
+    fill: #000000;
+  }
+}
+
 // The overlay animates its opacity as well, and is stilled the same way.
 .shepherd-modal-overlay-container {
   @include motion.still {

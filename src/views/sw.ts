@@ -50,11 +50,15 @@ export const PRECACHE_PATHS = [
 
 export const OFFLINE_PATH = '/offline'
 
-// The page surface in the two default schemes, for the theme-color meta.
+// The PAGE in the two default schemes, for the theme-color meta — `$page`,
+// since 2026-09-17, and not `$white`: the header has no background of its own
+// and sits on the page, so the browser chrome above it should match the page.
+// `$white` is a card now, one step above the page in both schemes, and in the
+// light the two were a hair apart (#ffffff against #f4f4f4) the whole time.
 // Declared rather than read out of the built stylesheet at request time, the
 // role-colors.ts arrangement: test/theme-color.test.ts compiles the palette and
-// fails if `$white` moves under these.
-export const THEME_COLOR = { light: '#ffffff', dark: '#0a0e11' } as const
+// fails if `$page` moves under these.
+export const THEME_COLOR = { light: '#f4f4f4', dark: '#0a0e11' } as const
 
 const SW_SOURCE = join(process.cwd(), 'public', 'js', 'sw.js')
 
