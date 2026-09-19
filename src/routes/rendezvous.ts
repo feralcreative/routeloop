@@ -35,7 +35,7 @@
 import { Hono } from 'hono'
 import { eq, inArray } from 'drizzle-orm'
 import { db } from '../db/index'
-import { routes as routesTable, points as pointsTable, routeLegs } from '../db/schema'
+import { routes as routesTable, points as pointsTable, routeLegs, userProfiles } from '../db/schema'
 import { currentUser, requireActiveApi, requireSameOrigin, type AuthEnv } from '../auth/middleware'
 import { ownRide } from './maps'
 import {
@@ -62,21 +62,31 @@ rendezvousRoutes.post('/api/rides/:id/rendezvous', requireActiveApi, requireSame
   const ride = await ownRide(user.id, c.req.param('id'))
   if (!ride) return c.json({ error: 'not found' }, 404)
 
-  // HOW FAR OUT OF THEIR WAY A JOINING GROUP MAY BE SENT, from the planner
-  // rather than from a constant. Ziad's call, 2026-09-06: an earliest-acceptable
-  // rule always lands NEAR the limit, so `maxDivertMi` stopped being a guard
-  // against nonsense the route the scoring was reversed and became the actual
-  // dial — and it had no control, which made the one number deciding where a
-  // meeting point lands the one number nobody could touch.
+  // HOW MUCH FURTHER OUT OF THEIR WAY THAN NECESSARY A JOINING GROUP MAY BE
+  // SENT, from the planner rather than from a constant. Ziad's call, 2026-09-06,
+  // for the dial; 2026-09-19 (#370) for what it measures — the extra over each
+  // group's cheapest meet rather than an absolute cap, since the scoring became
+  // a trade and the cap went back to being a guard. See DIVERT_WEIGHT.
+  //
+  // THE PRESS WINS, THEN THE RIDER'S PREFERENCE, THEN THE APP'S DEFAULT. The
+  // builder sends the dial on every press, seeded from the preference, so the
+  // second step is for a client that sends nothing — and it is read here rather
+  // than trusted from the page, because the page is a form.
   //
   // CLAMPED RATHER THAN REFUSED WITH A 400. The only ways to reach this with a
   // bad value are a typo in a number box and a hand-written request; neither is
   // worth losing the whole proposal over, and the clamp protects the sampling
-  // cost as well. Anything unparseable comes back undefined, which spreads as a
-  // no-op and leaves the proposer's own default — so a client that sends
-  // nothing behaves exactly as it did before this existed.
+  // cost as well. Anything unparseable comes back undefined, which the proposer
+  // treats as "use the default" — an explicit undefined used to spread over the
+  // default and switch the cap OFF, which `withDefaults()` in the proposer now
+  // refuses.
   const body = (await c.req.json().catch(() => ({}))) as { maxDivertMi?: unknown }
-  const divertOpt = { maxDivertMi: clampDivert(body.maxDivertMi) }
+  const [prof] = await db
+    .select({ meetDivertMi: userProfiles.meetDivertMi })
+    .from(userProfiles)
+    .where(eq(userProfiles.userId, user.id))
+    .limit(1)
+  const divertOpt = { maxDivertMi: clampDivert(body.maxDivertMi) ?? clampDivert(prof?.meetDivertMi) }
 
   const groups = await subgroupsOf(ride.id)
   // One group has nobody to meet. A real answer rather than an error.

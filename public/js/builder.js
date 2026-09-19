@@ -604,12 +604,13 @@
     // range for — a rider who finds a 300-mile circle in the way turns it off.
     ringOn: true,
     corridorOn: false,
-    // HOW FAR OUT OF THEIR WAY A JOINING GROUP MAY BE SENT, in miles, for the
-    // next meeting-point press. Session-only and ride-wide for the same reason
-    // as the two above: it is how the planner is asking the question right now.
-    // The default matches the proposer's own, so the panel and an old client
-    // that sends nothing get the same answer.
-    maxDivertMi: 25,
+    // HOW MUCH FURTHER OUT OF THEIR WAY THAN NECESSARY A JOINING GROUP MAY BE
+    // SENT, in miles, for the next meeting-point press. Session-only and
+    // ride-wide for the same reason as the two above: it is how the planner is
+    // asking the question right now. SEEDED FROM THE RIDER'S PREFERENCE (#370)
+    // — the page renders the dial from the same number, so the box and the
+    // state agree before anybody touches either.
+    maxDivertMi: window.TB.maxDivertMi || 10,
     // Who is on which route, resolved server-side. NULL until it loads — the row
     // renderer checks, because a line that guessed "everyone" before the fetch
     // landed would flicker to the truth on exactly the routes where the truth is
@@ -4964,8 +4965,8 @@
 
     // SESSION STATE AND NOT A RIDE FIELD, like corridorOn and ringOn: how far a
     // detour is worth is a question about the press being made, and it does not
-    // survive a reload on purpose — the default is what a planner should get for
-    // pressing the button on a ride they have just opened.
+    // survive a reload on purpose — the rider's own default is what a planner
+    // should get for pressing the button on a ride they have just opened.
     //
     // `change` and not `input`: a number box fires on every keystroke, so typing
     // "120" would put state through 1 and then 12, and the last press before a
@@ -4983,7 +4984,7 @@
         // to the server. The server clamps too — it does not trust a form — but
         // a rider who typed 900 and got answers within 200 deserves to see the
         // number that was actually used.
-        state.maxDivertMi = Number.isFinite(n) ? Math.min(200, Math.max(1, n)) : 25;
+        state.maxDivertMi = Number.isFinite(n) ? Math.min(200, Math.max(1, n)) : window.TB.maxDivertMi || 10;
         divert.value = String(state.maxDivertMi);
       });
     }
