@@ -507,6 +507,16 @@ export const userProfiles = pgTable('user_profiles', {
   // than the schema refusing it — see src/places/ranking.ts. A CHECK could not
   // express it anyway, since matching is substring and approximate.
   favorPlaces: varchar('favor_places', { length: 1000 }),
+  // HOW MUCH FURTHER OUT OF THEIR WAY THAN NECESSARY A JOINING GROUP MAY BE
+  // SENT to meet sooner, in miles (#370). The builder seeds its meeting-point
+  // dial from this; the dial itself is still per press. NULLABLE WITH THE
+  // DEFAULT IN CODE — `DEFAULT_DIVERT_MI` in src/subgroups/rendezvous.ts — the
+  // `home_label` arrangement rather than the defaulted-column one the
+  // preferences above follow: a rider who clears the box goes back to whatever
+  // the app's default is, instead of carrying the number it was on the day they
+  // cleared it as though they had typed it. Clamped by `clampDivert()` on the
+  // way in and again on the way out, which is why there is no CHECK.
+  meetDivertMi: integer('meet_divert_mi'),
   // WHAT THE APP CALLS THINGS (#321). The rider's default preset — a vehicle
   // and what powers it — and their own words for any term they set to Custom.
   // VARCHAR AND NOT pgEnum for the reason notifications.event is: a new vehicle

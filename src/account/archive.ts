@@ -336,6 +336,7 @@ export function buildAccountJson(input: AccountArchiveInput): AccountArchive {
           hideTour: profile.hideTour,
           avoidPlaces: profile.avoidPlaces,
           favorPlaces: profile.favorPlaces,
+          meetDivertMi: profile.meetDivertMi,
           vehicle: profile.vehicle,
           power: profile.power,
           jargon: profile.jargon,

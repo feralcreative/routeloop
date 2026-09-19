@@ -1,0 +1,1 @@
+ALTER TABLE "user_profiles" ADD COLUMN "meet_divert_mi" integer;

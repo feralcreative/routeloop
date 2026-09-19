@@ -27,6 +27,7 @@ import { toUnits } from '../views/units'
 import { toClock } from '../views/clock'
 import { toVolumeUnits } from '../views/volume'
 import { toTips } from '../views/tips'
+import { clampDivert } from '../subgroups/rendezvous'
 import { TERMS, toJargon, toPower, toVehicle, vocabOf, wordsFor } from '../views/vocab'
 import { GROUPS, eventsInGroup, type GroupId } from '../notifications/catalog'
 import { checkedKeys, rowsFromForm } from '../notifications/policy'
@@ -453,6 +454,34 @@ const writeList = (column: 'avoidPlaces' | 'favorPlaces', anchor: string) => asy
 
 settingsRoutes.post('/settings/avoid', requireActive, requireSameOrigin, writeList('avoidPlaces', 'avoid'))
 settingsRoutes.post('/settings/favor', requireActive, requireSameOrigin, writeList('favorPlaces', 'favor'))
+
+// How much further out of their way than necessary a joining group may be sent
+// to meet sooner (#370). Where the builder's meeting-point dial starts.
+//
+// THE SAME CLAMP THE ROUTE APPLIES TO THE DIAL, so the two cannot disagree
+// about what a legal number is: `clampDivert` answers undefined for anything
+// unusable — an empty box included — and undefined is stored as NULL, which
+// every reader turns back into the app's default. A rider who clears the field
+// is back on the default, not on 1 and not on whatever the default was the day
+// they cleared it.
+settingsRoutes.post('/settings/meet', requireActive, requireSameOrigin, async (c) => {
+  const user = currentUser(c)
+  const body = await c.req.parseBody()
+  const clamped = clampDivert(body.meetDivertMi)
+  const meetDivertMi = clamped === undefined ? null : Math.round(clamped)
+
+  await db
+    .insert(userProfiles)
+    .values({
+      userId: user.id,
+      meetDivertMi,
+      dateFormat: fromAcceptLanguage(c.req.header('Accept-Language')),
+      updatedAt: new Date(),
+    })
+    .onConflictDoUpdate({ target: userProfiles.userId, set: { meetDivertMi, updatedAt: new Date() } })
+
+  return c.redirect('/settings?saved=meet#meet', 303)
+})
 
 /**
  * Notification preferences — one handler, five forms.

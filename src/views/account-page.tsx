@@ -53,6 +53,7 @@ import { dateFormatFor } from './prefs'
 import { listBin } from '../trash/service'
 import { binPlacesHtml } from './bin'
 import { fieldHelp, page } from './layout'
+import { DEFAULT_DIVERT_MI, MAX_DIVERT_MI, MIN_DIVERT_MI } from '../subgroups/rendezvous'
 import { tourAssets } from './tour-assets'
 import { asset } from './assets'
 
@@ -135,6 +136,7 @@ async function prefsFor(userId: number) {
       hideTour: userProfiles.hideTour,
       avoidPlaces: userProfiles.avoidPlaces,
       favorPlaces: userProfiles.favorPlaces,
+      meetDivertMi: userProfiles.meetDivertMi,
       vehicle: userProfiles.vehicle,
       power: userProfiles.power,
       jargon: userProfiles.jargon,
@@ -152,6 +154,9 @@ async function prefsFor(userId: number) {
     hideTour: p?.hideTour ?? false,
     avoidPlaces: p?.avoidPlaces ?? '',
     favorPlaces: p?.favorPlaces ?? '',
+    // Null is "never set", and the box shows the app's default as a placeholder
+    // rather than as a value — see the column.
+    meetDivertMi: p?.meetDivertMi ?? null,
     vocab: vocabOf(p),
   }
 }
@@ -187,6 +192,7 @@ export async function accountPage(
     'volume',
     'avoid',
     'favor',
+    'meet',
     'tips',
     'tour-button',
     'vehicle',
@@ -201,8 +207,19 @@ export async function accountPage(
   ]
   const restored = savedQuery !== undefined && !FORM_SAVED.includes(savedQuery)
   const on = (name: string) => savedQuery === name
-  const { durationFormat, units, motion, clock, volumeUnits, avoidPlaces, favorPlaces, tips, hideTour, vocab } =
-    await prefsFor(user.id)
+  const {
+    durationFormat,
+    units,
+    motion,
+    clock,
+    volumeUnits,
+    avoidPlaces,
+    favorPlaces,
+    meetDivertMi,
+    tips,
+    hideTour,
+    vocab,
+  } = await prefsFor(user.id)
   // The words the presets alone would give, with no Custom row — what each
   // jargon row marks as "default".
   const presetWords = wordsFor({ ...vocab, jargon: {} })
@@ -913,6 +930,64 @@ export async function accountPage(
               </form>
             </section>
           </div>
+        </section>
+
+        {/*
+          MEETING POINTS (#370). Where the builder's detour dial starts, and the
+          one number in the meeting-point proposer a rider can set once rather
+          than per press. Its own topic for the reason Places is: everything in
+          Units is about how a figure is WRITTEN, and this changes what a press
+          of Find meeting points ANSWERS.
+
+          ONE FIELD, EMPTY BY DEFAULT, WITH THE DEFAULT AS ITS PLACEHOLDER. The
+          column is nullable and the default lives in code, so a rider who
+          clears the box goes back to whatever the app's default is rather than
+          carrying the number it was the day they cleared it. A number box saves
+          on `change`, so the autosave fires on blur or Enter rather than on
+          each digit of "120".
+        */}
+        <section class="setting-topic" id="meet">
+          <h2>Meeting points</h2>
+          <p>
+            When groups set off from different places, the builder proposes where they should meet on the main group’s
+            road. A joining group is never sent farther out of their way than this beyond the nearest point where their
+            road meets it—meeting sooner has to be worth the detour. This is where the builder’s dial starts; you can
+            change it for any one press on the Groups&nbsp;tab.
+          </p>
+          <section class="setting" id="meet-divert">
+            <h3>Extra detour a joining group will accept</h3>
+            <form method="post" action="/settings/meet" class="setting-form" data-autosave>
+              <p class="field">
+                <span class="label-row">
+                  <label for="f-meet">Beyond the nearest meeting point (mi)</label>
+                  {raw(
+                    fieldHelp(
+                      'meet',
+                      'how the detour allowance works',
+                      `Measured from the cheapest place each group could join, not from zero, so a group whose road never comes near the main one still gets an answer. Leave it empty for the default of ${DEFAULT_DIVERT_MI} miles.`,
+                    ),
+                  )}
+                </span>
+                <input
+                  type="number"
+                  id="f-meet"
+                  name="meetDivertMi"
+                  min={MIN_DIVERT_MI}
+                  max={MAX_DIVERT_MI}
+                  step={1}
+                  inputmode="numeric"
+                  placeholder={String(DEFAULT_DIVERT_MI)}
+                  value={meetDivertMi === null ? '' : String(meetDivertMi)}
+                />
+              </p>
+              <div class="setting-actions">
+                <button type="submit" class="btn btn-sign arrow-right arrow-n" data-js-hide>
+                  Save
+                </button>
+                <Saved when={on('meet')} />
+              </div>
+            </form>
+          </section>
         </section>
 
         {/*

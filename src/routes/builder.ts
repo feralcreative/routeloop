@@ -47,6 +47,7 @@ import {
   type MemberFields,
 } from '../members/policy'
 import { subgroupsOf } from '../subgroups/service'
+import { clampDivert, DEFAULT_DIVERT_MI, MAX_DIVERT_MI, MIN_DIVERT_MI } from '../subgroups/rendezvous'
 import { groupRange, ownRange, type GroupRange } from '../bikes/group-range'
 import { grantsFor } from '../access/query'
 import { fields, firstIssue } from '../maps/fields'
@@ -748,8 +749,17 @@ async function homeSeed(userId: number): Promise<{ lat: number; lng: number; lab
 //   durationFormat — how the stop duration field reads. Defaulted through
 //   toDurationFormat rather than trusted, because a rider with no profile row at
 //   all gets undefined here and every reader has to agree on what that means.
+//
+//   meetDivertMi — where the Groups tab's detour dial starts (#370). The
+//   rider's own number where they set one, the app's default otherwise, and
+//   clamped either way because the column carries no CHECK.
 type PublicStart = { lat: number; lng: number; label: string }
-type BuilderPrefs = { publicStart: PublicStart | null; durationFormat: DurationFormat; units: Units }
+type BuilderPrefs = {
+  publicStart: PublicStart | null
+  durationFormat: DurationFormat
+  units: Units
+  meetDivertMi: number
+}
 
 async function builderPrefs(userId: number): Promise<BuilderPrefs> {
   const [p] = await db
@@ -759,6 +769,7 @@ async function builderPrefs(userId: number): Promise<BuilderPrefs> {
       label: userProfiles.startLabel,
       durationFormat: userProfiles.durationFormat,
       units: userProfiles.units,
+      meetDivertMi: userProfiles.meetDivertMi,
     })
     .from(userProfiles)
     .where(eq(userProfiles.userId, userId))
@@ -768,6 +779,7 @@ async function builderPrefs(userId: number): Promise<BuilderPrefs> {
       p?.lat == null || p?.lng == null ? null : { lat: p.lat, lng: p.lng, label: p.label?.trim() || 'Meeting point' },
     durationFormat: toDurationFormat(p?.durationFormat),
     units: toUnits(p?.units),
+    meetDivertMi: clampDivert(p?.meetDivertMi) ?? DEFAULT_DIVERT_MI,
   }
 }
 
@@ -978,17 +990,22 @@ function builderHtml(
                Hidden until the ride has a second group: one group has nobody to meet. -->
           <div class="sg-meet-row" id="sg-meet-row" hidden>
             <button type="button" class="btn btn-sm sg-meet" id="sg-meet-all">Find meeting points</button>
-            <!-- THE DIVERT DIAL. It sits BESIDE the button rather than in ride
-                 preferences because it is the one number that decides what comes
-                 back, and a planner who gets three answers too far off their
-                 road has to be able to say so without leaving the panel. Session
-                 state, not a column: it is a question about this press, and a
-                 ride-level answer is a schema change for a number the planner
-                 re-asks the moment the road changes. Ziad’s call, 2026-09-06. -->
+            <!-- THE DETOUR DIAL. It sits BESIDE the button rather than in ride
+                 preferences because a planner who gets three answers too far off
+                 their road has to be able to say so without leaving the panel.
+                 Session state per press, SEEDED FROM THE RIDER’S PREFERENCE
+                 since 2026-09-19 (#370): the number is what a rider is willing
+                 to ask of a feeder in general, so it starts where they set it on
+                 /settings and is still theirs to move for this press. A
+                 ride-level column was rejected on 2026-09-06 and still is—the
+                 planner re-asks the moment the road changes. What the number
+                 MEANS also changed with #370: how much further out of their way
+                 than the cheapest possible meet a group may be sent, not an
+                 absolute cap, so the label says "extra". -->
             <label class="sg-divert" for="sg-divert">
-              <span>within</span>
-              <input type="number" id="sg-divert" min="1" max="200" step="5" value="25" inputmode="numeric" />
-              <span>mi detour</span>
+              <span>up to</span>
+              <input type="number" id="sg-divert" min="${MIN_DIVERT_MI}" max="${MAX_DIVERT_MI}" step="5" value="${prefs.meetDivertMi}" inputmode="numeric" />
+              <span>mi extra detour</span>
             </label>
           </div>
           <div class="sg-meet-out" id="sg-meet-out"></div>
@@ -1310,6 +1327,9 @@ ${
       publicStart: prefs.publicStart,
       durationFormat: prefs.durationFormat,
       units: prefs.units,
+      // Where the detour dial starts — the same number the input above is
+      // rendered with, so state and the box agree before anybody touches it.
+      maxDivertMi: prefs.meetDivertMi,
       // WHAT THIS RIDER MAY DO, and it is a hint rather than the gate. The
       // server refuses a write from a rider below `edit` whatever the page
       // believes — see the PUT — and this is here so the page does not offer an
