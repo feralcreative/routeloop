@@ -127,6 +127,24 @@ This reverses a call recorded on 2026-09-03, and the old reasoning is struck rat
 
 **Nothing to cut is an ordinary outcome and not a failure.** A main group whose day ENDS at the meeting point has no shared stretch; `canSplitAt` refuses the last point and the note says nothing about it.
 
+## A meeting point is a trade, and the allowance is measured from the cheapest one, 2026-09-19
+
+[#370](https://github.com/feralcreative/routeloop/issues/370), reported by @epim with a screenshot: Scotts Valley to Twain Harte via Copperopolis, a second group leaving from San Francisco, and every proposal sending the San Francisco group twenty-five miles out of their way—a dozen miles down 880 to meet and a dozen back—when their own road onto 580 met the main group's at Castro Valley for nothing. It is exactly the consequence the 2026-09-03 entry below stated: an earliest-under-a-cap rule always lands at the cap, so the cap became the answer, and twenty-five miles of cap bought twelve miles of road.
+
+**The score is a trade.** `alongM + 1.5 × divert`, plus the old approach and fuel nudges. Moving a meet a mile earlier gains a mile ridden together and costs each joining group whatever extra divert the geometry charges for it, and a mile out of somebody's way has to buy a mile and a half together. Three straight-road shapes bound the weight: a group on the road pays two miles per mile behind its junction (anything over 0.5 keeps them there), a group well off to one side of a road heading away from them pays about half (ride 34; anything under 2 sends them earlier, to the cap, which is what the entry below wanted for that ride and still gets), and a group a few miles to one side pays one at the foot of the perpendicular and lands a little past it. 1.5 rather than 1 because indifference is the wrong default.
+
+**On a straight road there is no elbow.** With a fixed slope the answer is the cheapest meet or the cap, and that is geometry rather than a defect—which is why the cap survives at all, and why it changed meaning.
+
+**The allowance is measured from each group's cheapest viable meet, not from zero.** Ziad's call, over keeping it absolute: an absolute cap of twenty-five answered "nowhere works" for any group whose road never came within it of the main group's, which is a fact about where they live and not about the meet. The proposer runs two passes—measure every candidate, take each group's least divert anywhere viable as a floor, then cap the extra over the floor and score. `fuelOnly` still measures the bare road and never offers it, or a lone station well out of a group's way would set its own floor and pass for free.
+
+**Rejected: the literal two-stage reading of the issue**—find the convergence, look for a station within the radius, only then walk backwards. It is a step function at the radius edge, and the trade gives the same answer on epim's ride without one.
+
+**Rejected: reweighting the old linear score alone.** It is the same arithmetic as the trade; what was wrong was the weight and the absolute cap together, and fixing the weight without the cap keeps refusing distant groups.
+
+**Ten miles by default, and a rider sets their own** ([#371](https://github.com/feralcreative/routeloop/issues/371)). Twenty-five was aggressive as an absolute cap and is more so as an allowance over the cheapest meet. `user_profiles.meet_divert_mi`, nullable with the default in code so a cleared box goes back to whatever the default is; the builder's dial seeds from it and stays per press. Placeholder columns for other future preferences were asked about and declined: an additive migration costs nothing to ship with its feature, and a column guessed early is a rename when the guess is wrong.
+
+**Found on the way: an explicit `undefined` switched the cap off.** `{ ...DEFAULTS, ...{ maxDivertMi: undefined } }` carries the undefined through, so the shape the route builds when a client sends nothing had no cap at all, and the test that claimed to pin it passed on a fixture the cap never reached. `withDefaults()` ignores an explicit undefined and the fixture bites now.
+
 ## The divert budget gets a control, 2026-09-06
 
 `maxDivertMi` was a guard against nonsense until the scoring was reversed on 2026-09-03. Once the rule became "the earliest acceptable point wins", the answer always lands NEAR the limit—so the limit became the dial that decides where a meeting point goes, and it was the one number nobody could touch.
