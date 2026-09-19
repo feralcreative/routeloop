@@ -661,7 +661,7 @@
       at: "#sg-meet-all",
       tab: "tab-groups",
       title: "Find meeting points",
-      text: "One press and the builder walks the main group’s route for the earliest gas station every other group can reach on their tank, within the detour you allow, and offers the best options.",
+      text: "One press and the builder walks the main group’s route for gas stations every other group can reach on their tank, weighs riding together sooner against the extra detour it costs, and offers the best options.",
       running: "Working out where to meet…",
       done: function () {
         return !!document.querySelector(".sg-take");
@@ -714,7 +714,7 @@
         });
       },
       title: "The options",
-      text: "Each one is a real station on the main group’s route: how far out of their way the joining group comes, and how much of the ride is left to ride together. The first is the earliest that works within the detour; the dots on the map are the same list.",
+      text: "Each one is a real station on the main group’s route: how far out of their way the joining group comes, and how much of the ride is left to ride together. The first is the best trade between the two; the dots on the map are the same list.",
     },
     {
       id: "meet-take",
