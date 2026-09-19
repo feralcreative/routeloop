@@ -45,10 +45,17 @@ export type Rendezvous = {
 
 export type RendezvousOptions = {
   /**
-   * How far out of their way the joining group may be sent, in miles. A
-   * candidate costing more is not offered at all rather than offered and
-   * ranked last: #67's constraint is that neither group *significantly*
-   * diverts, and a proposal that fails it is not a proposal.
+   * How much FURTHER out of their way than necessary a joining group may be
+   * sent, in miles. A candidate costing more is not offered at all rather than
+   * offered and ranked last: #67's constraint is that neither group
+   * *significantly* diverts, and a proposal that fails it is not a proposal.
+   *
+   * MEASURED FROM EACH GROUP'S CHEAPEST VIABLE MEET, NOT FROM ZERO, since
+   * 2026-09-19 (#370) — `proposeGroupMeet` finds the least any group pays
+   * anywhere on the road and caps the EXTRA over that. An absolute cap answered
+   * "nowhere works" for any group whose road never came within it of the main
+   * group's, which is a fact about the two roads and not about the meet. The
+   * older `proposeRendezvous` still reads it as an absolute cap.
    */
   maxDivertMi?: number
   /**
@@ -88,7 +95,20 @@ export type RendezvousOptions = {
   fuelOnly?: boolean
 }
 
-const DEFAULTS = { maxDivertMi: 25, maxApproachDeg: 110, minSharedFraction: 0.2, sampleM: 2000, fuelOnly: false }
+// TEN MILES OF EXTRA DETOUR BY DEFAULT, down from twenty-five. Ziad's call,
+// 2026-09-19 (#370): twenty-five was aggressive as an absolute cap and is more
+// so as an allowance over the cheapest meet. A rider's own default lives in
+// `user_profiles.meet_divert_mi` and the builder seeds its dial from it; this
+// is what a rider who never set one gets, and what an old client sending
+// nothing gets.
+export const DEFAULT_DIVERT_MI = 10
+const DEFAULTS = {
+  maxDivertMi: DEFAULT_DIVERT_MI,
+  maxApproachDeg: 110,
+  minSharedFraction: 0.2,
+  sampleM: 2000,
+  fuelOnly: false,
+}
 
 /**
  * What a divert budget may be, when it comes from outside.
@@ -112,6 +132,23 @@ const DEFAULTS = { maxDivertMi: 25, maxApproachDeg: 110, minSharedFraction: 0.2,
  */
 export const MIN_DIVERT_MI = 1
 export const MAX_DIVERT_MI = 200
+
+/**
+ * The caller's options over DEFAULTS, with an EXPLICIT `undefined` ignored.
+ *
+ * A plain spread does not do that: `{ ...DEFAULTS, ...{ maxDivertMi: undefined } }`
+ * carries the undefined through, the cap becomes `undefined * METERS_PER_MILE`,
+ * and `worst > NaN` is false for every candidate — so the cap was silently OFF
+ * for exactly the shape the route builds when a client sends nothing. The test
+ * that claimed to pin this passed on a fixture where the cap never bit. Found
+ * 2026-09-19 while reworking the scoring, and fixed here rather than at the
+ * call site so the rule is testable with no route.
+ */
+function withDefaults(options: RendezvousOptions): Required<RendezvousOptions> {
+  const opts: Record<string, unknown> = { ...DEFAULTS }
+  for (const [k, v] of Object.entries(options)) if (v !== undefined) opts[k] = v
+  return opts as Required<RendezvousOptions>
+}
 
 export function clampDivert(v: unknown): number | undefined {
   // AN EMPTY STRING IS NOT ZERO, and this is the one case that has to be written
@@ -261,7 +298,7 @@ export function proposeRendezvous(
   options: RendezvousOptions = {},
   limit = 3,
 ): Rendezvous[] {
-  const opts = { ...DEFAULTS, ...options }
+  const opts = withDefaults(options)
   if (trunk.length < 3) return []
 
   const pre = prefix(trunk)
@@ -356,6 +393,10 @@ export type GroupRoute = {
 export type GroupDivert = {
   id: string
   divertM: number
+  /** Meters more than this group's CHEAPEST viable meet anywhere on the road.
+   *  Zero at that point, and what the cap is measured against — see
+   *  `maxDivertMi`. */
+  extraM: number
   /** Degrees between their approach and the spine's direction there. */
   approachDeg: number
   /** True when their own route already passes through this point, which is what
@@ -379,6 +420,9 @@ export type GroupMeet = {
   /** The most any single group is asked to ride out of their way. THE FAIRNESS
    *  TERM: a total alone lets one group absorb everybody else's convenience. */
   worstDivertM: number
+  /** The most any single group is asked to ride BEYOND its own cheapest meet.
+   *  What the cap is applied to. */
+  worstExtraM: number
   totalDivertM: number
   /** How much of the spine is left to ride together, 0 to 1. */
   sharedFraction: number
@@ -403,6 +447,69 @@ export type GroupMeet = {
 const ON_ROUTE_M = 1000
 
 /**
+ * A mile out of somebody's way has to buy this many miles of riding together.
+ *
+ * THE EXCHANGE RATE IS THE RULE, AND THE CAP IS BACK TO BEING A GUARD. #370,
+ * 2026-09-19, and it REVERSES the 2026-09-03 weighting rather than leaving the
+ * old reasoning to be rediscovered. That version led the score with `alongM`
+ * and let the divert survive at a tenth, on the argument that the distance
+ * ridden apart is what a group ride minimizes — true, and it made the earliest
+ * point under the cap win every time, which is to say the answer was always AT
+ * the cap. On epim's ride (Scotts Valley to Twain Harte via Copperopolis, with
+ * a second group leaving from San Francisco) the joining group was sent a dozen
+ * miles down 880 to meet and a dozen back, when their own road onto 580 met the
+ * main group's at Castro Valley for nothing. "25 miles in the wrong direction"
+ * is what an earliest-under-a-cap rule produces for any group that starts near
+ * the road, and it is the shape most feeders have.
+ *
+ * SCORED AS A TRADE INSTEAD. Moving a meet a mile earlier gains a mile ridden
+ * together and costs each joining group whatever extra divert the geometry
+ * charges for it, and the divert is weighted at 1.5. Read it as "a mile out of
+ * the way has to buy a mile and a half together". Three shapes bound the
+ * number, each straight-line arithmetic on a straight road:
+ *
+ *   A GROUP ON THE ROAD, asked to meet behind where they join it, pays TWO miles
+ *   per mile of road gained — one there and one back — so any weight above 0.5
+ *   keeps them where their road joins. This is epim's ride.
+ *
+ *   A GROUP WELL OFF TO ONE SIDE of a road heading away from them (ride 34:
+ *   Santa Cruz joining Oakland to Bakersfield) pays about HALF a mile per mile
+ *   gained, so any weight under 2 sends them earlier — as far as the cap allows,
+ *   which is what the 2026-09-03 call wanted for that ride and still gets.
+ *
+ *   A GROUP A FEW MILES TO ONE SIDE of a straight road pays one mile per mile at
+ *   the foot of the perpendicular and more the further back the meet goes, so
+ *   it lands a little past the foot rather than behind it.
+ *
+ * Between 0.5 and 2, then, and 1.5 rather than 1 because indifference is the
+ * wrong default: the divert is real riding and the shared road is the whole
+ * reason for meeting, and a rule that would send somebody a mile out of their
+ * way to gain exactly a mile together has no opinion.
+ *
+ * THE KNIFE EDGE IS GEOMETRY, NOT A DEFECT. On a straight road with a fixed
+ * slope there is no elbow to find, so the answer is either the cheapest meet or
+ * the cap — which is why the cap survives at all, and why it is now measured
+ * from each group's cheapest meet rather than from zero: a guard on "how much
+ * more than the best possible" is a guard whatever the geometry, where a guard
+ * on the absolute divert refused every ride whose best possible was past it.
+ */
+const DIVERT_WEIGHT = 1.5
+
+/** A candidate with every group's cost measured and the two refusals that are
+ *  about the POINT already applied — the cap is not, because it is measured
+ *  against a floor that is only known once every candidate has been measured. */
+type Measured = {
+  at: [number, number]
+  alongM: number
+  sharedFraction: number
+  diverts: GroupDivert[]
+  place: FuelCandidate | null
+  /** False for a bare vertex measured under `fuelOnly`: it sets the floor and
+   *  is never returned. */
+  offer: boolean
+}
+
+/**
  * Propose where the joining groups should meet the main group, on the main
  * group's own road to the destination everybody shares.
  *
@@ -423,7 +530,7 @@ export function proposeGroupMeet(
   options: RendezvousOptions = {},
   limit = 3,
 ): GroupMeet[] {
-  const opts = { ...DEFAULTS, ...options }
+  const opts = withDefaults(options)
   // Nobody to meet. Not an error and nothing to explain — there is no question.
   if (joining.length === 0) return []
   // No road to put a meeting point on. The caller distinguishes this from
@@ -450,30 +557,35 @@ export function proposeGroupMeet(
   // the same hour. It is recorded because it reads as careful and is not: on the
   // ride it was first tried against, the second group's route ended at a coffee
   // shop in their own town, so they were dropped and the ride answered "nowhere
-  // works". Nothing is lost by keeping them — a group genuinely riding to another
-  // city gets a divert far past `maxDivertMi` and is refused by the ordinary cap,
-  // which is a number behind a decision rather than a rule in front of one.
+  // works". Nothing is lost by keeping them — a group genuinely starting a long
+  // way off gets a large divert the panel prints beside every candidate (and,
+  // until the cap became relative, was refused by it), which is a number behind
+  // a decision rather than a rule in front of one.
   const dest = primary.track[primary.track.length - 1]
 
-  const found: GroupMeet[] = []
-  // `place` is the fuel candidate this vertex stands for, or null for a bare
-  // point on the road. When it is set, the candidate IS the place — its own
-  // coordinates, its name and its address — and the vertex only supplies
+  // TWO PASSES, BECAUSE THE CAP IS MEASURED FROM EACH GROUP'S CHEAPEST MEET AND
+  // THAT IS NOT KNOWN UNTIL EVERY CANDIDATE HAS BEEN MEASURED. The first pass
+  // measures what every group would pay at every candidate and keeps the least
+  // any of them pays anywhere viable; the second applies the cap against that
+  // floor and scores. `place` is the fuel candidate a vertex stands for, or null
+  // for a bare point on the road — when it is set, the candidate IS the place,
+  // its own coordinates, its name and its address, and the vertex only supplies
   // `alongM`.
-  const consider = (i: number, place: FuelCandidate | null) => {
-    const scored = scoreGroupMeet(primary, i, pre, totalM, joining, dest, place, opts)
-    if (scored) found.push(scored)
+  const measured: Measured[] = []
+  const consider = (i: number, place: FuelCandidate | null, offer: boolean) => {
+    const m = measureGroupMeet(primary, i, pre, totalM, joining, dest, place, opts)
+    if (m) measured.push({ ...m, offer })
   }
 
-  // Bare points on the road, sampled. Skipped entirely under `fuelOnly` rather
-  // than scored and filtered later — see the option.
-  if (!opts.fuelOnly) {
-    let nextAt = opts.sampleM
-    for (let i = 1; i < primary.track.length - 1; i++) {
-      if (pre[i] < nextAt) continue
-      nextAt = pre[i] + opts.sampleM
-      consider(i, null)
-    }
+  // Bare points on the road, sampled. UNDER `fuelOnly` THEY ARE STILL MEASURED
+  // AND NEVER OFFERED: the floor is a fact about the road's geometry, and a
+  // floor taken from the stations alone would let a group's cheapest station
+  // — which may itself be well out of their way — pass the cap for free.
+  let nextAt = opts.sampleM
+  for (let i = 1; i < primary.track.length - 1; i++) {
+    if (pre[i] < nextAt) continue
+    nextAt = pre[i] + opts.sampleM
+    consider(i, null, !opts.fuelOnly)
   }
 
   // Existing fuel stops on the main group's road, snapped to it, offered whether
@@ -492,7 +604,25 @@ export function proposeGroupMeet(
     // Only when the stop is actually ON the road. Snapping a station three
     // counties away to its nearest vertex would offer a meeting point nobody is
     // riding past.
-    if (best > 0 && bestD <= ON_ROUTE_M) consider(best, stop)
+    if (best > 0 && bestD <= ON_ROUTE_M) consider(best, stop, true)
+  }
+
+  // EACH GROUP'S CHEAPEST VIABLE MEET, which is the convergence the issue asked
+  // for: where their road meets the main group's for a group on it, and the
+  // least dogleg the geometry allows for a group off it. Taken over every
+  // measured candidate, offered or not, so `fuelOnly` reads the same floor as
+  // the plain pass and the two passes cannot disagree about what a station
+  // costs.
+  const floor = new Map<string, number>()
+  for (const m of measured) {
+    for (const d of m.diverts) floor.set(d.id, Math.min(floor.get(d.id) ?? Infinity, d.divertM))
+  }
+
+  const found: GroupMeet[] = []
+  for (const m of measured) {
+    if (!m.offer) continue
+    const scored = scoreGroupMeet(m, floor, opts)
+    if (scored) found.push(scored)
   }
 
   found.sort((a, b) => a.score - b.score)
@@ -510,9 +640,10 @@ export function proposeGroupMeet(
   return kept
 }
 
-/** Score one point on the main group's road as a meeting place. `null` when any
- *  joining group is refused it. */
-function scoreGroupMeet(
+/** Measure one point on the main group's road as a meeting place: what every
+ *  group pays to get there. `null` when the point itself is refused — too little
+ *  road left, or a backtrack for any joining group. */
+function measureGroupMeet(
   primary: GroupRoute,
   vertexIndex: number,
   pre: number[],
@@ -521,13 +652,12 @@ function scoreGroupMeet(
   dest: [number, number],
   place: FuelCandidate | null,
   opts: Required<RendezvousOptions>,
-): GroupMeet | null {
+): Omit<Measured, 'offer'> | null {
   // THE PLACE'S OWN POSITION WHERE THERE IS ONE. It sits within ON_ROUTE_M of
   // the vertex by construction, so every distance below is unchanged to within
   // that — and the coordinate the rider is actually sent to is the forecourt
   // rather than the highway outside it.
   const at = place ? place.at : primary.track[vertexIndex]
-  const isFuel = place !== null
   const alongM = pre[vertexIndex]
 
   // Real road left to ride together, or the meet achieves nothing. Same floor
@@ -544,7 +674,7 @@ function scoreGroupMeet(
   // The main group rides through here by construction, and is listed at zero so
   // the panel can name every group rather than silently omitting the one whose
   // road it is.
-  const diverts: GroupDivert[] = [{ id: primary.id, divertM: 0, approachDeg: 0, onRoute: true }]
+  const diverts: GroupDivert[] = [{ id: primary.id, divertM: 0, extraM: 0, approachDeg: 0, onRoute: true }]
 
   for (const g of joining) {
     // A group whose own road already passes through this point pays nothing,
@@ -556,7 +686,7 @@ function scoreGroupMeet(
       if (d < nearest) nearest = d
     }
     if (nearest <= ON_ROUTE_M) {
-      diverts.push({ id: g.id, divertM: 0, approachDeg: 0, onRoute: true })
+      diverts.push({ id: g.id, divertM: 0, extraM: 0, approachDeg: 0, onRoute: true })
       continue
     }
 
@@ -571,60 +701,60 @@ function scoreGroupMeet(
     // and turn around. Refused for the whole candidate rather than for one
     // group, because a meeting point one group cannot use is not one.
     if (approachDeg > opts.maxApproachDeg) return null
-    diverts.push({ id: g.id, divertM, approachDeg, onRoute: false })
+    // `extraM` is filled in by the caller once the floor is known.
+    diverts.push({ id: g.id, divertM, extraM: 0, approachDeg, onRoute: false })
   }
 
+  return { at, alongM, sharedFraction, diverts, place }
+}
+
+/** Apply the cap and the score to a measured candidate, against each group's
+ *  cheapest meet. `null` when any joining group is asked for more extra divert
+ *  than the cap allows. */
+function scoreGroupMeet(
+  m: Omit<Measured, 'offer'>,
+  floor: Map<string, number>,
+  opts: Required<RendezvousOptions>,
+): GroupMeet | null {
+  const diverts = m.diverts.map((d) => ({ ...d, extraM: Math.max(0, d.divertM - (floor.get(d.id) ?? 0)) }))
   const totalDivertM = diverts.reduce((n, d) => n + d.divertM, 0)
   const worstDivertM = diverts.reduce((n, d) => Math.max(n, d.divertM), 0)
+  const worstExtraM = diverts.reduce((n, d) => Math.max(n, d.extraM), 0)
   // THE CAP IS ON THE WORST GROUP, NOT ON THE TOTAL. A budget spent in total
   // lets three groups' convenience be paid for by a fourth, which is exactly the
   // silent unfairness #67 asks the app not to commit on the planner's behalf.
   // The main group is never the one it protects — they ride their own road — so
   // it is entirely a limit on what a feeder can be asked to do.
-  if (worstDivertM > opts.maxDivertMi * METERS_PER_MILE) return null
+  //
+  // AND IT IS MEASURED FROM THAT GROUP'S CHEAPEST MEET, NOT FROM ZERO. Ziad's
+  // call, 2026-09-19 (#370). A group whose road never comes within thirty miles
+  // of the main group's has no meet under an absolute cap of twenty-five and was
+  // answered "nowhere works"; measured from their cheapest, the cap says what it
+  // always meant — how much further out of their way than necessary they may be
+  // sent to meet sooner — and every ride has an answer.
+  if (worstExtraM > opts.maxDivertMi * METERS_PER_MILE) return null
 
-  // THE EARLIEST ACCEPTABLE MEETING POINT WINS, NOT THE CHEAPEST. Ziad's call,
-  // 2026-09-03, and it reverses what the weights said an hour earlier. The point
-  // of a group ride is to ride as a group, so the thing being minimized is the
-  // distance covered APART; the divert is a limit on what that may cost
-  // somebody, not the goal.
-  //
-  // MEASURED, BECAUSE THE OLD WEIGHTS WERE NOT OBVIOUSLY WRONG. On ride 34 —
-  // Oakland to Bakersfield with a second group starting in Santa Cruz, which
-  // sits west of the road — divert falls monotonically the further south the
-  // meet is: 101 miles at Oakland, 25 near Los Banos, 2.4 near Bakersfield. So a
-  // score led by divert always picked the LAST viable point and the two groups
-  // rode 200 miles separately to a ride they were doing together. Choosing the
-  // earliest instead unites them about ninety minutes sooner.
-  //
-  // `alongM` REPLACES the old `-sharedFraction * 5` rather than joining it:
-  // shared fraction is `(total - along) / total`, so the two say the same thing
-  // and keeping both would just double the weight of one term.
-  //
-  // THE CONSEQUENCE TO STATE RATHER THAN TREAT AS A BUG: an earliest-subject-to-
-  // a-limit rule always lands near the limit, so `maxDivertMi` stops being a
-  // guard against nonsense and becomes the actual dial. It has no control and
-  // this is where it would need one.
-  //
-  // Divert survives at a TENTH of a mile per mile, which only ever separates
-  // candidates that are nearly the same distance along — near-ties, where "and
-  // it costs them less" is the right reason to prefer one. The approach angle
-  // and the fuel bonus keep their weights; note the fuel bonus is now worth two
-  // miles of ROUTE rather than two miles of detour, which is a smaller thumb
-  // than it was and still enough to prefer a pump over a bare vertex beside it.
+  // THE TRADE. Miles along the road, because every mile earlier is a mile ridden
+  // together; plus the divert at DIVERT_WEIGHT, which is the price of each of
+  // those miles. The approach angle and the fuel bonus keep their old weights —
+  // up to a mile per group at ninety degrees, two miles of score for a pump —
+  // and both are nudges between candidates the trade cannot separate.
   const approachPenalty = diverts.reduce((n, d) => n + (d.approachDeg / 90) * 1, 0)
-  const score = alongM / METERS_PER_MILE + (totalDivertM / METERS_PER_MILE) * 0.1 + approachPenalty - (isFuel ? 2 : 0)
+  const isFuel = m.place !== null
+  const score =
+    m.alongM / METERS_PER_MILE + (totalDivertM / METERS_PER_MILE) * DIVERT_WEIGHT + approachPenalty - (isFuel ? 2 : 0)
 
   return {
-    at,
-    alongM,
+    at: m.at,
+    alongM: m.alongM,
     diverts,
     worstDivertM,
+    worstExtraM,
     totalDivertM,
-    sharedFraction,
+    sharedFraction: m.sharedFraction,
     isFuel,
-    name: place?.name,
-    address: place?.address,
+    name: m.place?.name,
+    address: m.place?.address,
     score,
   }
 }
