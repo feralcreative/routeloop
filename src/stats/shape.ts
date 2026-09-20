@@ -25,7 +25,7 @@
 import type { RideVisibility } from '../db/schema'
 import { ROLE_META, type Role } from '../maps/roles'
 import { roleColor } from '../maps/role-colors'
-import { twistLabel } from '../maps/twist'
+import { twistLabel, twistRank } from '../maps/twist'
 import { type Units, distanceFrom, distanceUnit, distanceUnitLong, twistFrom, twistUnit } from '../views/units'
 import { DEFAULT_VOCAB, wd, wn, wordsFor, type Words } from '../views/vocab'
 
@@ -215,7 +215,8 @@ export function fmtBytes(n: number): string {
 
 // --- Twistiness --------------------------------------------------------------
 
-export type TwistRollup = { dpm: number; label: string; unit: string } | null
+/** `rank` is the band as 1–5 for the scale; `label` is its word. */
+export type TwistRollup = { dpm: number; rank: number; label: string; unit: string } | null
 
 /**
  * One twistiness figure across every route that has one.
@@ -246,7 +247,8 @@ export function rollUpTwist(rows: readonly RawTwist[], units: Units = 'imperial'
   // conversion happens on the way OUT, after the label is decided.
   const dpmi = Math.round(degrees / miles(meters))
   const label = twistLabel(dpmi)
-  return label ? { dpm: Math.round(twistFrom(dpmi, units)), label, unit: twistUnit(units) } : null
+  const rank = twistRank(dpmi)
+  return label && rank ? { dpm: Math.round(twistFrom(dpmi, units)), rank, label, unit: twistUnit(units) } : null
 }
 
 // --- The stop histogram ------------------------------------------------------
@@ -405,6 +407,9 @@ export type RecordTile = {
   hint?: string
   kind: RecordKind
   numeric: boolean
+  /** The twist record only: the band as 1–5, drawn as marks in place of the
+   *  word in `value`, which stays as the marks' accessible name. */
+  rank?: number
   /** The ride the record was set on, so the card can show its map and link to
    *  it. Absent only when the record has no ride at all, which no longer
    *  happens for any of the four — kept optional so a fifth record can arrive
@@ -572,15 +577,18 @@ export function shapeStats(
   // bestTwistDpm is the best 20-mile stretch any route has, not a sum: "somewhere
   // in your library there are twenty miles like that".
   //
-  // The value is a WORD — twistLabel returns "Serpentine", not a number — so this
-  // one takes the text treatment and the degrees-per-mile figure stays in the
-  // hint, where it already was. Putting the number in `value` instead would read
-  // as a better record than the label it replaced, and it is the same fact.
+  // The value is a WORD — twistLabel returns "Very twisty", not a number — and
+  // the card draws it as the five-mark scale with the word as the marks' name,
+  // so this one takes the text treatment and the degrees-per-mile figure stays
+  // in the hint, where it already was. Putting the number in `value` instead
+  // would read as a better record than the label it replaced, and it is the
+  // same fact.
   // THE BAND IS LOOKED UP FROM THE MILE FIGURE, whatever the rider reads in.
   // TWIST_BANDS are thresholds in degrees per mile, so converting first would
   // move a metric rider a band or two down the scale on an unchanged road.
   const bestLabel = twistLabel(r.bestTwistDpm)
-  if (r.bestTwistDpm != null && bestLabel) {
+  const bestRank = twistRank(r.bestTwistDpm)
+  if (r.bestTwistDpm != null && bestLabel && bestRank) {
     records.push({
       // THE WINDOW IS 20 MILES AND IT IS MEASURED IN MILES — see WINDOW_MI in
       // public/js/twist.js. So this converts the LENGTH for the label rather than
@@ -588,6 +596,7 @@ export function shapeStats(
       // saying 30 would be a different measurement reported as this one.
       label: `Twistiest ${Math.round(distanceFrom(TWIST_WINDOW_MI * METERS_PER_MILE, units))} ${distanceUnitLong(units)}`,
       value: bestLabel,
+      rank: bestRank,
       hint: `${Math.round(twistFrom(r.bestTwistDpm, units))}${twistUnit(units)} of heading change`,
       kind: 'twist',
       numeric: false,

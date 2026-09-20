@@ -42,6 +42,7 @@ import { page, wordsOf } from '../views/layout'
 import { asset } from '../views/assets'
 import { icon } from '../views/icon'
 import { CardFace } from '../views/cards'
+import { twistScale } from '../views/twist-scale'
 import { cachedGlobalStats, cachedUsedBytes, loadStats } from '../stats/query'
 import { shapeStats } from '../stats/shape'
 import type { DashboardStats, MonthPoint, RecordTile, RoleBar, Tile } from '../stats/shape'
@@ -273,8 +274,9 @@ function RecordCard({ r }: { r: RecordTile }) {
         <span class="record-label">{r.label}</span>
         {/*
               `numeric` picks the size, and it is not decoration. Two of these
-              four are words — a twistiness label, a ride's title — and either one
-              set at the numeral's size is a headline running off its own card.
+              four are not figures — the twistiness scale, a ride's title — and
+              a title set at the numeral's size is a headline running off its
+              own card.
 
               data-count is what dashboard.js counts up to, and it is set only on
               the figures. The rendered text is already the final value, so a
@@ -283,7 +285,8 @@ function RecordCard({ r }: { r: RecordTile }) {
             */}
         <span class={r.numeric ? 'record-value is-figure' : 'record-value is-text'}>
           <span class="record-figure" data-count={r.numeric ? r.value : undefined}>
-            {r.value}
+            {/* The twist record draws its band as marks; the word is their name. */}
+            {r.rank ? raw(twistScale(r.rank, r.value, r.hint ? `${r.value} · ${r.hint}` : r.value)) : r.value}
           </span>
           {r.unit && <span class="record-unit">{r.unit}</span>}
         </span>
@@ -546,7 +549,8 @@ async function dashboard(c: Context<AuthEnv>) {
                 {s.twist && (
                   <>
                     {SEP}
-                    {s.twist.label} overall
+                    Twistiness{' '}
+                    {raw(twistScale(s.twist.rank, s.twist.label, `${s.twist.label} · ${s.twist.dpm}${s.twist.unit}`))}
                   </>
                 )}
               </span>

@@ -80,7 +80,7 @@
   // is whatever the geometry looked like at the last save, and this panel has to
   // be right while the rider is still moving stops around. See twist.js for why
   // there are two implementations and what keeps them honest.
-  const { routeTwistiness, twistLabel } = window.TBTwist;
+  const { routeTwistiness, twistLabel, twistRank, twistScale } = window.TBTwist;
 
   // Category-vs-name detection and the place-type to role map. See
   // public/js/place-query.js — pure, and pinned by test/place-query.test.ts.
@@ -8278,12 +8278,17 @@
       hm(t.riding) +
       " " +
       W("travel") +
-      (t.twist ? SEP + twistLabel(t.twist.dpm) + (withLink ? faqLink("twistiness", "twistiness") : "") : "");
+      (t.twist
+        ? SEP +
+          twistScale(twistRank(t.twist.dpm), twistLabel(t.twist.dpm), twistLabel(t.twist.dpm) + SEP + twistTitle(t)) +
+          (withLink ? faqLink("twistiness", "twistiness") : "")
+        : "");
 
-    // The label alone on the line; the numbers behind it on hover. "252°/mi"
-    // means nothing to a rider, but it is the thing to check when the label
-    // looks wrong, so it should be reachable without being in the way.
-    const twistTitle = (t) => {
+    // The marks alone on the line; the word and the numbers behind them on
+    // hover. "252°/mi" means nothing to a rider, but it is the thing to check
+    // when the scale looks wrong, so it should be reachable without being in
+    // the way. Hoisted: `line` above reads it, and a const arrow is not.
+    function twistTitle(t) {
       if (!t.twist) return "";
       // CONVERTED FOR DISPLAY, LABELED FROM THE MILE FIGURE. The band the label
       // comes from is a threshold in degrees per MILE, so only the number moves —
@@ -8304,7 +8309,7 @@
           Math.round(window.TBUnits.twistFrom(t.twist.bestDpm, UNITS));
       }
       return s;
-    };
+    }
 
     // The routes that COUNT, everywhere below. A ride carrying two ways to do
     // Thursday is not twice as long, and this readout is the number a rider
@@ -9756,7 +9761,8 @@
       results.dataset.at = at == null ? "" : String(at);
       results.dataset.replace = rep == null ? "" : String(rep);
     }
-    const replacing = (results) => (results.dataset.replace === "" || results.dataset.replace == null ? null : Number(results.dataset.replace));
+    const replacing = (results) =>
+      results.dataset.replace === "" || results.dataset.replace == null ? null : Number(results.dataset.replace);
 
     // Where a pick lands: a NEW point, or the place under an existing one. The
     // dropdown is one element serving every add-row and every row's name field,

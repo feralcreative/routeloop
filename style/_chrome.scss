@@ -356,12 +356,18 @@ $sign-arrow-path: "M97 48L53 8V32H8V64H53V88Z";
     // THAT is a white arrow whatever color sits behind it.
     background: $ink;
     -webkit-mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 105 96'%3E%3Cpath d='#{$sign-arrow-path}'/%3E%3C/svg%3E")
-      center / contain no-repeat;
+      center /
+      contain
+      no-repeat;
     mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 105 96'%3E%3Cpath d='#{$sign-arrow-path}'/%3E%3C/svg%3E")
-      center / contain no-repeat;
+      center /
+      contain
+      no-repeat;
   } @else {
     background: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 105 96'%3E%3Cpath fill='%23fff' d='#{$sign-arrow-path}'/%3E%3C/svg%3E")
-      center / contain no-repeat;
+      center /
+      contain
+      no-repeat;
   }
 }
 
@@ -2094,5 +2100,44 @@ ul.cards {
 
   .qa-answer > :last-child {
     margin-bottom: 0;
+  }
+}
+
+// THE TWISTINESS SCALE: a band drawn as that many road-curve marks out of five.
+// Ziad's call, 2026-09-20, over the five words — see TWIST_BANDS in
+// src/maps/twist.ts. The markup comes from twistScale() (src/views/twist-scale.ts
+// and public/js/twist.js), so one rule draws it on the dashboard's hero and
+// record, the viewer's legend and the builder's totals line alike.
+//
+// A MASK IN currentColor, the sign-arrow($ink) construction: the marks take
+// whatever ink the text around them has — the record's accent, the legend's
+// muted gray — and a lit mark and an unlit one differ only in opacity, so the
+// scale reads in every palette without a color of its own. The glyph is one
+// S-bend stroke with round caps on a 24-unit box; thin it and it stops reading
+// as a road. It is the record mark's own curve (icon-record-twist.svg), so
+// the disc on the card and the marks under it are one drawing at two sizes.
+//
+// Sized in em so it follows the type it sits in, and dropped a shade below the
+// baseline because a mark's box is taller than the x-height it sits beside.
+.twist-scale {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.08em;
+  vertical-align: -0.12em;
+}
+
+.twist-mark {
+  flex: none;
+  width: 0.95em;
+  height: 0.95em;
+  background: currentColor;
+  opacity: 0.22;
+  -webkit-mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Cpath d='M6 20.5C6 12 18 12 18 3.5' fill='none' stroke='%23000' stroke-width='3.4' stroke-linecap='round'/%3E%3C/svg%3E")
+    center / contain no-repeat;
+  mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Cpath d='M6 20.5C6 12 18 12 18 3.5' fill='none' stroke='%23000' stroke-width='3.4' stroke-linecap='round'/%3E%3C/svg%3E")
+    center / contain no-repeat;
+
+  &.is-on {
+    opacity: 1;
   }
 }

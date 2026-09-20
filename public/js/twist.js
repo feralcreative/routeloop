@@ -28,18 +28,53 @@ window.TBTwist = (function () {
   const RAD = Math.PI / 180;
   const DEG = 180 / Math.PI;
 
+  // Each band is a rank too, and the rank is what is drawn — see TWIST_BANDS in
+  // src/maps/twist.ts, which this mirrors and test/twist-client.test.ts pins.
   const BANDS = [
-    { min: 240, label: "Very twisty" },
-    { min: 150, label: "Twisty" },
-    { min: 90, label: "Some curves" },
-    { min: 40, label: "Mostly straight" },
-    { min: 0, label: "Straight" },
+    { min: 240, rank: 5, label: "Very twisty" },
+    { min: 150, rank: 4, label: "Twisty" },
+    { min: 90, rank: 3, label: "Some curves" },
+    { min: 40, rank: 2, label: "Mostly straight" },
+    { min: 0, rank: 1, label: "Straight" },
   ];
+  const TWIST_MAX = 5;
+
+  function band(dpm) {
+    if (dpm == null) return null;
+    for (const b of BANDS) if (dpm >= b.min) return b;
+    return null;
+  }
 
   function twistLabel(dpm) {
-    if (dpm == null) return null;
-    for (const b of BANDS) if (dpm >= b.min) return b.label;
-    return null;
+    const b = band(dpm);
+    return b ? b.label : null;
+  }
+
+  function twistRank(dpm) {
+    const b = band(dpm);
+    return b ? b.rank : null;
+  }
+
+  const esc = (s) =>
+    String(s).replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[c]);
+
+  // The scale as markup: `rank` marks lit out of TWIST_MAX, the word as the
+  // accessible name and, with the number, as the hover. A string and not a DOM
+  // node because this file is arithmetic and both callers build innerHTML.
+  // Byte-identical to twistScale() in src/views/twist-scale.ts, and the client
+  // test holds the two together.
+  function twistScale(rank, label, title) {
+    let marks = "";
+    for (let i = 0; i < TWIST_MAX; i++) marks += '<i class="twist-mark' + (i < rank ? " is-on" : "") + '"></i>';
+    return (
+      '<span class="twist-scale" role="img" aria-label="' +
+      esc(label + ", " + rank + " of " + TWIST_MAX) +
+      '" title="' +
+      esc(title == null ? label : title) +
+      '">' +
+      marks +
+      "</span>"
+    );
   }
 
   function haversineM(lat1, lon1, lat2, lon2) {
@@ -197,6 +232,9 @@ window.TBTwist = (function () {
   return {
     twistiness,
     twistLabel,
+    twistRank,
+    twistScale,
+    TWIST_MAX,
     routeTwistiness,
     distFromStartAlongTrack,
     SPACING_M,

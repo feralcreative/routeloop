@@ -1699,12 +1699,16 @@ table.route-table {
   // Sits under the route name rather than beside it: the legend cell is already
   // narrow and the mileage owns the right-hand column. Indented to clear the
   // checkbox so it reads as a note on the route above it.
+  //
+  // It holds the five-mark twist scale since 2026-09-20, not a word, and the
+  // scale reads by the difference between a lit mark and an unlit one — so it
+  // is dimmed less than the word was, or the unlit marks vanish into the row.
   .route-twist {
     display: block;
     margin-left: 1.6em;
     color: $text;
-    opacity: 0.6;
-    font-size: 0.8em;
+    opacity: 0.85;
+    font-size: 0.85em;
     cursor: help;
   }
   .route-miles {

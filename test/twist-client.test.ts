@@ -9,7 +9,14 @@
 // assertion. A tolerance here would defeat the entire point of the file.
 import { describe, expect, it, beforeAll } from 'vitest'
 import { readFileSync } from 'node:fs'
-import { twistiness as serverTwistiness, twistLabel as serverLabel, TWIST_BANDS } from '../src/maps/twist'
+import {
+  twistiness as serverTwistiness,
+  twistLabel as serverLabel,
+  twistRank as serverRank,
+  TWIST_BANDS,
+  TWIST_MAX,
+} from '../src/maps/twist'
+import { twistScale as serverScale } from '../src/views/twist-scale'
 import { distFromStartAlongTrack as serverDistFromStart } from '../src/maps/kml'
 import type { Track } from '../src/maps/kml'
 
@@ -80,8 +87,28 @@ describe('the two implementations agree', () => {
   it('on every label boundary', () => {
     for (const dpm of [0, 39, 40, 89, 90, 149, 150, 239, 240, 5000]) {
       expect(C.twistLabel(dpm)).toBe(serverLabel(dpm))
+      expect(C.twistRank(dpm)).toBe(serverRank(dpm))
     }
     expect(C.twistLabel(null)).toBe(serverLabel(null))
+    expect(C.twistRank(null)).toBe(serverRank(null))
+  })
+
+  // The scale's MARKUP is built on both sides too — the dashboard server-side,
+  // the viewer's legend and the builder's totals line in the browser — and a
+  // class or an attribute that differs is a scale one stylesheet draws two
+  // ways. Byte-identical, including the escaping of a title with markup in it.
+  it('on the scale markup, byte for byte', () => {
+    expect(C.TWIST_MAX).toBe(TWIST_MAX)
+    for (const b of TWIST_BANDS) {
+      expect(C.twistScale(b.rank, b.label)).toBe(serverScale(b.rank, b.label))
+      const title = `${b.label} · 123°/mi <"best" & 'worst'>`
+      expect(C.twistScale(b.rank, b.label, title)).toBe(serverScale(b.rank, b.label, title))
+    }
+    const html = serverScale(4, 'Twisty')
+    expect(html).toContain('role="img"')
+    expect(html).toContain('aria-label="Twisty, 4 of 5"')
+    expect(html.match(/twist-mark is-on/g)).toHaveLength(4)
+    expect(html.match(/<i class="twist-mark/g)).toHaveLength(5)
   })
 
   it('on the constants themselves, so a tuned threshold cannot land on one side only', () => {

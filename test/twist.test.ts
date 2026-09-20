@@ -6,7 +6,7 @@
 // it is, the deadband actually suppresses wobble, and the best-window pass finds
 // a good stretch buried in a boring route.
 import { describe, expect, it } from 'vitest'
-import { twistiness, twistLabel, TWIST_BANDS } from '../src/maps/twist'
+import { twistiness, twistLabel, twistRank, TWIST_BANDS, TWIST_MAX } from '../src/maps/twist'
 import type { Track } from '../src/maps/kml'
 
 const R_EARTH = 6371000
@@ -138,6 +138,22 @@ describe('labels', () => {
   it('says nothing at all when there is no figure', () => {
     expect(twistLabel(null)).toBeNull()
     expect(twistLabel(undefined)).toBeNull()
+  })
+
+  // The rank is what a rider sees, as marks; the word is its name. One band,
+  // one rank, dense from 1 to TWIST_MAX with the twistiest on top.
+  it('ranks every band 1 to 5, straight to very twisty', () => {
+    expect(TWIST_BANDS.map((b) => b.rank)).toEqual([5, 4, 3, 2, 1])
+    expect(TWIST_MAX).toBe(5)
+    expect(twistRank(0)).toBe(1)
+    expect(twistRank(40)).toBe(2)
+    expect(twistRank(90)).toBe(3)
+    expect(twistRank(150)).toBe(4)
+    expect(twistRank(240)).toBe(5)
+    expect(twistRank(9999)).toBe(5)
+    // Unmeasured is null, never zero marks — see the "null is not zero" rule.
+    expect(twistRank(null)).toBeNull()
+    expect(twistRank(undefined)).toBeNull()
   })
 
   it('is ordered high to low, which the lookup depends on', () => {

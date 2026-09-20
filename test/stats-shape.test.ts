@@ -116,7 +116,7 @@ describe('rollUpTwist', () => {
   })
 
   it('reports a genuine zero as Straight', () => {
-    expect(rollUpTwist([{ dpm: 0, distanceM: 100 * MI }])).toEqual({ dpm: 0, label: 'Straight', unit: '°/mi' })
+    expect(rollUpTwist([{ dpm: 0, distanceM: 100 * MI }])).toEqual({ dpm: 0, rank: 1, label: 'Straight', unit: '°/mi' })
   })
 
   // #150. THE NUMBER CONVERTS AND THE LABEL DOES NOT, which is the whole trap in
@@ -163,6 +163,7 @@ describe('rollUpTwist', () => {
 
   it('carries the band label, not just the number', () => {
     expect(rollUpTwist([{ dpm: 250, distanceM: MI }])?.label).toBe('Very twisty')
+    expect(rollUpTwist([{ dpm: 250, distanceM: MI }])?.rank).toBe(5)
   })
 })
 
@@ -406,6 +407,7 @@ describe('shapeStats', () => {
     const labels = s.records.map((x) => x.label)
     expect(labels).toContain('Longest single route')
     expect(s.records.find((x) => x.label === 'Twistiest 20 miles')?.value).toBe('Very twisty')
+    expect(s.records.find((x) => x.label === 'Twistiest 20 miles')?.rank).toBe(5)
     expect(labels.some((l) => l.includes('12 times'))).toBe(true)
   })
 

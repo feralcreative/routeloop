@@ -82,17 +82,39 @@ const DEG = 180 / Math.PI
 // Those are machine-generated rides between real California towns, not rides
 // anyone chose for being good, so real rides will skew twistier and these will
 // want moving up. One table, one place to change.
-export const TWIST_BANDS: { min: number; label: string }[] = [
-  { min: 240, label: 'Very twisty' },
-  { min: 150, label: 'Twisty' },
-  { min: 90, label: 'Some curves' },
-  { min: 40, label: 'Mostly straight' },
-  { min: 0, label: 'Straight' },
+//
+// EACH BAND IS ALSO A RANK, 1 TO 5, AND THE RANK IS WHAT A RIDER SEES. Ziad's
+// call, 2026-09-20: the words were ambiguous — "Some curves" against "Mostly
+// straight" is not an obvious order — so every surface draws the rank as that
+// many road-curve marks out of five (`twistScale()` in src/views/twist-scale.ts
+// and public/js/twist.js). The word survives as the mark's accessible name and
+// its hover, and as what the FAQ calls each level. Five marks, not letter
+// grades or a percentage: a straight highway is a property rather than an F,
+// and a percentage of an unbounded figure means nothing.
+export const TWIST_BANDS: { min: number; rank: number; label: string }[] = [
+  { min: 240, rank: 5, label: 'Very twisty' },
+  { min: 150, rank: 4, label: 'Twisty' },
+  { min: 90, rank: 3, label: 'Some curves' },
+  { min: 40, rank: 2, label: 'Mostly straight' },
+  { min: 0, rank: 1, label: 'Straight' },
 ]
 
-export function twistLabel(dpm: number | null | undefined): string | null {
+/** How many marks the scale draws in total. */
+export const TWIST_MAX = 5
+
+function band(dpm: number | null | undefined) {
   if (dpm == null) return null
-  return TWIST_BANDS.find((b) => dpm >= b.min)?.label ?? null
+  return TWIST_BANDS.find((b) => dpm >= b.min) ?? null
+}
+
+export function twistLabel(dpm: number | null | undefined): string | null {
+  return band(dpm)?.label ?? null
+}
+
+/** The band's rank, 1 (straight) to TWIST_MAX (very twisty); null when nothing
+ *  measured it, which is never zero marks. */
+export function twistRank(dpm: number | null | undefined): number | null {
+  return band(dpm)?.rank ?? null
 }
 
 export type Twistiness = {
