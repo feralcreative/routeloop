@@ -19,6 +19,7 @@
 
 import { haversineM, METERS_PER_MILE, type Track } from '../maps/kml'
 import { bearing, turn } from '../maps/twist'
+import { matchesAny } from '../places/ranking'
 
 /** A candidate the planner could be offered. */
 export type Rendezvous = {
@@ -83,6 +84,21 @@ export type RendezvousOptions = {
    *  precision and keeps a 500 km trunk to 250 candidates. */
   sampleM?: number
   /**
+   * The rider's two place lists, already parsed (#271), as a WEIGHTING on a
+   * named candidate: a station on the avoid list is pushed down the ranking
+   * and one on the favor list pulled up, by `PLACE_NUDGE_MI` each way — and a
+   * station on both is favored, the rule `rankPlaces` already makes.
+   *
+   * REVERSES THE 2026-09-07 CALL that these lists must never reach the
+   * proposer. Ziad's call, 2026-09-19: he had Costco Gas on his avoid list and
+   * was handed a Costco as the meeting point on a road with a Shell four miles
+   * on. What the old rule protected survives as the SHAPE of this one — it is
+   * a nudge and never a filter, so a lone Costco on a rural stretch is still
+   * offered and the settings page's "nothing is hidden" stays true.
+   */
+  favor?: string[]
+  avoid?: string[]
+  /**
    * Offer ONLY fuel candidates, never a bare point on the road.
    *
    * THE FILTER HAS TO BE HERE AND NOT AT THE CALL SITE, which is the whole
@@ -108,6 +124,31 @@ const DEFAULTS = {
   minSharedFraction: 0.2,
   sampleM: 2000,
   fuelOnly: false,
+  favor: [] as string[],
+  avoid: [] as string[],
+}
+
+/**
+ * What a place on the rider's avoid list costs a candidate, and what one on the
+ * favor list buys it, in miles of score.
+ *
+ * EIGHT, WHICH IS ABOUT FIVE MILES OF DETOUR OR EIGHT FURTHER ALONG. An avoided
+ * station loses to an unavoided one that is up to eight miles further down the
+ * shared road, or costs a joining group up to about five extra miles to reach
+ * (eight over DIVERT_WEIGHT) — and wins past that, because "I would rather not
+ * stop there" is worth a few miles and not a county. Chosen so a Costco at a
+ * junction loses to the Shell six miles on, which is the case it was set by.
+ */
+export const PLACE_NUDGE_MI = 8
+
+/** The nudge for one named candidate. Zero for a bare point on the road, which
+ *  has no name to match, and favor wins a place named on both lists. */
+export function placeNudgeMi(name: string | undefined, favor: string[], avoid: string[]): number {
+  if (!name) return 0
+  const place = { name }
+  if (matchesAny(place, favor)) return -PLACE_NUDGE_MI
+  if (matchesAny(place, avoid)) return PLACE_NUDGE_MI
+  return 0
 }
 
 /**
@@ -755,7 +796,11 @@ function scoreGroupMeet(
   const approachPenalty = diverts.reduce((n, d) => n + (d.approachDeg / 90) * 1, 0)
   const isFuel = m.place !== null
   const score =
-    m.alongM / METERS_PER_MILE + (totalDivertM / METERS_PER_MILE) * DIVERT_WEIGHT + approachPenalty - (isFuel ? 2 : 0)
+    m.alongM / METERS_PER_MILE +
+    (totalDivertM / METERS_PER_MILE) * DIVERT_WEIGHT +
+    approachPenalty -
+    (isFuel ? 2 : 0) +
+    placeNudgeMi(m.place?.name, opts.favor, opts.avoid)
 
   return {
     at: m.at,
@@ -856,7 +901,12 @@ export function nearestVertex(track: Track, at: [number, number]): number {
  * a rider is shown beside a group's name: how far out of their way, in miles
  * they would ride, beyond the cheapest way of joining this ride.
  */
-export function rankByRoad(measured: RoadMeasure[], trunkTotalM: number, maxDivertMi: number): GroupMeet[] {
+export function rankByRoad(
+  measured: RoadMeasure[],
+  trunkTotalM: number,
+  maxDivertMi: number,
+  lists: { favor: string[]; avoid: string[] } = { favor: [], avoid: [] },
+): GroupMeet[] {
   const capM = maxDivertMi * METERS_PER_MILE
   const complete = measured.filter((x) => [...x.toMeetM.values()].every((v) => v !== null))
   const rest = measured.filter((x) => !complete.includes(x)).map((x) => x.meet)
@@ -892,7 +942,8 @@ export function rankByRoad(measured: RoadMeasure[], trunkTotalM: number, maxDive
       meet.alongM / METERS_PER_MILE +
       (totalExtraM / METERS_PER_MILE) * DIVERT_WEIGHT +
       approachPenalty -
-      (meet.isFuel ? 2 : 0)
+      (meet.isFuel ? 2 : 0) +
+      placeNudgeMi(meet.name, lists.favor, lists.avoid)
     ranked.push({ ...meet, diverts, worstExtraM, score })
   }
   ranked.sort((a, b) => a.score - b.score)
