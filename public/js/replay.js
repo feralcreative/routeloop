@@ -47,7 +47,9 @@
     return;
   }
 
-  var stage = dialog.querySelector(".replay-stage");
+  // The view is what the frame is fitted to; the caption floats in the stage
+  // around it and, on a phone, below it.
+  var stage = dialog.querySelector(".replay-view");
   var frameEl = dialog.querySelector(".replay-frame");
   var imgs = dialog.querySelectorAll(".replay-img");
   var maskSvg = dialog.querySelector(".replay-mask");
@@ -222,7 +224,6 @@
 
     // The card. Our own copy, so innerHTML; it may carry <b>.
     where.textContent = part ? "Part " + part.n + " · " + part.name : "";
-    where.hidden = !part;
     titleEl.textContent = step.title;
     textEl.innerHTML = "<p>" + step.text + "</p>";
     pageEl.textContent = pageWord(step.page);

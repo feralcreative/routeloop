@@ -13,6 +13,13 @@
 // the splash's video and scrim. Two <img> layers crossfade by class; the mask
 // is one SVG whose two paths replay.js writes — a dim over everything but the
 // box, and the ring around it.
+//
+// THE BUTTONS ARE IN A STRIP OF THEIR OWN AND NEVER MOVE. Ziad's call,
+// 2026-09-20: the caption floats to whichever corner is clear of the ring,
+// which is right for a caption and wrong for a control — a visitor flipping
+// through forty cards cannot chase Next around the screen. Back, Exit and
+// Next sit in `.replay-bar` along the bottom with the progress line and the
+// part's name; only `.replay-card` moves.
 
 /** The sign beside the Google button. Hidden until replay.js wires it. */
 export function replaySign(): string {
@@ -29,31 +36,35 @@ export function replayDialog(): string {
   return (
     <dialog class="replay" id="replay" aria-labelledby="replay-title" data-state="closed">
       <div class="replay-stage">
-        <div class="replay-frame" style="--fw:1280;--fh:800">
-          <img class="replay-img" alt="" decoding="async" />
-          <img class="replay-img" alt="" decoding="async" />
-          <svg class="replay-mask is-empty" aria-hidden="true" preserveAspectRatio="none" viewBox="0 0 1280 800">
-            <path class="replay-dim" d="" />
-            <path class="replay-ring" d="" />
-          </svg>
+        <div class="replay-view">
+          <div class="replay-frame" style="--fw:1280;--fh:800">
+            <img class="replay-img" alt="" decoding="async" />
+            <img class="replay-img" alt="" decoding="async" />
+            <svg class="replay-mask is-empty" aria-hidden="true" preserveAspectRatio="none" viewBox="0 0 1280 800">
+              <path class="replay-dim" d="" />
+              <path class="replay-ring" d="" />
+            </svg>
+          </div>
+          {/* Shown only on a phone, where the pan crops Google's own attribution
+              out of the frame. On a desktop the frame is whole and carries it. */}
+          <p class="replay-credit">Map imagery ©&nbsp;Google</p>
+          <p class="replay-loading">Loading the preview…</p>
+          <p class="replay-failed">The preview did not load. Try again in a moment.</p>
         </div>
-        {/* Shown only on a phone, where the pan crops Google's own attribution
-            out of the frame. On a desktop the frame is whole and carries it. */}
-        <p class="replay-credit">Map imagery ©&nbsp;Google</p>
-        <p class="replay-loading">Loading the preview…</p>
-        <p class="replay-failed">The preview did not load. Try again in a moment.</p>
+        <section class="replay-card" data-corner="br">
+          <h2 class="replay-title" id="replay-title">
+            Sneak peek
+          </h2>
+          <div class="replay-text"></div>
+          <ol class="replay-parts" hidden></ol>
+          <p class="replay-page"></p>
+        </section>
       </div>
-      <section class="replay-card" data-corner="br">
+      <div class="replay-bar">
         <div class="replay-progress" aria-hidden="true">
           <i></i>
         </div>
-        <p class="replay-where" hidden></p>
-        <h2 class="replay-title" id="replay-title">
-          Sneak peek
-        </h2>
-        <div class="replay-text"></div>
-        <ol class="replay-parts" hidden></ol>
-        <p class="replay-page"></p>
+        <p class="replay-where"></p>
         <div class="replay-acts">
           <button type="button" class="btn btn-quiet" data-replay-back disabled>
             Back
@@ -65,7 +76,7 @@ export function replayDialog(): string {
             Next
           </button>
         </div>
-      </section>
+      </div>
       <p class="replay-live visually-hidden" aria-live="polite"></p>
     </dialog>
   ).toString()
