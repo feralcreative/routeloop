@@ -126,13 +126,20 @@ $-neutrals-dark: (
   57: #a2a2a2,
   63: #8e8e8e,
   70: #727272,
-  76: #444444,
-  82: #3b3b3b,
-  88: #333333,
-  94: #262626,
+  // -76 THROUGH -94 LIFTED WITH THE CARD, 2026-09-20. Ziad's call, on a live
+  // dashboard: the card went from #1a1a1a to #242424 and its edges were still
+  // hard to see, because these four are what draw them — -94 is the fill a
+  // shade off the card, -88 is $grey, the hairline around every tile, and -82
+  // and -76 are the borders a step darker again. Each moved about a hex pair
+  // so the steps stay a pair apart from the card and from each other; -70 and
+  // above are the text half and did not move.
+  76: #505050,
+  82: #474747,
+  88: #3e3e3e,
+  94: #303030,
   // -96 IS A WELL, NOT THE PAGE, SINCE 2026-09-17. A fill of -96 on a surface
   // is a shade recessed from it in the light ramp (#f4f4f4 on white), and it
-  // has to be the same here — a shade darker than the card, which is #1a1a1a
+  // has to be the same here — a shade darker than the card, which is #242424
   // now (see $white in build()). The page itself moved off the ramp onto
   // $page, which takes -98 in the dark: the sign-in page's ground, and the
   // one near-black the product already had.
@@ -352,20 +359,25 @@ $-signs-colorblind: (
   $record-text-l: 30%;
   @if $dark {
     $n: $-neutrals-dark;
-    // THE CARD, one step above the page: #1a1a1a, which is what -96 was until
-    // the page took -98 and the ramp's -96 became the well under it. A literal
-    // rather than a ramp step because it is neither — it is the surface, the
-    // thing the ramp's wells and pills are measured against.
-    $white: #1a1a1a;
+    // THE CARD, a step above the page. It was #1a1a1a — what -96 was until the
+    // page took -98 and the ramp's -96 became the well under it — and moved to
+    // #242424 on 2026-09-20, Ziad's call: on the dashboard the cards and the
+    // page still ran together. A literal rather than a ramp step because it is
+    // neither — it is the surface, the thing the ramp's wells and pills are
+    // measured against; -76 through -94 moved with it, see the ramp.
+    $white: #242424;
     $page: map.get($n, 98);
-    $card-edge: rgba(255, 255, 255, 0.08);
+    // 12% white over #242424 lands on #3e3e3e, which is -88 — so a ride card's
+    // edge and a dashboard tile's $grey hairline are one value, whichever token
+    // drew them. It was 8% and read as nothing.
+    $card-edge: rgba(255, 255, 255, 0.12);
     $black: map.get($n, 21);
     // THE DERIVATION DIRECTION INVERTS. See the note below.
     $dir: -1;
     // Mixed rather than flipped: on a dark scheme a white scrim would glow, so
     // the floating map panel takes the SURFACE — the card gray, since it is a
     // card floating over the map — at the same opacity.
-    $panel-bg: rgba(26, 26, 26, 0.9);
+    $panel-bg: rgba(36, 36, 36, 0.9);
     $panel-shadow: rgba(0, 0, 0, 0.5);
     $pending-l: 70%;
     $label-l: 72%;
@@ -390,9 +402,16 @@ $-signs-colorblind: (
   // Lifting only the link keeps one authored blue per theme. $disabled itself
   // does not move: a sign field is scheme-invariant, which is the finding this
   // whole file turns on. Found by the measured audit, 2026-08-25.
+  //
+  // AN ABSOLUTE LIGHTNESS, NOT A STEP, SINCE 2026-09-20 — the -tone() rule
+  // this file states for $pending, arriving here the same way. It was
+  // `+30%`, which put the default's link at L62 and the contrast theme's at
+  // L53, because that theme's field starts darker; the day the card lifted to
+  // #242424 the contrast link measured 4.26:1 on it. 62% is where the default
+  // already sat, so nothing moves there, and the other two land beside it.
   $url: $disabled;
   @if $dark {
-    $url: color.adjust($disabled, $lightness: 30%);
+    $url: -tone($disabled, 62%);
   }
   $grey: map.get($n, 88);
   $text: map.get($n, 21);

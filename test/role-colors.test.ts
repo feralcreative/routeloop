@@ -20,13 +20,14 @@ import { ROLES, ROLE_META, type Role } from '../src/maps/roles'
 import { ROLE_COLORS, roleColor } from '../src/maps/role-colors'
 import { contrast, luminance } from '../src/views/tokens'
 
-// The two page grounds, and the ink on the disc. $neutral-98 in each scheme:
-// #fafafa on the light palette, $splash-ink on the dark one. The dark CARD is
-// checked too, because a bar sitting inside .stat-block is on $neutral-96 there,
-// which is the lighter of the two dark surfaces and therefore the harder test.
+// The two page grounds, and the ink on the disc. $page in each scheme: #f4f4f4
+// on the light palette, $splash-ink on the dark one. The dark CARD is checked
+// too, because a bar sitting inside .stat-block is on $white there — #242424
+// since 2026-09-20 — which is the lighter of the two dark surfaces and
+// therefore the harder test.
 const LIGHT_PAGE = '#f4f4f4'
 const DARK_PAGE = '#0a0e11'
-const DARK_CARD = '#1a1a1a'
+const DARK_CARD = '#242424'
 const GLYPH = '#ffffff'
 
 // 3:1, the WCAG threshold for a non-text graphic that carries meaning. These are
@@ -90,8 +91,8 @@ describe('the ring is legible where it is actually drawn', () => {
     expect(contrast(ROLE_COLORS[role], DARK_PAGE)!).toBeGreaterThanOrEqual(AA_GRAPHIC)
   })
 
-  // The harder of the two dark surfaces: a stat block sits on $neutral-96, which
-  // under the dark scheme is #1a1a1a rather than the page's near-black.
+  // The harder of the two dark surfaces: a stat block sits on the card, which
+  // under the dark scheme is #242424 rather than the page's near-black.
   it.each(ROLES)('%s clears 3:1 as a bar on a dark card', (role: Role) => {
     expect(contrast(ROLE_COLORS[role], DARK_CARD)!).toBeGreaterThanOrEqual(AA_GRAPHIC)
   })
