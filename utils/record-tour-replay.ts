@@ -48,6 +48,7 @@ type StepInfo = {
   chooser?: true
   page: string
   demo: boolean
+  anchored: boolean
   running?: string
   extra: string[]
 }
@@ -103,6 +104,7 @@ const SETTLE_MS = 1500
 // tour's own DEMO_TIMEOUT_MS, after which the card offers Next regardless.
 const DEMO_WAIT_MS = 35_000
 const STEP_WAIT_MS = 30_000
+const TARGET_WAIT_MS = 3_000
 
 if (!/^https?:\/\/(localhost|127\.0\.0\.1|\[::1\])(:\d+)?$/.test(BASE)) {
   console.error(`refusing --base ${BASE}: frames may only be recorded against a dev server on localhost`)
@@ -244,6 +246,7 @@ async function main(): Promise<void> {
       ...(s.chooser ? { chooser: true as const } : {}),
       page: s.page || 'builder',
       demo: typeof s.demo === 'function',
+      anchored: !!s.at,
       ...(s.running ? { running: s.running } : {}),
       extra: s.extra || [],
     })),
@@ -352,6 +355,29 @@ async function capture(p: Page, step: StepInfo): Promise<ManifestStep> {
   await p.evaluate(() => document.fonts.ready.then(() => undefined))
   await sleep(SETTLE_MS)
   await twoFrames(p)
+  // A card pinned to a node that was replaced under it — a tab that filled
+  // after the card showed — reports a detached, zero-size target. Ask the
+  // tour to re-pin and wait for a real box; a card the live tour would show
+  // centered stays centered here too.
+  if (step.anchored) {
+    const t0 = Date.now()
+    let nudged = false
+    while (Date.now() - t0 < TARGET_WAIT_MS) {
+      const ok = await p.evaluate(() => {
+        const s = (window as unknown as TourWindow).TBTour.tour.getCurrentStep()
+        const t = s && s.getTarget()
+        if (!t || !t.isConnected) return false
+        const r = t.getBoundingClientRect()
+        return r.width > 0 && r.height > 0
+      })
+      if (ok) break
+      if (!nudged) {
+        nudged = true
+        await p.evaluate(() => (window as unknown as TourWindow).TBTour.repin())
+      }
+      await sleep(150)
+    }
+  }
 
   // NO NAMED FUNCTION INSIDE AN evaluate(): tsx transpiles with keepNames, which
   // wraps a declared or const-assigned function in a `__name()` helper that
@@ -409,6 +435,7 @@ type TourStep = {
   chooser?: boolean
   page?: string
   demo?: unknown
+  at?: unknown
   running?: string
   extra?: string[]
   title: string
@@ -419,6 +446,7 @@ type TourWindow = Window & {
   TBTour: {
     STEPS: TourStep[]
     PARTS: { n: number; name: string; blurb: string }[]
+    repin(): void
     tour: {
       isActive(): boolean
       next(): unknown

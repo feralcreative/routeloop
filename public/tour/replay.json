@@ -1,6 +1,6 @@
 {
   "version": 1,
-  "recordedAt": "2026-09-20T16:25:10.470Z",
+  "recordedAt": "2026-09-20T16:39:11.576Z",
   "viewport": {
     "w": 1280,
     "h": 800,
@@ -458,8 +458,13 @@
       "page": "builder",
       "title": "The ride has a page of its own",
       "text": "The Riders tab is the plan’s view of who is coming. Roster opens the ride’s own page, where riders are invited and say whether they are in. Let me open it.",
-      "frame": "to-roster-7ac7b3245c.webp",
-      "box": null,
+      "frame": "to-roster-b9dfecea89.webp",
+      "box": {
+        "x": 0.2365,
+        "y": 0.4824,
+        "w": 0.0479,
+        "h": 0.0357
+      },
       "extra": [
         {
           "x": 0.1948,
@@ -632,7 +637,7 @@
       "title": "Somebody heads home early",
       "text": "Diego turns for home at Pescadero. Split a group off here on the row menu asks who is leaving and where to, cuts the shared route there, and gives them a route of their own.",
       "running": "Splitting a group off…",
-      "frame": "split-cd2d3e3265.webp",
+      "frame": "split-d8b7bc312b.webp",
       "box": null,
       "extra": []
     },
@@ -642,7 +647,7 @@
       "page": "builder",
       "title": "And the list says so",
       "text": "The last point of the route they left names the group and where they went; press it to jump to their route. The roadbook and each rider’s export follow this.",
-      "frame": "splitoff-row-cd2d3e3265.webp",
+      "frame": "splitoff-row-d8b7bc312b.webp",
       "box": null,
       "extra": []
     },
