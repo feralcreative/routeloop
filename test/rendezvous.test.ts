@@ -16,6 +16,8 @@ import {
   clampDivert,
   DEFAULT_DIVERT_MI,
   divertMi,
+  PLACE_NUDGE_MI,
+  placeNudgeMi,
   proposeGroupMeet,
   proposeRendezvous,
   rankByRoad,
@@ -26,6 +28,7 @@ import {
   type RoadMeasure,
 } from '../src/subgroups/rendezvous'
 import type { Track } from '../src/maps/kml'
+import { parseTerms } from '../src/places/ranking'
 
 /** Due east along 40°N, one vertex every 0.05° — roughly every 4.3 km. */
 const eastward = (fromLng: number, toLng: number, lat = 40): Track => {
@@ -673,5 +676,83 @@ describe('rankByRoad', () => {
     expect(alongTrackM(track, [-121.5, 40.001])).toBeGreaterThan(40_000)
     expect(alongTrackM(track, [-121.5, 40.001])).toBeLessThan(46_000)
     expect(alongTrackM(track, [-122, 40])).toBe(0)
+  })
+})
+
+// THE RIDER'S PLACE LISTS REACH THE PROPOSAL AS A NUDGE, NEVER A FILTER.
+// Ziad's call, 2026-09-19, reversing the 2026-09-07 rule that they must not
+// reach it at all — having been handed a Costco as the meeting point with
+// Costco Gas on his avoid list and a Shell four miles on.
+describe('the avoid and favor lists', () => {
+  const mi = 1609.344
+  const trunkTotalM = 150 * mi
+  const station = (alongMi: number, name: string): GroupMeet => ({
+    at: [-122 + alongMi / 60, 40],
+    alongM: alongMi * mi,
+    diverts: [
+      { id: 'n', divertM: 0, extraM: 0, approachDeg: 0, onRoute: true },
+      { id: 'sf', divertM: 0, extraM: 0, approachDeg: 0, onRoute: true },
+    ],
+    worstDivertM: 0,
+    worstExtraM: 0,
+    totalDivertM: 0,
+    sharedFraction: 1 - alongMi / 150,
+    isFuel: true,
+    name,
+    score: 0,
+  })
+  const onRoad = (m: GroupMeet, sfMi: number): RoadMeasure => ({ meet: m, toMeetM: new Map([['sf', sfMi * mi]]) })
+  const lists = { favor: parseTerms('Shell'), avoid: parseTerms('Costco gas, ARCO') }
+
+  it('nudges a named candidate by a few miles of score, favor winning a tie', () => {
+    expect(placeNudgeMi('Costco Gas Station', lists.favor, lists.avoid)).toBe(PLACE_NUDGE_MI)
+    expect(placeNudgeMi('Shell', lists.favor, lists.avoid)).toBe(-PLACE_NUDGE_MI)
+    expect(placeNudgeMi('Shell at the Costco', lists.favor, lists.avoid)).toBe(-PLACE_NUDGE_MI)
+    expect(placeNudgeMi('Chevron', lists.favor, lists.avoid)).toBe(0)
+    expect(placeNudgeMi(undefined, lists.favor, lists.avoid)).toBe(0)
+  })
+
+  it('puts a Costco at the junction behind the station six miles on', () => {
+    const costco = station(56, 'Costco Gas Station')
+    const chevron = station(62, 'Chevron')
+    // Without the lists, earlier wins.
+    expect(rankByRoad([onRoad(costco, 45), onRoad(chevron, 51)], trunkTotalM, 10)[0].name).toBe('Costco Gas Station')
+    // With them, the avoided station loses six miles of road but not twelve.
+    expect(rankByRoad([onRoad(costco, 45), onRoad(chevron, 51)], trunkTotalM, 10, lists)[0].name).toBe('Chevron')
+    const farChevron = station(70, 'Chevron')
+    expect(rankByRoad([onRoad(costco, 45), onRoad(farChevron, 59)], trunkTotalM, 10, lists)[0].name).toBe(
+      'Costco Gas Station',
+    )
+  })
+
+  it('still offers a lone avoided station, because a nudge is not a filter', () => {
+    const costco = station(56, 'Costco Gas Station')
+    expect(rankByRoad([onRoad(costco, 45)], trunkTotalM, 10, lists).map((m) => m.name)).toEqual(['Costco Gas Station'])
+  })
+
+  it('applies the same nudge in the straight-line shortlist', () => {
+    const leg = (a: [number, number], b: [number, number]): Track => {
+      const out: Track = []
+      for (let k = 0; k <= 120; k++) out.push([a[0] + ((b[0] - a[0]) * k) / 120, a[1] + ((b[1] - a[1]) * k) / 120])
+      return out
+    }
+    const DEST: [number, number] = [-117, 40]
+    const north: GroupRoute = { id: 'n', origin: [-122, 40], track: leg([-122, 40], DEST) }
+    const south: GroupRoute = {
+      id: 's',
+      origin: [-122, 39],
+      track: [...leg([-122, 39], [-119, 40]), ...leg([-119, 40], DEST)],
+    }
+    // Two stations on the shared road, the avoided one a little earlier. On
+    // vertices of BOTH tracks (the main road samples every 5/120 of a degree,
+    // the joining one every 2/120), or ON_ROUTE_M drops them as off the road.
+    const costco: FuelCandidate = { at: [-122 + (5 * 74) / 120, 40.002], roles: ['gas'], name: 'Costco Gas Station' }
+    const shell: FuelCandidate = { at: [-122 + (5 * 76) / 120, 40.002], roles: ['gas'], name: 'Shell' }
+    const plain = proposeGroupMeet(north, [south], [costco, shell], { fuelOnly: true })
+    const nudged = proposeGroupMeet(north, [south], [costco, shell], { fuelOnly: true, ...lists })
+    expect(plain[0].name).toBe('Costco Gas Station')
+    expect(nudged[0].name).toBe('Shell')
+    // Both are still offered either way.
+    expect(nudged.map((m) => m.name).sort()).toEqual(['Costco Gas Station', 'Shell'])
   })
 })

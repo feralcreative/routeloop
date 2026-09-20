@@ -59,6 +59,8 @@ import { searchPlaces } from '../maps/places'
 import { fetchRouteLeg } from './routing'
 import { groupRange } from '../bikes/group-range'
 import { GMAPS_SERVER_KEY } from '../config'
+import { parseTerms } from '../places/ranking'
+import { placeListsFor } from '../views/prefs'
 
 export const rendezvousRoutes = new Hono<AuthEnv>()
 
@@ -91,7 +93,13 @@ rendezvousRoutes.post('/api/rides/:id/rendezvous', requireActiveApi, requireSame
     .from(userProfiles)
     .where(eq(userProfiles.userId, user.id))
     .limit(1)
-  const divertOpt = { maxDivertMi: clampDivert(body.maxDivertMi) ?? clampDivert(prof?.meetDivertMi) }
+  // THE RIDER'S PLACE LISTS RIDE ALONG AS A NUDGE — see RendezvousOptions.
+  // Parsed once here and handed to both passes and the road re-rank, so the
+  // three cannot disagree about what a name matches.
+  const lists = await placeListsFor(c)
+  const favor = parseTerms(lists.favor)
+  const avoid = parseTerms(lists.avoid)
+  const divertOpt = { maxDivertMi: clampDivert(body.maxDivertMi) ?? clampDivert(prof?.meetDivertMi), favor, avoid }
 
   const groups = await subgroupsOf(ride.id)
   // One group has nobody to meet. A real answer rather than an error.
@@ -403,10 +411,12 @@ rendezvousRoutes.post('/api/rides/:id/rendezvous', requireActiveApi, requireSame
     // KEYED BY COORDINATE, NOT IDENTITY: the re-rank returns new objects, and a
     // lookup by the old reference silently drew no roads for one build.
     const pathOf = new Map(list.map((m) => [m.at.join(','), reach.routed.get(m)?.[0]?.path ?? directApproach(m, one)]))
-    const rows = rankByRoad(measures, trunkTotalM, divertOpt.maxDivertMi ?? DEFAULT_DIVERT_MI).map((m) => ({
-      m,
-      path: pathOf.get(m.at.join(',')) ?? ([] as Track),
-    }))
+    const rows = rankByRoad(measures, trunkTotalM, divertOpt.maxDivertMi ?? DEFAULT_DIVERT_MI, { favor, avoid }).map(
+      (m) => ({
+        m,
+        path: pathOf.get(m.at.join(',')) ?? ([] as Track),
+      }),
+    )
     const note = reach.keep.length ? null : onlyGas.length ? 'out-of-range' : plain.length ? 'no-gas' : null
 
     return {

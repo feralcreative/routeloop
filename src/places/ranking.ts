@@ -28,11 +28,15 @@
 // result ranked lower rather than removed — which is the reason this is a
 // weighting in the first place.
 //
-// **IT MUST NEVER REACH THE MEETING-POINT PROPOSER.** `src/routes/rendezvous.ts`
-// matches on `type === 'gas_station'` to guarantee the group can actually fill
-// up, and a candidate demoted to nothing there is a real failure rather than a
-// preference. Nothing in this file is imported by that one, and it should stay
-// that way.
+// **IT REACHES THE MEETING-POINT PROPOSER AS A NUDGE, SINCE 2026-09-19.** The
+// rule until then was that it must never: `src/routes/rendezvous.ts` matches on
+// `type === 'gas_station'` to guarantee the group can actually fill up, and a
+// candidate demoted to nothing there is a real failure rather than a
+// preference. Ziad's call reversed it after being handed a Costco as a meeting
+// point with Costco Gas on his avoid list — and what the old rule protected
+// survives as the shape: `placeNudgeMi()` in src/subgroups/rendezvous.ts moves
+// a named station a few miles of score, never off the list, through
+// `matchesAny` below. A lone avoided station on a rural road is still offered.
 
 /** Only the field the ordering reads, so a caller can pass its own shape and a
  *  test does not have to build a whole PlaceHit. */
