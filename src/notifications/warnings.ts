@@ -31,7 +31,7 @@ import { db } from '../db/index'
 import { rides, users } from '../db/schema'
 import { TRASH_HOLD_DAYS } from '../trash/policy'
 import { DELETION_HOLD_DAYS } from '../account/policy'
-import { notifyAccountPurgeSoon, notifyQuotaFull, notifyRidePurgeSoon } from './senders'
+import { notifyAccountPurgeSoon, notifyBinPurgeSoon, notifyQuotaFull } from './senders'
 
 /**
  * How much notice a rider gets before something is destroyed.
@@ -68,7 +68,8 @@ export const QUOTA_WARN_PERCENT = 90
 const mb = (bytes: number): string => `${Math.round((bytes / 1_048_576) * 10) / 10} MB`
 
 /**
- * Rides a week from being destroyed, warned once each.
+ * Rides a week from being destroyed: each one trips the warning once, and the
+ * warning is ONE message per rider about their whole bin.
  *
  * **IT SELECTS ON `purge_after` AND NOT ON `deleted_at`**, so a ride restored
  * and re-binned is warned again about its new deadline rather than being
@@ -76,10 +77,17 @@ const mb = (bytes: number): string => `${Math.round((bytes / 1_048_576) * 10) / 
  * predicate is what does that, and testing `purge_warned_at is null` would not.
  *
  * The stamp is written BEFORE the notification goes, which is the opposite of
- * the usual order and is right here: this runs hourly, `notify()` is
+ * the usual order and is right here: this runs hourly, the send is
  * fire-and-forget, and stamping afterwards leaves a window in which the next
  * sweep selects the same ride again. A warning lost to a failed send is a
  * missing message; a warning sent every hour for a week is worse.
+ *
+ * **THE STAMP IS PER RIDE AND THE MESSAGE IS PER RIDER.** Ziad's call,
+ * 2026-09-20: the stamp still decides WHEN a rider hears about their bin — the
+ * hour a ride first comes within a week of going — and what they hear is the
+ * whole bin, every ride in it with its date, in one notification that
+ * `notifyOnce` bumps rather than duplicates. Eight rides binned together are
+ * one message; a ninth binned later bumps it once, when its own week arrives.
  */
 export async function warnRidePurges(now: Date = new Date()): Promise<number> {
   const horizon = new Date(now.getTime() + LEAD_MS)
@@ -120,10 +128,28 @@ export async function warnRidePurges(now: Date = new Date()): Promise<number> {
       ),
     )
 
-  notifyRidePurgeSoon(
-    due.map((d) => ({ ownerId: d.ownerId, title: d.title, purgeAfter: d.purgeAfter as Date })),
-    now,
-  )
+  // Everything each of those riders has in the bin, not only what tripped the
+  // warning — the message is about the bin, and a rider told about three rides
+  // when five are scheduled restores one and loses four.
+  const owners = [...new Set(due.map((d) => d.ownerId))]
+  const bins = await db
+    .select({ ownerId: rides.ownerId, title: rides.title, purgeAfter: rides.purgeAfter })
+    .from(rides)
+    .where(
+      and(
+        inArray(rides.ownerId, owners),
+        isNotNull(rides.deletedAt),
+        isNotNull(rides.purgeAfter),
+        gt(rides.purgeAfter, now),
+      ),
+    )
+    .orderBy(rides.purgeAfter)
+  for (const ownerId of owners) {
+    const bin = bins
+      .filter((b) => b.ownerId === ownerId)
+      .map((b) => ({ title: b.title, purgeAfter: b.purgeAfter as Date }))
+    notifyBinPurgeSoon(ownerId, bin, now)
+  }
   return due.length
 }
 
@@ -158,12 +184,15 @@ export async function warnQuota(now: Date = new Date()): Promise<number> {
     .limit(50)
   if (due.length === 0) return 0
 
-  await db.update(users).set({ quotaWarnedAt: now }).where(
-    inArray(
-      users.id,
-      due.map((d) => d.id),
-    ),
-  )
+  await db
+    .update(users)
+    .set({ quotaWarnedAt: now })
+    .where(
+      inArray(
+        users.id,
+        due.map((d) => d.id),
+      ),
+    )
 
   for (const u of due) {
     // Floored, so a rider at 99.6% is never told they are at 100% of an
@@ -201,12 +230,15 @@ export async function warnAccountPurges(now: Date = new Date()): Promise<number>
     .limit(50)
   if (due.length === 0) return 0
 
-  await db.update(users).set({ purgeWarnedAt: now }).where(
-    inArray(
-      users.id,
-      due.map((d) => d.id),
-    ),
-  )
+  await db
+    .update(users)
+    .set({ purgeWarnedAt: now })
+    .where(
+      inArray(
+        users.id,
+        due.map((d) => d.id),
+      ),
+    )
 
   for (const u of due) notifyAccountPurgeSoon(u.id, u.purgeAfter as Date, now)
   return due.length

@@ -22,7 +22,7 @@
 // reads, and an SMTP round trip inside a transaction holds a pooled connection
 // open for a network call — the rule notifyNewSignup and notifyNewReport both
 // carry, unchanged.
-import { and, desc, eq, inArray, isNull, lt, sql } from 'drizzle-orm'
+import { and, desc, eq, inArray, isNull, lt, ne, sql } from 'drizzle-orm'
 import { db } from '../db/index'
 import { notificationPrefs, notifications, userProfiles, users } from '../db/schema'
 import { sendTemplateDetached } from '../auth/mailer'
@@ -176,6 +176,95 @@ export function notify<P>(userId: number, notice: Notice<P>): void {
     })
   })().catch((err) => {
     console.warn(`[notify] ${notice.event} failed:`, err instanceof Error ? err.message : err)
+  })
+}
+
+/**
+ * Tell one rider one thing they can only have ONE of, replacing what they had.
+ *
+ * **A BUMP, NOT A SECOND ROW.** Ziad's call, 2026-09-20, for the bin warning:
+ * a rider with eight rides reaching the end of their thirty days was getting
+ * eight notifications about one fact, and every later sweep added more. This
+ * finds the rider's latest row for the event and rewrites it — title, body,
+ * URL — and RESETS ITS CLOCK: `created_at` to now so it climbs to the top of
+ * the center, `read_at` cleared so the badge counts it again, `delivered_at`
+ * cleared so a browser toast is raised for the new text. That is what "bumped"
+ * means, and it is the whole difference from `notify()`, which is otherwise
+ * what this is.
+ *
+ * **THE EMAIL IS SENT EVERY TIME**, because an email cannot be edited after
+ * the fact; the sweeps that call this stamp each cause so a bump is at most one
+ * per new thing, never one per sweep.
+ *
+ * A row that was read and is about something long past is still the row that
+ * is rewritten: a rider has one standing statement per such event, and its
+ * history is not something the center is for.
+ */
+export function notifyOnce<P>(userId: number, notice: Notice<P>): void {
+  void (async () => {
+    if ((await humansOnly([userId])).length === 0) return
+    const prefs = await prefsOf(userId)
+
+    if (notice.email && enabledFor(prefs, notice.event, 'email')) {
+      const [row] = await db
+        .select({
+          email: users.email,
+          vehicle: userProfiles.vehicle,
+          power: userProfiles.power,
+          jargon: userProfiles.jargon,
+        })
+        .from(users)
+        .leftJoin(userProfiles, eq(userProfiles.userId, users.id))
+        .where(eq(users.id, userId))
+        .limit(1)
+      sendTemplateDetached(row?.email, notice.email.template, withWords(notice.email.props, row), {
+        replyTo: notice.email.replyTo,
+        limitKey: notice.email.limitKey,
+      })
+    }
+
+    const now = new Date()
+    const [existing] = await db
+      .select({ id: notifications.id })
+      .from(notifications)
+      .where(and(eq(notifications.userId, userId), eq(notifications.event, notice.event)))
+      .orderBy(desc(notifications.createdAt))
+      .limit(1)
+    if (existing) {
+      await db
+        .update(notifications)
+        .set({
+          title: notice.title,
+          body: notice.body,
+          url: notice.url ?? null,
+          createdAt: now,
+          readAt: null,
+          deliveredAt: null,
+        })
+        .where(eq(notifications.id, existing.id))
+      // ONE ROW IS AN INVARIANT, NOT A HOPE. Any others for the same event —
+      // the pile the per-ride version left behind, or two sweeps racing — go
+      // the moment this one is bumped, so the center reads one statement.
+      await db
+        .delete(notifications)
+        .where(
+          and(
+            eq(notifications.userId, userId),
+            eq(notifications.event, notice.event),
+            ne(notifications.id, existing.id),
+          ),
+        )
+      return
+    }
+    await db.insert(notifications).values({
+      userId,
+      event: notice.event,
+      title: notice.title,
+      body: notice.body,
+      url: notice.url ?? null,
+    })
+  })().catch((err) => {
+    console.warn(`[notify] ${notice.event} (once) failed:`, err instanceof Error ? err.message : err)
   })
 }
 
