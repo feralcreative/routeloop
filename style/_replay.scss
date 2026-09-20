@@ -371,6 +371,10 @@ dialog.replay:not([data-state="ready"]) .replay-frame {
 .splash-gate-row .btn.replay-open {
   @include chrome.sign-field($yield, $dark-ink: true);
   flex: none;
+  // A third up on the base sign, Ziad's call, 2026-09-20 — the arrow is in em
+  // and grows with it. The row's stretch decides the height, so the padding
+  // stays the base's rem figures rather than scaling too.
+  font-size: 1.33rem;
   gap: 0.5em;
   padding-right: 1.05rem;
 
