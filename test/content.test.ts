@@ -11,6 +11,7 @@
 import { describe, expect, it } from 'vitest'
 import { readFileSync, readdirSync } from 'node:fs'
 import { content } from '../src/views/content'
+import { stageTokens } from '../src/views/stage'
 
 const FAQ_IDS = [
   'need-a-motorcycle',
@@ -72,7 +73,7 @@ describe('the FAQ id contract', () => {
 
 describe('the loader', () => {
   it('substitutes tokens', () => {
-    const html = content('faq.html', { RIDING_YEARS: 27, WEB_YEARS: 33 })
+    const html = content('faq.html', { RIDING_YEARS: 27, WEB_YEARS: 33, ...stageTokens() })
     expect(html).toContain('riding for 27 years')
     expect(html).not.toContain('{{')
   })
@@ -88,14 +89,14 @@ describe('the loader', () => {
   })
 
   it('leaves no trailing blank line, which would show up before the footer', () => {
-    expect(content('terms.html', { EFFECTIVE: 'x' })).not.toMatch(/\n$/)
+    expect(content('terms.html', { EFFECTIVE: 'x', ...stageTokens() })).not.toMatch(/\n$/)
   })
 
   it('supplies a token for every placeholder each page actually uses', () => {
     // The pairing that would otherwise only fail in production: a file gains a
     // token and the route that renders it is not updated.
     const supplied: Record<string, string[]> = {
-      'faq.html': ['RIDING_YEARS', 'WEB_YEARS'],
+      'faq.html': ['RIDING_YEARS', 'WEB_YEARS', 'STAGE_SIGNUP'],
       'privacy.html': ['EFFECTIVE'],
       // No tokens, and it should stay that way: the version a rider is running
       // is rendered by the dialog around this copy, not interpolated into it.
@@ -103,7 +104,7 @@ describe('the loader', () => {
       // the modal fetches — and a token would have to be supplied identically at
       // both, which is exactly the drift this test exists to catch.
       'release-notes.html': [],
-      'terms.html': ['EFFECTIVE'],
+      'terms.html': ['EFFECTIVE', 'STAGE_PHASE', 'STAGE_ACCESS'],
     }
     for (const file of readdirSync('src/content')) {
       const used = [...readFileSync(`src/content/${file}`, 'utf8').matchAll(/\{\{(\w+)\}\}/g)].map((m) => m[1])

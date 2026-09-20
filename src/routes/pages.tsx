@@ -18,6 +18,7 @@ import { page, wordsOf, type NavKey } from '../views/layout'
 import { raw } from 'hono/html'
 import { content } from '../views/content'
 import { faqTokens } from '../views/faq-tokens'
+import { stageTokens } from '../views/stage'
 import { rideCards } from '../views/cards'
 import { currentUser, requireActive, type AuthEnv } from '../auth/middleware'
 import { allow, clientIp } from '../auth/ratelimit'
@@ -318,5 +319,5 @@ pageRoutes.get('/privacy', (c) =>
   render(c, 'Privacy', content('privacy.html', { EFFECTIVE: PRIVACY_EFFECTIVE }), 'content-page'),
 )
 pageRoutes.get('/terms', (c) =>
-  render(c, 'Terms', content('terms.html', { EFFECTIVE: TERMS_EFFECTIVE }), 'content-page'),
+  render(c, 'Terms', content('terms.html', { EFFECTIVE: TERMS_EFFECTIVE, ...stageTokens() }), 'content-page'),
 )

@@ -37,6 +37,7 @@ import { APP_ORIGIN } from '../config'
 import { page } from '../views/layout'
 import { asset } from '../views/assets'
 import { content } from '../views/content'
+import { stageTokens } from '../views/stage'
 import {
   AREAS,
   ATTACHMENT_MAX,
@@ -478,7 +479,7 @@ feedbackRoutes.get('/feedback', requireActive, (c) => {
     kindRaw === 'question'
       ? // Shipped to the client so the suggestion strip is live as they type.
         // 24 short strings; smaller than one of the icons on the page.
-        { faq: parseFaq(content('faq.html', { RIDING_YEARS: 0, WEB_YEARS: 0 })) }
+        { faq: parseFaq(content('faq.html', { RIDING_YEARS: 0, WEB_YEARS: 0, ...stageTokens() })) }
       : undefined
   return flowPage(c, stepBody(d, kindRaw, 'body', {}), KIND_META[kindRaw].label, tb)
 })

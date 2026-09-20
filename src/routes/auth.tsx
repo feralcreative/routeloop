@@ -24,6 +24,7 @@ import {
 } from '../config'
 import { page } from '../views/layout'
 import { SplashPage } from '../views/splash'
+import { stage } from '../views/stage'
 import { db } from '../db/index'
 import { eq } from 'drizzle-orm'
 import { users } from '../db/schema'
@@ -405,9 +406,7 @@ authRoutes.get('/welcome', requireAuth, (c) => {
       body: (
         <SplashPage eyebrow="You’re on the list" heading="Hang tight.">
           <p class="splash-copy">
-            You’re in the queue for <strong>beta testing</strong>. Routeloop is in closed alpha right now—developers
-            only—and riders are waved in by hand, a few at a time. You’ll be able to sign in and start planning once
-            yours comes up.
+            You’re in the queue for <strong>beta testing</strong>. {stage().pending}
           </p>
           <ul class="welcome-links">
             {links.map((l) => (

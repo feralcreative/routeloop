@@ -634,7 +634,7 @@ export function profilePanel({ user, values, errors, saved, history }: RenderArg
               Rider management is enabled for your account—<a href="/admin/approvals">approve and manage riders</a>.
             </p>
           ) : (
-            <p class="field-hint">Adding riders is closed during the alpha.</p>
+            <p class="field-hint">Adding riders is closed during the beta.</p>
           )}
         </fieldset>
 
