@@ -110,7 +110,7 @@ export const TERMS: Term[] = [
   {
     id: 'travel',
     label: 'Moving',
-    where: '“3h 33m riding”, “hours riding”',
+    where: '“3h 33m riding”, “hours of riding”',
     axis: 'vehicle',
     by: { motorcycle: w('riding'), car: w('driving'), bicycle: w('pedaling') },
   },

@@ -418,17 +418,19 @@ export type RecordTile = {
 export type VisibilitySplit = { key: RideVisibility; label: string; n: number; pct: number }[]
 
 /**
- * Time in the saddle, and how much of it is a guess.
+ * Time in the saddle, in whole hours.
  *
- * `estimated` is not decoration: a rider whose library is all imports has a
- * figure derived entirely from distance at a nominal speed, and one who plans
- * everything in the builder has a figure the router measured. The same number
- * means different things and the page has to say which.
+ * It carried `estimated` and a note until 2026-09-20 — a rider whose library
+ * is all imports has a figure derived entirely from distance at a nominal
+ * speed, one who plans in the builder has a figure the router measured — and
+ * the hero rendered the first as an asterisk with the note in a `title`. Ziad's
+ * call: the page says "roughly" for every library instead, since a lifetime
+ * total is plainly not a measurement, and nothing reads the distinction now.
  *
  * Null when there is no riding time at all, so a rider with rides but no legs
  * gets nothing rather than a confident zero.
  */
-export type SaddleTime = { hours: string; estimated: boolean; note: string } | null
+export type SaddleTime = { hours: string } | null
 
 export type DashboardStats = {
   hasRides: boolean
@@ -474,7 +476,8 @@ export function shapeStats(
   const hasRides = t.rides > 0
 
   // Absent rather than zeroed when there is no cohort figure — see the Tile type.
-  const pct = (n: number, top: number) => (top > 0 ? Math.round(Math.min(100, Math.max(0, (n / top) * 100)) * 10) / 10 : 0)
+  const pct = (n: number, top: number) =>
+    top > 0 ? Math.round(Math.min(100, Math.max(0, (n / top) * 100)) * 10) / 10 : 0
   const spread = (s: RawSpread | undefined, you: number): Spread | undefined =>
     s ? { avg: fmtAvg(s.avg), top: fmtCount(s.top), youPct: pct(you, s.top), avgPct: pct(s.avg, s.top) } : undefined
 
@@ -613,19 +616,9 @@ export function shapeStats(
   // catches. query.ts now applies the same distance-based estimate both clients
   // apply, so the total covers the whole library.
   //
-  // What it costs is that some of the figure is a guess, and `estimated` is how
-  // the page admits that rather than hiding it.
-  const saddle: SaddleTime =
-    t.durationS > 0
-      ? {
-          hours: fmtHours(t.durationS),
-          estimated: t.estimatedLegs > 0,
-          note:
-            t.estimatedLegs > 0
-              ? 'Part estimated: an imported ride carries no timings, so those legs are figured from distance.'
-              : 'Measured by the router, leg by leg.',
-        }
-      : null
+  // What it costs is that some of the figure is a guess, which the hero says
+  // with one word — "roughly" — rather than a flag.
+  const saddle: SaddleTime = t.durationS > 0 ? { hours: fmtHours(t.durationS) } : null
 
   return {
     hasRides,

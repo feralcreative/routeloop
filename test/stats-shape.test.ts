@@ -569,18 +569,11 @@ describe('shapeStats', () => {
       expect(s.saddle?.hours).toBe('1,234')
     })
 
-    // The whole point of carrying the flag: the same number means different
-    // things depending on whether a router measured it or distance implied it.
-    it('says the figure is measured when no leg was estimated', () => {
-      const s = shapeStats(raw({ totals: totals({ rides: 1, durationS: 7200, estimatedLegs: 0 }) }), 0, NOW)
-      expect(s.saddle?.estimated).toBe(false)
-      expect(s.saddle?.note).toMatch(/measured/i)
-    })
-
-    it('admits the figure is part estimated when any leg was', () => {
+    // The estimated-or-measured flag came off on 2026-09-20; the hero says
+    // "roughly" for every library. An estimated leg still counts toward hours.
+    it('counts an estimated leg like a measured one', () => {
       const s = shapeStats(raw({ totals: totals({ rides: 1, durationS: 7200, estimatedLegs: 1 }) }), 0, NOW)
-      expect(s.saddle?.estimated).toBe(true)
-      expect(s.saddle?.note).toMatch(/estimated/i)
+      expect(s.saddle?.hours).toBe('2')
     })
   })
 })
