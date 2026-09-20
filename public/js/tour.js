@@ -2263,11 +2263,17 @@
     if (asked && window.history.replaceState) {
       window.history.replaceState(null, "", window.location.pathname + window.location.hash);
     }
-    if (asked) {
-      start();
-      return;
-    }
-    resume();
+    // THE BUILDER HAS TO HOLD ITS RIDE BEFORE A FRAME IS APPLIED. TBBuilder
+    // is there from the moment builder.js runs, but the ride arrives by fetch
+    // inside its init(), and with Shepherd already in the cache this ran
+    // first: the first frame's saveNow() PUT the seed's empty route, the
+    // server refused it, and the refusal dialog sat over the rest of the tour.
+    // Other pages have no builder and resolve at once.
+    var ready = window.TBBuilder && window.TBBuilder.ready ? window.TBBuilder.ready : null;
+    Promise.resolve(ready).then(function () {
+      if (asked) start();
+      else resume();
+    });
   }
 
   document.addEventListener("click", function (e) {

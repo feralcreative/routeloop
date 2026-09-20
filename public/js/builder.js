@@ -11351,7 +11351,21 @@
     return ok;
   }
 
+  // Resolved once init() has loaded the ride and made the map. THE TOUR
+  // AWAITS IT BEFORE ITS FIRST FRAME: this object exists from the moment the
+  // file runs, while the ride arrives by fetch inside init(), so a tour
+  // resuming on a page whose Shepherd was already cached applied a frame —
+  // and saveNow() PUT the seed's empty route — before loadExisting() had
+  // answered. The PUT was refused ("routes: Too small") and the refusal dialog
+  // stayed up for the rest of the tour. Found by utils/record-tour-replay.ts,
+  // 2026-09-20.
+  let markReady;
+  const READY = new Promise((r) => {
+    markReady = r;
+  });
+
   window.TBBuilder = {
+    ready: READY,
     // `padding` is optional; the tour passes one to keep a card off the road.
     fitTo: (lngLats, padding) => fitTo(state.map, lngLats, padding),
     apply: tourApply,
@@ -11401,5 +11415,5 @@
     project: (lngLat) => (state.map ? containerPixel(state.map, lngLat) : null),
   };
 
-  init();
+  init().finally(markReady);
 })();
