@@ -647,13 +647,13 @@ $octagon: polygon(
     top: calc(117.3% - 107.5% * 1.1405 * 0.196 * var(--sign-scale));
   }
 
-  // Half size, nail at the right edge and 52% down, bottom edge 7px past the
+  // Half size, nail at the right edge and 52% down, bottom edge 50px past the
   // baseline: 30% of the width is 53% of the height, times the box's 1.1405,
-  // and the 7px is Ziad's eye on 2026-09-20.
+  // and the 50px is Ziad's eye on 2026-09-20.
   &--tucked[data-mark="stacked"] .logo-beta {
     width: 30%;
     left: calc(98.8% - 30% * 0.748);
-    top: calc(100% - 53.3% * 1.1405 + 7px);
+    top: calc(100% - 53.3% * 1.1405 + 50px);
   }
 }
 
