@@ -1,0 +1,359 @@
+@use "tokens" as *;
+@use "motion";
+
+// The sneak peek on the sign-in page: a full-screen player for the tour's
+// recording. See public/js/replay.js and src/views/replay.tsx.
+//
+// **BUILT ON $splash-ink WITH FIXED WHITE INKS, THE SPLASH'S OWN ARRANGEMENT.**
+// A signed-out visitor in OS dark mode gets the dark palette, where $text and
+// $white invert — and the frames are light-palette screenshots whatever the
+// visitor's scheme, so the player is a dark room in every scheme rather than
+// a page that follows the palette around a picture that cannot.
+//
+// **THE CARD MIRRORS THE LIVE TOUR'S** (_tour.scss): the same title and text
+// sizes, the same measure, the same four-pixel progress bar in the part's
+// color, the five part colors on the chooser's numerals. A rider who takes
+// the real tour later should recognize it.
+//
+// **A PHONE PANS; A DESKTOP CONTAINS.** Under $bp-phone the frame keeps its
+// recorded pixel size and is moved by three custom properties replay.js
+// writes from fit(), the card sits below it in a second grid row, and the
+// credit line appears because the pan crops Google's own attribution out of
+// view. On a desktop the frame is contained in the stage, the card floats in
+// a corner replay.js picks so it does not cover the ring, and the frame's
+// bottom edge carries the attribution itself.
+
+dialog.replay {
+  position: fixed;
+  inset: 0;
+  width: 100vw;
+  height: 100vh;
+  height: 100dvh;
+  max-width: none;
+  max-height: none;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  background: $splash-ink;
+  color: $ink-light;
+  // Only under [open]: an author `display` on a dialog outranks the UA's
+  // `display: none` and would draw the player at all times.
+  &[open] {
+    display: grid;
+    grid-template-rows: 1fr;
+  }
+  &::backdrop {
+    background: rgba(0, 0, 0, 0.6);
+  }
+}
+
+.replay-stage {
+  position: relative;
+  overflow: hidden;
+  container-type: size;
+  display: grid;
+  place-items: center;
+}
+
+// Contained: as wide as the stage, or as wide as its height allows.
+.replay-frame {
+  position: relative;
+  width: min(100cqw, calc(100cqh * var(--fw) / var(--fh)));
+  aspect-ratio: var(--fw) / var(--fh);
+}
+
+.replay-img {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  display: block;
+  opacity: 0;
+  transition: opacity 0.35s ease;
+  &.is-front {
+    opacity: 1;
+  }
+  @include motion.still {
+    transition: none;
+  }
+}
+
+.replay-mask {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  pointer-events: none;
+  &.is-empty {
+    display: none;
+  }
+}
+
+// The live overlay's 62%, and the ring in the tour's yellow. The ring's stroke
+// does not scale with the frame, so it is three pixels on a phone and on a
+// 27-inch screen alike.
+.replay-dim {
+  fill: rgb(0 0 0 / 62%);
+  fill-rule: evenodd;
+  stroke: none;
+}
+.replay-ring {
+  fill: none;
+  stroke: $yield;
+  stroke-width: 3;
+  vector-effect: non-scaling-stroke;
+}
+
+.replay-credit,
+.replay-loading,
+.replay-failed {
+  position: absolute;
+  margin: 0;
+  font-size: 0.85rem;
+  color: rgba(255, 255, 255, 0.72);
+}
+.replay-credit {
+  display: none;
+  right: 0.75rem;
+  bottom: 0.5rem;
+}
+.replay-loading,
+.replay-failed {
+  display: none;
+  left: 50%;
+  top: 50%;
+  transform: translate(-50%, -50%);
+  text-align: center;
+  max-width: 24rem;
+  padding: 0 1rem;
+}
+dialog.replay[data-state="loading"] .replay-loading,
+dialog.replay[data-state="failed"] .replay-failed {
+  display: block;
+}
+// Nothing to look at until the manifest is here.
+dialog.replay:not([data-state="ready"]) .replay-frame {
+  visibility: hidden;
+}
+
+// ——— The card ———
+
+.replay-card {
+  position: absolute;
+  z-index: 2;
+  box-sizing: border-box;
+  width: max-content;
+  max-width: min(32rem, calc(100vw - 2rem));
+  padding: 1.2rem 1.2rem 1.1rem;
+  border-radius: 10px;
+  background: rgb(10 14 17 / 92%);
+  color: $ink-light;
+  box-shadow: 0 10px 30px rgb(0 0 0 / 35%);
+
+  // The bottom corners clear the attribution strip along the frame's bottom
+  // edge — Google's logo and "Map data" line, which must stay visible.
+  &[data-corner="br"] {
+    right: 1rem;
+    bottom: 2.5rem;
+  }
+  &[data-corner="bl"] {
+    left: 1rem;
+    bottom: 2.5rem;
+  }
+  &[data-corner="tr"] {
+    right: 1rem;
+    top: 1rem;
+  }
+  &[data-corner="tl"] {
+    left: 1rem;
+    top: 1rem;
+  }
+}
+
+// A thin bar along the card's top edge in the part's color: how far through
+// the tour this card is. The live tour's construction.
+.replay-progress {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 4px;
+  border-radius: 10px 10px 0 0;
+  overflow: hidden;
+  background: rgba(255, 255, 255, 0.18);
+  i {
+    display: block;
+    height: 100%;
+    background: $yield;
+    transition: width 0.35s ease;
+    @include motion.still {
+      transition: none;
+    }
+  }
+}
+.replay-part-2 .replay-progress i {
+  background: $disabled;
+}
+.replay-part-3 .replay-progress i {
+  background: $interstate;
+}
+.replay-part-4 .replay-progress i {
+  background: $detour;
+}
+.replay-part-5 .replay-progress i {
+  background: $recreation;
+}
+
+.replay-where {
+  &[hidden] {
+    display: none;
+  }
+  margin: 0 0 0.35rem;
+  font-size: 0.8rem;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: rgba(255, 255, 255, 0.72);
+}
+
+.replay-title {
+  margin: 0 0 0.5rem;
+  font-size: 1.575rem;
+  line-height: 1.3;
+  font-weight: 700;
+  color: $ink-light;
+  text-wrap: balance;
+}
+
+.replay-text {
+  font-size: 1.035rem;
+  line-height: 1.45;
+  p {
+    margin: 0;
+  }
+}
+
+.replay-page {
+  margin: 0.6rem 0 0;
+  font-size: 0.8rem;
+  color: rgba(255, 255, 255, 0.55);
+  &:empty {
+    display: none;
+  }
+}
+
+// The five parts on the welcome card, as a list rather than the live tour's
+// buttons: a recording has no part to jump to. The numeral takes the part's
+// color, the five the live chooser wears.
+.replay-parts {
+  list-style: none;
+  margin: 0.8rem 0 0;
+  padding: 0;
+  display: grid;
+  gap: 0.35rem;
+  // `[hidden]` loses to the `display` above — the `.btn[hidden]` trap in
+  // _chrome.scss — so the list stayed on every card until this was declared.
+  &[hidden] {
+    display: none;
+  }
+}
+.replay-part {
+  display: grid;
+  grid-template-columns: 2.4rem 1fr;
+  column-gap: 0.5rem;
+  align-items: center;
+  .replay-part-n {
+    grid-row: 1 / span 2;
+    font-size: 1.6rem;
+    line-height: 1;
+    text-align: center;
+  }
+  .replay-part-name {
+    font-weight: 700;
+  }
+  .replay-part-blurb {
+    font-size: 0.9rem;
+    color: rgba(255, 255, 255, 0.78);
+  }
+}
+.replay-part-1 .replay-part-n {
+  color: $yield;
+}
+.replay-part-2 .replay-part-n {
+  color: $disabled;
+}
+.replay-part-3 .replay-part-n {
+  color: $interstate;
+}
+.replay-part-4 .replay-part-n {
+  color: $detour;
+}
+.replay-part-5 .replay-part-n {
+  color: $recreation;
+}
+
+.replay-acts {
+  display: flex;
+  justify-content: flex-end;
+  gap: 0.5rem;
+  margin-top: 1rem;
+}
+
+// The sign on the splash sits beside the Google button in one row.
+.provider-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.75rem;
+  width: 100%;
+}
+
+// The page behind a native dialog stays scrollable; the splash never scrolls
+// anyway, but a phone's rubber-band would show it moving.
+body:has(dialog.replay[open]) {
+  overflow: hidden;
+}
+
+//@ Phones: the frame pans, the card sits below
+@media (max-width: 767px) {
+  dialog.replay[open] {
+    grid-template-rows: minmax(40svh, 1fr) auto;
+  }
+  .replay-frame {
+    // Recorded pixel size, moved by fit()'s three numbers.
+    width: calc(var(--fw) * 1px);
+    height: calc(var(--fh) * 1px);
+    aspect-ratio: auto;
+    justify-self: start;
+    align-self: start;
+    transform-origin: 0 0;
+    transform: translate(calc(var(--tx, 0) * 1px), calc(var(--ty, 0) * 1px)) scale(var(--s, 1));
+    transition: transform 0.4s ease;
+    @include motion.still {
+      transition: none;
+    }
+  }
+  .replay-credit {
+    display: block;
+  }
+  .replay-card {
+    // Relative, not static: the progress bar is absolute to the card, and a
+    // static card hands it to the dialog, where it drew across the frame.
+    position: relative;
+    width: auto;
+    max-width: none;
+    max-height: 55svh;
+    overflow: auto;
+    border-radius: 0;
+    padding-bottom: calc(1.1rem + env(safe-area-inset-bottom));
+    box-shadow: none;
+  }
+  .replay-progress {
+    border-radius: 0;
+  }
+  .replay-title {
+    font-size: 1.3rem;
+  }
+  .replay-acts .btn {
+    min-height: 44px;
+  }
+}

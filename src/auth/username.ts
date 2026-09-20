@@ -43,6 +43,8 @@ export const RESERVED_USERNAMES: ReadonlySet<string> = new Set([
   'static',
   'style',
   'survey',
+  // /tour/* serves the guided tour's fixture and the sign-in page's replay.
+  'tour',
   'video',
   'welcome',
   // The guided tour's three guide riders. Held here so no rider can claim one

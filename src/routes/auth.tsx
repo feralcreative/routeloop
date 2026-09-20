@@ -6,6 +6,7 @@
 import { Hono } from 'hono'
 import type { Context } from 'hono'
 import { raw } from 'hono/html'
+import { existsSync } from 'node:fs'
 import { currentUser, requireAuth, type AuthEnv } from '../auth/middleware'
 import { readInviteCookie } from '../invites/cookie'
 import { normalizeInviteToken } from '../invites/policy'
@@ -25,6 +26,8 @@ import {
 } from '../config'
 import { page } from '../views/layout'
 import { SplashPage } from '../views/splash'
+import { replayDialog, replaySign } from '../views/replay'
+import { asset } from '../views/assets'
 import { stage } from '../views/stage'
 import { db } from '../db/index'
 import { eq } from 'drizzle-orm'
@@ -81,12 +84,18 @@ authRoutes.get('/login', (c) => {
   const notice = c.req.query('sent') === '1'
   const failed = c.req.query('error')
   const canJoin = MAGIC_LINK_ENABLED || GOOGLE_ENABLED
+  // The sneak peek needs a recording to exist. A clone without one renders
+  // the page with no sign and no dialog, which is the right shape for "not
+  // there" — see src/views/replay.tsx.
+  const hasReplay = existsSync('public/tour/replay.json')
 
   return c.html(
     page({
       title: 'Join the beta list',
       user: null,
       variant: 'splash',
+      tb: hasReplay ? { replay: asset('/tour/replay.json') } : undefined,
+      scripts: hasReplay ? `<script src="${asset('/js/replay.js')}" defer></script>` : undefined,
       body: (
         <SplashPage eyebrow="Plan the whole ride" heading="Every route. Every detail.">
           <p class="splash-copy">
@@ -144,12 +153,21 @@ authRoutes.get('/login', (c) => {
               square: the artwork is 268x274, and claiming otherwise is what
               makes a squashed logo.
             */}
-            {GOOGLE_ENABLED && (
-              <a class="provider provider-google" href="/auth/google">
-                <img class="provider-mark" src="/img/logos/google.svg" alt="" width="268" height="274" />
-                <span>Join with Google</span>
-              </a>
-            )}
+            {/*
+              The sneak peek's sign sits beside the Google button in one row,
+              so it costs the splash's zero-slack stack no height: at 1440×760
+              the page's scrollHeight is 760 exactly, and any block added to
+              the column breaks a tier.
+            */}
+            <div class="provider-row">
+              {GOOGLE_ENABLED && (
+                <a class="provider provider-google" href="/auth/google">
+                  <img class="provider-mark" src="/img/logos/google.svg" alt="" width="268" height="274" />
+                  <span>Join with Google</span>
+                </a>
+              )}
+              {hasReplay && raw(replaySign())}
+            </div>
             {/*
               Both flags off means there is no way in and no way onto the list.
               Saying so beats rendering an empty box under a heading that just
@@ -162,6 +180,7 @@ authRoutes.get('/login', (c) => {
               </p>
             )}
           </div>
+          {hasReplay && raw(replayDialog())}
         </SplashPage>
       ).toString(),
     }),
