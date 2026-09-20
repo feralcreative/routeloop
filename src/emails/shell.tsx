@@ -152,8 +152,14 @@ const PREHEADER_PAD = '&zwnj;&nbsp;'.repeat(60)
 // wide where it was 180 — nearly the full 536px the cell has — and 50 tall where
 // it was 52. Anything narrower renders a wordmark too short to read beside 16px
 // body copy.
-const LOGO_W = 400
-const LOGO_H = 50
+//
+// FOR THE BETA THE FILES CARRY THE SIGN, so they are 425×149: the word is
+// still 400×50 and the BETA sign hangs off its right end into the extra.
+// utils/build-email-logos.mjs writes both files from the SVGs and prints
+// these two numbers; run it without --beta when the beta ends, and put 400
+// and 50 back here.
+const LOGO_W = 425
+const LOGO_H = 149
 const LOGO_LIGHT = `${APP_ORIGIN}/img/logo-routeloop-email-hz@2x.png`
 const LOGO_DARK = `${APP_ORIGIN}/img/logo-routeloop-email-hz-dark@2x.png`
 
