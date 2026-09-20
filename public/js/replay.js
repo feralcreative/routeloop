@@ -71,7 +71,6 @@
   var loading = null;
   var i = 0;
   var front = 0;
-  var videoWasPlaying = false;
   var showSeq = 0;
 
   opener.hidden = false;
@@ -360,11 +359,12 @@
 
   // ——— Opening and closing ———
 
+  // The backdrop is held through TBSplash while the dialog is open: the
+  // splash plays two <video>s in turn, and pausing "the" one would leave the
+  // other running behind the player.
   function open() {
     dialog.setAttribute("data-state", "loading");
-    var video = document.querySelector(".splash-video");
-    videoWasPlaying = !!(video && !video.paused);
-    if (video && videoWasPlaying) video.pause();
+    if (window.TBSplash) window.TBSplash.pause();
     dialog.showModal();
     load().then(
       function () {
@@ -387,8 +387,7 @@
   }
 
   dialog.addEventListener("close", function () {
-    var video = document.querySelector(".splash-video");
-    if (video && videoWasPlaying) video.play().catch(function () {});
+    if (window.TBSplash) window.TBSplash.resume();
     opener.focus();
   });
 
