@@ -39,8 +39,10 @@
 # (8b39424): 1280×720, 25 fps, CRF 33, faststart, no audio.
 #
 # Re-running encodes only rows whose output is missing, whose source is newer
-# than its output, or whose row differs from the snapshot. A row whose file is
-# gone is reported and skipped, never deleted.
+# than its output, or whose run figures differ from the snapshot — the figures,
+# not the raw line: a spreadsheet saves the sheet back with CRLF line endings
+# and 50.000 rewritten as 50, and neither is a reason to encode anything. A row
+# whose file is gone is reported and skipped, never deleted.
 #
 # macOS ships bash 3.2, so no associative arrays here; the snapshot is a file
 # and lookups are greps. ffmpeg and ffprobe come from Homebrew.
@@ -115,7 +117,20 @@ list_sources() {
 # The next output number: one past the highest the sheet has handed out,
 # retired rows included, so a number is never given twice.
 next_number() {
-  awk -F, 'NR > 1 && $7 ~ /-[0-9]+$/ { n = $7; sub(/.*-/, "", n); if (n + 0 > max) max = n + 0 } END { print max + 1 }' "$SHEET"
+  awk -F, '{ sub(/\r$/, "") } NR > 1 && $7 ~ /-[0-9]+$/ { n = $7; sub(/.*-/, "", n); if (n + 0 > max) max = n + 0 } END { print max + 1 }' "$SHEET"
+}
+
+# The sheet's rows, header dropped and any CR stripped: an editor that saves
+# CRLF would otherwise leave a carriage return on every row's last field,
+# and the output name is the last field.
+rows() {
+  tail -n +2 "$SHEET" | tr -d '\r'
+}
+
+# What the snapshot remembers of a row: the figures that decide the encode,
+# with the numbers normalized so 5 and 5.0 are one value.
+key_of() {
+  awk -F, -v r="$1" 'BEGIN { split(r, f, ","); printf "%s|%s|%s|%s|%s", f[1], f[4] + 0, f[5] + 0, f[6] + 0, f[7] }'
 }
 
 # "fps seconds", from the first video stream and the container.
@@ -135,7 +150,7 @@ probe() {
 # Does the sheet already carry this file? Rows are matched on the first field,
 # retired rows included, so a clip retired with # is not re-added by --scan.
 in_sheet() {
-  awk -F, -v f="$1" 'NR > 1 { row = $1; sub(/^#/, "", row); if (row == f) found = 1 } END { exit found ? 0 : 1 }' "$SHEET"
+  awk -F, -v f="$1" '{ sub(/\r$/, "") } NR > 1 { row = $1; sub(/^#/, "", row); if (row == f) found = 1 } END { exit found ? 0 : 1 }' "$SHEET"
 }
 
 # ——— --scan ———
@@ -186,7 +201,7 @@ encode_row() {
     esac
   elif [ ! -f "$out" ]; then reason="no output yet"
   elif [ "$src" -nt "$out" ]; then reason="source is newer"
-  elif ! grep -qxF -- "$row" "$LAST"; then reason="row changed"
+  elif ! grep -qxF -- "$(key_of "$row")" "$LAST"; then reason="row changed"
   fi
   if [ -z "$reason" ]; then
     printf '%s  %s%s%s\n' "$DIM" "$file" ": up to date" "$OFF"
@@ -219,11 +234,12 @@ encode_row() {
     -map 0:v:0 -an -dn -r "$FPS" -g "$FPS" -force_key_frames 0 \
     -c:v libx264 -crf "$CRF" -maxrate "$MAXRATE" -bufsize "$BUFSIZE" -preset "$PRESET" -movflags +faststart "$out"
 
-  # The snapshot: this file's row replaced, everything else kept.
+  # The snapshot: this file's key replaced, everything else kept.
   local tmp
   tmp=$(mktemp)
-  awk -F, -v f="$file" '$1 != f' "$LAST" > "$tmp" || true
-  printf '%s\n' "$row" >> "$tmp"
+  awk -F'|' -v f="$file" '$1 != f' "$LAST" > "$tmp" || true
+  key_of "$row" >> "$tmp"
+  printf '\n' >> "$tmp"
   mv "$tmp" "$LAST"
   ok "$(basename "$out")  $(du -h "$out" | cut -f1)"
 }
@@ -235,7 +251,7 @@ run() {
     case "$row" in \#*) continue ;; esac
     encode_row "$row"
     n=$((n + 1))
-  done <<< "$(tail -n +2 "$SHEET")"
+  done <<< "$(rows)"
   [ "$n" -gt 0 ] || warn "the sheet has no rows; run --scan first"
   if [ -n "$ONLY" ] && [ -z "$HIT" ]; then warn "no row matches --only $ONLY"; fi
   info "$(ls "$OUT_DIR"/*.mp4 2>/dev/null | wc -l | tr -d ' ') clip(s) in $OUT_DIR, $(du -sh "$OUT_DIR" | cut -f1) in all"
@@ -246,7 +262,7 @@ run() {
 prune() {
   local removed=0
   local live
-  live=$(awk -F, 'NR > 1 && $1 !~ /^#/ { print $7 }' "$SHEET")
+  live=$(rows | awk -F, '$1 !~ /^#/ { print $7 }')
   for out in "$OUT_DIR"/*.mp4; do
     [ -f "$out" ] || continue
     local keep=""
@@ -276,14 +292,14 @@ sheets() {
     IFS=, read -r file fps seconds start length speed name <<< "$row"
     file="${file#\#}"
     [ -f "$SRC_DIR/$file" ] || { warn "$file: source is gone"; continue; }
-    local rows
-    rows=$(awk -v s="$seconds" 'BEGIN { r = int((s + 5) / 6); if (r < 1) r = 1; print r }')
+    local grid
+    grid=$(awk -v s="$seconds" 'BEGIN { r = int((s + 5) / 6); if (r < 1) r = 1; print r }')
     local out="$SHEETS_DIR/$name.jpg"
-    info "$file → $(basename "$out")  (${seconds}s, $rows row(s) of 6, one cell per second)"
+    info "$file → $(basename "$out")  (${seconds}s, $grid row(s) of 6, one cell per second)"
     [ -n "$DRY" ] && continue
     "$FFMPEG" -nostdin -hide_banner -loglevel error -y -i "$SRC_DIR/$file" \
-      -vf "fps=1,scale=320:-2,tile=6x${rows}:padding=4:margin=4:color=black" -frames:v 1 -q:v 4 "$out"
-  done <<< "$(tail -n +2 "$SHEET")"
+      -vf "fps=1,scale=320:-2,tile=6x${grid}:padding=4:margin=4:color=black" -frames:v 1 -q:v 4 "$out"
+  done <<< "$(rows)"
   ok "sheets in $SHEETS_DIR"
 }
 
