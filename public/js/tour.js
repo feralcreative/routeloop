@@ -2207,10 +2207,15 @@
   }
 
   function reanchorOn() {
-    var list = document.getElementById("route-list");
-    if (!list || !window.MutationObserver || listMo) return;
+    // THE WHOLE PANEL, NOT ONLY THE ROUTE LIST, since 2026-09-20: the Riders
+    // tab is re-rendered when its fetch lands, and "The ride has a page of
+    // its own" — pinned to that tab's Roster link — had its target detached
+    // under it the moment the tab was opened, leaving the card adrift. The
+    // list is inside the panel, so nothing that used to be watched is not.
+    var host = document.getElementById("info-panel") || document.getElementById("route-list");
+    if (!host || !window.MutationObserver || listMo) return;
     listMo = new MutationObserver(reanchor);
-    listMo.observe(list, { childList: true, subtree: true });
+    listMo.observe(host, { childList: true, subtree: true });
   }
 
   function reanchorOff() {
@@ -2323,6 +2328,14 @@
   window.TBTour = {
     boot: boot,
     start: start,
+    // Re-resolves the current card's target, for the replay recorder: a card
+    // whose anchor arrived after it was shown — a tab still filling — is
+    // pinned to nothing, and reanchor() only moves a card whose target has
+    // GONE. Harmless on a card that is where it should be.
+    repin: function () {
+      var st = tour && tour.isActive() ? tour.getCurrentStep() : null;
+      if (st && st.options.attachTo) repin(st);
+    },
     STEPS: STEPS,
     PARTS: PARTS,
     FRAMES: FRAMES,
