@@ -39,6 +39,8 @@ export type StagePhrases = {
   signup: string
   /** The pending-approval page's second sentence, after "You're in the queue for beta testing." */
   pending: string
+  /** The join page's gate, after "Hey:" — HTML, one or two sentences, ending before the FAQ link. */
+  gate: string
 }
 
 const PHRASES: Record<ReleaseStage, StagePhrases> = {
@@ -49,6 +51,7 @@ const PHRASES: Record<ReleaseStage, StagePhrases> = {
       '<p>Because Routeloop isn’t ready for everyone yet. It’s in a <strong>closed beta</strong>, which is invite-only—riders I know, a few at a time. A public beta is the next step.</p>\n    <p>What you can do now is get on the list from the <a href="/login">join page</a>.</p>',
     pending:
       'Routeloop is in a closed beta right now—invite-only—and riders are waved in by hand, a few at a time. You’ll be able to sign in and start planning once yours comes up.',
+    gate: 'Routeloop is in a <strong>closed beta</strong>: invite-only, approved by hand a few riders at a time. Getting on the list is what you can do today.',
   },
   'public-beta': {
     phase: 'public beta',
@@ -57,6 +60,7 @@ const PHRASES: Record<ReleaseStage, StagePhrases> = {
       '<p>You can. Routeloop is in a <strong>public beta</strong>: make an account from the <a href="/login">join page</a> and start planning.</p>',
     pending:
       'Routeloop is in a public beta and accounts are checked by hand before they open, usually within a day. You’ll be able to sign in and start planning once yours does.',
+    gate: 'Routeloop is in a <strong>public beta</strong>: make an account and start planning. It changes most days and some of it is unfinished.',
   },
 }
 

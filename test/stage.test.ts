@@ -21,6 +21,7 @@ describe('the release stage', () => {
       expect(p.access).not.toMatch(/\.$/)
       expect(p.signup).toMatch(/^<p>/)
       expect(p.signup).toContain('href="/login"')
+      expect(p.gate).toContain('<strong>')
     }
   })
 

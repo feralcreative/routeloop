@@ -5,6 +5,7 @@
 // is actually allowed through.
 import { Hono } from 'hono'
 import type { Context } from 'hono'
+import { raw } from 'hono/html'
 import { currentUser, requireAuth, type AuthEnv } from '../auth/middleware'
 import { readInviteCookie } from '../invites/cookie'
 import { normalizeInviteToken } from '../invites/policy'
@@ -102,9 +103,7 @@ authRoutes.get('/login', (c) => {
           <div class="splash-gate">
             <p>
               <span class="splash-gate-lede">Hey: </span>
-              Routeloop is in active development. <strong>Beta testing is next</strong> and it’s invite-only, approved
-              by hand a few riders at a time. Getting on the list is what you can do today.{' '}
-              <a href="/faq#invites">Why it works this way</a>.
+              {raw(stage().gate)} <a href="/faq#invites">Why it works this way</a>.
             </p>
           </div>
           {notice && <p class="notice">Check your email—your link is on the way. It works once, within 15 minutes.</p>}
