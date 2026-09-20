@@ -109,11 +109,20 @@ authRoutes.get('/login', (c) => {
             out of that budget.
           */}
 
-          <div class="splash-gate">
-            <p>
-              <span class="splash-gate-lede">Hey: </span>
-              {raw(stage().gate)} <a href="/faq#invites">Why it works this way</a>.
-            </p>
+          {/*
+            The sneak peek's sign sits to the RIGHT of the gate, a yield sign
+            with no arrow — Ziad's call, 2026-09-20 — rather than beside the
+            Google button: it is not a way in, and the row it shares with the
+            gate is one the splash's zero-slack stack already pays for.
+          */}
+          <div class="splash-gate-row">
+            <div class="splash-gate">
+              <p>
+                <span class="splash-gate-lede">Hey: </span>
+                {raw(stage().gate)} <a href="/faq#invites">Why it works this way</a>.
+              </p>
+            </div>
+            {hasReplay && raw(replaySign())}
           </div>
           {notice && <p class="notice">Check your email—your link is on the way. It works once, within 15 minutes.</p>}
           {failed && (
@@ -153,21 +162,12 @@ authRoutes.get('/login', (c) => {
               square: the artwork is 268x274, and claiming otherwise is what
               makes a squashed logo.
             */}
-            {/*
-              The sneak peek's sign sits beside the Google button in one row,
-              so it costs the splash's zero-slack stack no height: at 1440×760
-              the page's scrollHeight is 760 exactly, and any block added to
-              the column breaks a tier.
-            */}
-            <div class="provider-row">
-              {GOOGLE_ENABLED && (
-                <a class="provider provider-google" href="/auth/google">
-                  <img class="provider-mark" src="/img/logos/google.svg" alt="" width="268" height="274" />
-                  <span>Join with Google</span>
-                </a>
-              )}
-              {hasReplay && raw(replaySign())}
-            </div>
+            {GOOGLE_ENABLED && (
+              <a class="provider provider-google" href="/auth/google">
+                <img class="provider-mark" src="/img/logos/google.svg" alt="" width="268" height="274" />
+                <span>Join with Google</span>
+              </a>
+            )}
             {/*
               Both flags off means there is no way in and no way onto the list.
               Saying so beats rendering an empty box under a heading that just
