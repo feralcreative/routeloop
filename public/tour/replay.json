@@ -1,0 +1,690 @@
+{
+  "version": 1,
+  "recordedAt": "2026-09-20T16:25:10.470Z",
+  "viewport": {
+    "w": 1280,
+    "h": 800,
+    "dpr": 2
+  },
+  "pad": 6,
+  "radius": 8,
+  "base": "/tour/replay/",
+  "parts": [
+    {
+      "n": 1,
+      "name": "Route",
+      "blurb": "A <b>route</b> generally represents a day of riding (unless it’s a feeder route to a meeting point). Multiple routes together make up a complete <b>ride</b>."
+    },
+    {
+      "n": 2,
+      "name": "Clock",
+      "blurb": "A start time, the arrival at every point, and the scrubber along the map."
+    },
+    {
+      "n": 3,
+      "name": "Fuel",
+      "blurb": "The paddock, a group’s range ring, where the first tank runs dry, and the fuel stop that fixes it."
+    },
+    {
+      "n": 4,
+      "name": "People",
+      "blurb": "Groups, the roster, who rides which route, and where friends come from."
+    },
+    {
+      "n": 5,
+      "name": "Meet",
+      "blurb": "Where two groups meet, one group heading home early, and sharing the ride."
+    }
+  ],
+  "steps": [
+    {
+      "id": "welcome",
+      "chooser": true,
+      "page": "builder",
+      "title": "This is where a ride gets planned",
+      "text": "Five short parts: a coast run out of Oakland with three friends, planned from a blank page to the shared <b>ride</b>. Every card is a real screen from the app.",
+      "frame": "welcome-44af588eab.webp",
+      "box": null,
+      "extra": []
+    },
+    {
+      "id": "name",
+      "part": 1,
+      "page": "builder",
+      "title": "Name your ride",
+      "text": "Click the title, type a name, press Enter. Let me name this one.",
+      "running": "Typing a name…",
+      "frame": "name-e3159cad65.webp",
+      "box": {
+        "x": 0.0091,
+        "y": 0.0793,
+        "w": 0.2719,
+        "h": 0.035
+      },
+      "extra": []
+    },
+    {
+      "id": "panel",
+      "part": 1,
+      "page": "builder",
+      "title": "This is the builder",
+      "text": "Your routes, every point on them, how long you stop, when you leave. The order of the list is the order you ride, and the map draws it.",
+      "frame": "panel-e3159cad65.webp",
+      "box": {
+        "x": 0,
+        "y": 0,
+        "w": 0.2969,
+        "h": 1
+      },
+      "extra": []
+    },
+    {
+      "id": "vocabulary",
+      "part": 1,
+      "page": "builder",
+      "title": "Points → Legs → Routes → Ride",
+      "text": "A point is a location on a map. Two points make a leg, a series of points with a start and finish make a route, and a collection of routes makes up a complete ride.",
+      "frame": "vocabulary-da404f7fe9.webp",
+      "box": {
+        "x": 0.0125,
+        "y": 0.3023,
+        "w": 0.2719,
+        "h": 0.3943
+      },
+      "extra": []
+    },
+    {
+      "id": "route",
+      "part": 1,
+      "page": "builder",
+      "title": "A route has a name, color, and start time",
+      "text": "A route is one stretch of the ride, usually a day. It has a name, a color on the map, and its own start time.",
+      "frame": "route-e3159cad65.webp",
+      "box": {
+        "x": 0.0214,
+        "y": 0.4598,
+        "w": 0.2564,
+        "h": 0.0375
+      },
+      "extra": []
+    },
+    {
+      "id": "first-point",
+      "part": 1,
+      "page": "builder",
+      "title": "Every route starts somewhere",
+      "text": "The first point is where you set off—here, Jack London Square in Oakland. Type a place into the box below it, or press + Point and click the map.",
+      "frame": "first-point-70bd317a2a.webp",
+      "box": {
+        "x": 0.0214,
+        "y": 0.4808,
+        "w": 0.2564,
+        "h": 0.0376
+      },
+      "extra": []
+    },
+    {
+      "id": "second-point",
+      "part": 1,
+      "page": "builder",
+      "title": "Add a second, and a route line appears",
+      "text": "A restaurant on Skyline, typed into the search. The moment it lands a line is drawn between the two.",
+      "running": "Finding a place…",
+      "frame": "second-point-ca6f6fed56.webp",
+      "box": {
+        "x": 0.0214,
+        "y": 0.4709,
+        "w": 0.2564,
+        "h": 0.0572
+      },
+      "extra": [
+        {
+          "x": 0.2969,
+          "y": 0,
+          "w": 0.7031,
+          "h": 1
+        }
+      ]
+    },
+    {
+      "id": "more-points",
+      "part": 1,
+      "page": "builder",
+      "title": "Then the coast, then the far end",
+      "text": "Pescadero for lunch, Santa Cruz to finish. New points go at the bottom; drag one in the list and the route line is redrawn.",
+      "running": "Finding two more…",
+      "frame": "more-points-ab56dca889.webp",
+      "box": {
+        "x": 0.0214,
+        "y": 0.4715,
+        "w": 0.2564,
+        "h": 0.0572
+      },
+      "extra": [
+        {
+          "x": 0.2969,
+          "y": 0,
+          "w": 0.7031,
+          "h": 1
+        }
+      ]
+    },
+    {
+      "id": "leg",
+      "part": 1,
+      "page": "builder",
+      "title": "Ride totals and stats",
+      "text": "Distance, riding time, and how twisty the road is, worked out from the route itself. Change the route and these follow.",
+      "frame": "leg-be582318f9.webp",
+      "box": {
+        "x": 0.0125,
+        "y": 0.1165,
+        "w": 0.2477,
+        "h": 0.0387
+      },
+      "extra": []
+    },
+    {
+      "id": "via",
+      "part": 1,
+      "page": "builder",
+      "title": "The route line can be dragged onto a better road",
+      "text": "The router took Highway 1. Dragging the line onto another road—inland through Big Basin—redraws the leg through that spot. Watch.",
+      "running": "Dragging the road…",
+      "frame": "via-1106738502.webp",
+      "box": {
+        "x": 0.5357,
+        "y": 0.2707,
+        "w": 0.3608,
+        "h": 0.4592
+      },
+      "extra": []
+    },
+    {
+      "id": "via-row",
+      "part": 1,
+      "page": "builder",
+      "title": "A shaping point is not a stop",
+      "text": "That is a shaping point: it bends the leg without being a stop, so it gets a line in the list with no number and no time. Delete it and the leg goes back to the router’s choice.",
+      "frame": "via-row-52f4b8abb6.webp",
+      "box": {
+        "x": 0.0336,
+        "y": 0.4927,
+        "w": 0.2442,
+        "h": 0.0147
+      },
+      "extra": []
+    },
+    {
+      "id": "category",
+      "part": 1,
+      "page": "builder",
+      "title": "Give a stop a raison d’être (or four)",
+      "text": "The icon next to a point says what it’s for—fuel, food, drinks, a bed, or what the hell, all four. Tagging a place makes it a numbered stop, and gas is the one that matters most: it is how the builder knows where you fill up.",
+      "running": "Picking a category…",
+      "frame": "category-264efaa4a4.webp",
+      "box": {
+        "x": 0.0214,
+        "y": 0.3193,
+        "w": 0.2564,
+        "h": 0.3615
+      },
+      "extra": []
+    },
+    {
+      "id": "dwell",
+      "part": 1,
+      "page": "builder",
+      "title": "Stops take time, and the builder knows it",
+      "text": "Type how long you are off the bike. Forty-five minutes at Pescadero, thirty at Alice’s. Everything after a stop moves later.",
+      "running": "Typing the stops…",
+      "frame": "dwell-51009c4b0e.webp",
+      "box": {
+        "x": 0.0183,
+        "y": 0.4059,
+        "w": 0.2627,
+        "h": 0.1368
+      },
+      "extra": []
+    },
+    {
+      "id": "menu",
+      "part": 1,
+      "page": "builder",
+      "title": "Everything else is behind the dots",
+      "text": "The three dots hold the rest: duplicate or reverse a route, split it at a stop, offer it for a vote, and on a point, notes only you can see.",
+      "frame": "menu-298ea284d7.webp",
+      "box": {
+        "x": 0.1614,
+        "y": 0.4461,
+        "w": 0.1164,
+        "h": 0.1068
+      },
+      "extra": []
+    },
+    {
+      "id": "intro-2",
+      "part": 2,
+      "intro": true,
+      "page": "builder",
+      "title": "Next: the clock",
+      "text": "Part 1 gave the ride a route. This part gives it a clock: set one start time and every arrival, the end, and a slider along the map follow from it.",
+      "frame": "intro-2-46eba0c934.webp",
+      "box": null,
+      "extra": []
+    },
+    {
+      "id": "when",
+      "part": 2,
+      "page": "builder",
+      "title": "Give the route a start time",
+      "text": "Pick the day and hour you set off. Every point gets an arrival time and a slider appears under the map. Saturday at nine.",
+      "running": "Setting a start time…",
+      "frame": "when-79efb3c78c.webp",
+      "box": {
+        "x": 0.0214,
+        "y": 0.4828,
+        "w": 0.1255,
+        "h": 0.0333
+      },
+      "extra": []
+    },
+    {
+      "id": "timeline",
+      "part": 2,
+      "page": "builder",
+      "title": "This is the time scrubber",
+      "text": "Drag it and the dot on the map is where you would be at that moment. On a ride with several routes the Route | Ride switch runs it over one day or the whole trip. The ring around the dot is fuel—next part.",
+      "running": "Riding it through…",
+      "frame": "timeline-326b5fbfa3.webp",
+      "box": {
+        "x": 0.2969,
+        "y": 0,
+        "w": 0.7031,
+        "h": 1
+      },
+      "extra": []
+    },
+    {
+      "id": "route-end",
+      "part": 2,
+      "page": "builder",
+      "title": "The end is worked out for you",
+      "text": "Start time plus the riding plus every stop. Type over it if you know better, or clear it to hand it back.",
+      "frame": "route-end-326b5fbfa3.webp",
+      "box": {
+        "x": 0.1523,
+        "y": 0.4828,
+        "w": 0.1255,
+        "h": 0.0333
+      },
+      "extra": []
+    },
+    {
+      "id": "bed",
+      "part": 2,
+      "page": "builder",
+      "title": "When to start looking for a place to stop for the night",
+      "text": "Set an hour here and any route still going at that time gets a band across its list where it reaches it. Advice, not a limit. Four o’clock; this run is home by two, so no band.",
+      "running": "Setting the hour…",
+      "frame": "bed-865fa2fdb9.webp",
+      "box": {
+        "x": 0.1117,
+        "y": 0.306,
+        "w": 0.0575,
+        "h": 0.0317
+      },
+      "extra": []
+    },
+    {
+      "id": "intro-3",
+      "part": 3,
+      "intro": true,
+      "page": "builder",
+      "title": "Next: fuel",
+      "text": "Every bike has a tank, and the builder plans around the smallest one on the ride. This part is the ring that shows how far it reaches, the mark where it runs dry, and the fuel stop that fixes it.",
+      "frame": "intro-3-865fa2fdb9.webp",
+      "box": null,
+      "extra": []
+    },
+    {
+      "id": "to-paddock",
+      "part": 3,
+      "page": "builder",
+      "title": "Your bikes live on your account",
+      "text": "The menu, then your name, then My Account: the Paddock tab is where your bikes are. A bike’s range is typed there once and read everywhere. Let me open it.",
+      "frame": "to-paddock-457926cfd7.webp",
+      "box": {
+        "x": 0.8312,
+        "y": 0.3808,
+        "w": 0.1429,
+        "h": 0.0368
+      },
+      "extra": []
+    },
+    {
+      "id": "paddock",
+      "part": 3,
+      "page": "profile",
+      "title": "The paddock: your bikes and their range",
+      "text": "A name and a range is all a bike needs; that range is what the fuel planning reads. On this ride the guides’ bikes count: Sam’s KTM at 200 miles, Priya’s Triumph at 190, Diego’s Ducati at 120—the tank the ride is planned around.",
+      "running": "Adding a bike…",
+      "frame": "paddock-4193ab3761.webp",
+      "box": {
+        "x": 0.0328,
+        "y": 0.4494,
+        "w": 0.9344,
+        "h": 0.4086
+      },
+      "extra": []
+    },
+    {
+      "id": "ring",
+      "part": 3,
+      "page": "builder",
+      "title": "The range ring, and where it runs dry",
+      "text": "The dotted ring is how far the smallest tank reaches—green, then orange, then red. Diego’s 120 miles run out in the redwoods, twenty miles short of Santa Cruz: the red E, and the route past it painted red. The Range button turns the overlay off.",
+      "running": "Riding out to the mark…",
+      "frame": "ring-2a6dcb7ef3.webp",
+      "box": {
+        "x": 0.2969,
+        "y": 0,
+        "w": 0.7031,
+        "h": 1
+      },
+      "extra": []
+    },
+    {
+      "id": "gas",
+      "part": 3,
+      "page": "builder",
+      "title": "A fuel stop fixes it",
+      "text": "Pescadero has a station, so tag that row Gas. The tank—or the battery—starts over from there and the E goes. With nothing in reach, the Gas chip under a route searches along the route.",
+      "running": "Adding a gas stop…",
+      "frame": "gas-e4b9e13275.webp",
+      "box": {
+        "x": 0.0214,
+        "y": 0.4709,
+        "w": 0.2564,
+        "h": 0.0572
+      },
+      "extra": []
+    },
+    {
+      "id": "intro-4",
+      "part": 4,
+      "intro": true,
+      "page": "builder",
+      "title": "Next: the people",
+      "text": "This part is the people: groups for riders who set off from different places, the roster of who is coming, and which route each of them is on. Three riders are about to join.",
+      "frame": "intro-4-e4b9e13275.webp",
+      "box": null,
+      "extra": []
+    },
+    {
+      "id": "groups",
+      "part": 4,
+      "page": "builder",
+      "title": "Groups are where riders set off from",
+      "text": "Every ride starts with one group—yours. The first in the list is the main group: its route is the one everybody else joins. Drag another above it to hand that over.",
+      "frame": "groups-843a0e1d17.webp",
+      "box": {
+        "x": 0.1037,
+        "y": 0.3572,
+        "w": 0.0895,
+        "h": 0.0375
+      },
+      "extra": []
+    },
+    {
+      "id": "groups-add",
+      "part": 4,
+      "page": "builder",
+      "title": "Add a group for riders starting somewhere else",
+      "text": "Name a group and say where it sets off from. Two friends are coming over from Livermore, so they get a group and a route of their own.",
+      "running": "Adding a group…",
+      "frame": "groups-add-4234239e43.webp",
+      "box": {
+        "x": 0.2126,
+        "y": 0.6305,
+        "w": 0.0718,
+        "h": 0.0357
+      },
+      "extra": []
+    },
+    {
+      "id": "to-roster",
+      "part": 4,
+      "page": "builder",
+      "title": "The ride has a page of its own",
+      "text": "The Riders tab is the plan’s view of who is coming. Roster opens the ride’s own page, where riders are invited and say whether they are in. Let me open it.",
+      "frame": "to-roster-7ac7b3245c.webp",
+      "box": null,
+      "extra": [
+        {
+          "x": 0.1948,
+          "y": 0.1194,
+          "w": 0.0895,
+          "h": 0.0375
+        }
+      ]
+    },
+    {
+      "id": "roster",
+      "part": 4,
+      "page": "roster",
+      "title": "The roster: who is coming",
+      "text": "The ride’s own page, and everybody on it. Sam, Priya, and Diego exist for this tour and are on every tour ride. Each rider says whether they are in and which bike they are bringing.",
+      "frame": "roster-eb89e814f3.webp",
+      "box": {
+        "x": 0.225,
+        "y": 0.3494,
+        "w": 0.55,
+        "h": 0.302
+      },
+      "extra": []
+    },
+    {
+      "id": "roster-invite",
+      "part": 4,
+      "page": "roster",
+      "title": "Adding a rider",
+      "text": "Riders are added here, and only friends—no links, no email addresses. Pick one, choose what they may do to the ride, press Add.",
+      "frame": "roster-invite-8b9c8a05fb.webp",
+      "box": {
+        "x": 0.225,
+        "y": 0.6826,
+        "w": 0.55,
+        "h": 0.1299
+      },
+      "extra": []
+    },
+    {
+      "id": "riders-tab",
+      "part": 4,
+      "page": "builder",
+      "title": "The same people, in the builder",
+      "text": "The roster as the plan sees it. Sam and Priya go in the Livermore crew; Diego rides out of Oakland with you. Their bikes’ ranges drive the fuel warnings, and the smallest tank counts.",
+      "running": "Putting riders in their groups…",
+      "frame": "riders-tab-1e4a1ffea3.webp",
+      "box": {
+        "x": 0.1948,
+        "y": 0.3582,
+        "w": 0.0895,
+        "h": 0.0375
+      },
+      "extra": []
+    },
+    {
+      "id": "riders-routes",
+      "part": 4,
+      "page": "builder",
+      "title": "Who rides which route",
+      "text": "This pill says who is on the route. Leave it alone and everybody rides everything; tick a group to say who joins or peels off here. Part 5 does this for real.",
+      "frame": "riders-routes-8597fb0db1.webp",
+      "box": {
+        "x": 0.1538,
+        "y": 0.4702,
+        "w": 0.0401,
+        "h": 0.0266
+      },
+      "extra": []
+    },
+    {
+      "id": "friends",
+      "part": 4,
+      "page": "riders",
+      "title": "Where friends come from",
+      "text": "Every rider on Routeloop is listed here by handle, and a friend request is one press. Until they accept, they cannot be put on a ride.",
+      "frame": "friends-0f978270cd.webp",
+      "box": {
+        "x": 0.225,
+        "y": 0.3246,
+        "w": 0.55,
+        "h": 0.0525
+      },
+      "extra": []
+    },
+    {
+      "id": "intro-5",
+      "part": 5,
+      "intro": true,
+      "page": "builder",
+      "title": "Next: meet and split",
+      "text": "Two groups from two towns want one route together. This part asks the builder where to meet, takes its answer, sends one rider home early, and ends on the page you share.",
+      "frame": "intro-5-8597fb0db1.webp",
+      "box": null,
+      "extra": []
+    },
+    {
+      "id": "meet-find",
+      "part": 5,
+      "page": "builder",
+      "title": "Find meeting points",
+      "text": "One press and the builder walks the main group’s route for gas stations every other group can reach on their tank, weighs riding together sooner against the extra detour it costs, and offers the best options.",
+      "running": "Working out where to meet…",
+      "frame": "meet-find-a17e8efe6f.webp",
+      "box": {
+        "x": 0.0125,
+        "y": 0.4836,
+        "w": 0.1374,
+        "h": 0.0332
+      },
+      "extra": []
+    },
+    {
+      "id": "meet-options",
+      "part": 5,
+      "page": "builder",
+      "title": "The options",
+      "text": "Each one is a real station on the main group’s route: how far out of their way the joining group comes, and how much of the ride is left to ride together. The first is the best trade between the two; the dots on the map are the same list.",
+      "frame": "meet-options-de26be3cb0.webp",
+      "box": {
+        "x": 0.0125,
+        "y": 0.4231,
+        "w": 0.2719,
+        "h": 0.1543
+      },
+      "extra": [
+        {
+          "x": 0.2969,
+          "y": 0,
+          "w": 0.7031,
+          "h": 1
+        }
+      ]
+    },
+    {
+      "id": "meet-take",
+      "part": 5,
+      "page": "builder",
+      "title": "Take one",
+      "text": "A Chevron in Hayward, with the Livermore crew three miles out of their way. Taking it puts the station on both routes, cuts the main route there, and sets the Livermore departure so both groups arrive together.",
+      "running": "Taking the first one…",
+      "frame": "meet-take-5b813c660a.webp",
+      "box": {
+        "x": 0.2969,
+        "y": 0,
+        "w": 0.7031,
+        "h": 1
+      },
+      "extra": []
+    },
+    {
+      "id": "meet-result",
+      "part": 5,
+      "page": "builder",
+      "title": "Three routes where there was one",
+      "text": "Oakland to the Chevron, Livermore to the Chevron—leaving twenty-one minutes earlier—and one shared route from there to Santa Cruz. A group’s own route followed by a shared one is what a meet is.",
+      "frame": "meet-result-d0411d916c.webp",
+      "box": {
+        "x": 0.0125,
+        "y": 0.4086,
+        "w": 0.2719,
+        "h": 0.1825
+      },
+      "extra": []
+    },
+    {
+      "id": "split",
+      "part": 5,
+      "page": "builder",
+      "title": "Somebody heads home early",
+      "text": "Diego turns for home at Pescadero. Split a group off here on the row menu asks who is leaving and where to, cuts the shared route there, and gives them a route of their own.",
+      "running": "Splitting a group off…",
+      "frame": "split-cd2d3e3265.webp",
+      "box": null,
+      "extra": []
+    },
+    {
+      "id": "splitoff-row",
+      "part": 5,
+      "page": "builder",
+      "title": "And the list says so",
+      "text": "The last point of the route they left names the group and where they went; press it to jump to their route. The roadbook and each rider’s export follow this.",
+      "frame": "splitoff-row-cd2d3e3265.webp",
+      "box": null,
+      "extra": []
+    },
+    {
+      "id": "share",
+      "part": 5,
+      "page": "viewer",
+      "title": "This is the page you share",
+      "text": "The ride as everybody else sees it. Its address is the share link, and the QR code opens it from a phone. Who can open it is the visibility setting in the builder.",
+      "frame": "share-5d35053673.webp",
+      "box": {
+        "x": 0.0125,
+        "y": 0.1774,
+        "w": 0.2719,
+        "h": 0.0393
+      },
+      "extra": []
+    },
+    {
+      "id": "exports",
+      "part": 5,
+      "page": "viewer",
+      "title": "Take it with you",
+      "text": "Each route can go to Google Maps for turn-by-turn, print as a roadbook, or download in six formats. Every rider gets the routes they are on—Diego’s file ends at Redwood City.",
+      "frame": "exports-5d35053673.webp",
+      "box": {
+        "x": 0.0125,
+        "y": 0.2342,
+        "w": 0.2719,
+        "h": 0.456
+      },
+      "extra": []
+    },
+    {
+      "id": "done",
+      "chooser": true,
+      "page": "viewer",
+      "title": "That is the whole idea",
+      "text": "A route, a clock, the people, fuel, and where to meet. Point at any control and it tells you what it is for. Join the beta and plan your own.",
+      "frame": "done-5d35053673.webp",
+      "box": null,
+      "extra": []
+    }
+  ]
+}
