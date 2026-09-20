@@ -647,13 +647,18 @@ $octagon: polygon(
     top: calc(117.3% - 107.5% * 1.1405 * 0.196 * var(--sign-scale));
   }
 
-  // Half size, nail at the right edge and 52% down, bottom edge 50px past the
-  // baseline: 30% of the width is 53% of the height, times the box's 1.1405,
-  // and the 50px down and 2px right are Ziad's eye on 2026-09-20.
+  // Half size, hung beside the LOOP line. EVERY NUMBER IS A PERCENTAGE OF
+  // THE WORDMARK'S BOX, never a pixel: the sign and the mark are two images,
+  // and the only thing keeping them in register as the mark is sized by its
+  // host — 200px on the splash, 150px in the modal, 112 and 88 on the short
+  // tiers — is that both move by the same fractions. Ziad's eye, 2026-09-20,
+  // on the splash at 200px: nail at the right edge, box 30% of the width,
+  // then 50px down and 2px right of the baseline position, which at that
+  // size is 44.4% of the height and 1% of the width.
   &--tucked[data-mark="stacked"] .logo-beta {
     width: 30%;
-    left: calc(98.8% - 30% * 0.748 + 2px);
-    top: calc(100% - 53.3% * 1.1405 + 50px);
+    left: 77.4%;
+    top: 83.6%;
   }
 }
 
