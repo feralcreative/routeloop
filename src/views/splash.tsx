@@ -4,7 +4,8 @@
 import { raw } from 'hono/html'
 import { ALPHA_DISCORD_URL, ALPHA_GITHUB_URL, ALPHA_SIGNAL_URL, ALPHA_VMC_URL } from '../config'
 import { icon } from './icon'
-import { wordmark } from './logo'
+import { betaSign, wordmark } from './logo'
+import { BETA_SIGN } from './stage'
 
 // `name` is both the icon file (`icon-<name>.svg`) and the CSS hook that gives
 // the mark its brand color, so the two cannot drift apart.
@@ -57,7 +58,7 @@ export function alphaSplash(): string {
         tabindex={-1}
       >
         {/* .modal is $white, which follows the scheme, so both inks are rendered. */}
-        {raw(wordmark('stacked', '', 'modal-logo'))}
+        {raw(wordmark('stacked', '', 'modal-logo logo-lockup--tucked'))}
         <h2 id="alpha-title">This is a beta</h2>
         <div id="alpha-body" class="modal-body">
           <p>
@@ -152,7 +153,15 @@ export function SplashPage({ eyebrow, heading, children }: { eyebrow: string; he
           headline: at the 420px it used to occupy it renders 52px tall against
           the old 123px. The stacked mark gets there at 240px wide.
         */}
-        <img class="splash-logo" src="/img/logo-routeloop-dk.svg" alt="Routeloop" width="920" height="518" />
+        <span class="splash-logo logo-lockup logo-lockup--tucked" data-mark="stacked">
+          <img
+            src="/img/logo-routeloop-dk.svg"
+            alt={BETA_SIGN ? 'Routeloop beta' : 'Routeloop'}
+            width="920"
+            height="518"
+          />
+          {raw(betaSign())}
+        </span>
         <p class="eyebrow">{eyebrow}</p>
         <h1>{heading}</h1>
         {children}
