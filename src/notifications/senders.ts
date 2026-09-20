@@ -37,7 +37,8 @@ import { rideSuggestionEmail } from '../emails/ride-suggestion'
 import { suggestionDecidedEmail } from '../emails/suggestion-decided'
 import { accountPurgeSoonEmail } from '../emails/account-purge-soon'
 import { voteResolvedEmail } from '../emails/vote-resolved'
-import { notify, notifyMany } from './service'
+import { notify, notifyMany, notifyOnce } from './service'
+import { binDigest, binLines, type BinRide } from './bin-digest'
 
 // ── The shared lookups ───────────────────────────────────────────────────────
 
@@ -136,12 +137,7 @@ async function dateFormatsOf(userIds: readonly number[]): Promise<Map<number, Da
  * ride. A per-thread subscription is the shape that would widen this honestly,
  * and it is not built.
  */
-export function notifyRideComment(
-  rideId: number,
-  commenterId: number,
-  body: string,
-  pointLabel: string | null,
-): void {
+export function notifyRideComment(rideId: number, commenterId: number, body: string, pointLabel: string | null): void {
   void (async () => {
     const [ride, commenterName, owners] = await Promise.all([
       rideCard(rideId),
@@ -349,29 +345,28 @@ export function notifyNewFollower(followerId: number, followedId: number): void 
 
 // ── Account ──────────────────────────────────────────────────────────────────
 
-/** A ride in the bin is a week from being destroyed. One message per ride, from
- *  the hourly trash sweep. */
-export function notifyRidePurgeSoon(
-  rows: readonly { ownerId: number; title: string; purgeAfter: Date }[],
-  now: Date,
-): void {
-  if (rows.length === 0) return
+/**
+ * A rider's bin is about to start emptying itself: ONE message listing every
+ * ride scheduled for deletion, from the hourly trash sweep, replacing the last
+ * one. Ziad's call, 2026-09-20 — see ./bin-digest.ts for the copy and
+ * `notifyOnce` for the bump.
+ *
+ * `rides` is the WHOLE bin, soonest first, not just the rides that tripped the
+ * warning: the sweep passes everything the rider has in there, because the
+ * message is about the bin.
+ */
+export function notifyBinPurgeSoon(ownerId: number, bin: readonly BinRide[], now: Date): void {
+  if (bin.length === 0) return
   void (async () => {
-    const formats = await dateFormatsOf(rows.map((r) => r.ownerId))
-    for (const r of rows) {
-      const format = formats.get(r.ownerId) ?? toDateFormat(undefined)
-      // Ceiled, so "in 1 day" never renders as "in 0 days" for a purge that has
-      // not happened yet — the rider still has the rest of today.
-      const daysLeft = Math.max(1, Math.ceil((r.purgeAfter.getTime() - now.getTime()) / 86_400_000))
-      const purgeOn = fmtDateNumeric(r.purgeAfter, format)
-      notify(r.ownerId, {
-        event: 'trash_purge_soon',
-        title: daysLeft === 1 ? `${r.title} is deleted for good tomorrow` : `${r.title} is deleted for good in ${daysLeft} days`,
-        body: `Restoring it from your bin before ${purgeOn} keeps it.`,
-        url: '/trash',
-        email: { template: ridePurgeSoonEmail, props: { rideTitle: r.title, daysLeft, purgeOn } },
-      })
-    }
+    const format = await dateFormatOf(ownerId)
+    const { title, body } = binDigest(bin, now, format)
+    notifyOnce(ownerId, {
+      event: 'trash_purge_soon',
+      title,
+      body,
+      url: '/trash',
+      email: { template: ridePurgeSoonEmail, props: { rides: binLines(bin, now, format) } },
+    })
   })().catch((err) => console.warn('[notify] trash_purge_soon failed:', err))
 }
 

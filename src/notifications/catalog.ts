@@ -243,8 +243,8 @@ export const EVENTS = [
   {
     key: 'trash_purge_soon',
     group: 'account',
-    label: 'A ride in your bin is about to be destroyed',
-    detail: 'Once, a week before the thirty-day hold runs out. Restoring it stops the clock.',
+    label: 'Rides in your bin are about to be destroyed',
+    detail: 'One message for your whole bin, a week before the first ride goes, bumped rather than repeated.',
     optional: true,
     icon: 'storage',
     tone: 'stop',
