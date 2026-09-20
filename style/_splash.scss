@@ -179,6 +179,27 @@ $sp-interstate-d6: palette.light("interstate-d6");
   }
 }
 
+// The gate and the sneak peek's sign, one row UNDER the sign-in block — Ziad's
+// call, 2026-09-20, having had it above. The row carries the gate's top margin
+// so the stack's height is unchanged, and the height tiers below trim the ROW's
+// margin, since the gate inside it has none.
+//
+// STRETCHED, NOT CENTERED: the sign takes the gate's full height, so the two
+// read as one row rather than a box with a button floating beside it. The
+// sign's own `align-items: center` keeps its legend in the middle, and when the
+// row wraps on a phone the sign is alone on its line and stays its own height.
+.splash-gate-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: stretch;
+  gap: 1rem;
+  margin-top: 1.25rem;
+
+  .splash-gate {
+    margin-top: 0;
+  }
+}
+
 // The refusal is the headline of the block; everything under it is support.
 // `em`, so it keeps its step above the block's own size at every tier.
 .splash-gate-lede {
@@ -197,7 +218,9 @@ $sp-interstate-d6: palette.light("interstate-d6");
   flex-direction: column;
   align-items: flex-start;
   gap: 0.75rem;
-  margin: 2rem 0 1rem;
+  // No bottom margin: the gate row follows and carries the gap, and .splash is
+  // a flex column, where the two would stack rather than collapse.
+  margin: 2rem 0 0;
 }
 
 .provider {
@@ -759,8 +782,11 @@ body.splash-page {
     font-size: clamp(2rem, 5.5vw, 3rem);
   }
 
-  .splash-gate {
+  .splash-gate-row {
     margin-top: 1rem;
+  }
+
+  .splash-gate {
     padding: 0.55rem 1rem;
   }
 }
@@ -792,8 +818,11 @@ body.splash-page {
   // know that more than they need the second sentence of the sell.
   // The size stays at the block's own 0.92rem, which is already under the
   // 0.95rem this tier used to trim it to; the lede follows it in em.
-  .splash-gate {
+  .splash-gate-row {
     margin-top: 0.75rem;
+  }
+
+  .splash-gate {
     padding: 0.45rem 0.9rem;
   }
 

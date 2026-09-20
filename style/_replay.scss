@@ -337,26 +337,11 @@ dialog.replay:not([data-state="ready"]) .replay-frame {
   gap: 0.5rem;
 }
 
-// The sign on the splash: a yield sign with no arrow, to the right of the
-// gate — the header's Take the tour construction, since it opens a tour. The
-// row carries the gate's own top margin so the stack's height is unchanged.
+// The sign on the splash: a yield sign to the right of the gate — the header's
+// Take the tour construction, since it opens a tour. The row it sits in is
+// `.splash-gate-row`, in _splash.scss with the gate, because the height tiers
+// there have to reach its margin.
 //
-// STRETCHED, NOT CENTERED: the sign takes the gate's full height, so the two
-// read as one row rather than a box with a button floating beside it. The
-// sign's own `align-items: center` keeps its legend in the middle, and when the
-// row wraps on a phone the sign is alone on its line and stays its own height.
-.splash-gate-row {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: stretch;
-  gap: 1rem;
-  margin-top: 1.25rem;
-
-  .splash-gate {
-    margin-top: 0;
-  }
-}
-
 // Three classes deep on purpose: the base sign rule in _chrome.scss is
 // `.btn:not(…):not([hidden])`, which counts (0,3,0), and a two-class variant
 // loses to it silently and stays green.

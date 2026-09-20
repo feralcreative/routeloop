@@ -108,22 +108,6 @@ authRoutes.get('/login', (c) => {
             it down through two height tiers — so every line here is paid for
             out of that budget.
           */}
-
-          {/*
-            The sneak peek's sign sits to the RIGHT of the gate, a yield sign
-            with no arrow — Ziad's call, 2026-09-20 — rather than beside the
-            Google button: it is not a way in, and the row it shares with the
-            gate is one the splash's zero-slack stack already pays for.
-          */}
-          <div class="splash-gate-row">
-            <div class="splash-gate">
-              <p>
-                <span class="splash-gate-lede">Hey: </span>
-                {raw(stage().gate)} <a href="/faq#invites">Why it works this way</a>.
-              </p>
-            </div>
-            {hasReplay && raw(replaySign())}
-          </div>
           {notice && <p class="notice">Check your email—your link is on the way. It works once, within 15 minutes.</p>}
           {failed && (
             <p class="notice is-error">
@@ -179,6 +163,24 @@ authRoutes.get('/login', (c) => {
                 <strong>Already approved?</strong> Same entry point—it signs you in.
               </p>
             )}
+          </div>
+          {/*
+            The gate and the sneak peek's sign sit UNDER the sign-in block, as
+            of 2026-09-20 — Ziad's call, having had them above it: the way in
+            comes first, and the note about who gets through is the footnote
+            to it. The sign is a yield sign to the right of the gate rather
+            than beside the Google button, because it is not a way in, and the
+            row it shares with the gate is one the splash's zero-slack stack
+            already pays for.
+          */}
+          <div class="splash-gate-row">
+            <div class="splash-gate">
+              <p>
+                <span class="splash-gate-lede">Hey: </span>
+                {raw(stage().gate)} <a href="/faq#invites">Why it works this way</a>.
+              </p>
+            </div>
+            {hasReplay && raw(replaySign())}
           </div>
           {hasReplay && raw(replayDialog())}
         </SplashPage>
