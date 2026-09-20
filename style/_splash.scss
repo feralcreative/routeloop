@@ -102,6 +102,14 @@ $sp-interstate-d6: palette.light("interstate-d6");
   max-width: 200px;
   height: auto;
   margin-bottom: 1.5rem;
+
+  // The class is on the lockup span now (the beta sign hangs off it — see
+  // .logo-lockup in _chrome.scss), so the mark itself fills the span.
+  > img {
+    display: block;
+    width: 100%;
+    height: auto;
+  }
 }
 
 // 700 against the h1's 500 inverts the usual arrangement — the small label is

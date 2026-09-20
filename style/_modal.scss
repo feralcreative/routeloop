@@ -65,6 +65,14 @@ body.modal-open {
   max-width: 150px;
   height: auto;
   margin: 0 auto 1.25rem;
+
+  // The class is on the lockup span (the beta sign hangs off it — see
+  // .logo-lockup in _chrome.scss), so the marks inside fill the span.
+  > img {
+    display: block;
+    width: 100%;
+    height: auto;
+  }
 }
 
 .modal-body {

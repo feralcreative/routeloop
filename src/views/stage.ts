@@ -75,3 +75,7 @@ export const stageTokens = (s: ReleaseStage = RELEASE_STAGE) => ({
 })
 
 export const RELEASE_STAGES = Object.keys(PHRASES) as ReleaseStage[]
+
+/** Whether the wordmark wears the BETA sign — both beta stages, and nothing
+ *  after them. See views/logo.tsx. */
+export const BETA_SIGN: boolean = RELEASE_STAGE.endsWith('beta')

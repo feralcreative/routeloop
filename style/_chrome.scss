@@ -594,6 +594,68 @@ $octagon: polygon(
   0 $octagon-cut
 );
 
+// --- The wordmark's beta sign --------------------------------------------------
+//
+// `wordmark()` in views/logo.tsx wraps both inks in `.logo-lockup` and, while
+// the stage is a beta, adds `.logo-beta`: Ziad's broken BETA sign, hung from
+// a nail at the wordmark's right end. The numbers are read off the
+// composites he drew, so the sign hangs exactly where he put it: its own box
+// is 242×276 with the nail at 74.8% across and 19.6% down; on the horizontal
+// mark the nail sits at the wordmark's right edge, 120.6% of its height
+// down, and the sign is 24.5% of the wordmark's width; on the stacked mark
+// the nail is at 98.8% across, 117.3% down, and the sign is 60.5% wide.
+// `top` is a percentage of the lockup's HEIGHT and `left` of its WIDTH, so
+// each mark's aspect ratio (8.15 and 1.776) is folded into its numbers.
+//
+// A surface that wants the sign smaller than the composite's proportion sets
+// `--sign-scale` on its lockup: the width shrinks and the nail stays put.
+//
+// **THE STACKED MARK CARRIES A SMALLER SIGN, HUNG HIGHER.** The composite
+// hangs it a full logo-height below the baseline, which the header's
+// horizontal mark can afford — there is nothing under it but the page's top
+// margin — and the two stacked surfaces cannot: on the splash the eyebrow and
+// the headline sit right under the logo in a stack with no slack, and in the
+// notice modal the title does. So `.logo-lockup--tucked` hangs the sign from
+// the right edge of the LOOP line, at half the composite's size, ending at
+// the wordmark's own baseline. The nail is the same nail; the drop is not.
+.logo-lockup {
+  position: relative;
+  display: inline-block;
+  max-width: 100%;
+  line-height: 0;
+  --sign-scale: 1;
+
+  .logo-beta {
+    position: absolute;
+    display: block;
+    height: auto;
+    max-width: none;
+    pointer-events: none;
+    // Sits over the page below the header, which is what a hanging sign does.
+    z-index: 1;
+  }
+
+  &[data-mark="hz"] .logo-beta {
+    width: calc(24.5% * var(--sign-scale));
+    left: calc(100% - 24.5% * 0.748 * var(--sign-scale));
+    top: calc(120.6% - 200% * 1.1405 * 0.196 * var(--sign-scale));
+  }
+
+  &[data-mark="stacked"] .logo-beta {
+    width: calc(60.5% * var(--sign-scale));
+    left: calc(98.8% - 60.5% * 0.748 * var(--sign-scale));
+    top: calc(117.3% - 107.5% * 1.1405 * 0.196 * var(--sign-scale));
+  }
+
+  // Half size, nail at the right edge and 52% down, bottom edge on the
+  // baseline: 30% of the width is 53% of the height, times the box's 1.1405.
+  &--tucked[data-mark="stacked"] .logo-beta {
+    width: 30%;
+    left: calc(98.8% - 30% * 0.748);
+    top: calc(100% - 53.3% * 1.1405);
+  }
+}
+
 // --- The flat-field signs -----------------------------------------------------
 //
 // A family of three: the same panel as the guide sign above — keyline, radius,
