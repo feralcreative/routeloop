@@ -32,7 +32,7 @@
 // lifetime "hours in the saddle" undercounted by however much of the library was
 // imported — silently, and in the flattering direction. It is estimated from
 // distance now, the same way both clients estimate an unrouted leg, and the hero
-// says when part of the figure was figured rather than measured. See
+// calls the figure rough rather than flagging which part was. See
 // src/maps/ride-time.ts and src/stats/shape.ts.
 import { Hono, type Context } from 'hono'
 import { raw } from 'hono/html'
@@ -532,17 +532,16 @@ async function dashboard(c: Context<AuthEnv>) {
                 about to give each of those four a yours/average/top row that a
                 lifetime total has no equivalent of.
 
-                `title` carries the estimated-or-measured note. It is the same
-                affordance StatTile uses for its hint, and it is the one place
-                the page can admit that part of the figure is a guess without
-                putting a caveat in the middle of a headline.
+                "Roughly", and no footnote. Ziad's call, 2026-09-20: it carried
+                an asterisk when any leg was estimated, defined only in a
+                `title` nobody hovers, and a lifetime hours figure is obviously
+                not a measurement — one word says so, on every library.
               */}
                 {s.saddle && (
-                  <span title={s.saddle.note}>
+                  <>
                     {SEP}
-                    {s.saddle.hours} hours {wd(w, 'travel')}
-                    {s.saddle.estimated && '*'}
-                  </span>
+                    Roughly {s.saddle.hours} hours of {wd(w, 'travel')}
+                  </>
                 )}
                 {s.twist && (
                   <>
