@@ -1203,6 +1203,22 @@ Three of the four move together because they are one component. That is a reason
 
 **Status.** planned—raised 2026-08-30. **Not a beta blocker**, and it introduces the first Places spend beyond autocomplete, so it wants the quota alert from "The road to beta" in place first.
 
+### 34. Splash video: a folder of clips, shuffled and crossfaded
+
+**Goal.** Replace the single stitched `routeloop-intro.mp4` with a folder of short clips the page shuffles and crossfades itself, so refreshing the splash means dropping files in `public/video/splash/` rather than re-editing one file. Raised 2026-09-20.
+
+**Two stacked `<video>` elements alternate**, one playing while the other preloads the next clip, crossfading on a CSS opacity transition that starts on `timeupdate` shortly before the end—never on `ended`, which leaves a black gap. The clip list is read from the folder once at server start and shipped through `window.TB` like `dayColors`; the client shuffles per visit.
+
+**Data budget, decided 2026-09-20: at most six distinct clips fetched per visit, then cycle among those.** Roughly the size of today's one file, so the worst case is unchanged while every visit is different. `saveData` and `prefers-reduced-data` render the poster, extending the existing rule that reduced motion fetches zero bytes.
+
+**Must survive intact**: late `src` assignment so reduced motion and a remembered pause download nothing; the poster as the layer's background; the play/pause button; and the hook `public/js/replay.js` uses to pause the clip behind the sneak-peek dialog, which becomes a small `TBSplash` controller because two elements share the class.
+
+**The spec is `_PLANS/splash-clips-260920T1700Z.md`**, including an encoding recipe for the clips (6–12 s, 1080p25, faststart, no audio, slow-motion baked in). `_PLANS` is git-ignored, so it exists on Ziad's machine only.
+
+**Touches.** `src/views/splash.tsx`, `src/views/layout.tsx`, `public/js/site.js`, `public/js/replay.js`, `style/_splash.scss`, `public/video/splash/`.
+
+**Status.** planned—no issue yet. Not a beta blocker; it is variety, not function.
+
 ## Idea backlog (unscheduled)
 
 Not yet shaped into milestones—raw material for future issues. Grouped by theme.
