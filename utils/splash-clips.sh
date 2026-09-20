@@ -221,8 +221,12 @@ encode_row() {
   info "$file → $(basename "$out")  ($reason; start $start, ${length}s at ${speed}×, ${rate_filter%%=*})"
   if [ -n "$DRY" ]; then return 0; fi
 
-  # -ss BEFORE -i: a fast seek that is frame-accurate on any ffmpeg of this
-  # decade, and the only way a 2 GB download is cut in seconds. -t is an
+  # -map_metadata -1 drops the source's tags, among them a 29.97 drop-frame
+  # timecode the mp4 muxer rightly refuses at 25 fps ("Drop frame is only
+  # allowed with multiples of 30000/1001 FPS" — a warning about that tag, not
+  # the picture) and whatever the stock library wrote. -ss BEFORE -i: a fast
+  # seek that is frame-accurate on any ffmpeg of this decade, and the only
+  # way a 2 GB download is cut in seconds. -t is an
   # OUTPUT option and so is the OUTPUT length — after setpts, not before: with
   # the source length there a half-speed clip came out half as long. Scale
   # then crop centres a portrait or 4:3 source rather than letterboxing it;
@@ -231,7 +235,7 @@ encode_row() {
   # vanished, silently.
   "$FFMPEG" -nostdin -hide_banner -loglevel error -stats -y -ss "$start" -i "$src" -t "$length" \
     -filter:v "scale=$WIDTH:$HEIGHT:force_original_aspect_ratio=increase:flags=lanczos,crop=$WIDTH:$HEIGHT,setpts=${pts}*PTS,${rate_filter},format=yuv420p" \
-    -map 0:v:0 -an -dn -r "$FPS" -g "$FPS" -force_key_frames 0 \
+    -map 0:v:0 -map_metadata -1 -an -dn -r "$FPS" -g "$FPS" -force_key_frames 0 \
     -c:v libx264 -crf "$CRF" -maxrate "$MAXRATE" -bufsize "$BUFSIZE" -preset "$PRESET" -movflags +faststart "$out"
 
   # The snapshot: this file's key replaced, everything else kept.
