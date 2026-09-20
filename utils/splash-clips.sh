@@ -8,6 +8,7 @@
 #   (watch, correct the sheet)         # 3. fix start/length/speed, run again
 #   utils/splash-clips.sh --sheets     #    a contact sheet per source, to pick a start
 #   utils/splash-clips.sh --prune      #    remove outputs that no longer have a row
+#   utils/splash-clips.sh --only 07    #    re-encode one clip whatever the sheet says (a number, an output name, or a source file)
 #   utils/splash-clips.sh --dry-run    #    say what would encode, encode nothing
 #
 # **THE SCRIPT FILLS IN THE FIGURES; THE HUMAN ONLY CORRECTS THEM.** Ziad's
@@ -79,15 +80,19 @@ die()  { printf '%sERROR%s %s\n' "$RED" "$OFF" "$*" >&2; exit 1; }
 
 MODE=run
 DRY=""
-for arg in "$@"; do
-  case "$arg" in
+ONLY=""
+HIT=""
+while [ $# -gt 0 ]; do
+  case "$1" in
     --scan) MODE=scan ;;
     --sheets) MODE=sheets ;;
     --prune) MODE=prune ;;
     --dry-run) DRY=1 ;;
-    -h|--help) sed -n '2,45p' "$0" | sed 's/^# \{0,1\}//'; exit 0 ;;
-    *) die "unknown flag: $arg" ;;
+    --only) shift; [ $# -gt 0 ] || die "--only needs a clip: a number, an output name, or a source file"; ONLY="$1" ;;
+    -h|--help) sed -n '2,46p' "$0" | sed 's/^# \{0,1\}//'; exit 0 ;;
+    *) die "unknown flag: $1" ;;
   esac
+  shift
 done
 
 [ -x "$FFMPEG" ] || die "ffmpeg not found at $FFMPEG (brew install ffmpeg)"
@@ -173,7 +178,13 @@ encode_row() {
   fi
 
   local reason=""
-  if [ ! -f "$out" ]; then reason="no output yet"
+  if [ -n "$ONLY" ]; then
+    # `--only 07`, `--only routeloop-splash-clip-07`, or the source's own name.
+    case "$ONLY" in
+      "$name"|"$file"|"${name#routeloop-splash-clip-}") reason="asked for"; HIT=1 ;;
+      *) return 0 ;;
+    esac
+  elif [ ! -f "$out" ]; then reason="no output yet"
   elif [ "$src" -nt "$out" ]; then reason="source is newer"
   elif ! grep -qxF -- "$row" "$LAST"; then reason="row changed"
   fi
@@ -226,6 +237,7 @@ run() {
     n=$((n + 1))
   done <<< "$(tail -n +2 "$SHEET")"
   [ "$n" -gt 0 ] || warn "the sheet has no rows; run --scan first"
+  if [ -n "$ONLY" ] && [ -z "$HIT" ]; then warn "no row matches --only $ONLY"; fi
   info "$(ls "$OUT_DIR"/*.mp4 2>/dev/null | wc -l | tr -d ' ') clip(s) in $OUT_DIR, $(du -sh "$OUT_DIR" | cut -f1) in all"
 }
 
