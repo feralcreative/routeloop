@@ -56,9 +56,10 @@
   // there. See public/js/range-circle.js.
   const RANGE = window.TBRange;
 
-  // Only the label lookup — the viewer reads stored figures rather than
-  // computing them, so it never touches window.TBTwist.twistiness itself.
-  const { twistLabel } = window.TBTwist;
+  // Only the band lookups and the scale's markup — the viewer reads stored
+  // figures rather than computing them, so it never touches
+  // window.TBTwist.twistiness itself.
+  const { twistLabel, twistRank, twistScale } = window.TBTwist;
 
   // Numbering and the active-route filter. The server has already resolved the
   // grouping before ride.json is written, so the viewer only ever reads — it
@@ -525,11 +526,16 @@
         // Null means nothing has measured this route — a row stored before the
         // column existed, or one with no geometry. Rendering null as "Straight"
         // would be a claim the data does not support, so it says nothing.
+        //
+        // The band as five marks, the word and the number on hover — the same
+        // scale the dashboard draws, from the same module.
         const twist = twistLabel(r.twistinessDpm)
-          ? '<span class="route-twist" title="' +
-            esc(twistDetail(r)) +
-            '">' +
-            esc(twistLabel(r.twistinessDpm)) +
+          ? '<span class="route-twist">' +
+            twistScale(
+              twistRank(r.twistinessDpm),
+              twistLabel(r.twistinessDpm),
+              twistLabel(r.twistinessDpm) + " · " + twistDetail(r),
+            ) +
             "</span>"
           : "";
         // The group's own name and color, on routes that belong to one. Nothing at
