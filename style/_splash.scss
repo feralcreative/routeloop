@@ -148,6 +148,10 @@ $sp-interstate-d6: palette.light("interstate-d6");
   max-width: 620px;
   margin: 1.25rem 0 0;
   padding: 0.9rem 1.1rem;
+  // Smaller and tighter than the page's 1rem/1.5, Ziad's call, 2026-09-20: the
+  // block is a notice beside a headline, not a paragraph of the pitch.
+  font-size: 0.92rem;
+  line-height: 1.4;
   color: rgba(255, 255, 255, 0.88);
   background: color.change($splash-ink, $alpha: 0.78);
   border: 1px solid rgba(255, 255, 255, 0.16);
@@ -176,9 +180,10 @@ $sp-interstate-d6: palette.light("interstate-d6");
 }
 
 // The refusal is the headline of the block; everything under it is support.
+// `em`, so it keeps its step above the block's own size at every tier.
 .splash-gate-lede {
   color: $sp-white;
-  font-size: 1.15rem;
+  font-size: 1.15em;
   font-weight: 800;
 }
 
@@ -785,14 +790,11 @@ body.splash-page {
   // At this height the pitch and the gate are competing for the same few
   // hundred pixels, and the gate wins: a visitor who cannot get in needs to
   // know that more than they need the second sentence of the sell.
+  // The size stays at the block's own 0.92rem, which is already under the
+  // 0.95rem this tier used to trim it to; the lede follows it in em.
   .splash-gate {
     margin-top: 0.75rem;
     padding: 0.7rem 0.9rem;
-    font-size: 0.95rem;
-  }
-
-  .splash-gate-lede {
-    font-size: 1.02rem;
   }
 
   .providers {
