@@ -12,14 +12,18 @@
 // always returns something is worse than one that sometimes says no.
 import { describe, expect, it } from 'vitest'
 import {
+  alongTrackM,
   clampDivert,
   DEFAULT_DIVERT_MI,
   divertMi,
   proposeGroupMeet,
   proposeRendezvous,
+  rankByRoad,
   worstDivertMi,
   type FuelCandidate,
+  type GroupMeet,
   type GroupRoute,
+  type RoadMeasure,
 } from '../src/subgroups/rendezvous'
 import type { Track } from '../src/maps/kml'
 
@@ -581,5 +585,93 @@ describe('proposeGroupMeet', () => {
     // group's road toward somewhere all three can reach.
     const pair = proposeGroupMeet(north, [south])
     expect(out[0].at[0]).toBeGreaterThan(pair[0].at[0])
+  })
+})
+
+// THE STRAIGHT LINE CANNOT SEE A BAY. #370's repro: a group leaving San
+// Francisco to join a ride running up 680 from San Jose to 580. On paper the
+// dogleg to a station in Fremont is short because the line crosses the water;
+// by road it is 880 south and 680 north again. The re-rank uses the roads the
+// route has already fetched, and the order the rider sees is that one.
+describe('rankByRoad', () => {
+  const mi = 1609.344
+  const trunkTotalM = 150 * mi
+  const meet = (alongMi: number, extraMi: number, name: string, isFuel = true): GroupMeet => ({
+    at: [-122 + alongMi / 60, 40],
+    alongM: alongMi * mi,
+    diverts: [
+      { id: 'n', divertM: 0, extraM: 0, approachDeg: 0, onRoute: true },
+      { id: 'sf', divertM: extraMi * mi, extraM: extraMi * mi, approachDeg: 30, onRoute: false },
+    ],
+    worstDivertM: extraMi * mi,
+    worstExtraM: extraMi * mi,
+    totalDivertM: extraMi * mi,
+    sharedFraction: 1 - alongMi / 150,
+    isFuel,
+    name,
+    score: alongMi + 1.5 * extraMi - 2,
+  })
+  // Fremont looks cheap on paper (9.6) and is 40 road miles from SF; the two
+  // Livermore stations sit past the 580/680 junction, about 45 and 50 road
+  // miles from SF, on the road SF would take anyway.
+  const fremont = meet(45, 9.6, 'Shell Fremont')
+  const rubyHills = meet(65, 3.9, 'Ruby Hills Chevron')
+  const lasPositas = meet(72, 2.4, 'Shell Las Positas')
+  // JOINING GROUPS ONLY in the map, as the route builds it: the main group
+  // rides the whole trunk whatever is chosen, so it has no road to a candidate
+  // and no extra to measure.
+  const roads = (m: GroupMeet, sfMi: number): RoadMeasure => ({ meet: m, toMeetM: new Map([['sf', sfMi * mi]]) })
+
+  it('demotes a station the straight line liked once the road says otherwise', () => {
+    // Straight-line order, as the shortlist arrives.
+    const out = rankByRoad([roads(fremont, 40), roads(rubyHills, 45), roads(lasPositas, 50)], trunkTotalM, 25)
+    // Ruby Hills first on the trade — seven miles earlier for two — and
+    // Fremont's seventeen still beats Las Positas's further seven along.
+    expect(out.map((m) => m.name)).toEqual(['Ruby Hills Chevron', 'Shell Fremont', 'Shell Las Positas'])
+    // And the number beside the group is the road extra over their cheapest,
+    // which here is Las Positas at 50 + (150 − 72) = 128: Ruby Hills costs two
+    // more, Fremont 40 + (150 − 45) − 128 = 17.
+    const sf = (m: GroupMeet) => Math.round(m.diverts.find((d) => d.id === 'sf')!.extraM / mi)
+    expect(sf(out[0])).toBe(2)
+    expect(sf(out[1])).toBe(17)
+    expect(sf(out[2])).toBe(0)
+  })
+
+  it('applies the allowance to the road extra, and never refuses the cheapest', () => {
+    const out = rankByRoad([roads(fremont, 40), roads(rubyHills, 45), roads(lasPositas, 50)], trunkTotalM, 10)
+    expect(out.map((m) => m.name)).toEqual(['Ruby Hills Chevron', 'Shell Las Positas'])
+    // At one mile only the cheapest survives — whichever it is, there is one.
+    expect(rankByRoad([roads(fremont, 40), roads(rubyHills, 45)], trunkTotalM, 1)).toHaveLength(1)
+  })
+
+  it('sends a candidate nobody measured to the back, in the order it came', () => {
+    const unmeasured: RoadMeasure = { meet: meet(30, 20, 'Guess'), toMeetM: new Map([['sf', null]]) }
+    const out = rankByRoad([unmeasured, roads(fremont, 40), roads(rubyHills, 45)], trunkTotalM, 25)
+    expect(out.map((m) => m.name)).toEqual(['Ruby Hills Chevron', 'Shell Fremont', 'Guess'])
+    // Untouched: its straight-line numbers are what it still carries.
+    expect(out[2].diverts[1].extraM).toBe(20 * mi)
+  })
+
+  it('still meets earlier when the road says each mile earlier is cheap', () => {
+    // Ride 34's shape in road miles: Santa Cruz is 90 road miles from Los
+    // Banos and 200 from the cheapest point near the end of the ride, and
+    // Los Banos is 150 trunk miles earlier. Extra = 90 + 150 − 200 = 40 for a
+    // gain of 150, which the trade takes at any weight under 3.75.
+    const losBanos = meet(50, 25, 'Los Banos')
+    const nearEnd = meet(200, 2.4, 'Near the end')
+    const out = rankByRoad([roads(losBanos, 90), roads(nearEnd, 200)], 250 * mi, 60)
+    expect(out[0].name).toBe('Los Banos')
+  })
+
+  it('measures a group’s road to a point on its own track without a request', () => {
+    const track: Track = [
+      [-122, 40],
+      [-121.5, 40],
+      [-121, 40],
+    ]
+    // Roughly 85 km per degree at 40°N, so the middle vertex is about 43 km in.
+    expect(alongTrackM(track, [-121.5, 40.001])).toBeGreaterThan(40_000)
+    expect(alongTrackM(track, [-121.5, 40.001])).toBeLessThan(46_000)
+    expect(alongTrackM(track, [-122, 40])).toBe(0)
   })
 })
