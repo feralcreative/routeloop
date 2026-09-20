@@ -9,8 +9,14 @@
 //
 // Computed on the server rather than in the browser so there is no flash of the
 // wrong number and the page still reads correctly with JS off.
+//
+// THE STAGE TOKENS RIDE ALONG for the same reason: three places render this
+// file (the page, the popover, the feedback strip's question list) and every
+// one of them has to supply the whole set or `content()` throws.
+import { stageTokens } from './stage'
+
 const yearsSince = (year: number): number => new Date().getFullYear() - year
 
 /** Worked out per call, not at module load: a process that has been up since
  *  December must not still be saying last year's number in January. */
-export const faqTokens = () => ({ RIDING_YEARS: yearsSince(1999), WEB_YEARS: yearsSince(1993) })
+export const faqTokens = () => ({ RIDING_YEARS: yearsSince(1999), WEB_YEARS: yearsSince(1993), ...stageTokens() })

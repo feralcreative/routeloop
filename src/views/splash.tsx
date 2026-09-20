@@ -58,11 +58,11 @@ export function alphaSplash(): string {
       >
         {/* .modal is $white, which follows the scheme, so both inks are rendered. */}
         {raw(wordmark('stacked', '', 'modal-logo'))}
-        <h2 id="alpha-title">This is an alpha</h2>
+        <h2 id="alpha-title">This is a beta</h2>
         <div id="alpha-body" class="modal-body">
           <p>
-            Routeloop is an early build of something I’m making. Expect rough edges, missing pieces, and the occasional
-            data reset. Feedback is the whole point.
+            Routeloop is a young app that changes most days. Expect rough edges and missing pieces, and keep your own
+            copies of anything you’d hate to lose. Feedback is the whole point.
           </p>
           {links.length > 0 && (
             <ul class="modal-links">

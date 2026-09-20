@@ -4,6 +4,7 @@
 // back to the site from a map. `variant` is what that split collapses into.
 import type { UserRow } from '../db/schema'
 import { alphaSplash } from './splash'
+import { stage } from './stage'
 
 export { esc } from './esc'
 import { esc } from './esc'
@@ -1134,7 +1135,7 @@ function siteFooter(splash: boolean): string {
       </nav>
       {!splash && (
         <p class="site-footer-note">
-          Routeloop is in a closed alpha.{' '}
+          Routeloop is in a {stage().phase}.{' '}
           {/* A button, not a link: it opens the modal on the page you are
               already on. It degrades to the real page when scripting is off,
               which is what the href on the <noscript> path covers — see
