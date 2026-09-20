@@ -14,10 +14,12 @@
 **/*.mp4
 **/*.mov
 **/*.mkv
-# The sign-in background clip is a shipped asset, not a working file. This must
+# The sign-in backdrop's clips are shipped assets, not working files. This must
 # stay below the **/*.mp4 rule above — a negation cannot resurrect a path whose
-# exclusion appears after it.
+# exclusion appears after it. The downloads they are cut from stay under
+# _assets/, which is ignored whole.
 !public/video/*.mp4
+!public/video/splash/*.mp4
 # Ignore Adobe Premiere preview indexes
 **/*.prin
 # Ignore exported agent transcripts kept alongside real planning docs
