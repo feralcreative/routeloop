@@ -387,6 +387,11 @@ export type GroupRoute = {
   origin: [number, number]
   /** Their routed track, origin to the destination everybody shares. */
   track: Track
+  /** True when `track` is the direct road the route fetched for a group that
+   *  had only a starting point — a road nothing on the map draws, so the
+   *  stretch of it to an on-route candidate is sent as that candidate's
+   *  approach. A group's own drawn route is already on the map. */
+  direct?: boolean
 }
 
 /** What one group pays for a proposed meeting point. */
@@ -631,9 +636,17 @@ export function proposeGroupMeet(
   // candidates within a mile of each other and a planner reads that as the app
   // having nothing to say. One per ten kilometers, by `alongM` — every candidate
   // is on the same track now, so the distances are comparable.
+  //
+  // STATIONS ARE SPREAD AT THREE KILOMETERS, NOT TEN. A station is a named
+  // place, and two of them four miles apart on the shared road are a real
+  // choice — where two bare vertices four miles apart are the same stretch of
+  // highway twice. On #370's ride the ten-kilometer rule collapsed the Costco,
+  // the Chevron and the Shell around the Livermore junction into one row, and
+  // the rider was offered the convergence and nothing beside it.
+  const spreadM = opts.fuelOnly ? 3_000 : 10_000
   const kept: GroupMeet[] = []
   for (const c of found) {
-    if (kept.some((k) => Math.abs(k.alongM - c.alongM) < 10_000)) continue
+    if (kept.some((k) => Math.abs(k.alongM - c.alongM) < spreadM)) continue
     kept.push(c)
     if (kept.length === limit) break
   }
@@ -762,3 +775,143 @@ function scoreGroupMeet(
 /** The worst single group's divert in miles — the one number that says whether a
  *  proposal is fair, rounded the way every other distance in the app is. */
 export const worstDivertMi = (m: GroupMeet): number => Math.round((m.worstDivertM / METERS_PER_MILE) * 10) / 10
+
+// --- Ranking by the road, once the road is known ----------------------------
+//
+// EVERYTHING ABOVE IS STRAIGHT LINES, AND THE STRAIGHT LINE CANNOT SEE A BAY.
+// #370's own repro is the case: a group leaving San Francisco to join a ride
+// running up 680 from San Jose to 580. On paper the dogleg to a station in
+// Fremont is under ten miles, because the straight line crosses the water; by
+// road it is 880 south to Fremont and 680 north again, and the extra over just
+// taking 580 to Dublin — where their road meets the main group's for nothing —
+// is fifteen to twenty-five miles. The trade above weighed the paper number,
+// so it kept sending them to Fremont, and the module's own header had said
+// why: straight-line is the right precision for "is this a sane place to meet"
+// and the wrong precision for "how far", and the ranking is a how-far question.
+//
+// THE ROADS ARE ALREADY BOUGHT. The route fetches every shortlisted candidate's
+// approach to check it against the group's tank and to draw it, and a group
+// with a starting point and no route of its own now has its direct road fetched
+// once so the on-route test can find where it joins. So the road miles exist for
+// the few candidates a rider is about to be shown, and this is the re-rank that
+// uses them. It costs nothing the press was not already spending.
+//
+// THIS IS NOT THE MIXING #239 WARNS ABOUT. That bug measured the remainder ALONG
+// THE TRUNK against a STRAIGHT direct, so every bend after a candidate was billed
+// to the joining group. Here every leg is road, and the trunk is billed only
+// BETWEEN candidates: what meeting at M rather than at N costs a group is their
+// road to M plus the trunk from M to N, less their road to N — which is the
+// stretch they would genuinely ride that they otherwise would not. The rest of
+// the trunk cancels out of every comparison.
+
+/** One candidate with each JOINING group's road to it, in meters — the routed
+ *  approach, or the distance along their own track when it passes through the
+ *  point, or null when nothing measured it (a Routes failure, or a candidate
+ *  outside the routed budget). The main group is not in the map: they ride the
+ *  whole trunk whatever is chosen, so they have no road to a candidate and no
+ *  extra to measure, and an entry for them would bill them the trunk. */
+export type RoadMeasure = { meet: GroupMeet; toMeetM: Map<string, number | null> }
+
+/**
+ * Distance along a track to the vertex nearest `at`, in meters.
+ *
+ * For a group whose own road passes through a candidate, this is their road to
+ * it — no request needed, and it is the same polyline the on-route test read.
+ */
+export function alongTrackM(track: Track, at: [number, number]): number {
+  const best = nearestVertex(track, at)
+  if (best < 0) return 0
+  return prefix(track.slice(0, best + 1))[best]
+}
+
+/** The index of the track vertex nearest `at`, or -1 for an empty track. */
+export function nearestVertex(track: Track, at: [number, number]): number {
+  let best = -1
+  let bestD = Infinity
+  for (let i = 0; i < track.length; i++) {
+    const d = haversineM(track[i][1], track[i][0], at[1], at[0])
+    if (d < bestD) {
+      bestD = d
+      best = i
+    }
+  }
+  return best
+}
+
+/**
+ * Re-rank the shortlist by the roads actually ridden.
+ *
+ * For each joining group and each measured candidate, what they ride if they
+ * meet there is their road to it plus the main group's road from there to the
+ * end. The cheapest of those is that group's floor, the extra over it is what
+ * the cap is applied to and what the trade weighs, and — because the min is
+ * taken over the same list — THE CHEAPEST CANDIDATE ALWAYS SURVIVES THE CAP.
+ * The rider is never handed "nowhere works" by this pass.
+ *
+ * A candidate any group has no road for is not measured against the others: it
+ * keeps its straight-line numbers and goes to the back, in the order it came,
+ * because a guess ranked beside a measurement reads as a measurement.
+ *
+ * `extraM` on every measured divert becomes the ROAD extra, which is the number
+ * a rider is shown beside a group's name: how far out of their way, in miles
+ * they would ride, beyond the cheapest way of joining this ride.
+ */
+export function rankByRoad(measured: RoadMeasure[], trunkTotalM: number, maxDivertMi: number): GroupMeet[] {
+  const capM = maxDivertMi * METERS_PER_MILE
+  const complete = measured.filter((x) => [...x.toMeetM.values()].every((v) => v !== null))
+  const rest = measured.filter((x) => !complete.includes(x)).map((x) => x.meet)
+
+  // Each group's floor: the least they can ride, over the measured candidates.
+  const floor = new Map<string, number>()
+  for (const { meet, toMeetM } of complete) {
+    for (const [gid, road] of toMeetM) {
+      const cost = (road as number) + (trunkTotalM - meet.alongM)
+      floor.set(gid, Math.min(floor.get(gid) ?? Infinity, cost))
+    }
+  }
+
+  const ranked: GroupMeet[] = []
+  for (const { meet, toMeetM } of complete) {
+    const diverts: GroupDivert[] = meet.diverts.map((d) => {
+      const road = toMeetM.get(d.id)
+      if (road == null) return d
+      const extraM = Math.max(0, road + (trunkTotalM - meet.alongM) - (floor.get(d.id) ?? 0))
+      return { ...d, extraM }
+    })
+    const worstExtraM = diverts.reduce((n, d) => Math.max(n, d.extraM), 0)
+    // The cap, on the road. Never refuses a group's cheapest candidate, whose
+    // extra is zero by construction — so at least one row survives.
+    if (worstExtraM > capM) continue
+    const totalExtraM = diverts.reduce((n, d) => n + d.extraM, 0)
+    const approachPenalty = diverts.reduce((n, d) => n + (d.approachDeg / 90) * 1, 0)
+    // THE SAME TRADE AS THE STRAIGHT-LINE PASS, with the extra measured in road.
+    // Along the trunk plus DIVERT_WEIGHT times the extra, so a mile out of the
+    // way still has to buy a mile and a half together — it is just a real mile
+    // now. The fuel bonus stays; every candidate here is a station anyway.
+    const score =
+      meet.alongM / METERS_PER_MILE +
+      (totalExtraM / METERS_PER_MILE) * DIVERT_WEIGHT +
+      approachPenalty -
+      (meet.isFuel ? 2 : 0)
+    ranked.push({ ...meet, diverts, worstExtraM, score })
+  }
+  ranked.sort((a, b) => a.score - b.score)
+  // WITH SEVERAL JOINING GROUPS THE FLOORS CAN DISAGREE — one group's cheapest
+  // candidate can be past the cap for another — and then nothing above
+  // survives. The least bad measured candidate is kept rather than nothing,
+  // because this pass re-orders a list the rider was already going to be shown
+  // and must not be the thing that empties it. The route only ever asks about
+  // one group, so this is a guarantee rather than a path anything takes today.
+  if (ranked.length === 0 && complete.length > 0) {
+    const least = complete
+      .map(({ meet, toMeetM }) => {
+        const worst = Math.max(
+          ...[...toMeetM].map(([gid, road]) => (road as number) + (trunkTotalM - meet.alongM) - (floor.get(gid) ?? 0)),
+        )
+        return { meet, worst }
+      })
+      .sort((a, b) => a.worst - b.worst)[0]
+    ranked.push(least.meet)
+  }
+  return [...ranked, ...rest]
+}

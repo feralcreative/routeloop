@@ -5255,7 +5255,9 @@
   /** One line of what a candidate costs, shared by the row and its dot so the
    *  two cannot say different things about the same place. */
   function meetTip(c) {
-    const worst = (c.diverts || []).filter((d) => !d.onRoute).sort((a, b) => b.mi - a.mi)[0];
+    // `mi` IS THE EXTRA OVER A GROUP'S CHEAPEST WAY OF JOINING (#370), so a
+    // zero is a group at its cheapest and not a group sent nowhere.
+    const worst = (c.diverts || []).filter((d) => !d.onRoute && d.mi > 0).sort((a, b) => b.mi - a.mi)[0];
     return (
       (c.name ? c.name + SEP : "") +
       (worst ? "+" + worst.mi + " mi at worst" : "nobody goes out of their way") +
@@ -5453,7 +5455,10 @@
       .map((d) => {
         const g = subgroupByUid(d.group);
         const name = g ? g.name : "a group";
-        return esc(name) + (d.onRoute ? " on their way" : " +" + d.mi + " mi");
+        // A zero that is not on-route is this group's cheapest way of joining
+        // the ride — still a road to ride, so not "on their way", and not a
+        // detour either.
+        return esc(name) + (d.onRoute ? " on their way" : d.mi > 0 ? " +" + d.mi + " mi" : " their shortest way in");
       })
       .join(SEP);
   }
