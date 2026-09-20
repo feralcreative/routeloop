@@ -153,12 +153,17 @@
   // something that only exists once a button has been pressed — a menu.
   // `open` is a list of <details> opened before the card and closed after.
   // `prep` runs after the reset and before the anchor resolves, for a plain
-  // card about something a reset clears.
+  // card about something a reset clears. `replay` is copy for the sign-in
+  // page's recording of this tour (utils/record-tour-replay.ts), read by the
+  // recorder and nothing here: for the few cards whose live copy invites the
+  // rider to do something, which a recording cannot offer.
   var STEPS = [
     {
       id: "welcome",
       title: "This is where a ride gets planned",
       text: "Five short parts—skip whatever you don’t care about. The <b>ride</b> you are about to see is just an example and goes in the bin when you are done.",
+      replay:
+        "Five short parts: a coast run out of Oakland with three friends, planned from a blank page to the shared <b>ride</b>. Every card is a real screen from the app.",
       chooser: true,
     },
 
@@ -423,6 +428,8 @@
       classes: "tour-over-bar",
       title: "This is the time scrubber",
       text: "Drag it and the dot on the map is where you would be at that moment. Try it. On a ride with several routes the Route | Ride switch runs it over one day or the whole trip. The ring around the dot is fuel—next part.",
+      replay:
+        "Drag it and the dot on the map is where you would be at that moment. On a ride with several routes the Route | Ride switch runs it over one day or the whole trip. The ring around the dot is fuel—next part.",
       running: "Riding it through…",
       // A scrub is worth watching twice, so Back re-runs it.
       done: function () {
@@ -519,6 +526,8 @@
       classes: "tour-over-bar",
       title: "The range ring, and where it runs dry",
       text: "The dotted ring is how far the smallest tank reaches—green, then orange, then red. Diego’s 120 miles run out in the redwoods, twenty miles short of Santa Cruz: the red E, and the route past it painted red. Scrub it yourself; the Range button turns the overlay off.",
+      replay:
+        "The dotted ring is how far the smallest tank reaches—green, then orange, then red. Diego’s 120 miles run out in the redwoods, twenty miles short of Santa Cruz: the red E, and the route past it painted red. The Range button turns the overlay off.",
       running: "Riding out to the mark…",
       done: function () {
         return false;
@@ -830,6 +839,8 @@
       page: "viewer",
       title: "That is the whole idea",
       text: "A route, a clock, the people, fuel, and where to meet. Done bins this ride; everything you plan from here is yours. Point at any control and it tells you what it is for. Have a good ride.",
+      replay:
+        "A route, a clock, the people, fuel, and where to meet. Point at any control and it tells you what it is for. Join the beta and plan your own.",
       chooser: true,
     },
   ];
