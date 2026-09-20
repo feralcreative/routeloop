@@ -1215,9 +1215,11 @@ Three of the four move together because they are one component. That is a reason
 
 **The spec is `_PLANS/splash-clips-260920T1700Z.md`**, including an encoding recipe for the clips (6–12 s, 1080p25, faststart, no audio, slow-motion baked in). `_PLANS` is git-ignored, so it exists on Ziad's machine only.
 
+**Rolled in 2026-09-20: dark mode on the splash is a scrim, not a palette flip.** Today some splash text follows the scheme tokens and goes dark against a dark clip. The splash is dark-native—white type on video, white sign-in boxes—so the fix is the rule `_feedback.scss` already uses in the other direction: pin every scheme-following token in `_splash.scss` with `palette.light(...)` so no foreground element changes, and let dark mode change exactly one thing, a `$splash-ink` scrim over the video pair (and the poster under it) at roughly 0.45 alpha, emitted under the same three-state selectors as `_theme.scss`. Tuned by eye against the darkest and brightest clips.
+
 **Touches.** `src/views/splash.tsx`, `src/views/layout.tsx`, `public/js/site.js`, `public/js/replay.js`, `style/_splash.scss`, `public/video/splash/`.
 
-**Status.** planned—no issue yet. Not a beta blocker; it is variety, not function.
+**Status.** planned—no issue yet. The scrim half is a visible dark-mode bug on the sign-in page and belongs in the beta sprint; the clips half is variety, not function.
 
 ## Idea backlog (unscheduled)
 
