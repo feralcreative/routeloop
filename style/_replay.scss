@@ -1,3 +1,4 @@
+@use "sass:map";
 @use "tokens" as *;
 @use "motion";
 @use "chrome";
@@ -359,9 +360,25 @@ dialog.replay:not([data-state="ready"]) .replay-frame {
 // Three classes deep on purpose: the base sign rule in _chrome.scss is
 // `.btn:not(…):not([hidden])`, which counts (0,3,0), and a two-class variant
 // loses to it silently and stays green.
+//
+// WITH AN ARROW, IN THE LEGEND'S INK. Ziad's call, 2026-09-20, reversing the
+// no-arrow reading of the header's sign for this one: it opens something, and a
+// sign at the end of a row with nothing after it wants to point. `sign-field`
+// takes the arrow off, so the three things the base rule gives an arrowed sign
+// are put back — the gap, the tighter padding on the arrow's side, and the
+// drawing itself, as a mask in $ink-dark because the baked-white one would
+// vanish on yellow.
 .splash-gate-row .btn.replay-open {
   @include chrome.sign-field($yield, $dark-ink: true);
   flex: none;
+  gap: 0.5em;
+  padding-right: 1.05rem;
+
+  &::before {
+    @include chrome.sign-arrow($ink-dark);
+
+    transform: rotate(map.get(chrome.$sign-arrow-bearings, "e"));
+  }
   // Lifted rather than darkened on hover, as the header's sign is: a yield
   // sign darkened toward black reads as dirty, not as lit.
   &:hover,

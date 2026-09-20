@@ -315,21 +315,54 @@ $sign-arrow-bearings: (
   "ne": 315deg,
 );
 
+// THE ONE PATH. A 32-unit shaft meeting a head 80 units tall on a 105×96
+// viewBox, drawn pointing east; every arrow in the app is this string rotated.
+// It is a variable so the two drawings below — and _feedback.scss's card
+// arrow, which used to carry a literal second copy — cannot drift apart.
+$sign-arrow-path: "M97 48L53 8V32H8V64H53V88Z";
+
 // One drawing, used by `::before` and — for `.arrow-both` — by `::after` too.
 // A mixin and not two copies of the path: the whole reason the arrow is rotated
 // rather than redrawn per bearing is that there should be exactly one shape to
 // correct if it is ever revised, and a second literal copy here would undo that
 // the moment someone edits one of them. Bearing is deliberately NOT set here —
 // every caller supplies its own.
-@mixin sign-arrow {
-  content: "";
+//
+// TWO INKS, ONE SHAPE. With no `$ink` the arrow is the baked-white data URI the
+// base button has always drawn, which is right for every white-legend field and
+// is what the long note on `.btn::before` below defends. Given an ink it is a
+// MASK painted in that color instead — the construction _feedback.scss's yellow
+// card arrived at first, for the reason it states: a yield sign's legend is
+// black, so a white arrow on it is invisible. Pass `currentColor` to follow the
+// legend, or a token to pin it.
+@mixin sign-arrow($ink: null) {
   flex: none;
   position: relative;
   top: -0.1em;
   width: 1.3125em;
   height: 1.3125em;
-  background: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 105 96'%3E%3Cpath fill='%23fff' d='M97 48L53 8V32H8V64H53V88Z'/%3E%3C/svg%3E")
-    center / contain no-repeat;
+  @include sign-arrow-drawing($ink);
+}
+
+// The drawing alone, for a caller that sizes and places the arrow itself —
+// _feedback.scss's card puts it in a grid cell at 3.2rem, where the flex line's
+// nudge above means nothing.
+@mixin sign-arrow-drawing($ink: null) {
+  content: "";
+
+  @if $ink {
+    // The shorthand, not `background-color`: on a `.btn` the base rule has
+    // already put the white drawing in `background-image`, and a mask over
+    // THAT is a white arrow whatever color sits behind it.
+    background: $ink;
+    -webkit-mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 105 96'%3E%3Cpath d='#{$sign-arrow-path}'/%3E%3C/svg%3E")
+      center / contain no-repeat;
+    mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 105 96'%3E%3Cpath d='#{$sign-arrow-path}'/%3E%3C/svg%3E")
+      center / contain no-repeat;
+  } @else {
+    background: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 105 96'%3E%3Cpath fill='%23fff' d='#{$sign-arrow-path}'/%3E%3C/svg%3E")
+      center / contain no-repeat;
+  }
 }
 
 // `:not([hidden])` IS LOAD-BEARING AND IS NOT TIDINESS.

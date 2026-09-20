@@ -1,4 +1,5 @@
 @use "tokens" as *;
+@use "chrome";
 
 // The rider feedback flow: intake, "what you've sent", and the floating way in.
 //
@@ -143,33 +144,25 @@ $fb-legend-dark: palette.light("ink-dark");
 
 // THE ARROW, IN THE LEGEND'S OWN INK.
 //
-// A MASK RATHER THAN A BAKED FILL, which is where this departs from
-// `sign-arrow` in _chrome.scss and it is not a preference. That mixin bakes
-// `%23fff` into the data URI and its own comment says that is only correct
-// because every sign it draws takes a white legend — "revisit only if a variant
-// ever changes the legend color". The yellow card is exactly that variant: its
-// legend is black, so a white arrow on it would be invisible. A mask painted
-// with `currentColor` follows whichever ink the sign carries, so one declaration
-// serves all three and cannot drift out of step with the text beside it.
+// A MASK RATHER THAN A BAKED FILL, and it is not a preference: the base
+// `sign-arrow` bakes `%23fff` into its data URI, which is only correct because
+// every sign it draws takes a white legend. The yellow card is the variant that
+// does not — its legend is black, so a white arrow on it would be invisible. A
+// mask painted with `currentColor` follows whichever ink the sign carries, so
+// one declaration serves all three and cannot drift out of step with the text
+// beside it. This file carried the mask as a second literal copy of the path
+// until 2026-09-20, when the splash's yield sign needed the same thing;
+// `sign-arrow($ink)` in _chrome.scss draws it now, from the one path.
 //
-// THE PATH IS THE SAME SHAPE AND MUST STAY THAT WAY — a 32-unit shaft meeting a
-// head 80 units tall, on the same 105x96 viewBox. If the arrow in _chrome.scss
-// is ever redrawn, this is the second place it lives.
-//
-// The -webkit- pair is the "prefix dance" _chrome.scss cites as a reason to
-// avoid masks. It is two lines, and it is what makes this safe on the older
-// WebKit a rider at the side of a road may well be holding.
+// The drawing alone, because the arrow here is placed by its grid cell and not
+// by a flex line with a padded legend, so the base mixin's nudge means nothing.
 @mixin fb-arrow {
-  content: "";
+  @include chrome.sign-arrow-drawing(currentColor);
+
   // Doubled from 1.6rem on 2026-09-07. At sign scale the arrow is a second
   // legend rather than a decoration on the end of one.
   width: 3.2rem;
   height: 3.2rem;
-  background-color: currentColor;
-  -webkit-mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 105 96'%3E%3Cpath d='M97 48L53 8V32H8V64H53V88Z'/%3E%3C/svg%3E")
-    center / contain no-repeat;
-  mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 105 96'%3E%3Cpath d='M97 48L53 8V32H8V64H53V88Z'/%3E%3C/svg%3E")
-    center / contain no-repeat;
 }
 
 // GRID RATHER THAN A FLEX COLUMN, so the arrow can sit at the right of BOTH text
