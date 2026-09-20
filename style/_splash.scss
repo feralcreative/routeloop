@@ -147,7 +147,7 @@ $sp-interstate-d6: palette.light("interstate-d6");
   box-sizing: border-box;
   max-width: 620px;
   margin: 1.25rem 0 0;
-  padding: 0.9rem 1.1rem;
+  padding: 0.6rem 1.1rem;
   // Smaller and tighter than the page's 1rem/1.5, Ziad's call, 2026-09-20: the
   // block is a notice beside a headline, not a paragraph of the pitch.
   font-size: 0.92rem;
@@ -761,7 +761,7 @@ body.splash-page {
 
   .splash-gate {
     margin-top: 1rem;
-    padding: 0.8rem 1rem;
+    padding: 0.55rem 1rem;
   }
 }
 
@@ -794,7 +794,7 @@ body.splash-page {
   // 0.95rem this tier used to trim it to; the lede follows it in em.
   .splash-gate {
     margin-top: 0.75rem;
-    padding: 0.7rem 0.9rem;
+    padding: 0.45rem 0.9rem;
   }
 
   .providers {
