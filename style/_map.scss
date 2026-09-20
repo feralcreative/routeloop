@@ -513,6 +513,17 @@ html.map-page.is-resizing {
       height: 26px;
       max-width: 100%;
     }
+
+    // The beta sign is an <img> in the lockup too, and the height above
+    // (under #info-panel, so it outranks _chrome's class rules) shrank it to a
+    // 26px stamp. Restated at the composite's proportion — the same sign the
+    // page header hangs — which is about twice the stamp. Ziad's call,
+    // 2026-09-20.
+    .logo-beta {
+      width: 24.5%;
+      height: auto;
+      max-width: none;
+    }
   }
 
   // Collapse and exit, in that order. They are two verbs and two controls:
