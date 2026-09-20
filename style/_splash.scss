@@ -396,11 +396,22 @@ $sp-interstate-d6: palette.light("interstate-d6");
   pointer-events: none; // the page behind must stay selectable
 }
 
+// The pair: stacked, and only the front one visible. The opacity transition
+// IS the crossfade — site.js swaps the class and waits FADE_S for it, so the
+// two numbers are the same number in two files.
 .splash-video {
+  position: absolute;
+  inset: 0;
   display: block;
   width: 100%;
   height: 100%;
   object-fit: cover;
+  opacity: 0;
+  transition: opacity 0.8s ease;
+
+  &.is-front {
+    opacity: 1;
+  }
 }
 
 // Dark mode on a splash page: this, and nothing else. A dark layer over the

@@ -214,63 +214,214 @@
   const ICON_PAUSE =
     '<svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M6 5h4v14H6zm8 0h4v14h-4z"/></svg>';
 
-  function initSplashVideo() {
-    const video = document.querySelector(".splash-video");
-    if (!video) return;
+  // --- Splash backdrop: a deck of clips, shuffled and crossfaded ----------
+  //
+  // **A FOLDER OF CLIPS, NOT ONE FILE.** Ziad's call, 2026-09-20. The page
+  // gets the folder's list as window.TB.splashClips, shuffles it, and plays
+  // the clips through the two <video>s in .splash-media: one in front,
+  // playing, the other behind, preloaded with the next clip and paused at
+  // its first frame. FADE_S before the front clip ends the back one starts
+  // and the two swap opacity over a CSS transition; then the roles flip and
+  // the new back element loads the clip after. The fade starts on
+  // `timeupdate`, never on `ended` — that fires after the last frame is gone
+  // and leaves a black gap.
+  //
+  // **AT MOST MAX_FETCH DISTINCT CLIPS PER VISIT.** Six five-second clips at
+  // this bitrate is about the one file this replaced, so the worst case is
+  // unchanged while every visit is still a different sequence; once the cap
+  // is reached the deck is the fetched set, reshuffled, with the one rule
+  // that a deck never opens with the clip that just played.
+  //
+  // What did not change, and each is load-bearing: no src in the markup, so
+  // reduced motion (through TBMotion, so the in-app setting counts), a
+  // remembered pause, and Save-Data fetch zero bytes; the poster is the
+  // layer's background, so those cases and an empty folder render a still;
+  // the play/pause button pauses the SYSTEM, not one element; and
+  // window.TBSplash is the hook replay.js pauses the backdrop through while
+  // the sneak peek is open.
+  var FADE_S = 0.8;
+  var MAX_FETCH = 6;
 
-    const src = video.getAttribute("data-src");
-    if (!src) return;
+  function shuffle(list) {
+    for (var i = list.length - 1; i > 0; i--) {
+      var j = Math.floor(Math.random() * (i + 1));
+      var t = list[i];
+      list[i] = list[j];
+      list[j] = t;
+    }
+    return list;
+  }
+
+  function saveData() {
+    var c = navigator.connection;
+    if (c && c.saveData) return true;
+    return !!(window.matchMedia && window.matchMedia("(prefers-reduced-data: reduce)").matches);
+  }
+
+  function initSplashVideo() {
+    var videos = Array.prototype.slice.call(document.querySelectorAll(".splash-video"));
+    if (videos.length < 2) return;
+    var clips = (window.TB && window.TB.splashClips) || [];
+    if (!clips.length) return;
 
     // Reduced motion means no clip is fetched at all, so there is nothing to
     // offer a control over — the button is not rendered rather than rendered
-    // inert.
-    // Through TBMotion since #174, so the in-app setting suppresses the clip the
-    // same way the OS one does. Note what that means and it is the strongest
-    // version of this feature: a rider who chose "never animate" never DOWNLOADS
-    // the video, because the src is assigned below and not in the markup.
+    // inert. Save-Data is the same rule from the other direction.
     if (!window.TBMotion || window.TBMotion.reduced()) return;
+    if (saveData()) return;
 
-    let paused = readStore(VIDEO_KEY) === "paused";
+    var userPaused = readStore(VIDEO_KEY) === "paused";
+    var held = false; // paused by the page—the sneak peek—not the rider
 
-    // The clip is slowed in the file itself, not via playbackRate. Halving
-    // playbackRate on the 25fps master would have shown 12.5fps — the browser
-    // holds each frame longer rather than generating new ones, so it reads as
-    // choppy. The encode interpolates the intermediate frames instead and stays
-    // a true 25fps. See docs/STATUS.md.
-    //
-    // The autoplay attribute normally covers this; the explicit call catches
-    // the cases it doesn't (iOS Low Power Mode among them). A refusal is the
-    // poster frame, not an error worth surfacing.
-    function start() {
-      if (!video.src) video.src = src;
-      const started = video.play();
+    // The deck.
+    var fetched = [];
+    var deck = shuffle(clips.slice());
+    var pos = 0;
+    var lastPlayed = null;
+
+    function pool() {
+      return fetched.length >= MAX_FETCH ? fetched.slice() : clips.slice();
+    }
+
+    function draw() {
+      if (pos >= deck.length) {
+        deck = shuffle(pool());
+        pos = 0;
+        if (deck.length > 1 && deck[0] === lastPlayed) deck.push(deck.shift());
+      }
+      var clip = deck[pos++];
+      // Past the cap, a clip not yet fetched is swapped for one that has been.
+      if (fetched.length >= MAX_FETCH && fetched.indexOf(clip) < 0) {
+        var have = fetched.filter(function (c) {
+          return c !== lastPlayed;
+        });
+        clip = have[Math.floor(Math.random() * have.length)] || fetched[0];
+      }
+      if (fetched.indexOf(clip) < 0) fetched.push(clip);
+      return clip;
+    }
+
+    var front = videos[0];
+    var back = videos[1];
+    var fading = false;
+    var fadeTimer = null;
+
+    function load(el, src) {
+      el.classList.remove("is-front");
+      el.preload = "auto";
+      el.src = src;
+      el.load();
+    }
+
+    // The autoplay attribute would cover this on the first element only; the
+    // explicit call covers both and the cases autoplay does not (iOS Low Power
+    // Mode among them). A refusal is the poster frame, not an error.
+    function play(el) {
+      var started = el.play();
       if (started && started.catch) started.catch(function () {});
     }
+
+    function ready(el) {
+      return el.readyState >= 3;
+    }
+
+    // The swap: the back clip starts, the opacities cross, and after the
+    // fade the old front is rewound and given the clip after next.
+    function crossfade() {
+      if (fading) return;
+      fading = true;
+      play(back);
+      back.classList.add("is-front");
+      front.classList.remove("is-front");
+      clearTimeout(fadeTimer);
+      fadeTimer = setTimeout(function () {
+        front.pause();
+        var old = front;
+        front = back;
+        back = old;
+        lastPlayed = front.currentSrc || front.src;
+        load(back, draw());
+        fading = false;
+      }, FADE_S * 1000);
+    }
+
+    function watch(el) {
+      el.addEventListener("timeupdate", function () {
+        if (el !== front || fading || userPaused || held) return;
+        if (!el.duration || el.duration - el.currentTime > FADE_S) return;
+        if (ready(back)) crossfade();
+      });
+      // The back clip was not ready when the fade was due: hold the last
+      // frame and swap the moment it is, a cut rather than a gap.
+      el.addEventListener("ended", function () {
+        if (el !== front || fading || userPaused || held) return;
+        if (ready(back)) crossfade();
+        else back.addEventListener("canplay", crossfade, { once: true });
+      });
+    }
+    videos.forEach(watch);
+
+    function begin() {
+      load(front, draw());
+      front.classList.add("is-front");
+      lastPlayed = front.src;
+      play(front);
+      load(back, draw());
+    }
+
+    var begun = false;
+    function start() {
+      if (!begun) {
+        begun = true;
+        begin();
+        return;
+      }
+      play(front);
+      if (fading) play(back);
+    }
+
+    function stop() {
+      front.pause();
+      back.pause();
+    }
+
+    // The page's own hook — replay.js holds the backdrop while the sneak peek
+    // is open and lets it go after, and a rider's own pause outranks it.
+    window.TBSplash = {
+      pause: function () {
+        held = true;
+        stop();
+      },
+      resume: function () {
+        held = false;
+        if (!userPaused) start();
+      },
+    };
 
     // Deliberately a sibling of .splash-media rather than a child: that wrapper
     // is aria-hidden and pointer-events: none, so a control inside it would be
     // invisible to assistive tech and unclickable besides.
-    const button = document.createElement("button");
+    var button = document.createElement("button");
     button.type = "button";
     button.className = "video-toggle";
     document.body.appendChild(button);
 
     function paint() {
-      const label = paused ? "Play the background video" : "Pause the background video";
-      button.innerHTML = paused ? ICON_PLAY : ICON_PAUSE;
+      var label = userPaused ? "Play the background video" : "Pause the background video";
+      button.innerHTML = userPaused ? ICON_PLAY : ICON_PAUSE;
       button.setAttribute("aria-label", label);
       button.title = label;
     }
 
     button.addEventListener("click", function () {
-      paused = !paused;
-      if (paused) video.pause();
-      else start();
-      writeStore(VIDEO_KEY, paused ? "paused" : "playing");
+      userPaused = !userPaused;
+      if (userPaused) stop();
+      else if (!held) start();
+      writeStore(VIDEO_KEY, userPaused ? "paused" : "playing");
       paint();
     });
 
-    if (!paused) start();
+    if (!userPaused) start();
     paint();
   }
 

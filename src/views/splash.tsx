@@ -113,20 +113,22 @@ export function alphaSplash(): string {
 // Moved here from routes/auth.tsx when the invite page became the fourth: a
 // route module importing chrome from another route module is the wrong shape,
 // and this file is already where the splash-surface views live.
+//
+// TWO <video>s, NO src, since 2026-09-20: the backdrop is a folder of clips
+// shuffled and crossfaded by initSplashVideo() in site.js, and the pair is
+// what a crossfade needs — one playing in front, the next preloaded behind.
+// The list arrives as window.TB.splashClips; a src is assigned in script and
+// never in markup, so reduced motion, a remembered pause, and Save-Data fetch
+// no bytes at all. The poster stays the layer's own background and covers
+// no-JS, reduced motion, and an empty folder.
 function SplashMedia() {
+  const video = (
+    <video class="splash-video" muted playsinline preload="none" disablepictureinpicture disableremoteplayback></video>
+  )
   return (
     <div class="splash-media" aria-hidden="true">
-      <video
-        class="splash-video"
-        data-src="/video/routeloop-intro.mp4"
-        autoplay
-        loop
-        muted
-        playsinline
-        preload="none"
-        disablepictureinpicture
-        disableremoteplayback
-      ></video>
+      {video}
+      {video}
       {/* Dark mode's whole effect on this page — see .splash-scrim. */}
       <div class="splash-scrim"></div>
     </div>

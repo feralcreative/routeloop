@@ -4,6 +4,7 @@
 // back to the site from a map. `variant` is what that split collapses into.
 import type { UserRow } from '../db/schema'
 import { alphaSplash } from './splash'
+import { SPLASH_CLIPS } from './splash-clips'
 import { stage } from './stage'
 
 export { esc } from './esc'
@@ -1374,7 +1375,7 @@ ${isMap ? DRAWER_RESTORE : FOLD_RESTORE}
 ${opts.splash === false ? '' : alphaSplash()}
 ${releaseNotesModal()}
 ${opts.noscript ? `<noscript><p style="padding:1em">${esc(opts.noscript)}</p></noscript>` : ''}
-${jsonScript('TB', { ...(opts.tb ?? {}), version: APP_VERSION })}
+${jsonScript('TB', { ...(opts.tb ?? {}), ...(variant === 'splash' ? { splashClips: SPLASH_CLIPS } : {}), version: APP_VERSION })}
 ${jsonScript('TBVocabData', { terms: clientTerms(), profile: vocabOf(profileOf(opts.user)), ride: opts.ride ?? null })}
 <!--
   The error ring buffer, on every page and first in the list.
