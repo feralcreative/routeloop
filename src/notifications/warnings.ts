@@ -26,12 +26,14 @@
 // stamp is compared against the deadline it was supposedly about, and a stamp
 // older than the current hold began is a warning about a purge that never
 // happened.
-import { and, gt, inArray, isNotNull, lt, lte, or, sql } from 'drizzle-orm'
+import { and, desc, eq, gt, inArray, isNotNull, lt, lte, ne, or, sql } from 'drizzle-orm'
 import { db } from '../db/index'
-import { rides, users } from '../db/schema'
+import { notifications, rides, userProfiles, users } from '../db/schema'
 import { TRASH_HOLD_DAYS } from '../trash/policy'
 import { DELETION_HOLD_DAYS } from '../account/policy'
+import { toDateFormat } from '../views/date-format'
 import { notifyAccountPurgeSoon, notifyBinPurgeSoon, notifyQuotaFull } from './senders'
+import { binDigest } from './bin-digest'
 
 /**
  * How much notice a rider gets before something is destroyed.
@@ -151,6 +153,83 @@ export async function warnRidePurges(now: Date = new Date()): Promise<number> {
     notifyBinPurgeSoon(ownerId, bin, now)
   }
   return due.length
+}
+
+/**
+ * The pile the per-ride warning left behind, folded into one row per rider.
+ *
+ * `notifyOnce` keeps one row per rider from the first bump on — but a rider
+ * whose bin was warned about under the old code, and whose next bump is days
+ * away or never, would sit with eight read rows until the fortnight prune
+ * took them. Ziad saw exactly that on the day this shipped. So the sweep also
+ * folds any rider holding more than one `trash_purge_soon` row: the newest
+ * row is rewritten to the digest of their current bin and the rest are
+ * deleted. SILENTLY — it keeps the newest row's read and delivered state and
+ * its clock, and sends nothing, because these are rows the rider has already
+ * seen and a cleanup must not read as news. A rider whose bin has since
+ * emptied loses the rows outright: a warning about nothing is not a record.
+ *
+ * Idempotent and nearly free after its first pass, since the `having` finds
+ * nobody once every rider is down to one row.
+ */
+export async function collapseBinWarnings(now: Date = new Date()): Promise<number> {
+  const piles = await db
+    .select({ userId: notifications.userId })
+    .from(notifications)
+    .where(eq(notifications.event, 'trash_purge_soon'))
+    .groupBy(notifications.userId)
+    .having(sql`count(*) > 1`)
+    .limit(50)
+  if (piles.length === 0) return 0
+
+  for (const { userId } of piles) {
+    const [newest] = await db
+      .select({ id: notifications.id })
+      .from(notifications)
+      .where(and(eq(notifications.userId, userId), eq(notifications.event, 'trash_purge_soon')))
+      .orderBy(desc(notifications.createdAt), desc(notifications.id))
+      .limit(1)
+    if (!newest) continue
+    const bin = await db
+      .select({ title: rides.title, purgeAfter: rides.purgeAfter })
+      .from(rides)
+      .where(
+        and(
+          eq(rides.ownerId, userId),
+          isNotNull(rides.deletedAt),
+          isNotNull(rides.purgeAfter),
+          gt(rides.purgeAfter, now),
+        ),
+      )
+      .orderBy(rides.purgeAfter)
+    if (bin.length === 0) {
+      await db
+        .delete(notifications)
+        .where(and(eq(notifications.userId, userId), eq(notifications.event, 'trash_purge_soon')))
+      continue
+    }
+    const [p] = await db
+      .select({ f: userProfiles.dateFormat })
+      .from(userProfiles)
+      .where(eq(userProfiles.userId, userId))
+      .limit(1)
+    const { title, body } = binDigest(
+      bin.map((b) => ({ title: b.title, purgeAfter: b.purgeAfter as Date })),
+      now,
+      toDateFormat(p?.f),
+    )
+    await db.update(notifications).set({ title, body }).where(eq(notifications.id, newest.id))
+    await db
+      .delete(notifications)
+      .where(
+        and(
+          eq(notifications.userId, userId),
+          eq(notifications.event, 'trash_purge_soon'),
+          ne(notifications.id, newest.id),
+        ),
+      )
+  }
+  return piles.length
 }
 
 /**
