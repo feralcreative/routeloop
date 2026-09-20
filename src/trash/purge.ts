@@ -18,7 +18,7 @@ import { and, isNotNull, isNull, lte, or, sql } from 'drizzle-orm'
 import { db } from '../db/index'
 import { placeGroups, places, rides } from '../db/schema'
 import { deleteMapFiles } from '../maps/storage'
-import { warnRidePurges } from '../notifications/warnings'
+import { collapseBinWarnings, warnRidePurges } from '../notifications/warnings'
 import { destroyAbandonedTourRides } from '../tour/service'
 
 /**
@@ -127,6 +127,9 @@ export async function purgeTrash(now: Date = new Date()): Promise<TrashPurgeResu
   // just happened. Its own failure is swallowed: a missed warning must not stop
   // the bin being emptied, which is the job this function is actually for.
   await warnRidePurges(now).catch((err) => console.warn('[purge] purge warnings failed', err))
+  // AND THE PILE THE PER-RIDE WARNING LEFT, folded to one row per rider on the
+  // same sweep — a no-op once it has run, and swallowed like the warning.
+  await collapseBinWarnings(now).catch((err) => console.warn('[purge] collapsing bin warnings failed', err))
   // AND THE TOUR'S LEFTOVERS, on the same sweep for the same reason: a tour
   // ride abandoned by a closed tab is binned here a day later, and binning
   // is all this does — the purge above takes it thirty days after that like
