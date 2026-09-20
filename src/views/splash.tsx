@@ -127,6 +127,8 @@ function SplashMedia() {
         disablepictureinpicture
         disableremoteplayback
       ></video>
+      {/* Dark mode's whole effect on this page — see .splash-scrim. */}
+      <div class="splash-scrim"></div>
     </div>
   )
 }

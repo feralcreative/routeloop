@@ -1,6 +1,32 @@
 @use "sass:color";
 @use "tokens" as *;
 @use "motion" as *;
+@use "palette";
+
+// **NOTHING IN THE SPLASH FOREGROUND FOLLOWS THE SCHEME.** Ziad's call,
+// 2026-09-20. The page is dark-native — white type over footage, white
+// boxes with dark type — which is what dark mode looks like already, and
+// letting `$text` and `$white` invert here put dark type on a dark clip
+// while the rest stayed white. Every scheme-following token this sheet
+// paints with is pinned to its DEFAULT LIGHT value through `palette.light()`,
+// the `.feedback-flow` arrangement, under an `$sp-` name so a bare token
+// cannot creep back in unnoticed. Dark mode changes exactly one thing on
+// these pages: `.splash-scrim`, a dark layer over the clip and the poster and
+// under everything else. `$splash-ink` and the `rgba(255, 255, 255, …)`
+// literals never followed the scheme and stay as they are.
+$sp-white: palette.light("white");
+$sp-text: palette.light("text");
+$sp-brand: palette.light("brand");
+$sp-accent: palette.light("accent");
+$sp-grey: palette.light("grey");
+$sp-neutral-43: palette.light("neutral-43");
+$sp-neutral-63: palette.light("neutral-63");
+$sp-neutral-76: palette.light("neutral-76");
+$sp-neutral-96: palette.light("neutral-96");
+$sp-stop: palette.light("stop");
+$sp-go: palette.light("go");
+$sp-interstate: palette.light("interstate");
+$sp-interstate-d6: palette.light("interstate-d6");
 
 // The sign-in page is the only full-bleed marketing surface in the app: a
 // looping aerial clip behind the pitch. Every rule here assumes light type over
@@ -83,7 +109,7 @@
 // eyebrow has air between every letter, so it needs weight to hold as a block,
 // while the h1 has size doing that job for it.
 .eyebrow {
-  color: $brand;
+  color: $sp-brand;
   font-weight: 700;
   text-transform: uppercase;
   letter-spacing: 0.12em;
@@ -91,7 +117,7 @@
 
 .splash-copy {
   max-width: 620px;
-  color: $neutral-43;
+  color: $sp-neutral-43;
   font-size: 1.25rem;
 }
 
@@ -120,7 +146,7 @@
   // The accent edge does the work a heading would, without adding one: it marks
   // the block as status rather than pitch, beside a headline it must not
   // compete with.
-  border-left: 4px solid $accent;
+  border-left: 4px solid $sp-accent;
   border-radius: 10px;
   @include over-video-panel;
 
@@ -133,17 +159,17 @@
   }
 
   strong {
-    color: $white;
+    color: $sp-white;
   }
 
   a {
-    color: $accent;
+    color: $sp-accent;
   }
 }
 
 // The refusal is the headline of the block; everything under it is support.
 .splash-gate-lede {
-  color: $white;
+  color: $sp-white;
   font-size: 1.15rem;
   font-weight: 800;
 }
@@ -168,15 +194,15 @@
   max-width: var(--control-width);
   padding: 0.85rem 1rem;
   text-align: center;
-  background: $white;
-  border: 1px solid $grey;
+  background: $sp-white;
+  border: 1px solid $sp-grey;
   border-radius: 8px;
   text-decoration: none;
-  color: $text;
+  color: $sp-text;
   font-weight: 600;
 
   &:hover {
-    border-color: $neutral-76;
+    border-color: $sp-neutral-76;
   }
 }
 
@@ -205,7 +231,7 @@
 }
 
 .note {
-  color: $neutral-63;
+  color: $sp-neutral-63;
   font-size: 0.9em;
   max-width: 480px;
 }
@@ -237,14 +263,14 @@
     box-sizing: border-box;
     padding: 0.85rem 0.9rem;
     font: inherit;
-    color: $text;
-    background: $white;
+    color: $sp-text;
+    background: $sp-white;
     border: 1px solid transparent;
     border-radius: 8px;
     box-shadow: 0 8px 24px rgba(0, 0, 0, 0.3);
 
     &:focus-visible {
-      outline: 2px solid $accent;
+      outline: 2px solid $sp-accent;
       outline-offset: 2px;
     }
   }
@@ -287,19 +313,19 @@
     width: 100%;
     padding: 0.85rem 0.9rem;
     font: inherit;
-    color: $text;
-    background: $white;
+    color: $sp-text;
+    background: $sp-white;
     border: 1px solid transparent;
     border-radius: 8px;
     box-shadow: 0 8px 24px rgba(0, 0, 0, 0.3);
 
     &:focus-visible {
-      outline: 2px solid $accent;
+      outline: 2px solid $sp-accent;
       outline-offset: 2px;
     }
 
     &[aria-invalid="true"] {
-      border-color: $stop;
+      border-color: $sp-stop;
     }
   }
 }
@@ -339,14 +365,14 @@
     text-align: center;
     font-weight: 600;
     text-decoration: none;
-    color: $text;
-    background: $white;
-    border: 1px solid $grey;
+    color: $sp-text;
+    background: $sp-white;
+    border: 1px solid $sp-grey;
     border-radius: 8px;
 
     &:hover,
     &:focus-visible {
-      border-color: $neutral-76;
+      border-color: $sp-neutral-76;
     }
   }
 }
@@ -377,6 +403,32 @@
   object-fit: cover;
 }
 
+// Dark mode on a splash page: this, and nothing else. A dark layer over the
+// clip and the poster, under the ramps and the copy, faded in under either
+// route to the dark scheme — the same pair of selectors _theme.scss switches
+// the tokens on. 0.45 was picked by eye against the darkest and brightest
+// clips; the clip pipeline's matched exposure is what lets one number serve.
+.splash-scrim {
+  position: absolute;
+  inset: 0;
+  background: $splash-ink;
+  opacity: 0;
+  transition: opacity 0.35s ease;
+  @include still {
+    transition: none;
+  }
+}
+
+:root[data-scheme="dark"] .splash-scrim {
+  opacity: 0.45;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root:not([data-scheme]) .splash-scrim {
+    opacity: 0.45;
+  }
+}
+
 // Two soft passes and no flat tint: a horizontal ramp that settles the text
 // column and a shallow bottom vignette, both clearing to fully transparent so
 // the right two-thirds of the frame stays the actual footage. Legibility is
@@ -395,7 +447,7 @@
   width: 2.5rem;
   height: 2.5rem;
   padding: 0;
-  color: $white;
+  color: $sp-white;
   background: rgba(6, 10, 12, 0.45);
   border: 1px solid rgba(255, 255, 255, 0.28);
   border-radius: 50%;
@@ -416,7 +468,7 @@
   }
 
   &:focus-visible {
-    outline: 2px solid $accent;
+    outline: 2px solid $sp-accent;
     outline-offset: 2px;
   }
 }
@@ -434,7 +486,7 @@
 
 body.splash-page {
   background: $splash-ink; // what shows before the first frame decodes
-  color: $white;
+  color: $sp-white;
 
   // This page must never scroll, so exactly one element owns the vertical space —
   // and that element is .page-wrap, not .splash. page() renders no header on this
@@ -486,7 +538,7 @@ body.splash-page {
   // soft shadow reads as depth rather than as a drop shadow, and it only has to
   // survive the worst frame in the clip.
   .splash h1 {
-    color: $white;
+    color: $sp-white;
     text-wrap: balance;
     text-shadow:
       0 1px 2px rgba(6, 10, 12, 0.55),
@@ -507,7 +559,7 @@ body.splash-page {
 
   // $accent, not $brand — the latter is far too dark to sit on the footage.
   .eyebrow {
-    color: $accent;
+    color: $sp-accent;
   }
 
   .splash-copy {
@@ -530,7 +582,7 @@ body.splash-page {
     &:hover,
     &:focus-visible {
       border-color: transparent;
-      background: $neutral-96;
+      background: $sp-neutral-96;
     }
   }
 
@@ -540,16 +592,16 @@ body.splash-page {
   // halves of .magic-form sit at one height over the footage.
   .btn-sign {
     box-shadow:
-      inset 0 0 0 3px $interstate,
-      inset 0 0 0 5px $white,
+      inset 0 0 0 3px $sp-interstate,
+      inset 0 0 0 5px $ink-light,
       0 8px 24px rgba(0, 0, 0, 0.3);
 
     &:hover {
-      $lit: $interstate-d6;
+      $lit: $sp-interstate-d6;
 
       box-shadow:
         inset 0 0 0 3px $lit,
-        inset 0 0 0 5px $white,
+        inset 0 0 0 5px $ink-light,
         0 8px 24px rgba(0, 0, 0, 0.3);
     }
   }
@@ -584,7 +636,7 @@ body.splash-page {
 
     &:hover,
     &:focus-visible {
-      color: $white;
+      color: $sp-white;
     }
   }
 
@@ -592,7 +644,7 @@ body.splash-page {
     color: rgba(255, 255, 255, 0.85);
 
     a {
-      color: $accent;
+      color: $sp-accent;
     }
   }
 
@@ -613,13 +665,13 @@ body.splash-page {
     color: rgba(255, 255, 255, 0.88);
     background: color.change($splash-ink, $alpha: 0.78);
     border: 1px solid rgba(255, 255, 255, 0.16);
-    border-left: 4px solid $go;
+    border-left: 4px solid $sp-go;
     @include over-video-panel;
 
     &.is-error {
       background: color.change($splash-ink, $alpha: 0.78);
       border-color: rgba(255, 255, 255, 0.16);
-      border-left-color: $stop;
+      border-left-color: $sp-stop;
     }
   }
 }
