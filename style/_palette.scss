@@ -171,7 +171,11 @@ $-signs-default: (
   "interstate": #266149,
   "speed": #efefef,
   "stop": #bb0000,
-  "detour": #fa8700,
+  // #ff6500 SINCE 2026-09-20, Ziad's call — the orange the beta sign is drawn
+  // in, so the work-zone orange and the sign agree. It was #fa8700 (from
+  // 2026-09-09, when $fuel-low took this value). Black legend 7.15:1, from
+  // 8.53; the two other themes keep their own oranges.
+  "detour": #ff6500,
   "warning": #ffac00,
   "yield": #ffdd00,
   "go": #41ae4d,
