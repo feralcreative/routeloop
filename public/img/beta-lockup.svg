@@ -18,7 +18,7 @@
 </g>
 <path d="M216.51 59.6639L219.052 61.1317L118.14 235.916L115.598 234.449L216.51 59.6639ZM215.972 57.6588L160.677 25.7339C159.975 25.3286 159.077 25.5691 158.672 26.2712L57.7597 201.056C57.3543 201.758 57.5949 202.656 58.2969 203.061L113.592 234.986C114.294 235.391 115.192 235.151 115.598 234.449L118.14 235.916L118.022 236.11C116.797 238.003 114.331 238.664 112.324 237.636L112.125 237.528L56.8291 205.603C54.7888 204.425 54.0478 201.861 55.1091 199.787L55.2173 199.588L156.129 24.8034C157.345 22.6972 160.038 21.9756 162.145 23.1916L217.44 55.1165L217.633 55.2347C219.589 56.5001 220.23 59.0913 219.052 61.1317L216.51 59.6639C216.915 58.9618 216.674 58.0641 215.972 57.6588Z" fill="black"/>
 <g filter="url(#filter3_f_261_2722)">
-<circle cx="35" cy="50.2917" r="7" fill="black"/>
+<circle cx="35" cy="50.2917" r="4" fill="black"/>
 </g>
 <defs>
 <filter id="filter0_f_261_2722" x="16.7188" y="-4.76837e-07" width="224.889" height="275.122" filterUnits="userSpaceOnUse" color-interpolation-filters="sRGB">
@@ -48,7 +48,7 @@
 <feBlend mode="normal" in2="BackgroundImageFix" result="effect1_dropShadow_261_2722"/>
 <feBlend mode="normal" in="SourceGraphic" in2="effect1_dropShadow_261_2722" result="shape"/>
 </filter>
-<filter id="filter3_f_261_2722" x="24" y="39.2917" width="22" height="22" filterUnits="userSpaceOnUse" color-interpolation-filters="sRGB">
+<filter id="filter3_f_261_2722" x="27" y="42.2917" width="16" height="16" filterUnits="userSpaceOnUse" color-interpolation-filters="sRGB">
 <feFlood flood-opacity="0" result="BackgroundImageFix"/>
 <feBlend mode="normal" in="SourceGraphic" in2="BackgroundImageFix" result="shape"/>
 <feGaussianBlur stdDeviation="2" result="effect1_foregroundBlur_261_2722"/>
