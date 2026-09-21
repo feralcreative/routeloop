@@ -105,11 +105,11 @@ describe('the two implementations agree', () => {
       expect(C.twistScale(b.rank, b.label, title)).toBe(serverScale(b.rank, b.label, title))
     }
     const html = serverScale(4, 'Twisty')
-    expect(html).toContain('role="img"')
-    expect(html).toContain('aria-label="Twisty, 4 of 5"')
-    // The drawing is the stylesheet's, keyed on the rank; the span is empty.
+    // The drawing is the stylesheet's, keyed on the rank, and decorative —
+    // the word beside it is the visible name.
     expect(html).toContain('data-rank="4"')
-    expect(html).toMatch(/><\/span>$/)
+    expect(html).toContain('aria-hidden="true"')
+    expect(html).toMatch(/<\/i>Twisty<\/span>$/)
   })
 
   it('on the constants themselves, so a tuned threshold cannot land on one side only', () => {

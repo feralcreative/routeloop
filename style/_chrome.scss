@@ -2103,11 +2103,15 @@ ul.cards {
   }
 }
 
-// THE TWISTINESS SCALE: one line that gets wavier with the band. Ziad's call,
-// 2026-09-20, over the five words and over five repeated curve marks, which
-// read as a rating — a sparkline says "how twisty" at a glance. The markup is
-// one empty span from twistScale() (src/views/twist-scale.ts and
-// public/js/twist.js) carrying `data-rank`, so this rule draws it on the
+// THE TWISTINESS RATING: the band's line, and the band's word beside it.
+// Ziad's call, 2026-09-20, over the five words alone, over five repeated curve
+// marks (they read as a rating), and — once all five lines were on one page —
+// over the line alone, which told a rider nothing without the others to
+// compare it to. Of the ways to say "X of 5" he chose the word; the line is
+// what makes "Twisty" mean something at a glance and the word is what makes
+// the line mean something on its own. The markup is one span from
+// twistScale() (src/views/twist-scale.ts and public/js/twist.js) holding an
+// empty `<i>` with `data-rank` and the word, so this rule draws it on the
 // dashboard's hero and record, the viewer's legend and the builder's totals
 // line alike, and the five drawings exist here and nowhere else.
 //
@@ -2120,12 +2124,19 @@ ul.cards {
 // anything. Round caps; 2.5 units of stroke, which holds at the legend's size.
 //
 // Sized in em so it follows the type it sits in: 3em wide, 0.75em tall, on the
-// middle of the line.
+// middle of the line, a word-space from the word.
+.twist-rating {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4em;
+  white-space: nowrap;
+}
+
 .twist-scale {
   display: inline-block;
+  flex: none;
   width: 3em;
   height: 0.75em;
-  vertical-align: middle;
   background: currentColor;
   -webkit-mask: var(--twist-line) center / contain no-repeat;
   mask: var(--twist-line) center / contain no-repeat;
@@ -2145,4 +2156,16 @@ ul.cards {
   .twist-scale[data-rank="#{$rank}"] {
     --twist-line: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 96 24'%3E%3Cpath d='#{$d}' fill='none' stroke='%23000' stroke-width='2.5' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");
   }
+}
+
+// The key in the dashboard's `?` bubble: every band's line with its word, one
+// per row, twistiest first. The bubble's own type size applies; the rows only
+// need to stack and align their lines.
+.twist-key {
+  display: grid;
+  gap: 0.35em;
+}
+
+.twist-key-row .twist-rating {
+  display: flex;
 }

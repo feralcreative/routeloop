@@ -785,12 +785,11 @@
   -webkit-box-orient: vertical;
   overflow: hidden;
 
-  // The twist record's value is the twistiness line rather than a word, and at
-  // the title's size it sat well under the numerals on the cards beside it.
-  // 1.6em puts its waves at about the numeral's cap height.
+  // The twist record's value is the band's line and its word; the line takes
+  // a little more than the word's size so its waves read beside a 1.25rem
+  // headline rather than as a smudge under it.
   .twist-scale {
-    font-size: 1.6em;
-    vertical-align: 0;
+    font-size: 1.3em;
   }
 }
 
