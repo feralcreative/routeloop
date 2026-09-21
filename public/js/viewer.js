@@ -527,15 +527,11 @@
         // column existed, or one with no geometry. Rendering null as "Straight"
         // would be a claim the data does not support, so it says nothing.
         //
-        // The band as the twistiness line, the word and the number on hover —
-        // the same scale the dashboard draws, from the same module.
+        // The band's line and word, the number on hover — the same rating the
+        // dashboard draws, from the same module.
         const twist = twistLabel(r.twistinessDpm)
           ? '<span class="route-twist">' +
-            twistScale(
-              twistRank(r.twistinessDpm),
-              twistLabel(r.twistinessDpm),
-              twistLabel(r.twistinessDpm) + " · " + twistDetail(r),
-            ) +
+            twistScale(twistRank(r.twistinessDpm), twistLabel(r.twistinessDpm), twistDetail(r)) +
             "</span>"
           : "";
         // The group's own name and color, on routes that belong to one. Nothing at

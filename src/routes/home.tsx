@@ -38,11 +38,11 @@ import { Hono, type Context } from 'hono'
 import { raw } from 'hono/html'
 import { currentUser, requireActive, type AuthEnv } from '../auth/middleware'
 import { isPhone } from '../device'
-import { page, wordsOf } from '../views/layout'
+import { fieldHelp, page, wordsOf } from '../views/layout'
 import { asset } from '../views/assets'
 import { icon } from '../views/icon'
 import { CardFace } from '../views/cards'
-import { twistScale } from '../views/twist-scale'
+import { twistKey, twistScale } from '../views/twist-scale'
 import { cachedGlobalStats, cachedUsedBytes, loadStats } from '../stats/query'
 import { shapeStats } from '../stats/shape'
 import type { DashboardStats, MonthPoint, RecordTile, RoleBar, Tile } from '../stats/shape'
@@ -285,8 +285,8 @@ function RecordCard({ r }: { r: RecordTile }) {
             */}
         <span class={r.numeric ? 'record-value is-figure' : 'record-value is-text'}>
           <span class="record-figure" data-count={r.numeric ? r.value : undefined}>
-            {/* The twist record draws its band as the twistiness line; the word is its name. */}
-            {r.rank ? raw(twistScale(r.rank, r.value, r.hint ? `${r.value} · ${r.hint}` : r.value)) : r.value}
+            {/* The twist record draws its band's line beside the word. */}
+            {r.rank ? raw(twistScale(r.rank, r.value, r.hint ?? r.value)) : r.value}
           </span>
           {r.unit && <span class="record-unit">{r.unit}</span>}
         </span>
@@ -549,8 +549,19 @@ async function dashboard(c: Context<AuthEnv>) {
                 {s.twist && (
                   <>
                     {SEP}
-                    Twistiness{' '}
-                    {raw(twistScale(s.twist.rank, s.twist.label, `${s.twist.label} · ${s.twist.dpm}${s.twist.unit}`))}
+                    {raw(
+                      twistScale(s.twist.rank, s.twist.label, `${s.twist.dpm}${s.twist.unit} of heading change`),
+                    )}{' '}
+                    overall
+                    {/*
+                    THE KEY IS A `?` BUBBLE, ALL FIVE LINES WITH THEIR WORDS.
+                    Ziad's call, 2026-09-20: one line beside one word says
+                    which band, and the bubble says what the bands are — the
+                    thing a first-time reader wants without leaving for the
+                    FAQ. fieldHelp() takes a string; the key is markup, so it
+                    arrives through raw().
+                  */}
+                    {raw(fieldHelp('twist', 'twistiness', raw(twistKey()) as unknown as string))}
                   </>
                 )}
               </span>
