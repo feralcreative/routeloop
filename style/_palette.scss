@@ -144,7 +144,7 @@ $-neutrals-dark: (
   // $page, which takes -98 in the dark: the sign-in page's ground, and the
   // one near-black the product already had.
   96: #121212,
-  98: #0a0e11,
+  98: #0a0e11
 );
 
 // --- The road-sign palette, which is the theme axis --------------------------
@@ -175,7 +175,7 @@ $-signs-default: (
   // in, so the work-zone orange and the sign agree. It was #fa8700 (from
   // 2026-09-09, when $fuel-low took this value). Black legend 7.15:1, from
   // 8.53; the two other themes keep their own oranges.
-  "detour": #ff6500,
+  "detour": #ff741a,
   "warning": #ffac00,
   "yield": #ffdd00,
   "go": #41ae4d,
