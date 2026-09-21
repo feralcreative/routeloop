@@ -527,8 +527,8 @@
         // column existed, or one with no geometry. Rendering null as "Straight"
         // would be a claim the data does not support, so it says nothing.
         //
-        // The band as five marks, the word and the number on hover — the same
-        // scale the dashboard draws, from the same module.
+        // The band as the twistiness line, the word and the number on hover —
+        // the same scale the dashboard draws, from the same module.
         const twist = twistLabel(r.twistinessDpm)
           ? '<span class="route-twist">' +
             twistScale(

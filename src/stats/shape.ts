@@ -407,8 +407,8 @@ export type RecordTile = {
   hint?: string
   kind: RecordKind
   numeric: boolean
-  /** The twist record only: the band as 1–5, drawn as marks in place of the
-   *  word in `value`, which stays as the marks' accessible name. */
+  /** The twist record only: the band as 1–5, drawn as the twistiness line in
+   *  place of the word in `value`, which stays as the line's accessible name. */
   rank?: number
   /** The ride the record was set on, so the card can show its map and link to
    *  it. Absent only when the record has no ride at all, which no longer
@@ -578,7 +578,7 @@ export function shapeStats(
   // in your library there are twenty miles like that".
   //
   // The value is a WORD — twistLabel returns "Very twisty", not a number — and
-  // the card draws it as the five-mark scale with the word as the marks' name,
+  // the card draws it as the twistiness line with the word as the line's name,
   // so this one takes the text treatment and the degrees-per-mile figure stays
   // in the hint, where it already was. Putting the number in `value` instead
   // would read as a better record than the label it replaced, and it is the

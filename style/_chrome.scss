@@ -2103,41 +2103,46 @@ ul.cards {
   }
 }
 
-// THE TWISTINESS SCALE: a band drawn as that many road-curve marks out of five.
-// Ziad's call, 2026-09-20, over the five words — see TWIST_BANDS in
-// src/maps/twist.ts. The markup comes from twistScale() (src/views/twist-scale.ts
-// and public/js/twist.js), so one rule draws it on the dashboard's hero and
-// record, the viewer's legend and the builder's totals line alike.
+// THE TWISTINESS SCALE: one line that gets wavier with the band. Ziad's call,
+// 2026-09-20, over the five words and over five repeated curve marks, which
+// read as a rating — a sparkline says "how twisty" at a glance. The markup is
+// one empty span from twistScale() (src/views/twist-scale.ts and
+// public/js/twist.js) carrying `data-rank`, so this rule draws it on the
+// dashboard's hero and record, the viewer's legend and the builder's totals
+// line alike, and the five drawings exist here and nowhere else.
 //
-// A MASK IN currentColor, the sign-arrow($ink) construction: the marks take
-// whatever ink the text around them has — the record's accent, the legend's
-// muted gray — and a lit mark and an unlit one differ only in opacity, so the
-// scale reads in every palette without a color of its own. The glyph is one
-// S-bend stroke with round caps on a 24-unit box; thin it and it stops reading
-// as a road. It is the record mark's own curve (icon-record-twist.svg), so
-// the disc on the card and the marks under it are one drawing at two sizes.
+// A MASK IN currentColor, the sign-arrow($ink) construction: the line takes
+// whatever ink the text around it has — the record's accent, the legend's
+// muted gray — so it reads in every palette without a color of its own. Each
+// path is a sine-like run of quadratic curves on a 96×24 box, and the ranks
+// step BOTH frequency and amplitude, so 2 against 3 is not a matter of counting
+// waves. Rank 1 is a flat line, because a straight road is not zero of
+// anything. Round caps; 2.5 units of stroke, which holds at the legend's size.
 //
-// Sized in em so it follows the type it sits in, and dropped a shade below the
-// baseline because a mark's box is taller than the x-height it sits beside.
+// Sized in em so it follows the type it sits in: 3em wide, 0.75em tall, on the
+// middle of the line.
 .twist-scale {
-  display: inline-flex;
-  align-items: center;
-  gap: 0.08em;
-  vertical-align: -0.12em;
+  display: inline-block;
+  width: 3em;
+  height: 0.75em;
+  vertical-align: middle;
+  background: currentColor;
+  -webkit-mask: var(--twist-line) center / contain no-repeat;
+  mask: var(--twist-line) center / contain no-repeat;
 }
 
-.twist-mark {
-  flex: none;
-  width: 0.95em;
-  height: 0.95em;
-  background: currentColor;
-  opacity: 0.22;
-  -webkit-mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Cpath d='M6 20.5C6 12 18 12 18 3.5' fill='none' stroke='%23000' stroke-width='3.4' stroke-linecap='round'/%3E%3C/svg%3E")
-    center / contain no-repeat;
-  mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Cpath d='M6 20.5C6 12 18 12 18 3.5' fill='none' stroke='%23000' stroke-width='3.4' stroke-linecap='round'/%3E%3C/svg%3E")
-    center / contain no-repeat;
-
-  &.is-on {
-    opacity: 1;
+@each $rank,
+  $d
+    in (
+      1: "M3 12H93",
+      2: "M3 12 Q14.3 7.0 25.5 12 T48.0 12 T70.5 12 T93.0 12",
+      3: "M3 12 Q10.5 3.0 18.0 12 T33.0 12 T48.0 12 T63.0 12 T78.0 12 T93.0 12",
+      4: "M3 12 Q8.6 -2.0 14.3 12 T25.5 12 T36.8 12 T48.0 12 T59.3 12 T70.5 12 T81.8 12 T93.0 12",
+      5:
+        "M3 12 Q6.8 -7.0 10.5 12 T18.0 12 T25.5 12 T33.0 12 T40.5 12 T48.0 12 T55.5 12 T63.0 12 T70.5 12 T78.0 12 T85.5 12 T93.0 12"
+    )
+{
+  .twist-scale[data-rank="#{$rank}"] {
+    --twist-line: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 96 24'%3E%3Cpath d='#{$d}' fill='none' stroke='%23000' stroke-width='2.5' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");
   }
 }

@@ -785,9 +785,9 @@
   -webkit-box-orient: vertical;
   overflow: hidden;
 
-  // The twist record's value is the five-mark scale rather than a word, and at
-  // the title's size five marks sat well under the numerals on the cards
-  // beside it. 1.6em puts a mark at about the numeral's cap height.
+  // The twist record's value is the twistiness line rather than a word, and at
+  // the title's size it sat well under the numerals on the cards beside it.
+  // 1.6em puts its waves at about the numeral's cap height.
   .twist-scale {
     font-size: 1.6em;
     vertical-align: 0;

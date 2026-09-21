@@ -85,12 +85,14 @@ const DEG = 180 / Math.PI
 //
 // EACH BAND IS ALSO A RANK, 1 TO 5, AND THE RANK IS WHAT A RIDER SEES. Ziad's
 // call, 2026-09-20: the words were ambiguous — "Some curves" against "Mostly
-// straight" is not an obvious order — so every surface draws the rank as that
-// many road-curve marks out of five (`twistScale()` in src/views/twist-scale.ts
-// and public/js/twist.js). The word survives as the mark's accessible name and
-// its hover, and as what the FAQ calls each level. Five marks, not letter
-// grades or a percentage: a straight highway is a property rather than an F,
-// and a percentage of an unbounded figure means nothing.
+// straight" is not an obvious order — so every surface draws the rank as one
+// line that gets wavier with it, flat for 1 and a tight sine for 5
+// (`twistScale()` in src/views/twist-scale.ts and public/js/twist.js, drawn by
+// `.twist-scale[data-rank]` in _chrome.scss). The word survives as the line's
+// accessible name and its hover, and as what the FAQ calls each level. A
+// sparkline, not letter grades, a percentage or a row of marks: a straight
+// highway is a property rather than an F, a percentage of an unbounded figure
+// means nothing, and five repeated glyphs read as a rating — Ziad hated them.
 export const TWIST_BANDS: { min: number; rank: number; label: string }[] = [
   { min: 240, rank: 5, label: 'Very twisty' },
   { min: 150, rank: 4, label: 'Twisty' },
