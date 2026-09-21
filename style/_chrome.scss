@@ -670,6 +670,9 @@ $octagon: polygon(
     height: auto;
     max-width: none;
     pointer-events: none;
+    // The sign is inline SVG with its field in currentColor, so this is the
+    // one place its orange is decided — the palette's, not the file's.
+    color: $detour;
     // Sits over the page below the header, which is what a hanging sign does.
     z-index: 1;
   }

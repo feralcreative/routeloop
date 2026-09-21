@@ -21,12 +21,39 @@
 // nail the composites use, sized per surface, and it goes with one class when
 // the stage does. The composites stay for the rasters — email and the OG
 // card — where there is no CSS. `BETA_SIGN` in views/stage.ts is the switch.
+//
+// **AND SINCE 2026-09-21 THE SIGN IS INLINE, IN `currentColor`, PAINTED
+// `$detour`.** Ziad's call: the sign's orange is the palette's work-zone
+// orange, and an `<img>` has no inherited color to resolve `currentColor`
+// against — the views/icon.ts argument. The file's field is `currentColor`;
+// `.logo-beta` in _chrome.scss sets `color: $detour`, so the sign follows the
+// theme's orange (and any future retune of it) with no re-export. Read from
+// disk per render on an mtime cache, the icon.ts arrangement, so a redrawn
+// file shows up on reload under `npm run dev`. The rasters keep their own
+// baked orange.
+import { readFileSync, statSync } from 'node:fs'
+import { join } from 'node:path'
+import { raw } from 'hono/html'
 import { asset } from './assets'
 import { BETA_SIGN } from './stage'
 
 type Mark = 'hz' | 'stacked'
 
-const SIGN = { src: '/img/beta-lockup.svg', w: 242, h: 276 }
+const SIGN_FILE = join(process.cwd(), 'public', 'img', 'beta-lockup.svg')
+let signCache: { mtimeMs: number; svg: string } | null = null
+
+/** The sign's SVG with the class and aria-hidden on its root tag. The file's
+ *  own width/height attributes stay: they are the aspect ratio `height: auto`
+ *  sizes the inline element by. */
+function signSvg(): string {
+  const { mtimeMs } = statSync(SIGN_FILE)
+  if (signCache && signCache.mtimeMs === mtimeMs) return signCache.svg
+  const svg = readFileSync(SIGN_FILE, 'utf8')
+    .replace(/^\s*<svg\b/, '<svg class="logo-beta" aria-hidden="true"')
+    .trim()
+  signCache = { mtimeMs, svg }
+  return svg
+}
 
 const FILE: Record<Mark, { light: string; dark: string; w: number; h: number }> = {
   hz: { light: '/img/logo-routeloop-hz.svg', dark: '/img/logo-routeloop-hz-dk.svg', w: 1500, h: 184 },
@@ -56,9 +83,7 @@ export function wordmark(mark: Mark, alt: string, className = ''): string {
 }
 
 /** The sign alone, decorative: the wordmark's alt already says beta. */
-const sign = () => (
-  <img class="logo-beta" src={asset(SIGN.src)} alt="" width={SIGN.w} height={SIGN.h} aria-hidden="true" />
-)
+const sign = () => raw(signSvg())
 
 /** The sign for a surface that draws its own wordmark rather than calling
  *  wordmark() — the splash's reversed stacked mark. Empty outside a beta. */
