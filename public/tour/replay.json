@@ -1,6 +1,6 @@
 {
   "version": 1,
-  "recordedAt": "2026-09-20T16:39:11.576Z",
+  "recordedAt": "2026-09-21T17:38:30.642Z",
   "viewport": {
     "w": 1280,
     "h": 800,
@@ -637,8 +637,13 @@
       "title": "Somebody heads home early",
       "text": "Diego turns for home at Pescadero. Split a group off here on the row menu asks who is leaving and where to, cuts the shared route there, and gives them a route of their own.",
       "running": "Splitting a group off…",
-      "frame": "split-d8b7bc312b.webp",
-      "box": null,
+      "frame": "split-4a429885f2.webp",
+      "box": {
+        "x": 0.0214,
+        "y": 0.4611,
+        "w": 0.2564,
+        "h": 0.0783
+      },
       "extra": []
     },
     {
@@ -647,8 +652,13 @@
       "page": "builder",
       "title": "And the list says so",
       "text": "The last point of the route they left names the group and where they went; press it to jump to their route. The roadbook and each rider’s export follow this.",
-      "frame": "splitoff-row-d8b7bc312b.webp",
-      "box": null,
+      "frame": "splitoff-row-cdd1cfdee1.webp",
+      "box": {
+        "x": 0.0364,
+        "y": 0.4909,
+        "w": 0.1656,
+        "h": 0.0193
+      },
       "extra": []
     },
     {

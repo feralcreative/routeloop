@@ -97,6 +97,78 @@ beforeAll(() => {
 
 const textOf = (s: Step): string => s.replay ?? (typeof s.text === 'function' ? s.text() : s.text)
 
+describe('split card anchors', () => {
+  function scene() {
+    const route = () => {
+      let shut = true
+      let clicks = 0
+      const section = {
+        classList: { contains: () => shut },
+        querySelector: () => ({
+          click: () => {
+            shut = !shut
+            clicks++
+          },
+        }),
+      }
+      const row = {
+        querySelector: () => ({ value: 'Pescadero' }),
+        closest: () => section,
+        getBoundingClientRect: () => ({ width: shut ? 0 : 300, height: shut ? 0 : 40 }),
+      }
+      return { row, clicks: () => clicks }
+    }
+    let target: ReturnType<typeof route> | null = route()
+    const win: Record<string, unknown> = { addEventListener: () => {} }
+    const doc = {
+      documentElement: { getAttribute: () => 'off' },
+      readyState: 'complete',
+      addEventListener: () => {},
+      getElementById: () => null,
+      querySelector: () => target?.row ?? null,
+      querySelectorAll: () => (target ? [target.row] : []),
+    }
+    new Function('window', 'document', readFileSync('public/js/tour.js', 'utf8'))(win, doc)
+    const steps = (win.TBTour as { STEPS: { id: string; at: () => ReturnType<typeof route>['row'] | null }[] }).STEPS
+    return {
+      anchor: (id: string) => steps.find((s) => s.id === id)!.at(),
+      target: () => target!,
+      replace: () => {
+        target = route()
+      },
+      remove: () => {
+        target = null
+      },
+    }
+  }
+
+  for (const id of ['split', 'splitoff-row']) {
+    it(`${id} opens its folded route and leaves an open route open`, () => {
+      const s = scene()
+      expect(s.target().row.getBoundingClientRect().height).toBe(0)
+      expect(s.anchor(id)).toBe(s.target().row)
+      expect(s.target().row.getBoundingClientRect().height).toBeGreaterThan(0)
+      s.anchor(id)
+      expect(s.target().clicks()).toBe(1)
+    })
+
+    it(`${id} resolves a replacement row after a frame or backward navigation`, () => {
+      const s = scene()
+      const previous = s.anchor(id)
+      s.replace()
+      expect(s.anchor(id)).not.toBe(previous)
+      expect(s.anchor(id)).toBe(s.target().row)
+      expect(s.target().row.getBoundingClientRect().height).toBeGreaterThan(0)
+    })
+
+    it(`${id} tolerates a row that has not arrived yet`, () => {
+      const s = scene()
+      s.remove()
+      expect(s.anchor(id)).toBeNull()
+    })
+  }
+})
+
 describe('the recording', () => {
   it('has one frame per step, in the tour’s order', () => {
     expect(manifest.version).toBe(1)
@@ -127,17 +199,10 @@ describe('the recording', () => {
     expect(manifest.radius).toBe(num('modalOverlayOpeningRadius'))
   })
 
-  // Two cards the live tour shows centered although they name a target:
-  // after the split lands, the shared route is folded and neither the
-  // Pescadero row nor its split-off line has a box. A tour defect, recorded
-  // here so a THIRD card going adrift fails loudly rather than silently
-  // joining them.
-  const ADRIFT = ['split', 'splitoff-row']
-
   it('points at something on every card but the centered ones', () => {
     const inUnit = (r: Rect) => r.x >= 0 && r.y >= 0 && r.w > 0 && r.h > 0 && r.x + r.w <= 1 && r.y + r.h <= 1
     for (const m of manifest.steps) {
-      if (m.intro || m.chooser || ADRIFT.includes(m.id)) {
+      if (m.intro || m.chooser) {
         expect(m.box, `${m.id} is centered`).toBeNull()
         continue
       }
