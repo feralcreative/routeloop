@@ -8284,10 +8284,10 @@
           (withLink ? faqLink("twistiness", "twistiness") : "")
         : "");
 
-    // The marks alone on the line; the word and the numbers behind them on
-    // hover. "252°/mi" means nothing to a rider, but it is the thing to check
-    // when the scale looks wrong, so it should be reachable without being in
-    // the way. Hoisted: `line` above reads it, and a const arrow is not.
+    // The twistiness line alone on the readout; the word and the numbers
+    // behind it on hover. "252°/mi" means nothing to a rider, but it is the
+    // thing to check when the line looks wrong, so it should be reachable
+    // without being in the way. Hoisted: `line` above reads it.
     function twistTitle(t) {
       if (!t.twist) return "";
       // CONVERTED FOR DISPLAY, LABELED FROM THE MILE FIGURE. The band the label

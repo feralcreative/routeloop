@@ -107,8 +107,9 @@ describe('the two implementations agree', () => {
     const html = serverScale(4, 'Twisty')
     expect(html).toContain('role="img"')
     expect(html).toContain('aria-label="Twisty, 4 of 5"')
-    expect(html.match(/twist-mark is-on/g)).toHaveLength(4)
-    expect(html.match(/<i class="twist-mark/g)).toHaveLength(5)
+    // The drawing is the stylesheet's, keyed on the rank; the span is empty.
+    expect(html).toContain('data-rank="4"')
+    expect(html).toMatch(/><\/span>$/)
   })
 
   it('on the constants themselves, so a tuned threshold cannot land on one side only', () => {

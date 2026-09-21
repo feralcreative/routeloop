@@ -1700,9 +1700,9 @@ table.route-table {
   // narrow and the mileage owns the right-hand column. Indented to clear the
   // checkbox so it reads as a note on the route above it.
   //
-  // It holds the five-mark twist scale since 2026-09-20, not a word, and the
-  // scale reads by the difference between a lit mark and an unlit one — so it
-  // is dimmed less than the word was, or the unlit marks vanish into the row.
+  // It holds the twistiness line since 2026-09-20, not a word, and a thin line
+  // needs more ink than a word does to read at all — so it is dimmed less than
+  // the word was.
   .route-twist {
     display: block;
     margin-left: 1.6em;

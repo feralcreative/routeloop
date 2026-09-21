@@ -285,7 +285,7 @@ function RecordCard({ r }: { r: RecordTile }) {
             */}
         <span class={r.numeric ? 'record-value is-figure' : 'record-value is-text'}>
           <span class="record-figure" data-count={r.numeric ? r.value : undefined}>
-            {/* The twist record draws its band as marks; the word is their name. */}
+            {/* The twist record draws its band as the twistiness line; the word is its name. */}
             {r.rank ? raw(twistScale(r.rank, r.value, r.hint ? `${r.value} · ${r.hint}` : r.value)) : r.value}
           </span>
           {r.unit && <span class="record-unit">{r.unit}</span>}

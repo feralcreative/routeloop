@@ -58,22 +58,21 @@ window.TBTwist = (function () {
   const esc = (s) =>
     String(s).replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[c]);
 
-  // The scale as markup: `rank` marks lit out of TWIST_MAX, the word as the
-  // accessible name and, with the number, as the hover. A string and not a DOM
-  // node because this file is arithmetic and both callers build innerHTML.
-  // Byte-identical to twistScale() in src/views/twist-scale.ts, and the client
-  // test holds the two together.
+  // The scale as markup: one span the stylesheet draws as a line that gets
+  // wavier with the rank (`.twist-scale[data-rank]` in _chrome.scss), the word
+  // as the accessible name and, with the number, as the hover. A string and
+  // not a DOM node because this file is arithmetic and both callers build
+  // innerHTML. Byte-identical to twistScale() in src/views/twist-scale.ts, and
+  // the client test holds the two together.
   function twistScale(rank, label, title) {
-    let marks = "";
-    for (let i = 0; i < TWIST_MAX; i++) marks += '<i class="twist-mark' + (i < rank ? " is-on" : "") + '"></i>';
     return (
-      '<span class="twist-scale" role="img" aria-label="' +
+      '<span class="twist-scale" role="img" data-rank="' +
+      rank +
+      '" aria-label="' +
       esc(label + ", " + rank + " of " + TWIST_MAX) +
       '" title="' +
       esc(title == null ? label : title) +
-      '">' +
-      marks +
-      "</span>"
+      '"></span>'
     );
   }
 
