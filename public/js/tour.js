@@ -798,7 +798,7 @@
       id: "split",
       part: 5,
       at: function () {
-        return rowNamed("Pescadero");
+        return revealRoute(rowNamed("Pescadero"));
       },
       tab: "tab-routes",
       title: "Somebody heads home early",
@@ -812,7 +812,9 @@
     {
       id: "splitoff-row",
       part: 5,
-      at: ".row-splitoff",
+      at: function () {
+        return revealRoute(document.querySelector(".row-splitoff"));
+      },
       tab: "tab-routes",
       title: "And the list says so",
       text: "The last point of the route they left names the group and where they went; press it to jump to their route. The roadbook and each rider’s export follow this.",
@@ -889,6 +891,19 @@
       if (!first) first = rows[i];
     }
     return first;
+  }
+
+  /** A split card describes a row inside the shared route. New routes can
+   *  arrive folded, and the meet overview restores only those it folded
+   *  itself. Open the target's route whenever Shepherd resolves the anchor,
+   *  including after a frame replaces the row or Back restores the scene. */
+  function revealRoute(row) {
+    var sec = row && row.closest(".route-section");
+    if (sec && sec.classList.contains("is-shut")) {
+      var twirl = sec.querySelector(".route-twirl");
+      if (twirl) twirl.click();
+    }
+    return row;
   }
 
   // ——— Pages ———
