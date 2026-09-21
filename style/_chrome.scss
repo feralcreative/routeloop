@@ -2125,18 +2125,23 @@ ul.cards {
 //
 // Sized in em so it follows the type it sits in: 3em wide, 0.75em tall, on the
 // middle of the line, a word-space from the word.
+//
+// INLINE, NOT INLINE-FLEX, AND IT SHIPPED WRONG FOR AN HOUR. A flex container
+// takes its baseline from its first item, and the first item here is an empty
+// box with no baseline of its own — so the container's baseline was the box's
+// BOTTOM edge, and the word inside it, centered against the line, rode two or
+// three pixels above the text either side of it ("Twisty" high, "overall" low).
+// Inline, the word is ordinary text on the parent's baseline and the line is
+// an inline-block aligned `middle`, which puts its center on the x-height.
 .twist-rating {
-  display: inline-flex;
-  align-items: center;
-  gap: 0.4em;
   white-space: nowrap;
 }
 
 .twist-scale {
   display: inline-block;
-  flex: none;
   width: 3em;
   height: 0.75em;
+  margin-right: 0.4em;
   background: currentColor;
   -webkit-mask: var(--twist-line) center / contain no-repeat;
   mask: var(--twist-line) center / contain no-repeat;
@@ -2160,12 +2165,12 @@ ul.cards {
 
 // The key in the dashboard's `?` bubble: every band's line with its word, one
 // per row, twistiest first. The bubble's own type size applies; the rows only
-// need to stack and align their lines.
+// need to stack, and each is a block so its rating sits on its own line.
 .twist-key {
   display: grid;
   gap: 0.35em;
 }
 
-.twist-key-row .twist-rating {
-  display: flex;
+.twist-key-row {
+  display: block;
 }
