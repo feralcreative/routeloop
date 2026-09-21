@@ -3,6 +3,7 @@
 // ?alpha=1 design hook that pins this open on a local host.
 import { raw } from 'hono/html'
 import { ALPHA_DISCORD_URL, ALPHA_GITHUB_URL, ALPHA_SIGNAL_URL, ALPHA_VMC_URL } from '../config'
+import { asset } from './assets'
 import { icon } from './icon'
 import { betaSign, wordmark } from './logo'
 import { BETA_SIGN } from './stage'
@@ -155,7 +156,7 @@ export function SplashPage({ eyebrow, heading, children }: { eyebrow: string; he
         */}
         <span class="splash-logo logo-lockup logo-lockup--tucked" data-mark="stacked">
           <img
-            src="/img/logo-routeloop-dk.svg"
+            src={asset('/img/logo-routeloop-dk.svg')}
             alt={BETA_SIGN ? 'Routeloop beta' : 'Routeloop'}
             width="920"
             height="518"

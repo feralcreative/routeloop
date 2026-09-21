@@ -21,6 +21,7 @@
 // nail the composites use, sized per surface, and it goes with one class when
 // the stage does. The composites stay for the rasters — email and the OG
 // card — where there is no CSS. `BETA_SIGN` in views/stage.ts is the switch.
+import { asset } from './assets'
 import { BETA_SIGN } from './stage'
 
 type Mark = 'hz' | 'stacked'
@@ -40,17 +41,24 @@ const FILE: Record<Mark, { light: string; dark: string; w: number; h: number }> 
 export function wordmark(mark: Mark, alt: string, className = ''): string {
   const f = FILE[mark]
   const named = alt && BETA_SIGN ? `${alt} beta` : alt
+  // THROUGH asset(), SO A REDRAWN FILE REACHES THE BROWSER. The paths were bare
+  // until 2026-09-20, when Ziad saved a new beta sign and the page kept showing
+  // the old one: the browser's copy is fresh for as long as it likes, and the
+  // edge's for its TTL. asset() puts the file's own hash in the query, so a
+  // changed file is a changed URL.
   return (
     <span class={className ? `logo-lockup ${className}` : 'logo-lockup'} data-mark={mark}>
-      <img class="logo-light" src={f.light} alt={named} width={f.w} height={f.h} />
-      <img class="logo-dark" src={f.dark} alt={named} width={f.w} height={f.h} />
+      <img class="logo-light" src={asset(f.light)} alt={named} width={f.w} height={f.h} />
+      <img class="logo-dark" src={asset(f.dark)} alt={named} width={f.w} height={f.h} />
       {BETA_SIGN && sign()}
     </span>
   ).toString()
 }
 
 /** The sign alone, decorative: the wordmark's alt already says beta. */
-const sign = () => <img class="logo-beta" src={SIGN.src} alt="" width={SIGN.w} height={SIGN.h} aria-hidden="true" />
+const sign = () => (
+  <img class="logo-beta" src={asset(SIGN.src)} alt="" width={SIGN.w} height={SIGN.h} aria-hidden="true" />
+)
 
 /** The sign for a surface that draws its own wordmark rather than calling
  *  wordmark() — the splash's reversed stacked mark. Empty outside a beta. */
