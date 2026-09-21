@@ -1219,7 +1219,7 @@ Three of the four move together because they are one component. That is a reason
 
 **Touches.** `src/views/splash.tsx`, `src/views/layout.tsx`, `public/js/site.js`, `public/js/replay.js`, `style/_splash.scss`, `public/video/splash/`.
 
-**Status.** planned—no issue yet. The scrim half is a visible dark-mode bug on the sign-in page and belongs in the beta sprint; the clips half is variety, not function.
+**Status.** **Shipped 2026-09-20 on `feat/beta`** as [#381](https://github.com/feralcreative/routeloop/issues/381) (the clips and `utils/splash-clips.sh`) and [#380](https://github.com/feralcreative/routeloop/issues/380) (the scrim), both filed after the fact. Thirty-one clips are in `public/video/splash/`; the six-clip cap, the poster under data saver, and the `TBSplash` pause hook all landed as written above.
 
 ## Idea backlog (unscheduled)
 
