@@ -937,22 +937,21 @@ export async function accountPage(
           <section class="setting setting--wide" id="words">
             <h3>Overrides: your own words</h3>
             <p class="setting-hint">
-              The default comes from the two choices above and moves with them. Type your own word beside it and that
-              one is used everywhere whatever the defaults say—a slash gives it a plural, like{' '}
-              <code>person/people</code>. Clear the box to go back to the default.
+              The default comes from the two choices above and moves with them. Pick Custom and type your own, and that
+              word is used everywhere whatever the defaults say—a slash gives it a plural, like{' '}
+              <code>person/people</code>.
             </p>
             {/*
-              TWO COLUMNS BESIDE THE TERM: THE DEFAULT, AND A BOX. Ziad's call,
-              2026-09-21, replacing a row of pill radios (every preset's word,
-              plus Custom) per term. The default is a word, not a choice — it
-              comes from the two pickers and jargon.js moves it when they change
-              — and the box is the whole override: a word in it wins, an empty
-              box follows the default, and the alternatives the pills used to
-              offer (Trip under a motorcycle, Motorway for the big road) are
-              just words a rider types. The stored shape is unchanged, so a word
-              picked from a pill before this renders in the box now.
+              TWO PILLS BESIDE THE TERM: THE DEFAULT, AND CUSTOM WITH ITS BOX.
+              Ziad's call, 2026-09-21, replacing a pill for every preset's word.
+              The default pill's word comes from the two pickers and jargon.js
+              moves it when they change; Custom is the whole override, and the
+              alternatives the other pills used to offer (Trip under a
+              motorcycle, Motorway for the big road) are just words a rider
+              types. The stored shape is unchanged, so a word picked from a pill
+              before this renders as Custom now.
 
-              A ROW UNDER PEDAL KEEPS ITS BOX IN THE DOM, hidden, so the word a
+              A ROW UNDER PEDAL KEEPS ITS PILLS IN THE DOM, hidden, so the word a
               rider typed for their e-bike's fuel survives a save made while the
               pedal preset blanks the row — the old form rendered no input there
               and every save dropped it.
@@ -978,17 +977,24 @@ export async function accountPage(
                           <span class="jargon-where">{t.where}</span>
                         </th>
                         <td class="jargon-default">
-                          <span class="jargon-word">{follows ? cap(follows.one) : ''}</span>
+                          <label class="jargon-pick">
+                            <input type="radio" name={`pick-${t.id}`} value="default" checked={!custom} />
+                            <span class="jargon-word">{follows ? cap(follows.one) : ''}</span>
+                          </label>
                           <span class="jargon-off">Nothing to plan fuel around on a pedal bike.</span>
                         </td>
                         <td class="jargon-custom">
-                          <input
-                            type="text"
-                            name={`custom-${t.id}`}
-                            maxlength={40}
-                            value={custom}
-                            aria-label={`Your word for ${t.label.toLowerCase()}`}
-                          />
+                          <label class="jargon-pick jargon-pick--custom">
+                            <input type="radio" name={`pick-${t.id}`} value="custom" checked={!!custom} />
+                            <span>Custom</span>
+                            <input
+                              type="text"
+                              name={`custom-${t.id}`}
+                              maxlength={40}
+                              value={custom}
+                              aria-label={`Your word for ${t.label.toLowerCase()}`}
+                            />
+                          </label>
                         </td>
                       </tr>
                     )
