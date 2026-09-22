@@ -1218,11 +1218,14 @@
 }
 
 // THE JARGON TABLE (#321). One row per term: the term and where it shows up on
-// the left, the words as a row of pill radios plus a Custom box on the right.
-// `.setting--wide` lifts the 60ch measure cap, because the pills need the room
-// and the prose is one line under the heading. A power row under Pedal is
-// `.is-off`: the pills go and the note says why, toggled by jargon.js as the
-// picker changes so the page does not need a reload to agree with itself.
+// the left, then the DEFAULT — the word the two pickers above give, moved by
+// jargon.js as they change — and a box for the rider's own word. Ziad's call,
+// 2026-09-21, replacing a run of pill radios per row; the box is the whole
+// override now. `.setting--wide` lifts the 60ch measure cap, because three
+// columns want the room and the prose is one line under the heading. A power
+// row under Pedal is `.is-off`: the default and the box go and the note says
+// why, toggled by jargon.js as the picker changes so the page does not need a
+// reload to agree with itself.
 .setting--wide {
   max-width: none;
 }
@@ -1242,7 +1245,7 @@
     padding: 0.55rem 0.6rem;
     border-top: 1px solid $grey;
     text-align: left;
-    vertical-align: top;
+    vertical-align: middle;
   }
 
   thead th {
@@ -1254,15 +1257,8 @@
     letter-spacing: 0.04em;
   }
 
-  // THE TERM SITS LEVEL WITH THE FIRST ROW OF PILLS (#334). The cells are
-  // `vertical-align: top` — a row whose pills wrap must keep the term at the
-  // top, not floating beside the middle pill — but a pill is 40px tall and
-  // the term's line is 24px, so the term's center sat 8px above the pill's.
-  // The difference is padded in, measured rather than eyeballed: half of
-  // (pill height − line height).
   tbody th {
     width: 14rem;
-    padding-top: calc(0.55rem + 0.5rem);
     font-weight: 600;
   }
 
@@ -1273,14 +1269,31 @@
     color: $neutral-43;
   }
 
+  .jargon-default {
+    width: 12rem;
+  }
+
   .jargon-off {
     display: none;
     font-size: 0.9rem;
     color: $neutral-43;
   }
 
+  .jargon-custom input {
+    @include controls.text-control;
+
+    width: 100%;
+    max-width: 18rem;
+    padding: 0.3rem 0.6rem;
+    border-radius: 6px;
+    font-size: 0.9rem;
+  }
+
+  // The box stays in the DOM under Pedal so the word survives a save; only
+  // the drawing goes.
   tr.is-off {
-    .jargon-picks {
+    .jargon-word,
+    .jargon-custom input {
       display: none;
     }
 
@@ -1290,93 +1303,8 @@
   }
 }
 
-// A GRID, NOT A FLOW. Ziad's call, 2026-09-13: the pills line up in columns
-// down the table, whatever a row offers — three preset slots and a fourth for
-// Custom, which is pinned to the last column so every Custom box is under
-// every other Custom box. A row with one preset word leaves its other slots
-// empty rather than stretching to fill them.
-.jargon-picks {
-  display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr)) minmax(0, 1.6fr);
-  gap: 0.4rem;
-}
-
-.jargon-pick--custom {
-  grid-column: 4;
-}
-
-// A pill: the radio is the whole pill, filled when it is the one. The Custom
-// pill carries its text box inside it, so typing in the box is visibly the
-// same act as picking the pill — jargon.js ticks the radio as the first letter
-// lands. Each fills its grid cell, which is what makes the columns read as
-// columns.
-.jargon-pick {
-  display: flex;
-  align-items: center;
-  gap: 0.35rem;
-
-  // The UA gives a radio `margin: 3px 3px 0 5px`, which is a top margin of
-  // 3px inside a centered flex row — so the dot sat 1.8px below the word's
-  // center in every pill (#334). The flex gap carries the spacing instead.
-  input[type="radio"] {
-    margin: 0;
-  }
-  min-width: 0;
-  padding: 0.3rem 0.7rem;
-  border: 1px solid $grey;
-  border-radius: 999px;
-  cursor: pointer;
-  font-size: 0.9rem;
-
-  small {
-    font-size: 0.75em;
-    color: $neutral-43;
-  }
-
-  &:hover {
-    border-color: $brand;
-  }
-
-  &:has(input[type="radio"]:checked) {
-    border-color: $brand;
-    background: color-mix(in srgb, $brand 6%, transparent);
-  }
-
-  &:has(input:focus-visible) {
-    outline: 2px solid $brand;
-    outline-offset: 2px;
-  }
-
-  // The shared control, then the pill's own metrics over it: a box inside a
-  // pill is the one place the 0.6rem padding is too much.
-  input[type="text"] {
-    @include controls.text-control;
-
-    flex: 1 1 auto;
-    min-width: 0;
-    width: 0;
-    padding: 0.15rem 0.4rem;
-    border-radius: 6px;
-    font-size: 0.9rem;
-  }
-
-  > span {
-    white-space: nowrap;
-    overflow: hidden;
-    text-overflow: ellipsis;
-  }
-}
-
-//@ Phone — the term column stacks over its pills, and the pills go two-up
+//@ Phone — the term stacks over its default and its box
 @media (max-width: 640px) {
-  .jargon-picks {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-  }
-
-  .jargon-pick--custom {
-    grid-column: 1 / -1;
-  }
-
   .jargon-table {
     tr,
     th,
@@ -1396,6 +1324,14 @@
     td {
       border-top: 0;
       padding-top: 0;
+    }
+
+    .jargon-default {
+      width: auto;
+    }
+
+    .jargon-custom input {
+      max-width: none;
     }
   }
 }

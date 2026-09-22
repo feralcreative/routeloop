@@ -937,30 +937,39 @@ export async function accountPage(
           <section class="setting setting--wide" id="words">
             <h3>Overrides: your own words</h3>
             <p class="setting-hint">
-              The choice marked default comes from the two defaults above and moves with them. Pick another, or type
-              your own, and that word is used everywhere whatever the defaults say—a slash gives it a plural, like{' '}
-              <code>person/people</code>.
+              The default comes from the two choices above and moves with them. Type your own word beside it and that
+              one is used everywhere whatever the defaults say—a slash gives it a plural, like{' '}
+              <code>person/people</code>. Clear the box to go back to the default.
             </p>
+            {/*
+              TWO COLUMNS BESIDE THE TERM: THE DEFAULT, AND A BOX. Ziad's call,
+              2026-09-21, replacing a row of pill radios (every preset's word,
+              plus Custom) per term. The default is a word, not a choice — it
+              comes from the two pickers and jargon.js moves it when they change
+              — and the box is the whole override: a word in it wins, an empty
+              box follows the default, and the alternatives the pills used to
+              offer (Trip under a motorcycle, Motorway for the big road) are
+              just words a rider types. The stored shape is unchanged, so a word
+              picked from a pill before this renders in the box now.
+
+              A ROW UNDER PEDAL KEEPS ITS BOX IN THE DOM, hidden, so the word a
+              rider typed for their e-bike's fuel survives a save made while the
+              pedal preset blanks the row — the old form rendered no input there
+              and every save dropped it.
+            */}
             <form method="post" action="/settings/jargon" class="setting-form" data-autosave data-jargon>
               <table class="jargon-table">
                 <thead>
                   <tr>
                     <th scope="col">Term</th>
-                    <th scope="col">Word</th>
+                    <th scope="col">Default</th>
+                    <th scope="col">Your word</th>
                   </tr>
                 </thead>
                 <tbody>
                   {TERMS.map((t) => {
-                    const preset = presetWords[t.id]
-                    const custom = vocab.jargon[t.id]
-                    // Every word a preset on this row's axis would use, deduped
-                    // (Ride is Motorcycle and Bicycle), with the current preset's
-                    // first — the "follows your vehicle" choice.
-                    const words = [
-                      ...new Set([...(preset ? [preset.one] : []), ...Object.values(t.by).map((x) => x.one)]),
-                    ]
-                    const options = t.axis === 'regional' ? (t.options ?? []).map((o) => o.one) : words
-                    const picked = custom && options.includes(custom) ? custom : custom ? 'custom' : options[0]
+                    const follows = t.axis === 'regional' ? t.options?.[0] : presetWords[t.id]
+                    const custom = vocab.jargon[t.id] ?? ''
                     const off = t.axis === 'power' && vocab.power === 'pedal'
                     return (
                       <tr class={off ? 'is-off' : ''} data-term={t.id} data-axis={t.axis}>
@@ -968,39 +977,18 @@ export async function accountPage(
                           <span class="jargon-label">{t.label}</span>
                           <span class="jargon-where">{t.where}</span>
                         </th>
-                        <td>
-                          {off ? (
-                            <span class="jargon-off">Nothing to plan fuel around on a pedal bike.</span>
-                          ) : (
-                            <div class="jargon-picks">
-                              {options.map((word, i) => (
-                                <label class="jargon-pick">
-                                  <input type="radio" name={`pick-${t.id}`} value={word} checked={picked === word} />
-                                  <span>
-                                    {cap(word)}
-                                    {i === 0 && t.axis !== 'regional' ? <small> · default</small> : null}
-                                  </span>
-                                </label>
-                              ))}
-                              <label class="jargon-pick jargon-pick--custom">
-                                <input
-                                  type="radio"
-                                  name={`pick-${t.id}`}
-                                  value="custom"
-                                  checked={picked === 'custom'}
-                                />
-                                <span>Custom</span>
-                                <input
-                                  type="text"
-                                  name={`custom-${t.id}`}
-                                  maxlength={40}
-                                  value={picked === 'custom' ? custom : ''}
-                                  placeholder={cap(options[0])}
-                                  aria-label={`Your word for ${t.label.toLowerCase()}`}
-                                />
-                              </label>
-                            </div>
-                          )}
+                        <td class="jargon-default">
+                          <span class="jargon-word">{follows ? cap(follows.one) : ''}</span>
+                          <span class="jargon-off">Nothing to plan fuel around on a pedal bike.</span>
+                        </td>
+                        <td class="jargon-custom">
+                          <input
+                            type="text"
+                            name={`custom-${t.id}`}
+                            maxlength={40}
+                            value={custom}
+                            aria-label={`Your word for ${t.label.toLowerCase()}`}
+                          />
                         </td>
                       </tr>
                     )
