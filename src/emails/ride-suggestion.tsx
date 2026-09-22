@@ -65,7 +65,7 @@ export const rideSuggestionEmail = defineEmail<Props>({
     ).toString(),
 
   sample: {
-    proposerName: 'Dana Whitlock',
+    proposerName: 'Throatwobbler Mangrove',
     rideTitle: 'Oakland to Ensenada',
     rideSlug: 'oakland-to-ensenada',
     routeLabel: 'Route 3',

@@ -67,7 +67,7 @@ export const rideCommentEmail = defineEmail<Props>({
     ).toString(),
 
   sample: {
-    commenterName: 'Dana Whitlock',
+    commenterName: 'Throatwobbler Mangrove',
     rideTitle: 'Oakland to Ensenada',
     rideSlug: 'oakland-to-ensenada',
     excerpt: 'Is the pass still closed this early in the year?',
