@@ -1217,14 +1217,16 @@
   color: $neutral-50;
 }
 
-// THE JARGON TABLE (#321). One row per term: the term and where it shows up on
-// the left, then two pills — the DEFAULT, carrying the word the two pickers
+// THE JARGON TABLE (#321). One row per term, four columns: the term, where it
+// shows up, and two pills — the DEFAULT, carrying the word the two pickers
 // above give and moved by jargon.js as they change, and CUSTOM with its box
-// inside it. Ziad's call, 2026-09-21, replacing a pill for every preset's word.
-// `.setting--wide` lifts the 60ch measure cap, because three columns want the
-// room and the prose is one line under the heading. A power row under Pedal is
-// `.is-off`: the pills go and the note says why, toggled by jargon.js as the
-// picker changes so the page does not need a reload to agree with itself.
+// inside it. Ziad's call, 2026-09-21, replacing a pill for every preset's word
+// and, the same evening, a two-column split of the rows: the example in its
+// own column is what makes a row one line. `.setting--wide` lifts the 60ch
+// measure cap, because four columns want the room and the prose is one line
+// under the heading. A power row under Pedal is `.is-off`: the pills go and
+// the note says why, toggled by jargon.js as the picker changes so the page
+// does not need a reload to agree with itself.
 .setting--wide {
   max-width: none;
 }
@@ -1233,31 +1235,6 @@
   margin: 0 0 0.75rem;
   font-size: 0.9rem;
   color: $neutral-43;
-}
-
-// TWO TABLES SIDE BY SIDE FROM XL, stacked below it as one. The gap is the
-// gutter in the rules: each table's hairlines stop at its own edge, so the two
-// columns read as two lists rather than one table with a hole in it. Stacked,
-// the second table's head goes, and its first row's hairline is the seam.
-.jargon-cols {
-  display: grid;
-  gap: 0 3rem;
-
-  .jargon-table + .jargon-table thead {
-    display: none;
-  }
-}
-
-//@ XL ≥1200px — two columns of seven
-@media (min-width: 1200px) {
-  .jargon-cols {
-    grid-template-columns: 1fr 1fr;
-    align-items: start;
-
-    .jargon-table + .jargon-table thead {
-      display: table-header-group;
-    }
-  }
 }
 
 .jargon-table {
@@ -1282,14 +1259,13 @@
   }
 
   tbody th {
-    width: 14rem;
+    width: 12rem;
     font-weight: 600;
+    white-space: nowrap;
   }
 
   .jargon-where {
-    display: block;
-    font-size: 0.8rem;
-    font-weight: 400;
+    font-size: 0.85rem;
     color: $neutral-43;
   }
 
@@ -1416,6 +1392,10 @@
     td {
       border-top: 0;
       padding-top: 0;
+    }
+
+    .jargon-where {
+      padding-bottom: 0.4rem;
     }
 
     .jargon-default {
