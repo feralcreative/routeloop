@@ -1235,6 +1235,31 @@
   color: $neutral-43;
 }
 
+// TWO TABLES SIDE BY SIDE FROM XL, stacked below it as one. The gap is the
+// gutter in the rules: each table's hairlines stop at its own edge, so the two
+// columns read as two lists rather than one table with a hole in it. Stacked,
+// the second table's head goes, and its first row's hairline is the seam.
+.jargon-cols {
+  display: grid;
+  gap: 0 3rem;
+
+  .jargon-table + .jargon-table thead {
+    display: none;
+  }
+}
+
+//@ XL ≥1200px — two columns of seven
+@media (min-width: 1200px) {
+  .jargon-cols {
+    grid-template-columns: 1fr 1fr;
+    align-items: start;
+
+    .jargon-table + .jargon-table thead {
+      display: table-header-group;
+    }
+  }
+}
+
 .jargon-table {
   width: 100%;
   border-collapse: collapse;
