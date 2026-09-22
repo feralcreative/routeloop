@@ -447,6 +447,20 @@
     background: color-mix(in srgb, $brand 6%, transparent);
   }
 
+  // GRAYED, NOT GONE: an option the other picker rules out (Pedal under Car,
+  // Bicycle under Gas) stays where it is at less than half strength, so the
+  // list keeps its shape and the option can still be read. The tooltip still
+  // works, because the label is what carries it and the radio is what is
+  // disabled.
+  &:has(input:disabled) {
+    opacity: 0.4;
+    cursor: not-allowed;
+
+    &:hover {
+      border-color: $grey;
+    }
+  }
+
   // The label is the whole row, so the focus ring has to be too — the radio
   // itself is a 13px dot in the corner of it and a ring around only that reads
   // as nothing at all.
