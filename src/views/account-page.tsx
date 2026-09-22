@@ -971,7 +971,15 @@ export async function accountPage(
                   <tr>
                     <th scope="col">Term</th>
                     <th scope="col">Example</th>
-                    <th scope="col">Default</th>
+                    {/* The head names the pair the defaults come from, and
+                        jargon.js rewrites it as the pickers change. */}
+                    <th scope="col">
+                      Default{' '}
+                      <span class="jargon-preset">
+                        ({VEHICLE_CHOICES.find((c) => c.id === vocab.vehicle)?.label},{' '}
+                        {POWER_CHOICES.find((c) => c.id === vocab.power)?.label})
+                      </span>
+                    </th>
                     <th scope="col">Custom</th>
                   </tr>
                 </thead>

@@ -1266,6 +1266,13 @@
     letter-spacing: 0.04em;
   }
 
+  // The pair beside DEFAULT reads as the pickers wrote it, not shouted.
+  .jargon-preset {
+    font-weight: 400;
+    text-transform: none;
+    letter-spacing: 0;
+  }
+
   tbody th {
     font-weight: 600;
   }
