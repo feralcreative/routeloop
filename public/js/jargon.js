@@ -1,13 +1,13 @@
-// The jargon table on the Preferences tab (#321): the two things the page has
-// to do on its own that the forms cannot.
+// The jargon table on the Preferences tab (#321): what the page has to do on
+// its own that the forms cannot.
 //
-// 1. TYPING IN A CUSTOM BOX PICKS CUSTOM. Ziad's call, 2026-09-13. The radio
-//    and the box are one choice, and a rider who has typed a word has made it.
-// 2. THE PICKERS MOVE THE TABLE. Each row's "default" mark sits on
-//    whichever option the current preset would use, and a row that was
-//    following the preset keeps following it — so picking Car ticks Trip on
-//    the journey row without a reload. A power term under Pedal is switched
-//    off, since there is nothing to plan fuel around.
+// THE PICKERS MOVE THE TABLE. Each row's Default column is the word the
+// current preset would use, so picking Car turns Ride into Trip on the journey
+// row without a reload; the box beside it is the rider's own and is never
+// touched. A power term under Pedal is switched off, since there is nothing to
+// plan fuel around. (Until 2026-09-21 each row was a run of pill radios with a
+// "default" mark that moved between them, and typing in the Custom box ticked
+// its radio; the box is the whole override now — Ziad's call.)
 //
 // Saving stays autosave.js's job: the three forms carry `data-autosave` like
 // every other setting, and this only touches the DOM between saves. The
@@ -34,33 +34,17 @@
     const word = preset[term];
     const off = axis === "power" && word === null;
     row.classList.toggle("is-off", off);
+    // A regional row has no preset; its default is its first option and the
+    // server rendered it.
     if (off || axis === "regional") return;
-    const wasFollowing = row.getAttribute("data-follows");
-    const checked = row.querySelector('input[type="radio"]:checked');
-    row.querySelectorAll('input[type="radio"]').forEach((r) => {
-      const mark = r.parentElement.querySelector("small");
-      if (mark) mark.remove();
-      if (word && r.value === word.one) {
-        const small = document.createElement("small");
-        small.textContent = " · default";
-        r.parentElement.querySelector("span").appendChild(small);
-        if (checked && wasFollowing !== null && checked.value === wasFollowing) r.checked = true;
-      }
-    });
-    row.setAttribute("data-follows", word ? word.one : "");
+    const cell = row.querySelector(".jargon-word");
+    if (cell && word) cell.textContent = window.TBVocab.cap(word.one);
   }
 
   function markAll() {
     const preset = presetWords();
     rows.forEach((row) => markRow(row, preset));
   }
-
-  // Seed each row's "following" value from what the server rendered: the
-  // preset's word is the first radio on a preset-bound row.
-  rows.forEach((row) => {
-    const first = row.querySelector('input[type="radio"]');
-    if (first && row.getAttribute("data-axis") !== "regional") row.setAttribute("data-follows", first.value);
-  });
 
   // THE POWER FOLLOWS THE VEHICLE, GRAYED RATHER THAN GONE. Ziad's call,
   // 2026-09-21: a power the vehicle cannot use — Pedal under a motorcycle or a
@@ -106,15 +90,5 @@
       gate();
       markAll();
     });
-  });
-
-  // Typing picks Custom; the change event the box fires afterwards is what
-  // queues the save, through autosave.js like everything else.
-  table.addEventListener("input", (e) => {
-    const box = e.target;
-    if (!(box instanceof HTMLInputElement) || box.type !== "text") return;
-    const custom = box.closest(".jargon-pick--custom");
-    const radio = custom && custom.querySelector('input[type="radio"]');
-    if (radio && box.value.trim()) radio.checked = true;
   });
 })();

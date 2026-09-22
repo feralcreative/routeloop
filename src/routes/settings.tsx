@@ -229,10 +229,13 @@ settingsRoutes.post('/settings/jargon', requireActive, requireSameOrigin, async 
   const stored = vocabOf(await vocabRow(user.id))
   const preset = wordsFor({ ...stored, jargon: {} })
   const jargon: Record<string, string> = {}
+  // ONE BOX PER TERM since 2026-09-21: a word in it is the override, an empty
+  // box follows the default, and a word that IS the default is stored as
+  // nothing so it keeps following when the pickers move. A term the form did
+  // not send is left out, which clears it — every row sends its box, including
+  // a fuel row hidden under Pedal.
   for (const t of TERMS) {
-    const pick = body[`pick-${t.id}`]
-    if (typeof pick !== 'string') continue
-    const word = pick === 'custom' ? body[`custom-${t.id}`] : pick
+    const word = body[`custom-${t.id}`]
     if (typeof word !== 'string') continue
     const follows = t.axis === 'regional' ? t.options?.[0]?.one : preset[t.id]?.one
     if (word.trim() && word.trim() !== follows) jargon[t.id] = word
