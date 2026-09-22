@@ -11,9 +11,12 @@
 // disappears wherever a client repaints the cell behind it.
 //
 // The wordmark is rendered at 800px wide at 2x either way — the composite is
-// wider and taller because of the sign, and LOGO_W/LOGO_H in
-// src/emails/shell.tsx have to say the file's real size at 1x. This prints
-// them. sharp rasterizes through librsvg, filters included.
+// wider and taller because of the sign. LOGO_W/LOGO_H in src/emails/shell.tsx
+// are HALF the file's 1x size, not the 1x size itself: the beta lockup is tall
+// enough that the email draws it at 213×75 (Ziad's call, 2026-09-22), and a 2x
+// asset shown at a quarter of its pixels is sharper rather than softer. This
+// prints both numbers so neither has to be worked out by hand. sharp rasterizes
+// through librsvg, filters included.
 import sharp from 'sharp'
 
 const beta = process.argv.includes('--beta')
@@ -49,6 +52,7 @@ for (const j of JOBS) {
     `${j.out}  ${info.width}×${info.height} (${Math.round(info.width / 2)}×${Math.round(info.height / 2)} at 1x)`,
   )
 }
-console.log(
-  `LOGO_W = ${Math.round(WIDTH / 2)}, LOGO_H = ${beta ? Math.round((WIDTH * 368) / 1048 / 2) : 50} in src/emails/shell.tsx`,
-)
+const oneW = Math.round(WIDTH / 2)
+const oneH = beta ? Math.round((WIDTH * 368) / 1048 / 2) : 50
+console.log(`1x is ${oneW}×${oneH}; the email draws it at half that.`)
+console.log(`LOGO_W = ${Math.round(oneW / 2)}, LOGO_H = ${Math.round(oneH / 2)} in src/emails/shell.tsx`)

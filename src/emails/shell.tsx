@@ -148,18 +148,29 @@ const PREHEADER_PAD = '&zwnj;&nbsp;'.repeat(60)
 // client does to the surrounding table. test/email-dark-mode.test.ts reads the
 // corner pixel of each rather than trusting this paragraph.
 //
-// The mark went from 3.5:1 to 8.15:1 in the 2026-08-11 rebrand, so this is 400
-// wide where it was 180 — nearly the full 536px the cell has — and 50 tall where
-// it was 52. Anything narrower renders a wordmark too short to read beside 16px
-// body copy.
+// The mark went from 3.5:1 to 8.15:1 in the 2026-08-11 rebrand, and it was
+// drawn at 400 wide where it had been 180 — nearly the full 536px the cell has
+// — with the note that anything narrower renders a wordmark too short to read
+// beside 16px body copy.
 //
-// FOR THE BETA THE FILES CARRY THE SIGN, so they are 425×149: the word is
-// still 400×50 and the BETA sign hangs off its right end into the extra.
-// utils/build-email-logos.mjs writes both files from the SVGs and prints
-// these two numbers; run it without --beta when the beta ends, and put 400
-// and 50 back here.
-const LOGO_W = 425
-const LOGO_H = 149
+// FOR THE BETA THE FILES CARRY THE SIGN, so they are 849×298, which is 425×149
+// at 1x: the word is 400×50 of that and the BETA sign hangs off its right end
+// into the extra. utils/build-email-logos.mjs writes both files from the SVGs
+// and prints the numbers to put here; run it without --beta when the beta ends.
+//
+// THE DISPLAYED SIZE IS HALF THAT, AND THE FILE IS NOT REDRAWN. Ziad's call,
+// 2026-09-22: the sign made the lockup tall enough to be the first half of
+// every message, so the same raster is drawn at 213×75 and the browser-side
+// rule about 400 being the floor no longer applies — that was about the word
+// alone, before the sign added 149px of height above it. Nothing is regenerated
+// because a 2x asset displayed at a quarter of its pixel size is sharper, not
+// softer, and the opaque grounds test/email-dark-mode.test.ts reads are
+// properties of the file rather than of the size it is drawn at. Halved and
+// rounded up from 212.5×74.5, which holds the 2.849 aspect to within a third of
+// a percent — an explicit width and height on the <img> is what Outlook needs,
+// so the pair has to be stated rather than derived.
+const LOGO_W = 213
+const LOGO_H = 75
 const LOGO_LIGHT = `${APP_ORIGIN}/img/logo-routeloop-email-hz@2x.png`
 const LOGO_DARK = `${APP_ORIGIN}/img/logo-routeloop-email-hz-dark@2x.png`
 
