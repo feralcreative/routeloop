@@ -1272,8 +1272,17 @@
     width: 13rem;
   }
 
+  // THE BOX IS TWELVE CHARACTERS WIDE. Ziad's call, 2026-09-21: the longest
+  // default word is "gas stations" at twelve, so a box sized to that says what
+  // it expects, where one the width of the cell invited a sentence. The pill
+  // shrinks to it rather than filling the cell.
   .jargon-custom .jargon-pick {
-    max-width: 22rem;
+    display: inline-flex;
+
+    input[type="text"] {
+      flex: none;
+      width: 12ch;
+    }
   }
 
   .jargon-off {
@@ -1376,10 +1385,6 @@
 
     .jargon-default {
       width: auto;
-    }
-
-    .jargon-custom .jargon-pick {
-      max-width: none;
     }
   }
 }
