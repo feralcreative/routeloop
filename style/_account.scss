@@ -393,6 +393,37 @@
   color: $neutral-43;
 }
 
+// THE GROUP'S KEY, in a `?` bubble beside its heading or legend: every option's
+// label in bold with its sentence after it, one per row — the `.twist-key`
+// arrangement on the dashboard. The bubble's own type size applies; the rows
+// only need to stack.
+//
+// **THE DOT SITS IN THE HEADING'S OWN TYPE and takes its size from it**, so it
+// is a little bigger beside an <h3> than beside a legend. Held to the row's
+// baseline rather than the row's middle — `.field-help` raises itself 0.15em
+// against a label's line box, and against a heading's taller one that reads as
+// floating, so the lift comes off here.
+.setting h3 .field-help,
+.choice-legend .field-help {
+  top: 0;
+  vertical-align: baseline;
+}
+
+.choice-key {
+  display: grid;
+  gap: 0.4em;
+}
+
+.choice-key-row {
+  display: block;
+}
+
+// A key is five sentences, not one, and the field bubble's 28ch measure folds
+// each of them three times. Widened for the key alone.
+.help-bubble:has(> .choice-key) {
+  max-width: min(40ch, calc(100vw - 2rem));
+}
+
 .choice {
   display: grid;
   grid-template-columns: auto 1fr;
