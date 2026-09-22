@@ -388,18 +388,25 @@
   color: $neutral-43;
 }
 
+// SMALLER THAN BODY COPY, ON PURPOSE. A choice is a row in a list the rider
+// scans once and picks from, not a paragraph they read: at body size with an
+// example under each, a three-option group ran to 270px and the page was mostly
+// boxes. The label is 0.9rem on a tight line, the example a step under that, and
+// the padding is what keeps the ring off the dot — Ziad's call, 2026-09-21.
 .choice {
   display: grid;
   grid-template-columns: auto 1fr;
   align-items: baseline;
-  gap: 0 0.6rem;
-  padding: 0.55rem 0.7rem;
+  gap: 0 0.5rem;
+  padding: 0.35rem 0.6rem;
   border: 1px solid $grey;
-  border-radius: 8px;
+  border-radius: 6px;
+  font-size: 0.9rem;
+  line-height: 1.3;
   cursor: pointer;
 
   + .choice {
-    margin-top: 0.4rem;
+    margin-top: 0.3rem;
   }
 
   &:hover {
@@ -411,7 +418,8 @@
   // list. Spanning it back under the radio would put it under the dot instead.
   .choice-example {
     grid-column: 2;
-    font-size: 0.85rem;
+    font-size: 0.8rem;
+    line-height: 1.35;
     opacity: 0.75;
   }
 
