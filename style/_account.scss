@@ -1269,30 +1269,30 @@
     color: $neutral-43;
   }
 
-  // THE DEFAULT PILL IS HALF THE WIDTH IT WAS. Ziad's call, 2026-09-21: it
-  // filled a 13rem column around a one-word label. It shrinks to its word now,
-  // with a floor of half that column so Ride and Gas station read as the same
-  // kind of thing, and the column is sized to the longest of them.
+  // THE DEFAULT PILL SHRINKS TO ITS WORD WITH A 13rem FLOOR, so Ride and Gas
+  // station read as the same kind of thing. Ziad's call, 2026-09-21, in two
+  // steps: halved from filling a 13rem column, then doubled back once the
+  // example took a column of its own and the row had the room.
   .jargon-default {
-    width: 9rem;
+    width: 15rem;
 
     .jargon-pick {
       display: inline-flex;
       box-sizing: border-box;
-      min-width: 6.5rem;
+      min-width: 13rem;
     }
   }
 
-  // THE BOX IS TWELVE CHARACTERS WIDE. Ziad's call, 2026-09-21: the longest
-  // default word is "gas stations" at twelve, so a box sized to that says what
-  // it expects, where one the width of the cell invited a sentence. The pill
-  // shrinks to it rather than filling the cell.
+  // THE BOX IS TWENTY-FOUR CHARACTERS WIDE — twice the longest default word
+  // ("gas stations", twelve), sized in the same two steps as the pill beside
+  // it. Ziad's call, 2026-09-21. The pill shrinks to it rather than filling
+  // the cell.
   .jargon-custom .jargon-pick {
     display: inline-flex;
 
     input[type="text"] {
       flex: none;
-      width: 12ch;
+      width: 24ch;
     }
   }
 
