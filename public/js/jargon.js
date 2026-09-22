@@ -43,9 +43,24 @@
     if (cell && word) cell.textContent = window.TBVocab.cap(word.one);
   }
 
+  // The Default column's head says which pair the words come from —
+  // "(Motorcycle, Gas)" — read off the pickers' own checked labels so it
+  // cannot say something the radios do not.
+  function markHead() {
+    const head = table.querySelector(".jargon-preset");
+    if (!head) return;
+    const pick = (name) => {
+      const r = document.querySelector('[data-jargon-preset] input[name="' + name + '"]:checked');
+      const label = r && r.closest(".choice") && r.closest(".choice").querySelector(".choice-label");
+      return label ? label.textContent.trim() : "";
+    };
+    head.textContent = "(" + pick("vehicle") + ", " + pick("power") + ")";
+  }
+
   function markAll() {
     const preset = presetWords();
     rows.forEach((row) => markRow(row, preset));
+    markHead();
   }
 
   // THE POWER FOLLOWS THE VEHICLE, GRAYED RATHER THAN GONE. Ziad's call,
