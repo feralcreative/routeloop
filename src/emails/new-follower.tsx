@@ -58,7 +58,7 @@ export const newFollowerEmail = defineEmail<Props>({
     ).toString(),
 
   sample: {
-    followerName: 'Dana Whitlock',
+    followerName: 'Throatwobbler Mangrove',
     followerHandle: 'dana',
   },
 })

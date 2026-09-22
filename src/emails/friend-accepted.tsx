@@ -60,7 +60,7 @@ export const friendAcceptedEmail = defineEmail<Props>({
     ).toString(),
 
   sample: {
-    friendName: 'Dana Whitlock',
+    friendName: 'Throatwobbler Mangrove',
     friendHandle: 'dana',
   },
 })

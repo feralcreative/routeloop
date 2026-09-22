@@ -62,7 +62,7 @@ export const rideRsvpEmail = defineEmail<Props>({
     ).toString(),
 
   sample: {
-    riderName: 'Dana Whitlock',
+    riderName: 'Throatwobbler Mangrove',
     rideTitle: 'Oakland to Ensenada',
     rideSlug: 'oakland-to-ensenada',
     answer: 'Going',

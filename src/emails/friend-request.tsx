@@ -74,7 +74,7 @@ export const friendRequestEmail = defineEmail<Props>({
     ).toString(),
 
   sample: {
-    fromName: 'Dana Whitlock',
+    fromName: 'Throatwobbler Mangrove',
     fromHandle: 'dana',
   },
 })
