@@ -1268,8 +1268,18 @@
     color: $neutral-43;
   }
 
+  // THE DEFAULT PILL IS HALF THE WIDTH IT WAS. Ziad's call, 2026-09-21: it
+  // filled a 13rem column around a one-word label. It shrinks to its word now,
+  // with a floor of half that column so Ride and Gas station read as the same
+  // kind of thing, and the column is sized to the longest of them.
   .jargon-default {
-    width: 13rem;
+    width: 9rem;
+
+    .jargon-pick {
+      display: inline-flex;
+      box-sizing: border-box;
+      min-width: 6.5rem;
+    }
   }
 
   // THE BOX IS TWELVE CHARACTERS WIDE. Ziad's call, 2026-09-21: the longest
