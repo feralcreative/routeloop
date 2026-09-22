@@ -937,12 +937,13 @@ export async function accountPage(
           <section class="setting setting--wide" id="words">
             <h3>Overrides: your own words</h3>
             <p class="setting-hint">
-              The default comes from the two choices above and moves with them. Pick Custom and type your own, and that
-              word is used everywhere whatever the defaults say—a slash gives it a plural, like{' '}
+              The default comes from the two choices above and moves with them. Type your own in the box beside it, and
+              that word is used everywhere whatever the defaults say—a slash gives it a plural, like{' '}
               <code>person/people</code>.
             </p>
             {/*
-              TWO PILLS BESIDE THE TERM: THE DEFAULT, AND CUSTOM WITH ITS BOX.
+              TWO PILLS BESIDE THE TERM: THE DEFAULT, AND THE BOX, WITH NO WORD
+              ON IT — the Custom column heading says what it is.
               Ziad's call, 2026-09-21, replacing a pill for every preset's word.
               The default pill's word comes from the two pickers and jargon.js
               moves it when they change; Custom is the whole override, and the
@@ -962,7 +963,7 @@ export async function accountPage(
                   <tr>
                     <th scope="col">Term</th>
                     <th scope="col">Default</th>
-                    <th scope="col">Your word</th>
+                    <th scope="col">Custom</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -986,7 +987,6 @@ export async function accountPage(
                         <td class="jargon-custom">
                           <label class="jargon-pick jargon-pick--custom">
                             <input type="radio" name={`pick-${t.id}`} value="custom" checked={!!custom} />
-                            <span>Custom</span>
                             <input
                               type="text"
                               name={`custom-${t.id}`}
