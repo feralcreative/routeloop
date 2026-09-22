@@ -369,7 +369,12 @@
 // carries its own worked example, because the labels alone ("Hours", "Minutes")
 // do not tell a rider what they are about to see in the field. The example is
 // the actual output of the formatter, not a string typed here, so it cannot go
-// stale — see DURATION_FORMAT_CHOICES in src/maps/duration.ts.
+// stale — see DURATION_FORMAT_CHOICES in src/maps/duration.ts. **IT IS A
+// TOOLTIP SINCE 2026-09-21, NOT A LINE UNDER THE LABEL**: a sentence under every
+// option made a three-option group 270px tall, and the label is what a rider
+// picks from. `Choice` in views/account-page.tsx carries it as `title` and as
+// tips.js's inline body; `.choice-example` survives only as hidden text inside
+// the label, for the accessible name.
 .choice-set {
   margin: 0 0 1rem;
   padding: 0;
@@ -404,15 +409,6 @@
 
   &:hover {
     border-color: $brand;
-  }
-
-  // The example sits under the label rather than beside it, in the second
-  // column, so the three labels stay in one vertical line and can be read as a
-  // list. Spanning it back under the radio would put it under the dot instead.
-  .choice-example {
-    grid-column: 2;
-    font-size: 0.85rem;
-    opacity: 0.75;
   }
 
   &:has(input:checked) {

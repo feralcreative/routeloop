@@ -308,9 +308,17 @@
     // as long as one is up; a card is already explaining the control, and a
     // bubble beside it is a second voice. Ziad's call, 2026-09-12.
     if (document.documentElement.classList.contains("tour-active")) return;
-    var key = node.getAttribute("data-tip");
-    var body = fill(BODY[key]);
-    if (!body) return; // an unknown key keeps its native title—see wire()
+    // TWO FORMS. A keyed control (`data-tip`) has a headline in its `title`
+    // and a body in the table. An INLINE one (`data-tip-inline`) has no key: its
+    // `title` IS the body, one sentence with no headline, because the words are
+    // authored beside the control rather than here — the settings page's
+    // choice cards, where half the sentences are a formatter's live output and
+    // a table entry would be a second copy that goes stale. Ziad's call,
+    // 2026-09-21. Both share the delay, the placement, the bubble and the
+    // native-title fallback for tips off.
+    var inline = node.hasAttribute("data-tip-inline");
+    var body = inline ? "" : fill(BODY[node.getAttribute("data-tip")]);
+    if (!inline && !body) return; // an unknown key keeps its native title—see wire()
 
     // A CONTROL WITH NO BOX GETS NOTHING. The timeline is `display: none` on an
     // undated ride and the scope button hides on a one-route ride, so the tree
@@ -323,6 +331,11 @@
 
     build();
     var head = headOf(node);
+    if (inline) {
+      body = head;
+      head = "";
+      if (!body) return; // an inline control with no title has nothing to say
+    }
     el.innerHTML = "";
     if (head) {
       var b = document.createElement("b");
@@ -349,8 +362,10 @@
   }
 
   function armed(e) {
-    var node = e.target && e.target.closest ? e.target.closest("[data-tip]") : null;
-    return node && BODY[node.getAttribute("data-tip")] ? node : null;
+    var node = e.target && e.target.closest ? e.target.closest("[data-tip],[data-tip-inline]") : null;
+    if (!node) return null;
+    if (node.hasAttribute("data-tip-inline")) return node;
+    return BODY[node.getAttribute("data-tip")] ? node : null;
   }
 
   function wire() {
@@ -427,10 +442,11 @@
   // The appearance preference had to be re-stamped when /settings started
   // autosaving, because the palette IS the page and storing a choice that
   // changed nothing on screen is a page lying about what it holds. This one is
-  // the opposite case: /settings carries no `data-tip` control at all — its `?`
-  // dots are `fieldHelp`, a different mechanism — so there is nothing on that
-  // page for a re-stamp to change. The setting applies on the next page a rider
-  // opens, which is the builder, which is where the tips are.
+  // the opposite case: the only tips on /settings are the choice cards' own
+  // sentences (`data-tip-inline`, since 2026-09-21), and switching those off
+  // hands the same sentence back to the browser's native tooltip — so nothing a
+  // rider can see changes until the next page load, and on the builder, where
+  // the keyed tips are, the setting applies on the next page they open.
   //
   // Making it live would mean checking the attribute per event AND putting every
   // stripped `title` back, which is real machinery for a state nobody can see.

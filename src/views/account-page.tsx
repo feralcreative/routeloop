@@ -76,6 +76,25 @@ export type AccountTab = 'preferences' | 'profile' | 'paddock' | 'places'
 // beside it; an empty bin renders no fold at all, because a heading over an
 // empty list is a question and not an answer. Closed to start with — it is
 // history, and the list above it is the point of the tab.
+// ONE RADIO CARD, AND ITS EXPLANATION IS A TOOLTIP. Ziad's call, 2026-09-21:
+// the line under every label made a three-option group 270px tall and the page
+// mostly boxes, and the label is what a rider picks from — the sentence is for
+// the one time they wonder what it means. So the card carries it as `title`,
+// which is the browser's own tooltip with script off or tips off, and as
+// `data-tip-inline`, which tells tips.js the title IS the body — one sentence,
+// no headline, in the same bubble the builder's controls get. The same words
+// stay inside the label as hidden text, so the radio's accessible name is
+// exactly what it was when the line was visible; nothing about this reaches a
+// screen reader as a change. The cost to state: on a phone there is no hover,
+// so the sentence is a long-press away or not at all.
+const Choice = (props: { name: string; id: string; checked: boolean; label: string; tip: string }) => (
+  <label class="choice" title={props.tip} data-tip-inline>
+    <input type="radio" name={props.name} value={props.id} checked={props.checked} />
+    <span class="choice-label">{props.label}</span>
+    <span class="choice-example visually-hidden">{props.tip}</span>
+  </label>
+)
+
 const placesPanel = (bin?: { html: string; count: number; error?: string }): string =>
   (
     <div class="profile-form">
@@ -428,22 +447,26 @@ export async function accountPage(
               <fieldset class="choice-set">
                 <legend class="choice-legend">Palette</legend>
                 {THEME_CHOICES.map((choice) => (
-                  <label class="choice">
-                    <input type="radio" name="theme" value={choice.id} checked={choice.id === theme} />
-                    <span class="choice-label">{choice.label}</span>
-                    <span class="choice-example">{choice.hint}</span>
-                  </label>
+                  <Choice
+                    name="theme"
+                    id={choice.id}
+                    checked={choice.id === theme}
+                    label={choice.label}
+                    tip={choice.hint}
+                  />
                 ))}
               </fieldset>
 
               <fieldset class="choice-set">
                 <legend class="choice-legend">Light or dark</legend>
                 {SCHEME_CHOICES.map((choice) => (
-                  <label class="choice">
-                    <input type="radio" name="scheme" value={choice.id} checked={choice.id === scheme} />
-                    <span class="choice-label">{choice.label}</span>
-                    <span class="choice-example">{choice.hint}</span>
-                  </label>
+                  <Choice
+                    name="scheme"
+                    id={choice.id}
+                    checked={choice.id === scheme}
+                    label={choice.label}
+                    tip={choice.hint}
+                  />
                 ))}
               </fieldset>
 
@@ -458,11 +481,13 @@ export async function accountPage(
               <fieldset class="choice-set">
                 <legend class="choice-legend">Motion</legend>
                 {MOTION_CHOICES.map((choice) => (
-                  <label class="choice">
-                    <input type="radio" name="motion" value={choice.id} checked={choice.id === motion} />
-                    <span class="choice-label">{choice.label}</span>
-                    <span class="choice-example">{choice.hint}</span>
-                  </label>
+                  <Choice
+                    name="motion"
+                    id={choice.id}
+                    checked={choice.id === motion}
+                    label={choice.label}
+                    tip={choice.hint}
+                  />
                 ))}
               </fieldset>
 
@@ -477,11 +502,13 @@ export async function accountPage(
               <fieldset class="choice-set">
                 <legend class="choice-legend">Map tiles</legend>
                 {MAP_SCHEME_CHOICES.map((choice) => (
-                  <label class="choice">
-                    <input type="radio" name="mapScheme" value={choice.id} checked={choice.id === mapScheme} />
-                    <span class="choice-label">{choice.label}</span>
-                    <span class="choice-example">{choice.hint}</span>
-                  </label>
+                  <Choice
+                    name="mapScheme"
+                    id={choice.id}
+                    checked={choice.id === mapScheme}
+                    label={choice.label}
+                    tip={choice.hint}
+                  />
                 ))}
               </fieldset>
             </div>
@@ -527,17 +554,17 @@ export async function accountPage(
               <form method="post" action="/settings/units" class="setting-form" data-autosave>
                 <fieldset class="choice-set">
                   <legend class="visually-hidden">Units</legend>
+                  {/* The SAME road in both, which is the question being
+                    asked. Twistiness comes along with the distance: degrees
+                    per kilometer is a smaller number than degrees per mile. */}
                   {UNITS_CHOICES.map((choice) => (
-                    <label class="choice">
-                      <input type="radio" name="units" value={choice.id} checked={choice.id === units} />
-                      <span class="choice-label">{choice.label}</span>
-                      {/* The SAME road in both, which is the question being
-                        asked. Twistiness comes along with the distance: degrees
-                        per kilometer is a smaller number than degrees per mile. */}
-                      <span class="choice-example">
-                        reads <b>{choice.example}</b>
-                      </span>
-                    </label>
+                    <Choice
+                      name="units"
+                      id={choice.id}
+                      checked={choice.id === units}
+                      label={choice.label}
+                      tip={`reads ${choice.example}`}
+                    />
                   ))}
                 </fieldset>
                 <div class="setting-actions">
@@ -555,13 +582,13 @@ export async function accountPage(
                 <fieldset class="choice-set">
                   <legend class="visually-hidden">Date format</legend>
                   {DATE_FORMAT_CHOICES.map((choice) => (
-                    <label class="choice">
-                      <input type="radio" name="dateFormat" value={choice.id} checked={choice.id === dateFormat} />
-                      <span class="choice-label">{choice.label}</span>
-                      <span class="choice-example">
-                        reads <b>{choice.example}</b>
-                      </span>
-                    </label>
+                    <Choice
+                      name="dateFormat"
+                      id={choice.id}
+                      checked={choice.id === dateFormat}
+                      label={choice.label}
+                      tip={`reads ${choice.example}`}
+                    />
                   ))}
                 </fieldset>
                 <div class="setting-actions">
@@ -586,19 +613,19 @@ export async function accountPage(
               <form method="post" action="/settings/clock" class="setting-form" data-autosave>
                 <fieldset class="choice-set">
                   <legend class="visually-hidden">Clock</legend>
+                  {/* CHECKED AGAINST THE RESOLVED VALUE, not the stored one.
+                      Every rider who has never touched this carries `locale`,
+                      which is no longer offered — so without resolving, none
+                      of the two would be selected and the control would look
+                      broken on the page most riders open first. */}
                   {CLOCK_CHOICES.map((choice) => (
-                    <label class="choice">
-                      {/* CHECKED AGAINST THE RESOLVED VALUE, not the stored one.
-                          Every rider who has never touched this carries `locale`,
-                          which is no longer offered — so without resolving, none
-                          of the two would be selected and the control would look
-                          broken on the page most riders open first. */}
-                      <input type="radio" name="clock" value={choice.id} checked={choice.id === resolvedClock} />
-                      <span class="choice-label">{choice.label}</span>
-                      <span class="choice-example">
-                        reads <b>{choice.example}</b>
-                      </span>
-                    </label>
+                    <Choice
+                      name="clock"
+                      id={choice.id}
+                      checked={choice.id === resolvedClock}
+                      label={choice.label}
+                      tip={`reads ${choice.example}`}
+                    />
                   ))}
                 </fieldset>
                 <div class="setting-actions">
@@ -616,18 +643,13 @@ export async function accountPage(
                 <fieldset class="choice-set">
                   <legend class="visually-hidden">Duration format</legend>
                   {DURATION_FORMAT_CHOICES.map((choice) => (
-                    <label class="choice">
-                      <input
-                        type="radio"
-                        name="durationFormat"
-                        value={choice.id}
-                        checked={choice.id === durationFormat}
-                      />
-                      <span class="choice-label">{choice.label}</span>
-                      <span class="choice-example">
-                        reads <b>{choice.example}</b>
-                      </span>
-                    </label>
+                    <Choice
+                      name="durationFormat"
+                      id={choice.id}
+                      checked={choice.id === durationFormat}
+                      label={choice.label}
+                      tip={`reads ${choice.example}`}
+                    />
                   ))}
                 </fieldset>
                 <div class="setting-actions">
@@ -656,11 +678,13 @@ export async function accountPage(
                   <fieldset class="choice-set">
                     <legend class="visually-hidden">Fuel volume</legend>
                     {VOLUME_CHOICES.map((choice) => (
-                      <label class="choice">
-                        <input type="radio" name="volumeUnits" value={choice.id} checked={choice.id === volumeUnits} />
-                        <span class="choice-label">{choice.label}</span>
-                        <span class="choice-example">{choice.example}</span>
-                      </label>
+                      <Choice
+                        name="volumeUnits"
+                        id={choice.id}
+                        checked={choice.id === volumeUnits}
+                        label={choice.label}
+                        tip={choice.example}
+                      />
                     ))}
                   </fieldset>
                   <div class="setting-actions">
@@ -708,11 +732,13 @@ export async function accountPage(
                 <fieldset class="choice-set">
                   <legend class="visually-hidden">Vehicle</legend>
                   {VEHICLE_CHOICES.map((choice) => (
-                    <label class="choice">
-                      <input type="radio" name="vehicle" value={choice.id} checked={choice.id === vocab.vehicle} />
-                      <span class="choice-label">{choice.label}</span>
-                      <span class="choice-example">{choice.example}</span>
-                    </label>
+                    <Choice
+                      name="vehicle"
+                      id={choice.id}
+                      checked={choice.id === vocab.vehicle}
+                      label={choice.label}
+                      tip={choice.example}
+                    />
                   ))}
                 </fieldset>
                 <div class="setting-actions">
@@ -730,11 +756,13 @@ export async function accountPage(
                 <fieldset class="choice-set">
                   <legend class="visually-hidden">Power</legend>
                   {POWER_CHOICES.map((choice) => (
-                    <label class="choice">
-                      <input type="radio" name="power" value={choice.id} checked={choice.id === vocab.power} />
-                      <span class="choice-label">{choice.label}</span>
-                      <span class="choice-example">{choice.example}</span>
-                    </label>
+                    <Choice
+                      name="power"
+                      id={choice.id}
+                      checked={choice.id === vocab.power}
+                      label={choice.label}
+                      tip={choice.example}
+                    />
                   ))}
                 </fieldset>
                 <div class="setting-actions">
@@ -1232,11 +1260,13 @@ export async function accountPage(
               <fieldset class="choice-set">
                 <legend class="visually-hidden">Show me around</legend>
                 {TIPS_CHOICES.map((choice) => (
-                  <label class="choice">
-                    <input type="radio" name="tips" value={choice.id} checked={choice.id === tips} />
-                    <span class="choice-label">{choice.label}</span>
-                    <span class="choice-example">{choice.example}</span>
-                  </label>
+                  <Choice
+                    name="tips"
+                    id={choice.id}
+                    checked={choice.id === tips}
+                    label={choice.label}
+                    tip={choice.example}
+                  />
                 ))}
               </fieldset>
             </div>
