@@ -1239,7 +1239,15 @@
 
 .jargon-table {
   width: 100%;
+  // FOUR EQUAL COLUMNS. Ziad's call, 2026-09-21: `fixed` is what makes a
+  // percentage on the head cells the column's width rather than a suggestion
+  // the content overrides.
+  table-layout: fixed;
   border-collapse: collapse;
+
+  thead th {
+    width: 25%;
+  }
 
   th,
   td {
@@ -1259,9 +1267,7 @@
   }
 
   tbody th {
-    width: 12rem;
     font-weight: 600;
-    white-space: nowrap;
   }
 
   .jargon-where {
@@ -1274,8 +1280,6 @@
   // steps: halved from filling a 13rem column, then doubled back once the
   // example took a column of its own and the row had the room.
   .jargon-default {
-    width: 15rem;
-
     .jargon-pick {
       display: inline-flex;
       box-sizing: border-box;
@@ -1385,7 +1389,6 @@
     }
 
     tbody th {
-      width: auto;
       padding-bottom: 0.2rem;
     }
 
@@ -1396,10 +1399,6 @@
 
     .jargon-where {
       padding-bottom: 0.4rem;
-    }
-
-    .jargon-default {
-      width: auto;
     }
   }
 }
