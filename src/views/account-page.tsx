@@ -44,7 +44,19 @@ import { VOLUME_CHOICES, toVolumeUnits } from './volume'
 import { MOTION_CHOICES, toMotion } from './motion'
 import { UNITS_CHOICES, toUnits } from './units'
 import { TIPS_CHOICES, toTips } from './tips'
-import { POWER_CHOICES, TERMS, VEHICLE_CHOICES, Wd, cap, vocabOf, wd, wds, wordsFor, type Words } from './vocab'
+import {
+  POWER_CHOICES,
+  TERMS,
+  VEHICLE_CHOICES,
+  Wd,
+  cap,
+  toPower,
+  vocabOf,
+  wd,
+  wds,
+  wordsFor,
+  type Words,
+} from './vocab'
 import { MAP_SCHEME_CHOICES, SCHEME_CHOICES, THEME_CHOICES } from './appearance'
 import { GROUPS, eventsInGroup } from '../notifications/catalog'
 import { channelsFor } from '../notifications/policy'
@@ -87,9 +99,16 @@ export type AccountTab = 'preferences' | 'profile' | 'paddock' | 'places'
 // exactly what it was when the line was visible; nothing about this reaches a
 // screen reader as a change. The cost to state: on a phone there is no hover,
 // so the sentence is a long-press away or not at all.
-const Choice = (props: { name: string; id: string; checked: boolean; label: string; tip: string }) => (
+const Choice = (props: {
+  name: string
+  id: string
+  checked: boolean
+  label: string
+  tip: string
+  disabled?: boolean
+}) => (
   <label class="choice" title={props.tip} data-tip-inline>
-    <input type="radio" name={props.name} value={props.id} checked={props.checked} />
+    <input type="radio" name={props.name} value={props.id} checked={props.checked} disabled={props.disabled} />
     <span class="choice-label">{props.label}</span>
     <span class="choice-example visually-hidden">{props.tip}</span>
   </label>
@@ -851,11 +870,21 @@ export async function accountPage(
               <form method="post" action="/settings/vehicle" class="setting-form" data-autosave data-jargon-preset>
                 <fieldset class="choice-set">
                   <legend class="visually-hidden">Vehicle</legend>
+                  {/* GRAYED, NOT GONE. Ziad's call, 2026-09-21: a vehicle that
+                      would flip the power (Bicycle under Gas) and a power the
+                      vehicle cannot use (Pedal under Car) are disabled rather
+                      than hidden, so the option is still there to be read and
+                      picking the other axis first is what frees it. The rule is
+                      toPower()'s own — a pair is allowed when coercing it
+                      changes nothing — so the server's coercion stays as the
+                      backstop and never fires from this page. jargon.js
+                      re-gates on every change. */}
                   {VEHICLE_CHOICES.map((choice) => (
                     <Choice
                       name="vehicle"
                       id={choice.id}
                       checked={choice.id === vocab.vehicle}
+                      disabled={toPower(vocab.power, choice.id) !== vocab.power}
                       label={choice.label}
                       tip={choice.example}
                     />
@@ -889,6 +918,7 @@ export async function accountPage(
                       name="power"
                       id={choice.id}
                       checked={choice.id === vocab.power}
+                      disabled={toPower(choice.id, vocab.vehicle) !== choice.id}
                       label={choice.label}
                       tip={choice.example}
                     />
