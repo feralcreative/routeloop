@@ -1249,15 +1249,18 @@
     width: 25%;
   }
 
+  // TIGHT ROWS. Ziad's call, 2026-09-21: fourteen rows of one pill each, and
+  // the cell padding was most of the row's height.
   th,
   td {
-    padding: 0.55rem 0.6rem;
+    padding: 0.25rem 0.6rem;
     border-top: 1px solid $grey;
     text-align: left;
     vertical-align: middle;
   }
 
   thead th {
+    padding-bottom: 0.45rem;
     border-top: 0;
     font-size: 0.8rem;
     font-weight: 600;
@@ -1342,7 +1345,7 @@
     margin: 0;
   }
   min-width: 0;
-  padding: 0.3rem 0.7rem;
+  padding: 0.2rem 0.7rem;
   border: 1px solid $grey;
   border-radius: 999px;
   cursor: pointer;
