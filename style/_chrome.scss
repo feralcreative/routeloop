@@ -180,6 +180,30 @@
   }
 }
 
+// FOUR AND FIVE ACROSS ON A DESKTOP. Ziad's call, 2026-09-21, once the choice
+// cards lost the sentence under each label: Appearance has four axes and Units
+// five, and the fourth or fifth cell wrapping onto a row of its own read as an
+// afterthought under a row of one-line cards. The modifier names the count the
+// row holds on a wide page; under those widths it falls back to the three-track
+// and the two-track above, because a five-across row at 992px is a 170px cell
+// and "Follow my distances" does not fit one. The gap tightens with the count
+// for the same reason.
+//@ LG ≥992px — four across.
+@media (min-width: 992px) {
+  .three-col--four {
+    grid-template-columns: repeat(4, 1fr);
+    gap: 1.5rem;
+  }
+}
+
+//@ XL ≥1200px — five across.
+@media (min-width: 1200px) {
+  .three-col--five {
+    grid-template-columns: repeat(5, 1fr);
+    gap: 1.5rem;
+  }
+}
+
 // $page, not $neutral-96, since 2026-09-17: the two are one value in the
 // light and the page is the near-black in the dark, a step BELOW the cards on
 // it rather than a step above. See $page in _palette.scss.
