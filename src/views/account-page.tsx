@@ -958,49 +958,67 @@ export async function accountPage(
               and every save dropped it.
             */}
             <form method="post" action="/settings/jargon" class="setting-form" data-autosave data-jargon>
-              <table class="jargon-table">
-                <thead>
-                  <tr>
-                    <th scope="col">Term</th>
-                    <th scope="col">Default</th>
-                    <th scope="col">Custom</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {TERMS.map((t) => {
-                    const follows = t.axis === 'regional' ? t.options?.[0] : presetWords[t.id]
-                    const custom = vocab.jargon[t.id] ?? ''
-                    const off = t.axis === 'power' && vocab.power === 'pedal'
-                    return (
-                      <tr class={off ? 'is-off' : ''} data-term={t.id} data-axis={t.axis}>
-                        <th scope="row">
-                          <span class="jargon-label">{t.label}</span>
-                          <span class="jargon-where">{t.where}</span>
-                        </th>
-                        <td class="jargon-default">
-                          <label class="jargon-pick">
-                            <input type="radio" name={`pick-${t.id}`} value="default" checked={!custom} />
-                            <span class="jargon-word">{follows ? cap(follows.one) : ''}</span>
-                          </label>
-                          <span class="jargon-off">Nothing to plan fuel around on a pedal bike.</span>
-                        </td>
-                        <td class="jargon-custom">
-                          <label class="jargon-pick jargon-pick--custom">
-                            <input type="radio" name={`pick-${t.id}`} value="custom" checked={!!custom} />
-                            <input
-                              type="text"
-                              name={`custom-${t.id}`}
-                              maxlength={40}
-                              value={custom}
-                              aria-label={`Your word for ${t.label.toLowerCase()}`}
-                            />
-                          </label>
-                        </td>
-                      </tr>
-                    )
-                  })}
-                </tbody>
-              </table>
+              {/*
+                TWO TABLES, NOT ONE, ON A WIDE PAGE. Ziad's call, 2026-09-21:
+                fourteen rows of one short pill and one short box left the right
+                two thirds of a desktop empty, so from XL the terms run as two
+                columns of seven with a gutter between them — and it is two
+                tables rather than a multi-column flow because a browser will
+                not fragment a table across columns, and because two tables is
+                what puts a GAP IN THE RULES: each row's hairline is its own
+                table's and stops at the edge. Below XL they stack, the second
+                head hidden, and read as the one table they were. jargon.js
+                finds its rows under the form, so it does not know or care.
+              */}
+              <div class="jargon-cols">
+                {[TERMS.slice(0, Math.ceil(TERMS.length / 2)), TERMS.slice(Math.ceil(TERMS.length / 2))].map(
+                  (terms) => (
+                    <table class="jargon-table">
+                      <thead>
+                        <tr>
+                          <th scope="col">Term</th>
+                          <th scope="col">Default</th>
+                          <th scope="col">Custom</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {terms.map((t) => {
+                          const follows = t.axis === 'regional' ? t.options?.[0] : presetWords[t.id]
+                          const custom = vocab.jargon[t.id] ?? ''
+                          const off = t.axis === 'power' && vocab.power === 'pedal'
+                          return (
+                            <tr class={off ? 'is-off' : ''} data-term={t.id} data-axis={t.axis}>
+                              <th scope="row">
+                                <span class="jargon-label">{t.label}</span>
+                                <span class="jargon-where">{t.where}</span>
+                              </th>
+                              <td class="jargon-default">
+                                <label class="jargon-pick">
+                                  <input type="radio" name={`pick-${t.id}`} value="default" checked={!custom} />
+                                  <span class="jargon-word">{follows ? cap(follows.one) : ''}</span>
+                                </label>
+                                <span class="jargon-off">Nothing to plan fuel around on a pedal bike.</span>
+                              </td>
+                              <td class="jargon-custom">
+                                <label class="jargon-pick jargon-pick--custom">
+                                  <input type="radio" name={`pick-${t.id}`} value="custom" checked={!!custom} />
+                                  <input
+                                    type="text"
+                                    name={`custom-${t.id}`}
+                                    maxlength={40}
+                                    value={custom}
+                                    aria-label={`Your word for ${t.label.toLowerCase()}`}
+                                  />
+                                </label>
+                              </td>
+                            </tr>
+                          )
+                        })}
+                      </tbody>
+                    </table>
+                  ),
+                )}
+              </div>
               <div class="setting-actions">
                 <button type="submit" class="btn btn-sign arrow-right arrow-n" data-js-hide>
                   Save
