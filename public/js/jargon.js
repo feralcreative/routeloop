@@ -1,13 +1,15 @@
 // The jargon table on the Preferences tab (#321): what the page has to do on
 // its own that the forms cannot.
 //
-// THE PICKERS MOVE THE TABLE. Each row's Default column is the word the
-// current preset would use, so picking Car turns Ride into Trip on the journey
-// row without a reload; the box beside it is the rider's own and is never
-// touched. A power term under Pedal is switched off, since there is nothing to
-// plan fuel around. (Until 2026-09-21 each row was a run of pill radios with a
-// "default" mark that moved between them, and typing in the Custom box ticked
-// its radio; the box is the whole override now — Ziad's call.)
+// 1. TYPING IN THE CUSTOM BOX PICKS CUSTOM. Ziad's call, 2026-09-13. The radio
+//    and the box are one choice, and a rider who has typed a word has made it.
+// 2. THE PICKERS MOVE THE TABLE. Each row's default pill carries the word the
+//    current preset would use, so picking Car turns Ride into Trip on the
+//    journey row without a reload; which pill is ticked is the rider's own and
+//    is never touched. A power term under Pedal is switched off, since there is
+//    nothing to plan fuel around. (Until 2026-09-21 each row was a pill for
+//    every preset's word with a "default" mark that moved between them; it is
+//    the default pill and Custom now — Ziad's call.)
 //
 // Saving stays autosave.js's job: the three forms carry `data-autosave` like
 // every other setting, and this only touches the DOM between saves. The
@@ -90,5 +92,15 @@
       gate();
       markAll();
     });
+  });
+
+  // Typing picks Custom; the change event the box fires afterwards is what
+  // queues the save, through autosave.js like everything else.
+  table.addEventListener("input", (e) => {
+    const box = e.target;
+    if (!(box instanceof HTMLInputElement) || box.type !== "text") return;
+    const custom = box.closest(".jargon-pick--custom");
+    const radio = custom && custom.querySelector('input[type="radio"]');
+    if (radio && box.value.trim()) radio.checked = true;
   });
 })();
