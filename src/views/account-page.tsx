@@ -380,7 +380,10 @@ export async function accountPage(
           blocks sat in a fixed two-column `.two-col` with `align-items: start`,
           so every cell kept its own height and the shorter column simply ended
           early. Every control here is a short radio group, so a topic is a ROW
-          OF THREE and `.three-col` wraps the rest onto a second row of its own.
+          OF THREE and `.three-col` wraps the rest onto a second row of its own
+          — and on a desktop, since 2026-09-21, the row holds the whole topic:
+          four across for Appearance, five for Units (`.three-col--four`,
+          `.three-col--five`).
 
           GTFO stays outside both topics: it is a boxed-off danger area and half
           a page is not where it belongs.
@@ -443,7 +446,7 @@ export async function accountPage(
             the palette bar above is the part of it a rider can point at.
           */}
           <form method="post" action="/settings/appearance" class="setting-form" data-autosave>
-            <div class="three-col">
+            <div class="three-col three-col--four">
               <fieldset class="choice-set">
                 <legend class="choice-legend">Palette</legend>
                 {THEME_CHOICES.map((choice) => (
@@ -496,8 +499,9 @@ export async function accountPage(
                 page must not force dark tiles on anyone, because the tiles are
                 what a planner reads and a dark basemap is a taste. It defaults
                 to following the page, so the control changes nothing for the
-                rider who never touches it. The fourth cell wraps under the
-                three at LG; that is the grid doing its job.
+                rider who never touches it. The fourth cell is the fourth
+                column on a desktop (`.three-col--four`) and wraps under the
+                three at smaller widths.
               */}
               <fieldset class="choice-set">
                 <legend class="choice-legend">Map tiles</legend>
@@ -541,7 +545,7 @@ export async function accountPage(
             whenever you&nbsp;like.
           </p>
 
-          <div class="three-col">
+          <div class="three-col three-col--five">
             {/*
               A FORM EACH, NOT ONE, and the split is deliberate rather than left
               over. Unlike the appearance axes these are unrelated questions with
