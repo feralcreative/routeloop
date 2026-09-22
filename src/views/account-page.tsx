@@ -95,6 +95,32 @@ const Choice = (props: { name: string; id: string; checked: boolean; label: stri
   </label>
 )
 
+// AND ONE `?` PER GROUP, LISTING EVERY OPTION WITH ITS SENTENCE. Ziad asked, the
+// same evening, why the sentences were tooltips and not the `?` bubble every
+// other explanation on this page uses — and the bubble has the edge on a phone,
+// where a tooltip is a long-press or nothing, and it needs no script. One per
+// GROUP rather than one per card, because 33 dots would put back the noise the
+// tooltips took away; the hover tooltips stay for a pointer. The rows are the
+// cards' own labels and sentences, so the two cannot disagree. `raw()` because
+// `fieldHelp` renders its text as-is and this is markup, the `twistKey()`
+// arrangement on the dashboard.
+const choiceKey = (name: string, label: string, rows: { label: string; tip: string }[]): string =>
+  fieldHelp(
+    `key-${name}`,
+    label,
+    raw(
+      (
+        <span class="choice-key">
+          {rows.map((r) => (
+            <span class="choice-key-row">
+              <b>{r.label}</b> {r.tip}
+            </span>
+          ))}
+        </span>
+      ).toString(),
+    ) as unknown as string,
+  )
+
 const placesPanel = (bin?: { html: string; count: number; error?: string }): string =>
   (
     <div class="profile-form">
@@ -448,7 +474,16 @@ export async function accountPage(
           <form method="post" action="/settings/appearance" class="setting-form" data-autosave>
             <div class="three-col three-col--four">
               <fieldset class="choice-set">
-                <legend class="choice-legend">Palette</legend>
+                <legend class="choice-legend">
+                  Palette
+                  {raw(
+                    choiceKey(
+                      'theme',
+                      'the palette',
+                      THEME_CHOICES.map((c) => ({ label: c.label, tip: c.hint })),
+                    ),
+                  )}
+                </legend>
                 {THEME_CHOICES.map((choice) => (
                   <Choice
                     name="theme"
@@ -461,7 +496,16 @@ export async function accountPage(
               </fieldset>
 
               <fieldset class="choice-set">
-                <legend class="choice-legend">Light or dark</legend>
+                <legend class="choice-legend">
+                  Light or dark
+                  {raw(
+                    choiceKey(
+                      'scheme',
+                      'light or dark',
+                      SCHEME_CHOICES.map((c) => ({ label: c.label, tip: c.hint })),
+                    ),
+                  )}
+                </legend>
                 {SCHEME_CHOICES.map((choice) => (
                   <Choice
                     name="scheme"
@@ -482,7 +526,16 @@ export async function accountPage(
                 exists.
               */}
               <fieldset class="choice-set">
-                <legend class="choice-legend">Motion</legend>
+                <legend class="choice-legend">
+                  Motion
+                  {raw(
+                    choiceKey(
+                      'motion',
+                      'motion',
+                      MOTION_CHOICES.map((c) => ({ label: c.label, tip: c.hint })),
+                    ),
+                  )}
+                </legend>
                 {MOTION_CHOICES.map((choice) => (
                   <Choice
                     name="motion"
@@ -504,7 +557,16 @@ export async function accountPage(
                 three at smaller widths.
               */}
               <fieldset class="choice-set">
-                <legend class="choice-legend">Map tiles</legend>
+                <legend class="choice-legend">
+                  Map tiles
+                  {raw(
+                    choiceKey(
+                      'mapScheme',
+                      'map tiles',
+                      MAP_SCHEME_CHOICES.map((c) => ({ label: c.label, tip: c.hint })),
+                    ),
+                  )}
+                </legend>
                 {MAP_SCHEME_CHOICES.map((choice) => (
                   <Choice
                     name="mapScheme"
@@ -554,7 +616,16 @@ export async function accountPage(
               routes/settings.tsx.
             */}
             <section class="setting" id="units">
-              <h3>Distances</h3>
+              <h3>
+                Distances
+                {raw(
+                  choiceKey(
+                    'units',
+                    'distances',
+                    UNITS_CHOICES.map((c) => ({ label: c.label, tip: `reads ${c.example}` })),
+                  ),
+                )}
+              </h3>
               <form method="post" action="/settings/units" class="setting-form" data-autosave>
                 <fieldset class="choice-set">
                   <legend class="visually-hidden">Units</legend>
@@ -581,7 +652,16 @@ export async function accountPage(
             </section>
 
             <section class="setting" id="dates">
-              <h3>Dates</h3>
+              <h3>
+                Dates
+                {raw(
+                  choiceKey(
+                    'dateFormat',
+                    'dates',
+                    DATE_FORMAT_CHOICES.map((c) => ({ label: c.label, tip: `reads ${c.example}` })),
+                  ),
+                )}
+              </h3>
               <form method="post" action="/settings/date-format" class="setting-form" data-autosave>
                 <fieldset class="choice-set">
                   <legend class="visually-hidden">Date format</legend>
@@ -613,7 +693,16 @@ export async function accountPage(
               is `hour12` alone; see src/views/clock.ts for how narrow it is.
             */}
             <section class="setting" id="clock">
-              <h3>Clock</h3>
+              <h3>
+                Clock
+                {raw(
+                  choiceKey(
+                    'clock',
+                    'the clock',
+                    CLOCK_CHOICES.map((c) => ({ label: c.label, tip: `reads ${c.example}` })),
+                  ),
+                )}
+              </h3>
               <form method="post" action="/settings/clock" class="setting-form" data-autosave>
                 <fieldset class="choice-set">
                   <legend class="visually-hidden">Clock</legend>
@@ -642,7 +731,16 @@ export async function accountPage(
             </section>
 
             <section class="setting" id="stop-durations">
-              <h3>Stop durations</h3>
+              <h3>
+                Stop durations
+                {raw(
+                  choiceKey(
+                    'durationFormat',
+                    'stop durations',
+                    DURATION_FORMAT_CHOICES.map((c) => ({ label: c.label, tip: `reads ${c.example}` })),
+                  ),
+                )}
+              </h3>
               <form method="post" action="/settings/duration-format" class="setting-form" data-autosave>
                 <fieldset class="choice-set">
                   <legend class="visually-hidden">Duration format</legend>
@@ -677,7 +775,16 @@ export async function accountPage(
                 none. The column keeps its value for the day they switch. */}
             {w.fuel ? (
               <section class="setting" id="volume">
-                <h3>{Wd(w, 'fuel')} volume</h3>
+                <h3>
+                  {Wd(w, 'fuel')} volume
+                  {raw(
+                    choiceKey(
+                      'volumeUnits',
+                      `${wd(w, 'fuel')} volume`,
+                      VOLUME_CHOICES.map((c) => ({ label: c.label, tip: c.example })),
+                    ),
+                  )}
+                </h3>
                 <form method="post" action="/settings/volume" class="setting-form" data-autosave>
                   <fieldset class="choice-set">
                     <legend class="visually-hidden">Fuel volume</legend>
@@ -731,7 +838,16 @@ export async function accountPage(
           </p>
           <div class="three-col">
             <section class="setting" id="vehicle">
-              <h3>Default: what you are on</h3>
+              <h3>
+                Default: what you are on
+                {raw(
+                  choiceKey(
+                    'vehicle',
+                    'what you are on',
+                    VEHICLE_CHOICES.map((c) => ({ label: c.label, tip: c.example })),
+                  ),
+                )}
+              </h3>
               <form method="post" action="/settings/vehicle" class="setting-form" data-autosave data-jargon-preset>
                 <fieldset class="choice-set">
                   <legend class="visually-hidden">Vehicle</legend>
@@ -755,7 +871,16 @@ export async function accountPage(
             </section>
 
             <section class="setting" id="power">
-              <h3>Default: what it runs on</h3>
+              <h3>
+                Default: what it runs on
+                {raw(
+                  choiceKey(
+                    'power',
+                    'what it runs on',
+                    POWER_CHOICES.map((c) => ({ label: c.label, tip: c.example })),
+                  ),
+                )}
+              </h3>
               <form method="post" action="/settings/power" class="setting-form" data-autosave data-jargon-preset>
                 <fieldset class="choice-set">
                   <legend class="visually-hidden">Power</legend>
@@ -1262,7 +1387,16 @@ export async function accountPage(
           <form method="post" action="/settings/tips" class="setting-form" data-autosave>
             <div class="three-col">
               <fieldset class="choice-set">
-                <legend class="visually-hidden">Show me around</legend>
+                <legend class="choice-legend">
+                  Tips
+                  {raw(
+                    choiceKey(
+                      'tips',
+                      'the tips',
+                      TIPS_CHOICES.map((c) => ({ label: c.label, tip: c.example })),
+                    ),
+                  )}
+                </legend>
                 {TIPS_CHOICES.map((choice) => (
                   <Choice
                     name="tips"
