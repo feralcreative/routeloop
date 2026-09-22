@@ -62,19 +62,16 @@
     if (first && row.getAttribute("data-axis") !== "regional") row.setAttribute("data-follows", first.value);
   });
 
-  // GRAYED, NOT GONE. Ziad's call, 2026-09-21: a vehicle that would flip the
-  // power (Bicycle under Gas) and a power the vehicle cannot use (Pedal under
-  // Car) are disabled rather than hidden — the option is still there to be
-  // read, and picking the other axis first is what frees it. The rule is
-  // toPower()'s own: a pair is allowed when coercing it changes nothing. The
-  // server renders the same gate for first paint (account-page.tsx), and its
-  // coercion below stays as the backstop, which nothing on this page can reach
-  // any more.
+  // THE POWER FOLLOWS THE VEHICLE, GRAYED RATHER THAN GONE. Ziad's call,
+  // 2026-09-21: a power the vehicle cannot use — Pedal under a motorcycle or a
+  // car, Gas under a bicycle — is disabled, so the option is still there to be
+  // read and the vehicle is the one thing to change. One direction only: gating
+  // the vehicles on the power as well was built first and was too convoluted.
+  // The rule is toPower()'s own; the server renders the same gate for first
+  // paint (account-page.tsx), and the vehicle branch below moves the checked
+  // power when the new vehicle cannot use it, as the server does.
   function gate() {
     const d = window.TBVocabData;
-    document.querySelectorAll('[data-jargon-preset] input[name="vehicle"]').forEach((r) => {
-      r.disabled = window.TBVocab.toPower(d.profile.power, r.value) !== d.profile.power;
-    });
     document.querySelectorAll('[data-jargon-preset] input[name="power"]').forEach((r) => {
       r.disabled = window.TBVocab.toPower(r.value, d.profile.vehicle) !== r.value;
     });

@@ -870,21 +870,11 @@ export async function accountPage(
               <form method="post" action="/settings/vehicle" class="setting-form" data-autosave data-jargon-preset>
                 <fieldset class="choice-set">
                   <legend class="visually-hidden">Vehicle</legend>
-                  {/* GRAYED, NOT GONE. Ziad's call, 2026-09-21: a vehicle that
-                      would flip the power (Bicycle under Gas) and a power the
-                      vehicle cannot use (Pedal under Car) are disabled rather
-                      than hidden, so the option is still there to be read and
-                      picking the other axis first is what frees it. The rule is
-                      toPower()'s own — a pair is allowed when coercing it
-                      changes nothing — so the server's coercion stays as the
-                      backstop and never fires from this page. jargon.js
-                      re-gates on every change. */}
                   {VEHICLE_CHOICES.map((choice) => (
                     <Choice
                       name="vehicle"
                       id={choice.id}
                       checked={choice.id === vocab.vehicle}
-                      disabled={toPower(vocab.power, choice.id) !== vocab.power}
                       label={choice.label}
                       tip={choice.example}
                     />
@@ -913,6 +903,16 @@ export async function accountPage(
               <form method="post" action="/settings/power" class="setting-form" data-autosave data-jargon-preset>
                 <fieldset class="choice-set">
                   <legend class="visually-hidden">Power</legend>
+                  {/* THE POWER FOLLOWS THE VEHICLE, GRAYED RATHER THAN GONE.
+                      Ziad's call, 2026-09-21: a power the vehicle cannot use —
+                      Pedal under a motorcycle or a car, Gas under a bicycle —
+                      is disabled, so the option is still there to be read and
+                      the vehicle is the one thing to change. One direction
+                      only; gating the vehicles on the power as well was built
+                      first and was too convoluted. The rule is toPower()'s
+                      own, and a vehicle change that leaves the checked power
+                      impossible moves it (jargon.js, mirroring the server's
+                      own coercion in the vehicle handler). */}
                   {POWER_CHOICES.map((choice) => (
                     <Choice
                       name="power"
