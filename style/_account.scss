@@ -447,8 +447,8 @@
     background: color-mix(in srgb, $brand 6%, transparent);
   }
 
-  // GRAYED, NOT GONE: an option the other picker rules out (Pedal under Car,
-  // Bicycle under Gas) stays where it is at less than half strength, so the
+  // GRAYED, NOT GONE: a power the chosen vehicle rules out (Pedal under a car,
+  // Gas under a bicycle) stays where it is at less than half strength, so the
   // list keeps its shape and the option can still be read. The tooltip still
   // works, because the label is what carries it and the radio is what is
   // disabled.
