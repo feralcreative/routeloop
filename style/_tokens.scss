@@ -2,46 +2,26 @@
 
 // Design tokens: the PUBLIC NAMES. Every value lives in _palette.scss.
 //
-// Each token below is a `var(--x)` reference rather than a color, which is the
-// single trick that made a runtime theme possible without touching the ~950
-// places that use one. A rule still says `background: $stop`; it now compiles to
-// `background: var(--stop)` and picks up whichever of the six palettes is active.
+// Each token is a `var(--x)` rather than a color, which is what made a runtime
+// theme possible without touching the ~950 rules that use one.
 //
-// WHAT THIS FILE IS NOW: names, and the reasoning about what each name is FOR.
-// The long comments below are the valuable part and were left exactly where they
-// were — they explain the ink-pairing table, why $warning and $yield are two
-// different yellows, why $concrete comes off the neutral scale. Read them here;
-// read _palette.scss for what the numbers actually are in each theme.
+// THE ONE RULE WHEN ADDING A TOKEN: it has to exist in _palette.scss too, or
+// this emits a `var()` that resolves to nothing and the property silently
+// drops. There is no build error — the name is a string on both sides.
 //
-// THE ONE RULE WHEN ADDING A TOKEN: it has to exist in _palette.scss too, or this
-// emits a `var()` that resolves to nothing and the property silently drops. There
-// is no build error for that — the name is a string on both sides.
-//
-// Non-color tokens ($font, the $z-* stack) stay real Sass values. They do not
-// vary by theme and a custom property would buy nothing.
+// Non-color tokens ($font, the $z-* stack) stay real Sass values.
 
 // Color Variables
 
 // THE NEUTRAL SCALE. Greys are not road-sign colors and do not belong in the
-// palette below — the app needs a full ramp of them for text and surfaces, and
-// a sign has exactly one gray, the post it stands on.
+// palette below; a sign has exactly one gray, the post it stands on.
 //
-// **The number is CIE L\*, perceptual lightness.** Numbered that way rather than
-// 50–900 because L* predicts behavior and an ordinal does not: the gap between
-// two steps IS the perceived difference, and contrast against white or black
-// follows from the number without looking anything up. Systems that number by
-// hundreds have to publish a table to tell you the same thing.
+// **The number is CIE L\*, perceptual lightness**, rather than 50–900: the gap
+// between two steps IS the perceived difference, and contrast against white or
+// black follows from the number without a lookup table.
 //
-// The values are the ones the app was already using, and that is not laziness —
-// they were measured first, and from $neutral-21 to $neutral-76 they were
-// already an even ramp, 7 L* per step to within half a point. A "best practice"
-// scale imposed over that would have moved the two most-used greys by 3 and 5
-// L* to buy nothing. Three near-duplicates WERE collapsed, all imperceptible:
-// #b0b0b0 -> -70 (dE 2.2), #ebebeb and #f0f0f0 -> -94 (dE 1.0 and 0.7).
-//
-// The step from -76 to -88 is 12, double the rest. That gap is real: the app has
-// text greys and surface greys and nothing that wants to live between them. Fill
-// it if something ever does, rather than pretending the ramp is even up there.
+// The step from -76 to -88 is 12, double the rest, and that gap is real — the
+// app has text greys and surface greys and nothing between them.
 $neutral-21: var(--neutral-21);
 $neutral-29: var(--neutral-29);
 $neutral-36: var(--neutral-36);
@@ -51,11 +31,8 @@ $neutral-57: var(--neutral-57);
 $neutral-63: var(--neutral-63);
 $neutral-70: var(--neutral-70);
 $neutral-76: var(--neutral-76);
-// -82 IS THE BORDER-AND-FILL STEP, one shade under $grey. It fills the gap the
-// header of this file calls real, and it exists because three derived tokens —
-// $grey-d3, $grey-d5 and $grey-d8, four usages between them — were all doing
-// this one job at 78%, 82% and 84%. Three names for one shade is what a trim
-// pass is for.
+// -82 IS THE BORDER-AND-FILL STEP, one shade under $grey. It replaced
+// $grey-d3, $grey-d5 and $grey-d8 — three names for one job at 78/82/84%.
 $neutral-82: var(--neutral-82);
 $neutral-88: var(--neutral-88);
 $neutral-94: var(--neutral-94);
@@ -63,35 +40,24 @@ $neutral-96: var(--neutral-96);
 $neutral-98: var(--neutral-98);
 
 // The road-sign palette. Named for what each color is on a road rather than for
-// where it is used in the app, so a name stays true when a component moves.
+// where it is used, so a name stays true when a component moves.
 //
-// These are stylized, NOT conversions of the federal spec, and the difference is
-// worth knowing before anyone "corrects" one of them toward a published value.
-// There is no official hex for a US road sign and no official RGB either: the
-// regulation (23 CFR 655) defines chromaticity coordinates for retroreflective
-// sheeting, and the Pantone numbers FHWA publishes beside them are a printing
-// guide the agency explicitly marks as not for use in sign fabrication. Sheeting
-// is engineered to be read under headlights, so a faithful conversion lands much
-// darker than these — spec green converts to around #004b37, spec red to around
-// #9d001d, both closer to black than to anything wanted on a screen. These are
-// what those colors look like in daylight memory, which is the useful target.
+// These are stylized, NOT conversions of the federal spec, which matters before
+// anyone "corrects" one toward a published value: 23 CFR 655 defines
+// chromaticity for retroreflective SHEETING, engineered to be read under
+// headlights, so a faithful conversion lands far darker — spec green is about
+// #004b37, spec red about #9d001d. These are those colors in daylight memory.
 //
 // Three names to read carefully. `$yield` and `$warning` are two different
-// yellows and the split is the useful part: `$warning` is the amber of a
-// warning diamond, `$yield` the brighter yellow of a signal head and a school
-// zone. `$disabled` is the blue of an accessible-parking sign, and it is the
-// app's generic accent through `$url` below rather than an accessibility
-// signal. `$tarmac` is the palette's black — road surface, and what a black
-// sign field like ONE WAY is.
+// yellows: $warning is a warning diamond's amber, $yield a signal head's
+// brighter yellow. `$disabled` is the accessible-parking blue and is the app's
+// generic accent through `$url`, not an accessibility signal. `$tarmac` is the
+// palette's black — a black sign field like ONE WAY.
 //
-// `$concrete` took its value from the neutral scale until 2026-09-17 and is a
-// fixed #888888 in every palette now. It is the post and the gantry — genuinely
-// a gray, so a gray it should be, rather than the slightly cool #7e8386 it was
-// sampled as; -57 was the nearest step (dE 3.4) and it holds that step's LIGHT
-// value. It came off the ramp because it pinned the ramp: the roster mark
-// paints a white knockout glyph on it at a 3:1 graphical bar, so the dark
-// ramp's -57 could never be lifted with the muted text around it while the two
-// were one token.
+// `$concrete` is a fixed #888888 in every palette since 2026-09-17. It came off
+// the neutral ramp because it PINNED it: the roster mark paints a white glyph
+// on it at a 3:1 bar, so the dark ramp's -57 could not be lifted with the muted
+// text around it while the two were one token.
 $interstate: var(--interstate);
 $speed: var(--speed);
 $stop: var(--stop);
@@ -106,209 +72,148 @@ $concrete: var(--concrete);
 $white: var(--white);
 $black: var(--black);
 // THE PAGE AND THE EDGE OF A CARD, 2026-09-17. `$white` is a SURFACE — a card,
-// a panel, a drawer — and `$page` is the ground those sit on: -96 in the
-// light, the near-black in the dark, so a card is one step above the page in
-// both schemes. `$card-edge` is a hairline for a card's outline: transparent
-// in the light, where the shadow draws the corner, and a faint light rule in
-// the dark, where a shadow on a dark page is nothing. See build() in
-// _palette.scss for why the two exist at all.
+// a panel, a drawer — and `$page` is the ground those sit on, so a card is one
+// step above the page in both schemes. `$card-edge` is a card's hairline:
+// transparent in the light, where the shadow draws the corner, a faint light
+// rule in the dark, where a shadow draws nothing.
 $page: var(--page);
 $card-edge: var(--card-edge);
 
-// WHICH INK GOES ON WHICH FIELD. This is not a style preference and not derived
-// from the contrast numbers — it is copied off the signs the palette was sampled
-// from, and the numbers happen to agree, which is the point. A real sign never
-// picks its legend color by taste.
+// WHICH INK GOES ON WHICH FIELD. Not a style preference and not derived from
+// the contrast numbers — copied off the signs the palette was sampled from, and
+// the numbers happen to agree.
 //
-//   WHITE legend    $stop (STOP, WRONG WAY), $interstate (guide sign, airport),
-//                   $disabled (parking symbol, I-95 shield), $tarmac (ONE WAY,
-//                   the black DETOUR), $recreation (brown recreational)
-//   BLACK legend    $warning (warning diamonds), $yield (signal head, school
-//                   zone), $detour (work zone, the orange DETOUR), $speed
-//                   (SPEED LIMIT, the Route 66 shield)
+//   WHITE legend    $stop, $interstate, $disabled, $tarmac, $recreation
+//   BLACK legend    $warning, $yield, $detour, $speed
 //
-// Measured, both directions: every white-legend field clears 4.5:1 against
-// $white and every black-legend field clears 4.5:1 against $black. Every one of
-// them FAILS on the other ink — $yield is 1.4:1 behind white, $interstate is
-// 2.9:1 behind black. There is no field here that takes either.
+// Measured both directions: every white-legend field clears 4.5:1 on $white and
+// every black-legend field clears 4.5:1 on $black, and every one FAILS on the
+// other ink ($yield is 1.4:1 behind white, $interstate 2.9:1 behind black).
 //
-// $go and $concrete carry no legend on a real sign: $go is the green traffic
-// signal and $concrete is the post and gantry. Both are dark enough for black
-// and too light for white (2.8:1 and 3.8:1), so they follow the black-legend
-// rule when they have to carry text at all.
+// $go and $concrete carry no legend on a real sign and are too light for white
+// (2.8:1, 3.8:1), so they follow the black-legend rule when they carry text.
 //
-// The consequence that catches people: a black-legend field must get LIGHTER on
-// hover, not darker. `.btn`'s reflex is `color.adjust(..., $lightness: -8%)`,
-// which raises contrast under white ink and lowers it under black — on $go it
-// takes 6.1:1 down to 4.3:1, and the -15% the map buttons use lands on 3.1:1.
-// Lighten those instead; +8% takes $go to 7.6:1.
-//
-// The two ink tokens are declared below, beside the rest of the semantic set.
+// THE TRAP: a black-legend field must get LIGHTER on hover. `.btn`'s reflex is
+// `color.adjust(..., $lightness: -8%)`, which raises contrast under white ink
+// and lowers it under black — on $go that is 6.1:1 down to 4.3:1, and the map
+// buttons' -15% lands on 3.1:1. +8% takes $go to 7.6:1.
 
-// The semantic tokens below now take their value from the road-sign palette
-// instead of holding one of their own. Where a token is only ever a fill, it
-// points straight at a palette entry. Where it is TEXT, it points at a darkened
-// palette entry instead, because several of these colors cannot carry or sit
-// under type at 4.5:1 as drawn — that is a property of the palette, not a
-// disagreement with it, and deriving keeps one source per hue.
-// Both were literals that happened to sit exactly on the neutral scale — #ddd
-// is $neutral-88 and #333 is $neutral-21, to the byte. Pointing at the step
-// rather than repeating the hex costs nothing and means the scale is the only
-// place a gray is written down. They keep their own names because those names
-// say what they are FOR, which a number never will: $text is body copy, $grey is
-// a border.
+// The semantic tokens below take their value from the road-sign palette. Where
+// a token is only ever a fill it points straight at a palette entry; where it
+// is TEXT it points at a darkened one, because several of these colors cannot
+// carry or sit under type at 4.5:1 as drawn.
+//
+// $text and $grey keep their own names because those say what they are FOR,
+// which a number never will: $text is body copy, $grey is a border.
 $grey: var(--grey);
 $text: var(--text);
 
 // The two legends, named for the job rather than the color, so a rule reads as
-// "this field takes the dark ink" rather than as a color choice someone is free
-// to second-guess. Which one a given field takes is the pairing table above.
+// "this field takes the dark ink". Which one a field takes is the table above.
 //
-// $ink-dark is $black and not $text: the signs use black, and $text is a soft
-// gray meant for body copy on white. On a colored field that softness costs
-// contrast for nothing — $text on $go is 4.4:1 where black is 7.4:1.
-//
-// It was $tarmac until the palette gained a real $black on 2026-08-15. The two
-// are 1.2:1 apart and indistinguishable as ink; $black is simply the honest
-// name for the job now that it exists. $tarmac stays what it always was, a
-// FIELD — the black sign panel, which takes the white legend.
+// $ink-dark is $black and not $text: signs use black, and $text is a soft gray
+// for body copy on white — on a colored field that softness costs contrast for
+// nothing ($text on $go is 4.4:1 where black is 7.4:1). $tarmac stays a FIELD.
 $ink-light: var(--ink-light);
 $ink-dark: var(--ink-dark);
-// Rider-approval "waiting" state on the admin panel. Amber reads as attention-
-// needed without the alarm of $kml, and stays legible as dark-on-tint.
+// Rider-approval "waiting" state on the admin panel. Amber reads as attention
+// needed without the alarm of $stop.
 //
-// Derived rather than set flat: this is text on a 16% tint of itself, and the
-// amber measures 1.9:1 on white — invisible. At -20% it is 4.9:1, which also
-// quietly fixes the 4.24:1 the hand-picked #b26a00 was failing at.
+// Derived rather than flat: this is text on a 16% tint of itself, and the amber
+// measures 1.9:1 on white. At -20% it is 4.9:1.
 //
-// $warning, NOT $yield, and the distinction is load-bearing. It was $yield until
-// the palette split the two yellows on 2026-08-15; $warning inherited that exact
-// amber, so this value did not move, while the same expression against the new
-// brighter $yield lands on 3.7:1 and fails. Whenever a token here is text, it
-// derives from the amber.
+// $warning, NOT $yield, and that is load-bearing: the same expression against
+// the brighter $yield lands on 3.7:1 and fails. Whenever a token here is text,
+// it derives from the amber.
 $pending: var(--pending);
 $panel-bg: var(--panel-bg);
 $panel-shadow: var(--panel-shadow);
 // Unquoted to match every other token here; CSS family names are case-
-// insensitive identifiers, so this matches the "Overpass" the @font-face in
-// _fonts.scss declares.
+// insensitive identifiers.
 //
 // Overpass is drawn from Highway Gothic, the US road-sign face, which is why it
-// is here rather than a neutral UI grotesque. It replaced Archivo, which was
-// technically fine but set noticeably heavier at every step; Archivo replaced
-// Barlow, which replaced Lato. Two things to know before touching type:
+// is here rather than a neutral UI grotesque. Two things before touching type:
 //
-// Any weight is a real cut. The face is variable across 100–900, so 340 or 550
-// interpolate rather than rounding to a static instance. Under Lato, 500 and
-// 600 did not exist at all and silently became 700.
+// Any weight is a real cut — the face is variable across 100–900, so 340 or 550
+// interpolate rather than rounding to a static instance.
 //
-// There is no width axis. Archivo had one and `font-stretch` worked; here it
-// does nothing, because Overpass ships a weight axis only. Reaching for
-// letter-spacing is the substitute.
+// There is no width axis, so `font-stretch` does nothing; letter-spacing is the
+// substitute.
 //
-// `sep-dot` leads the stack and covers exactly one codepoint, U+00B7 — see the
-// block at the top of _fonts.scss for why. It carries no file and downloads
-// nothing; it exists to take the interpunct away from Overpass, whose copy of
-// it has an advance width of zero.
+// `sep-dot` leads the stack and covers one codepoint, U+00B7 — see _fonts.scss.
+// It carries no file and exists to take the interpunct away from Overpass,
+// whose copy of it has an advance width of zero.
 $font: sep-dot, overpass;
 
-// THE LINK BLUE, and the only name for it since 2026-09-07. `$url` and `$ride`
-// were the same value in every palette and are gone; this was already the
-// forward-looking name, so it is the one that survived.
+// THE LINK BLUE, and the only name for it since 2026-09-07 — `$url` and `$ride`
+// were the same value and are gone.
 //
-// NOT `$disabled`, which is the blue SIGN FIELD and is a different color in
-// every dark palette — see the note in _palette.scss for the measurement.
+// NOT `$disabled`, which is the blue SIGN FIELD and a different color in every
+// dark palette; see _palette.scss for the measurement.
 $brand: var(--brand);
 
-// The four variable parts of a structured route filename, on /import: each one
-// carries its color from the example line down to the definition that explains
-// it, so the pairing is visible rather than positional.
+// The four variable parts of a structured route filename, on /import: each
+// carries its color from the example line down to the definition, so the
+// pairing is visible rather than positional.
 //
-// These used to hold four hand-picked values so they could be tuned for telling
-// each other apart without moving anything else. They now come from the palette,
-// which costs one thing worth recording: $route and $kml were deliberately two
-// different reds — the note here used to say they "need to stay free to
-// diverge", because one means a filename field and the other means error and
-// bad format. The palette has one red, so they are now the same color. If they
-// ever need to differ again, that is a second red in the palette, not a hex here.
+// $route and $kml were deliberately two different reds — one means a filename
+// field, the other error and bad format. The palette has one red, so they are
+// the same color now; if they ever need to differ, that is a second red in the
+// palette, not a hex here.
 //
-// $label is derived from $warning for the reason $pending is: it is text on a
-// tint, and no yellow in this palette survives there undarkened. -22% lands on
-// 5.5:1, the same figure the hand-picked #925e00 measured, so nothing on
-// /import moves. Against the brighter $yield the same expression gives 4.2:1
-// and fails, which is why it names the amber explicitly.
+// $label derives from $warning for the reason $pending does: it is text on a
+// tint, and no yellow survives there undarkened. -22% lands on 5.5:1; against
+// the brighter $yield the same expression gives 4.2:1 and fails.
 //
-// All four still clear 4.5:1 on that tint. The definitions stay in the order of
-// the example and still name their field in words, because color cannot be the
-// only cue — red and amber converge under protanopia.
+// All four clear 4.5:1 on that tint, and each names its field in words — color
+// cannot be the only cue, since red and amber converge under protanopia.
 $route: var(--route);
 $date: var(--date);
 $label: var(--label);
 
-// THE FOUR "YOUR RECORDS" FIGURE COLORS (#177), each the same hue as the accent
-// it is named for, at an absolute lightness that survives as text.
+// THE FOUR "YOUR RECORDS" FIGURE COLORS (#177), each the hue of the accent it
+// is named for at an absolute lightness that survives as text.
 //
-// A sign field is not a text color. All four accents are fields — authored to be
-// sat on, carrying a legend — and using one as type is inverting what it was
-// picked for. Measured: $detour is 2.46:1 on $white in the default palette and
-// 1.98:1 in contrast, and on the DARK schemes all four fail, because the
-// surface is near-black and every field is a mid-tone (interstate 2.67, disabled
-// 2.52, recreation 2.01, worse again under contrast-dark).
+// A SIGN FIELD IS NOT A TEXT COLOR. All four accents are fields, authored to be
+// sat on: $detour is 2.46:1 on $white by default and 1.98:1 in contrast, and on
+// the DARK schemes all four fail against a near-black surface.
 //
-// So the mark keeps the field color — it is a filled glyph, not text — and only
-// the numeral takes these. Do not use one as a field, and do not use a bare
-// accent as text. test/palette-contrast.test.ts holds all eight pairs.
+// So the mark keeps the field color — it is a filled glyph — and only the
+// numeral takes these. test/palette-contrast.test.ts holds all eight pairs.
 $interstate-text: var(--interstate-text);
 $disabled-text: var(--disabled-text);
 $detour-text: var(--detour-text);
 $recreation-text: var(--recreation-text);
 
-// NO BUILD-TIME COLOR FUNCTIONS ON A TOKEN. `rgba($brand, 0.06)` used to appear
-// in eighteen places and every one of them broke silently the moment tokens
-// became `var()` references: Sass passes the call through untouched, so it
-// compiled to `rgba(var(--brand), 0.06)`, which is not valid CSS and drops the
-// declaration. Nothing warns — the build succeeds and the tint is simply gone.
+// NO BUILD-TIME COLOR FUNCTIONS ON A TOKEN. `rgba($brand, 0.06)` appeared in
+// eighteen places and every one broke silently when tokens became `var()`
+// references: Sass passes the call through, so it compiles to
+// `rgba(var(--brand), 0.06)`, which is invalid and drops the declaration.
+// Nothing warns.
 //
-// A tint is written `color-mix(in srgb, $brand 6%, transparent)` instead, which
-// takes a custom property and themes with it. The same rule covers any future
-// mix, fade or adjust: if Sass has to compute it, it needs a real color, and the
-// only real colors left are in _palette.scss.
+// Write `color-mix(in srgb, $brand 6%, transparent)` instead. The same rule
+// covers any mix, fade or adjust: if Sass has to compute it, it needs a real
+// color, and the only real colors left are in _palette.scss.
 
 // --- THE DERIVED SET --------------------------------------------------------
 //
 // Every color the stylesheets used to compute inline with `color.adjust()`, now
-// named. There were about fifty such expressions across thirteen files before
-// 2026-08-24, and they were promoted for one reason: **a color that is computed
-// at build time cannot be re-computed when a theme changes at runtime.** Sass
-// runs once; a custom property switches on an attribute. Anything that has to
-// differ between the six palettes therefore has to exist as its own token, and
-// this is that list.
+// named. They were promoted for one reason: **a color computed at build time
+// cannot be re-computed when a theme changes at runtime.** Sass runs once; a
+// custom property switches on an attribute, so anything that differs between
+// the six palettes has to exist as its own token.
 //
 // NAMED FOR WHERE THEY LAND, NOT FOR WHAT THEY DO: `$gpx-d14` is $gpx darkened
-// 14%. That is a deliberate retreat from how the rest of this file names things,
-// and it is worth saying why, because the header above rightly criticizes scales
-// numbered by arithmetic. Thirty semantic names would have to be invented at
-// once, for roles that overlap — $gpx carried muted text at both -12% and -14%,
-// and body text was muted at six different lightnesses. Inventing thirty names
-// for distinctions nobody had articulated is how you get names that lie. These
-// say exactly what they are and nothing more.
+// 14%. A deliberate retreat from how this file names things — thirty semantic
+// names would have to be invented at once, for roles that overlap, which is how
+// you get names that lie. These say exactly what they are and nothing more.
 //
-// **THE VALUES ARE UNCHANGED AND THAT WAS THE POINT.** This promotion compiled
-// byte-for-byte identical CSS — Ziad's call on 2026-08-24, choosing a provable
-// refactor over a tidier one. Collapsing the near-duplicates (six muted greys
-// into three, four tints into two) is a real improvement and a separate decision,
-// because it moves pixels and wants a browser pass of its own.
-//
-// WHEN THE SCHEME AXIS LANDS, EACH OF THESE HAS TO BE CLASSIFIED. A token that
-// exists for legibility — muted text, a hover state that must keep its contrast
-// — flips direction on a dark ground, because a derivation that darkens to stay
-// readable on white has to lighten to stay readable on near-black. A token that
-// is decorative may not flip. That classification is the real work of the theme
-// axis and it is not done here; this file only makes it possible.
+// **THE VALUES ARE UNCHANGED AND THAT WAS THE POINT**: the promotion compiled
+// byte-for-byte identical CSS. Collapsing the near-duplicates is a real
+// improvement and a separate decision, because it moves pixels.
 
-// Body text, muted. Six steps, which is what the app actually used rather than a
-// designed ramp. All are `$text` lightened, so all six flip to darkening under a
-// dark scheme.
+// Body text, muted. Six steps, what the app used rather than a designed ramp.
+// All are `$text` lightened, so all six flip to darkening under a dark scheme.
 
 // Borders and surface fills either side of $grey.
 
@@ -324,9 +229,8 @@ $stop-d6: var(--stop-d6);
 $stop-d10: var(--stop-d10);
 $stop-d20: var(--stop-d20);
 
-// The accent blue. The three tints are within 9% of each other and are three
-// different surfaces that were each tuned alone — a candidate for collapsing
-// later, recorded here rather than fixed now.
+// The accent blue. The three tints are within 9% of each other and were each
+// tuned alone — a candidate for collapsing, recorded rather than fixed.
 $brand-l43: var(--brand-l43);
 $brand-l46: var(--brand-l46);
 $brand-l52: var(--brand-l52);
@@ -334,125 +238,99 @@ $brand-d8: var(--brand-d8);
 $brand-d10: var(--brand-d10);
 $brand-d20: var(--brand-d20);
 
-// $brand is an alias of $url, so this is the same hue as the three above. It
-// keeps its own name because the rule that uses it reaches for $brand, and a
-// rule saying $url-d6 would read as a link color.
+// $brand is an alias of $url, so this is the same hue. It keeps its own name
+// because a rule saying $url-d6 would read as a link color.
 $brand-d6: var(--brand-d6);
 
-// Two hover states on sign-green and sign-red fields. Both DARKEN, which is
-// correct for a white-legend field and is the trap the ink-pairing note above
-// describes: a black-legend field must lighten on hover instead.
+// Two hover states on sign-green and sign-red fields. Both DARKEN, correct for
+// a white-legend field and the trap the ink-pairing note describes: a
+// black-legend field must lighten instead.
 $interstate-d6: var(--interstate-d6);
 $stop-d8: var(--stop-d8);
 
-// Google Blue, for the sign-in button's hover and focus edge. Sourced from
-// Google's own brand palette rather than picked by eye, because it sits beside
-// their mark and an approximation reads as a knock-off.
+// Google Blue, for the sign-in button's hover and focus edge. From Google's own
+// palette rather than picked by eye — it sits beside their mark.
 $google-blue: var(--google-blue);
 
-// The three contact marks on the alpha modal, in each service's own brand
-// color. Literals rather than anything derived from the palette for the same
-// reason $google-blue is one: they sit under recognizable logos and are not
-// ours to harmonize. Nothing else in the app should reach for these — a
-// Routeloop surface that wants blue wants $url.
+// The three contact marks on the notice modal, in each service's brand color.
+// Literals for the reason $google-blue is one: they sit under recognizable
+// logos and are not ours to harmonize. A Routeloop surface that wants blue
+// wants $url.
 $github: var(--github);
-// **$signal-brand IS THE LOGO AND $signal IS THE GO LIGHT, AND THEY WERE ONE
-// TOKEN UNTIL #301.** The Signal app's hex sits in the frozen block with the
-// other two; the blue signal head sits in the three sign sets and follows the
-// theme like every other field. $signal-text is what sets TYPE in that blue —
-// the junction rows in _builder.scss — because the field measured 4.18:1 on the
-// page surface in all three light palettes and, being frozen, could not be
-// lifted by the one theme that exists to lift a color. Exactly the split
-// $disabled and $url already have.
+// **$signal-brand IS THE LOGO AND $signal IS THE GO LIGHT, ONE TOKEN UNTIL
+// #301.** The Signal app's hex is frozen with the other brands; the blue signal
+// head follows the theme. $signal-text sets TYPE in that blue (the junction
+// rows in _builder.scss), because the field measured 4.18:1 on the page surface
+// and, being frozen, could not be lifted by the contrast theme. The
+// $disabled/$url split again.
 $signal-brand: var(--signal-brand);
 $signal: var(--signal);
 $signal-text: var(--signal-text);
 $discord: var(--discord);
 
-// Chosen as the only accent legible over the sign-in clip. It was originally
-// lifted from the Routeloop wordmark's dashed center line, became a standalone
-// accent while the tankbag artwork was in use because that mark carries no
-// yellow, and is back to matching the wordmark now that Routeloop is.
+// Chosen as the only accent legible over the sign-in clip, and lifted from the
+// wordmark's dashed center line.
 //
-// It held #ffdd00 as its own literal until 2026-08-15, when the palette's new
-// $yield landed on exactly that value — the wordmark's yellow and the signal
-// yellow turn out to be the same yellow. Pointing at the token rather than
-// keeping a second copy means the two cannot drift apart silently; if the
-// wordmark is ever redrawn in a different yellow, THAT is when this gets its own
-// value back, and the comment above says why it would deserve one.
+// It held #ffdd00 as its own literal until 2026-08-15, when $yield landed on
+// exactly that value — the wordmark's yellow and the signal yellow are the same
+// yellow. Pointing at the token means the two cannot drift; if the wordmark is
+// ever redrawn in a different yellow, that is when this gets its value back.
 $accent: var(--accent);
 
 // Base for the dark, full-bleed sign-in page: what shows under the video before
-// a frame decodes, and the color every scrim over it is mixed from.
+// a frame decodes, and what every scrim over it is mixed from.
 // A REAL COLOR, not a var(), and the only token here that stays one.
 //
-// The sign-in page is dark in every theme and every scheme by design — it is a
-// full-bleed video with a scrim over it, not a themed surface — so this never
-// varies and has nothing to gain from the indirection. It also cannot have it:
-// _splash.scss mixes three scrims from this value with `color.change($x, $alpha:
-// 0.78)`, which is a BUILD-TIME operation and cannot be applied to a `var()`.
+// The page is dark in every theme by design, so this never varies — and it
+// cannot have the indirection anyway: _splash.scss mixes three scrims from it
+// with `color.change()`, a BUILD-TIME operation that cannot touch a `var()`.
 //
-// That is the general rule this one token illustrates: anything still computed
-// by Sass must hold a real color, and anything that varies at runtime must not
-// be computed by Sass. See _palette.scss, which is where the ~50 derivations that
-// had to move ended up.
+// The general rule: anything still computed by Sass must hold a real color, and
+// anything that varies at runtime must not be computed by Sass.
 $splash-ink: #0a0e11;
 
-// The stacking order used to be magic numbers spread across three files. The
-// map panel and toast keep their original values so nothing shifts; the banner
-// moved 2001 -> 2100 to leave room under the modal.
-// HOW WIDE A PAGE GETS. A real Sass value, like $font and the $z-* stack: it
-// does not vary by theme, so a custom property would buy nothing.
+// The stacking order used to be magic numbers across three files. The map panel
+// and toast keep their original values; the banner moved 2001 -> 2100 to leave
+// room under the modal.
+// HOW WIDE A PAGE GETS. A real Sass value, like $font and the $z-* stack.
 //
-// **IT IS A TOKEN RATHER THAN A NUMBER BECAUSE TWO RULES HAVE TO AGREE.**
-// `.page-wrap` caps the content and `.nav-inner` caps the header, and they are
-// content-box at the same width so the logo lines up with the first line of the
-// page under it. They were two literal `960px`s and the nav's comment said so —
-// which is the arrangement that drifts the first time somebody widens one of
-// them, and the symptom is a logo a few pixels off the text it is meant to sit
-// above. Anything that wants to be as wide as a page reads this.
+// **IT IS A TOKEN BECAUSE TWO RULES HAVE TO AGREE.** `.page-wrap` caps the
+// content and `.nav-inner` caps the header, content-box at the same width so
+// the logo lines up with the first line under it. Two literal `960px`s drift
+// the first time somebody widens one, and the symptom is a logo a few pixels
+// off the text it sits above.
 //
-// **1200 FROM 960, 2026-09-07 — Ziad's call: 960 was too narrow.** It is a cap
-// and not a layout width, so nothing below it changed: the two- and three-column
-// settings rows still start at 992px, where the wrap is still growing rather
-// than parked at its cap, and the columns there are the same ~430px they always
-// were. What the extra 240px buys is the rows ABOVE that breakpoint, which is
-// where a settings page stops being a single tall stack.
+// **1200 FROM 960, 2026-09-07.** A cap, not a layout width, so nothing below it
+// changed: the settings rows still start at 992px, where the wrap is still
+// growing. The extra 240px buys the rows above that breakpoint.
 //
-// PROSE IS NOT CAPPED BY THIS and must not be. `.content-page` keeps its own
-// 44rem measure and `.setting` its 60ch, because a paragraph at 1136px is
-// unreadable however much room the page has — the reading width and the layout
-// width are two different numbers and this is only the second one.
+// PROSE IS NOT CAPPED BY THIS and must not be: `.content-page` keeps its 44rem
+// measure and `.setting` its 60ch. The reading width and the layout width are
+// two different numbers.
 $page-max: 1200px;
 
-// THE PHONE SEAM, since 2026-09-15. 767px is the width the map drawer already
-// becomes a bottom sheet at (_map.scss) and the feedback dock already clears
-// it at — the one seam the app had been using consistently before it had a
-// name. FOR NEW RULES ONLY: the 767/768/992 literals already in the sheets
-// stay as they are. Retrofitting them is a forty-odd-query diff that changes
-// nothing on screen, and a literal beside a token is a reader's cue that the
-// rule predates the token rather than a defect. `min-width` counterparts use
-// `$bp-phone + 1`. There are deliberately no other breakpoint tokens: the
-// chrome pages had no shared seam at all, and one is enough to start with.
+// THE PHONE SEAM, since 2026-09-15. 767px is where the map drawer already
+// becomes a bottom sheet and the feedback dock already clears it — the one seam
+// the app was using consistently before it had a name. FOR NEW RULES ONLY: the
+// 767/768/992 literals already in the sheets stay, because retrofitting them
+// changes nothing on screen and a literal beside a token tells a reader the
+// rule predates it. `min-width` counterparts use `$bp-phone + 1`.
 $bp-phone: 767px;
 
 $z-map-panel: 1000;
 $z-header: 1200;
 $z-nav: 1300;
-// The bug and notes dock. Above the nav because it is site chrome now rather
-// than a map control — it was on $z-map-panel, which was correct while it only
-// existed over a map and wrong the moment it appeared on a page with a sticky
-// header. Below the toast, which reports the result of what these start.
+// The bug and notes dock. Above the nav because it is site chrome rather than a
+// map control — it was on $z-map-panel, correct while it only existed over a
+// map and wrong on a page with a sticky header. Below the toast, which reports
+// the result of what these start.
 $z-fab: 1400;
 $z-toast: 2000;
 $z-banner: 2100;
 // The Show me around bubble (#133). ABOVE EVERYTHING BUT A DIALOG, which is a
-// tooltip's whole job — it annotates whatever is currently on top, so anything
-// it slides under is a control it cannot describe. It shipped at 90 for an
-// afternoon and was clipped in half by the builder's own panel at 1000.
-//
-// Below the modal because a dialog takes focus and covers the page it opened
-// over: a tooltip about a control nobody can reach any more is a tooltip about
-// nothing. It is only ever transient and never takes a pointer event.
+// tooltip's whole job: anything it slides under is a control it cannot
+// describe. It shipped at 90 and was clipped in half by the builder's own panel
+// at 1000. Below the modal, because a tooltip about a control nobody can reach
+// is a tooltip about nothing.
 $z-tip: 2200;
 $z-modal: 3000;
