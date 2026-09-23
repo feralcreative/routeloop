@@ -18,14 +18,11 @@
   }
 
   // SQUARE, because `<input type="color">` renders wide by default and the extra
-  // width is dead space. #route-color was 50x27 in a 320px route head, beside a
-  // route-name field that only got 165px — 23px of nothing, right next to the
-  // control that needed it. Scoped to the input type rather than the id: it is
-  // true of any color input, and there will be more of them.
-  //
-  // The swatch has to be told to fill the box. Chrome and Safari draw the value
-  // inside a padded well, so a square input otherwise holds a small rectangle
-  // floating in the middle of it.
+    // width is dead space: #route-color was 50x27 in a 320px route head beside a name
+    // field that only got 165px. Scoped to the input type rather than the id.
+    //
+    // The swatch has to be told to fill the box — Chrome and Safari draw the value
+    // inside a padded well.
   input[type="color"] {
     flex: none;
     width: 2em;
@@ -52,28 +49,21 @@
   }
 
   // THE RIDE NAME IS THE HEADING, and this field IS the heading rather than
-  // something a pencil swaps in: a reveal would be a second mode and a layout jump.
-  // The field picks up a border only on hover or focus; the pencil is a hint.
-  //
-  // The selector fights the generic input rule above, hence naming the id.
-  //
-  // NO FONT-SIZE HERE, and that is a correction rather than an omission. This block
-  // carried `font-size: 1.5rem` for months and it never applied — the size comes
-  // from `#info-panel .panel-title` in _map.scss, and an id beats two classes.
+    // something a pencil swaps in: a reveal would be a second mode and a layout jump.
+    //
+    // NO FONT-SIZE HERE, a correction rather than an omission. This block carried
+    // `font-size: 1.5rem` for months and it never applied — the size comes from
+    // `#info-panel .panel-title` in _map.scss, and an id beats two classes.
   .panel-title {
     display: block;
     margin: 0 2.6em 0 0;
 
     // IT IS A TEXTAREA. An <input> cannot wrap, which is why the name used to
-    // ellipsize at the panel's edge however much room was under it. Everything below
-    // makes a textarea stop looking like one:
-    //
-    //   resize: none and overflow: hidden kill the drag corner and the scrollbar.
-    //   max-height is the two-line ceiling, spelled out as lines + padding + borders
-    //   because the box is border-box: a flat 2.4em leaves the content box about 2px
-    //   short and clips the descenders on the second line rather than the third.
-    //   The height itself is set inline by fitTitle() on every edit; without it the
-    //   field sits at one row forever and scrolls.
+        // ellipsize at the panel's edge. Everything below makes a textarea stop looking
+        // like one: resize/overflow kill the drag corner and the scrollbar, and
+        // max-height is the two-line ceiling, spelled out as lines + padding + borders
+        // because the box is border-box — a flat 2.4em clips the descenders on the
+        // second line. The height itself is set inline by fitTitle() on every edit.
     #ride-title {
       display: block;
       width: 100%;
@@ -95,15 +85,13 @@
         font-weight: 300;
       }
 
-      // A pencil, drawn rather than fetched: one glyph at one size in one place.
-      // currentColor is not available inside a data URI, so the stroke is the muted
-      // gray the hint is meant to be.
-      //
-      // THE BAKED GRAY IS #777777, WHICH IS $neutral-50 ON THE LIGHT RAMP AND #888888
-      // ON THE DARK ONE — one step apart, so the same literal reads as a muted glyph on
-      // either. That is luck, and luck that stops holding the moment somebody re-spaces
-      // the ramp, so test/palette-contrast.test.ts measures this literal in all six
-      // palettes.
+      // A pencil, drawn rather than fetched. currentColor is not available inside a
+            // data URI, so the stroke is the muted gray the hint is meant to be.
+            //
+            // THE BAKED GRAY IS #777777, WHICH IS $neutral-50 ON THE LIGHT RAMP AND #888888
+            // ON THE DARK ONE — one step apart, so the same literal reads as muted on either.
+            // That is luck that stops holding the moment somebody re-spaces the ramp, so
+            // test/palette-contrast.test.ts measures this literal in all six palettes.
       &:hover,
       &:focus {
         border-color: $grey;
@@ -119,23 +107,19 @@
   }
 
   // Collapsed, the heading is a label rather than a field: clicking a strip that
-  // says what is behind it should expand the panel, not put a cursor in it.
-  //
-  // ONE LINE, whatever the expanded panel is doing. The `!important` on height is
-  // not decoration: fitTitle() writes an inline height for the expanded heading.
-  //
-  // A textarea cannot take `text-overflow: ellipsis`, so the overflow fades out.
-  //
-  // The width looks like it needs pinning and does not: `.panel-title` carries
-  // `transition: font-size 0.4s`, so anything measured in the same frame as the
-  // class change reads the pre-transition size. **Wait out that transition before
-  // believing any measurement of the collapsed panel.**
-  //@ MD 768px and up — "collapsed" means the RAIL, and only the rail.
-  //
-  // Below that it is a sheet that slides off the bottom with its contents intact,
-  // and unscoped this rule fired on the first frame of that slide. It is inert on
-  // the desktop side too (`.panel-title` is `display: none` in the rail), kept
-  // because it describes what the heading should do if the rail shows it again.
+    // says what is behind it should expand the panel, not put a cursor in it.
+    //
+    // ONE LINE, whatever the expanded panel is doing. The `!important` on height is
+    // not decoration: fitTitle() writes an inline height for the expanded heading. A
+    // textarea cannot take `text-overflow: ellipsis`, so the overflow fades out.
+    //
+    // The width looks like it needs pinning and does not: `.panel-title` carries
+    // `transition: font-size 0.4s`, so anything measured in the same frame as the
+    // class change reads the pre-transition size. **Wait out that transition before
+    // believing any measurement of the collapsed panel.**
+    //@ MD 768px and up — "collapsed" means the RAIL, and only the rail. Below that
+    // it is a sheet that slides off the bottom with its contents intact, and unscoped
+    // this rule fired on the first frame of that slide.
   @media (min-width: 768px) {
     &.collapsed .panel-title #ride-title {
       height: 1.3em !important;
@@ -150,13 +134,12 @@
   }
 
   // Three bands, one per scope: the ride, the trip across its routes, and the one
-  // route being edited. The panel used to be a flat run of divs where nothing said
-  // whether a control changed one route or everything.
-  //
-  // Tint and an accent rather than captions and rules. At 380px a horizontal
-  // rule reads as clutter and three extra label lines are three lines of the
-  // vertical budget — the grouping itself carries the meaning, and the route band
-  // names its own scope through the color it is accented in.
+    // route being edited. The panel used to be a flat run of divs where nothing said
+    // whether a control changed one route or everything.
+    //
+    // Tint and an accent rather than captions and rules: at 380px a horizontal rule
+    // reads as clutter and three extra label lines are three lines of the vertical
+    // budget.
   .panel-band {
     padding: 0.7em 0.75em;
     border-radius: 8px;
@@ -170,16 +153,13 @@
     }
   }
 
-  // WHAT THIS RIDER MAY DO, at the top of the panel and only ever shown to
-  // somebody who is not the ride's owner (#190).
-  //
-  // Not .tb-banner, which is FIXED to the top of the viewport and offsets the
-  // map through --banner-h. This one belongs to the panel's flow: it scrolls
-  // with what it describes, and a second fixed bar would push the map down for a
-  // message about the drawer.
-  //
-  // Deliberately quiet. It is a statement of standing, not a warning — an alert
-  // color here would read as something having gone wrong, and nothing has.
+  // WHAT THIS RIDER MAY DO, at the top of the panel and only ever shown to somebody
+    // who is not the ride's owner (#190).
+    //
+    // Not .tb-banner, which is FIXED to the top of the viewport and offsets the map
+    // through --banner-h. This one belongs to the panel's flow.
+    //
+    // Deliberately quiet: it is a statement of standing, not a warning.
   .builder-standing {
     display: flex;
     flex-direction: column;
@@ -202,13 +182,9 @@
     }
   }
 
-  // The ride's own fields sit at the top of the panel under its title, so they
-  // need no container of their own — a tint here would box in the whole panel.
-  //
-  // This block was .ride-meta before the bands; the class was folded into the
-  // band rather than nested inside it, so the rules move here with it. It was
-  // also declared twice, once here and once immediately below for the tint
-  // alone; the two are one block now.
+  // The ride's own fields sit at the top of the panel under its title, so they need
+    // no container of their own — a tint here would box in the whole panel. This block
+    // was .ride-meta before the bands, and was also declared twice; the two are one now.
   .panel-band--ride {
     display: flex;
     flex-direction: column;
@@ -222,15 +198,13 @@
     }
   }
 
-  // ONE SECTION PER DAY, ALL ON SCREEN AT ONCE. This was .panel-band--route, a
-  // single block showing whichever route a slider at the bottom of the drawer had
-  // selected, plus .route-scrub, .route-slider and .route-ticks for the slider itself.
-  // All of that is gone: a fixed-height drawer has room for the whole ride, so
-  // showing one route at a time was a constraint of the old floating panel rather
-  // than a decision. renderRoutes() in builder.js fills #route-list with these.
-  //
-  // Accented in the route's own color, which is also what every role icon inside
-  // it inherits. --route-color is set per section by renderRoutes().
+  // ONE SECTION PER ROUTE, ALL ON SCREEN AT ONCE. This was .panel-band--route, a
+    // single block showing whichever route a slider had selected: a fixed-height
+    // drawer has room for the whole ride, so showing one at a time was a constraint of
+    // the old floating panel rather than a decision.
+    //
+    // Accented in the route's own color, which every role icon inside it inherits.
+    // --route-color is set per section by renderRoutes().
   .route-list {
     display: flex;
     flex-direction: column;
@@ -269,13 +243,13 @@
       box-shadow: inset 0 0 0 1px var(--route-color, #{$brand});
     }
 
-    // ALTERNATES. The pair is bracketed by a shared left edge and the loser is
-    // quieted — not hidden and not disabled, because it is a real route the rider
-    // can still edit, name, reorder and promote.
-    //
-    // Deliberately NOT `opacity` on the section: that would take the color
-    // swatch, the twirl and every control with it, and a working control that
-    // looks disabled is worse than one that looks ordinary.
+    // ALTERNATES. The pair is bracketed by a shared left edge and the loser is quieted
+        // — not hidden and not disabled, because it is a real route the rider can still
+        // edit, name, reorder and promote.
+        //
+        // Deliberately NOT `opacity` on the section: that would take the color swatch,
+        // the twirl and every control with it, and a working control that looks disabled
+        // is worse than one that looks ordinary.
     &.in-alt-group {
       border-left-style: dashed;
     }
@@ -307,14 +281,12 @@
   }
 
   // TEN PIXELS BETWEEN EVERY CONTROL, and the gap is only half of what makes that
-  // true: each box below is sized to its own artwork, because a box wider than its
-  // glyph reads as gap. The caret was a 5px triangle in a 22px button, so the eye
-  // measured 8.5px of empty button plus the gap.
-  //
-  // Deliberately px and not em — a visual rhythm rather than a typographic one.
-  //
-  // [hidden] is explicit because the `display` below outranks the UA sheet's
-  // `[hidden] { display: none }`. Same trap as .row-roles.
+    // true: each box below is sized to its own artwork, because a box wider than its
+    // glyph reads as gap. Deliberately px and not em — a visual rhythm rather than a
+    // typographic one.
+    //
+    // [hidden] is explicit because the `display` below outranks the UA sheet's
+    // `[hidden] { display: none }`. Same trap as .row-roles.
   .route-head {
     &[hidden] {
       display: none;
@@ -327,15 +299,13 @@
     margin-bottom: 0.6em;
   }
 
-  // The route's grip. Built exactly like .row-drag — a tinted tab with a FIXED dot
-  // box centered inside it by a ::before — and not, as it was first written, a
-  // repeating background-image on the element itself. That tiled dots edge to
-  // edge across the whole tab at whatever height the header happened to be, so
-  // it rendered as a speckled block rather than as a grip.
-  //
-  // The negative margins pull it out to the section's own padding edge so the
-  // tab reaches top and bottom of the header instead of floating in it. They
-  // are .route-section's padding: 0.5em vertical, 0.6em left. Keep them in step.
+  // The route's grip, built exactly like .row-drag — a tinted tab with a FIXED dot
+    // box centered inside it by a ::before — and not a repeating background-image on
+    // the element itself, which tiled edge to edge and rendered as a speckled block.
+    //
+    // The negative margins pull it out to the section's own padding edge so the tab
+    // reaches top and bottom of the header. They are .route-section's padding: 0.5em
+    // vertical, 0.6em left. Keep them in step.
   .route-drag {
     position: relative;
     flex: none;
@@ -354,15 +324,12 @@
     }
 
     // Right margin is 0 and must stay 0: .route-head's `gap: 10px` spaces this now.
-    //
-    // ONE PIXEL SHORT OF THE SECTION'S EDGE on the other three sides, doing two jobs.
-    // The margins used to land the tab on the padding box — where .is-active paints
-    // its 1px inset ring — and A CHILD PAINTS ABOVE A PARENT'S INSET BOX-SHADOW, so
-    // the tab punched a 14px hole in the ring. The corner is the other:
-    // .route-section rounds its BORDER box at 8px while this is anchored 3px in, so
-    // an 8px radius here is struck from the wrong origin.
-    //
-    // Keep the 1px on all three, and in px — it matches a 1px ring.
+        //
+        // ONE PIXEL SHORT OF THE SECTION'S EDGE on the other three sides, doing two jobs.
+        // The margins used to land the tab on the padding box — where .is-active paints a
+        // 1px inset ring — and A CHILD PAINTS ABOVE A PARENT'S INSET BOX-SHADOW, so the
+        // tab punched a 14px hole in it. The corner is the other: .route-section rounds
+        // its BORDER box at 8px while this is anchored 3px in.
     margin: calc(-0.5em + 1px) 0 calc(-0.5em + 1px) calc(-0.6em + 1px);
     border-radius: 6px 0 0 6px;
     cursor: grab;
@@ -409,15 +376,12 @@
     justify-content: center;
     flex: 0 0 auto;
     // 18x22 for the hit target, PULLED IN 5px EACH SIDE so it occupies only the 8px
-    // its mark actually paints.
-    //
-    // A button is a box, and the eye measures ink: an 18px button around an 8px
-    // triangle contributes 5px of nothing either side, so a 10px gap rendered as 15px
-    // against the grip while the one gap with no button in it came out at 10.1px.
-    // Measured in the browser — reasoning about it is how it got set to 22px and then
-    // 18px without either being right.
-    //
-    // Keep the 5px in step with the width: it is (width − 8) / 2.
+        // its mark actually paints.
+        //
+        // A button is a box, and the eye measures ink: an 18px button around an 8px
+        // triangle contributes 5px of nothing either side, so a 10px gap rendered as 15px
+        // against the grip. Measured in the browser. Keep the 5px in step with the width:
+        // it is (width − 8) / 2.
     width: 18px;
     height: 22px;
     margin: 0 -5px;
@@ -448,14 +412,12 @@
   }
 
   // The route's ordinal. Bolder and larger than .row-num, the stop number inside a
-  // route — the same idea at two levels.
-  //
-  // It takes --route-color, so the number, the swatch, the grip and the map agree.
-  //
-  // FIXED WIDTH, sized to TWO digits (MAX_ROUTES = 31), so a ride crossing into
-  // double figures does not shift every name field beside it. That is why a
-  // one-digit route looks like it has more air. flex-shrink is 0, so an overflow
-  // collides with the swatch rather than reflowing.
+    // route — the same idea at two levels. It takes --route-color, so the number, the
+    // swatch, the grip and the map agree.
+    //
+    // FIXED WIDTH, sized to TWO digits (MAX_ROUTES = 31), so a ride crossing into
+    // double figures does not shift every name field beside it. flex-shrink is 0, so
+    // an overflow collides with the swatch rather than reflowing.
   .route-num {
     flex: 0 0 1.25em;
     text-align: center;
@@ -552,12 +514,11 @@
   }
 
   // THE OVERFLOW MENU, FOR BOTH ITS HOSTS. This lived inside .point-row until route
-  // headers grew a ⋮ of their own, at which point the route's menu inherited none
-  // of it and rendered as an 84px box with "Ungroup alternatives" over three lines.
-  //
-  // Absolutely positioned so opening it costs no layout, right-aligned under its
-  // button, and allowed to overflow its host — the panel scroller clips it. Both
-  // hosts must therefore be `position: relative`.
+    // headers grew a ⋮ of their own, at which point the route's menu inherited none of
+    // it and rendered as an 84px box with "Ungroup alternatives" over three lines.
+    //
+    // Absolutely positioned so opening it costs no layout, and allowed to overflow its
+    // host. Both hosts must therefore be `position: relative`.
   .row-menu {
     position: absolute;
     top: 100%;
@@ -667,13 +628,10 @@
   .route-time {
     display: flex;
     // `flex: 1 1 0` and `min-width: 0`, where this was `flex: 1 1 10em` with the
-    // default `min-width: auto`. Both halves of that were the bug.
-    //
-    // A flex item defaults to a floor of its MIN-CONTENT width, and a populated
-    // datetime-local's min-content is the whole "08/24/2026, 9:00 AM" string —
-    // wider than half the drawer. So the two fields refused to shrink, overflowed
-    // the row and wrapped onto separate lines the moment a date was typed. Empty
-    // they fitted, which is why it looked fine until it was used.
+        // default `min-width: auto`. Both halves were the bug: a flex item defaults to a
+        // floor of its MIN-CONTENT width, and a populated datetime-local's is the whole
+        // "08/24/2026, 9:00 AM" string — wider than half the drawer. Empty they fitted,
+        // which is why it looked fine until it was used.
     flex: 1 1 0;
     min-width: 0;
     flex-direction: column;
@@ -787,17 +745,14 @@
     }
   }
 
-  // #233. THE READOUT CANNOT HOLD A MESSAGE, so this is how a rider gets back to
-  // one they dismissed. Hidden unless something has gone wrong, and a real button
-  // rather than a click on .save-status, which is aria-hidden.
-  //
-  // IT TAKES .btn-icon'S IDIOM, because it stands in the same row as the undo pair:
-  // same 6px corner, same hairline, and a hover that moves border and legend to
-  // $brand rather than lighting the background.
-  //
-  // The HEIGHT is stretched rather than declared — .btn-icon is 2.1em square at its
-  // own 1.05em, so matching it with a number means arithmetic that is wrong the
-  // moment either value moves.
+  // #233. THE READOUT CANNOT HOLD A MESSAGE, so this is how a rider gets back to one
+    // they dismissed. A real button rather than a click on .save-status, which is
+    // aria-hidden.
+    //
+    // IT TAKES .btn-icon'S IDIOM, standing in the same row as the undo pair. The
+    // HEIGHT is stretched rather than declared — .btn-icon is 2.1em square at its own
+    // 1.05em, so matching it with a number means arithmetic that is wrong the moment
+    // either value moves.
   .save-detail {
     box-sizing: border-box;
     align-self: stretch;
@@ -847,16 +802,10 @@
     }
   }
 
-  // The route header's action buttons. This used to be a SECOND `.route-head` block,
-  // a leftover from the route-slider era, sitting at equal specificity to the real
-  // one further up and beating it on source order — so `gap` was silently 0.4em
-  // rather than the 0.3em the first block declares, and a `margin-bottom: 0.6em`
-  // nobody could find was padding the bottom of every collapsed route. Both blocks
-  // are now one, up at .route-head; only .route-actions is left here.
-  //
-  // The `#route-title` rule that lived here went with it — dead since the drawer
-  // rewrite, which renders `.route-title` per route. There is no element with that
-  // id on the page.
+  // The route header's action buttons. This used to be a SECOND `.route-head` block
+    // at equal specificity to the real one, beating it on source order — so `gap` was
+    // silently 0.4em and a `margin-bottom` nobody could find padded every collapsed
+    // route. Both blocks are one now, up at .route-head.
   .route-head {
     .route-actions {
       display: flex;
@@ -1072,31 +1021,23 @@
     // doing the same job — two grids down one column. What marks a shaping point
     // as a different kind of thing is the dot, the label and the indent.
     padding: 0 0.5em;
-    // NO VERTICAL MARGIN, AND THAT IS THE ANSWER TO "why is there still white
-    // under the words". MEASURED on ride 34 rather than reasoned: every point
-    // row has 2.8px above its distance readout, and below it had -1.6px when an
-    // insert slot followed and +5.4px when one of these did — a 7px difference
-    // between two rows that look identical, which is what reads as a band of
-    // white under a row that happens to have been shaped. Now that a slot sits
-    // above every shaping point too, ONE element owns every gap in this list and
-    // there is nothing left here to get out of step with it.
+    // NO VERTICAL MARGIN, AND THAT IS THE ANSWER TO "why is there still white under
+        // the words". MEASURED rather than reasoned: every point row has 2.8px above its
+        // distance readout, and below it had -1.6px when an insert slot followed and
+        // +5.4px when one of these did — a 7px difference between two rows that look
+        // identical. ONE element owns every gap in this list now.
     margin: 0 0 0 1.6em;
     font-size: 0.7em;
-    // THE OTHER HALF OF "reduce the padding above and below a shaping point",
-    // and the half that is genuinely padding. Ziad's call, 2026-09-04. The row
-    // has no vertical padding at all — its height is one line box, and the
-    // body's 1.57 is prose leading, so a 9.8px label sat in a 15.4px row with
-    // about 4px of dead space split above and below it. 1.2 takes the row to
-    // 11.8px, which is as low as it goes: the × beside it is 10.8px and becomes
-    // the floor. The gaps either side are the insert slots and come down with
-    // it — see .insert-slot[data-via].
+    // THE OTHER HALF OF "reduce the padding above and below a shaping point", and the
+        // half that is genuinely padding. The row has no vertical padding at all — its
+        // height is one line box, and the body's 1.57 is prose leading, so a 9.8px label
+        // sat in a 15.4px row. 1.2 takes it to 11.8px, which is as low as it goes: the ×
+        // beside it is 10.8px and becomes the floor.
     line-height: 1.2;
-    // DARKER THAN THE OTHER SECONDARY TEXT IN THIS LIST, deliberately. Ziad's
-    // call, 2026-09-04. `.row-dist` is $neutral-50 and is a figure you glance
-    // at; this is a label on a control you press, at 0.7em, inside a hairline
-    // outline — three things all giving way at once is what made it gray on
-    // gray. $neutral-36 is the same weight the tank figure takes when it has
-    // something to say.
+    // DARKER THAN THE OTHER SECONDARY TEXT IN THIS LIST, deliberately. `.row-dist` is
+        // $neutral-50 and is a figure you glance at; this is a label on a control you
+        // press, at 0.7em, inside a hairline outline — three things giving way at once is
+        // what made it gray on gray.
     color: $neutral-36;
     // NOT A DRAG TARGET AND NOT A POINTER. The row is a label with one control
     // in it; a grab cursor here would promise a reorder that Sortable is
@@ -1123,14 +1064,12 @@
     // landing wherever the label happens to end.
     flex: 1 1 auto;
     // NUDGED DOWN, AND THE NUDGE IS TWO THINGS. `align-items: center` centers BOXES,
-    // and the dot and the × are boxes whose ink fills them. Text is not: Overpass puts
-    // more half-leading below the baseline than above, so the ink sits high inside a
-    // perfectly centered box — measured at 0.045em. The rest of the way to 0.15em is
-    // OPTICAL: the eye centers a word on its x-height, so type always reads high when
-    // centered geometrically.
-    //
-    // In em because both halves are properties of the typeface. `position: relative`
-    // and not a margin, because a margin makes the row a pixel taller.
+        // and text is not a box whose ink fills it: Overpass puts more half-leading below
+        // the baseline than above, measured at 0.045em. The rest of the way to 0.15em is
+        // OPTICAL — the eye centers a word on its x-height.
+        //
+        // In em because both halves are properties of the typeface. `position: relative`
+        // and not a margin, because a margin makes the row a pixel taller.
     position: relative;
     // 0.25em since 2026-09-04, and it got there in two steps: 0.2em on top of
     // the measured-plus-optical 0.15em below, once the row's own leading came
@@ -1167,46 +1106,36 @@
     }
   }
 
-  // TIGHTER AROUND A SHAPING POINT than between two points. Ziad's call,
-  // 2026-09-04. Every gap in the list is this one element now, which is what
-  // keeps them from drifting apart — but a shaping point is a smaller thing than
-  // a stop, and a full point-row gap either side of a 0.7em label reads as a
-  // hole in the list. The negative margins are untouched, so the strip stays as
-  // easy to hit as any other; only the height it contributes comes down.
+  // TIGHTER AROUND A SHAPING POINT than between two points. Every gap in the list
+    // is this one element, which is what keeps them from drifting apart — but a
+    // shaping point is a smaller thing than a stop, and a full point-row gap either
+    // side of a 0.7em label reads as a hole. The negative margins are untouched, so
+    // the strip stays as easy to hit as any other.
   .insert-slot[data-via] {
-    // 15px, and the number is the glyph rather than a taste. The negative
-    // margins mean this contributes height-8 to the layout, so this is a SEVEN
-    // pixel gap either side of a shaping point against the ten between two
-    // points — and the + is 7px tall and the same size here as everywhere else
-    // (Ziad's call, 2026-09-04: the separator does not shrink because the row
-    // under it is small). Seven is therefore the floor: one pixel less and the
-    // glyph is back on top of the white card above, which is the whole defect
-    // this was drawn to fix.
+    // 15px, and the number is the glyph rather than a taste. The negative margins mean
+        // this contributes height-8, so it is a SEVEN pixel gap either side of a shaping
+        // point against the ten between two points — and the + is 7px tall and does not
+        // shrink with the row under it. Seven is therefore the floor: one pixel less and
+        // the glyph is back on top of the white card above.
     height: 15px;
 
-    // AND THE GLYPH SITS A PIXEL LOW IN THIS ONE. Seven pixels of + in a seven
-    // pixel gap touches the card above with nothing to spare, and a bar's
-    // antialiasing is what would then read as the + being stuck to the row.
-    // A shaping point's row is transparent — it is a label on the route's own
-    // ground, not a white card — so the pixel is taken from BELOW, where it
-    // lands in the row's leading and is invisible, rather than from above.
+    // AND THE GLYPH SITS A PIXEL LOW IN THIS ONE. Seven pixels of + in a seven pixel
+        // gap touches the card above with nothing to spare. A shaping point's row is
+        // transparent, so the pixel is taken from BELOW, where it lands in the row's
+        // leading and is invisible.
     .insert-btn {
       top: 1px;
     }
   }
 
   // THE + IS DRAWN, NOT TYPED, WHICH IS WHAT PUTS IT IN THE GAP RATHER THAN ON THE
-  // ROW ABOVE IT. Ziad's call, 2026-09-04.
-  //
-  // MEASURED: a text "+" is ink entirely ABOVE the baseline, and a line box puts
-  // the baseline low. At 14px the ink ran from 2.4px below the button's top to
-  // 5.0px above its bottom, so a browser-centered glyph is 1.3px HIGH of its box
-  // every time — over a shaping point's 4px gap that put 2.6px of the + inside the
-  // card above.
-  //
-  // Two bars with `inset: 0; margin: auto` are centered by geometry instead, so the
-  // font is out of the question entirely. The text stays in the markup and is
-  // hidden by font-size.
+    // ROW ABOVE IT. MEASURED: a text "+" is ink entirely ABOVE the baseline, and a
+    // line box puts the baseline low, so a browser-centered glyph is 1.3px HIGH of its
+    // box every time — over a shaping point's 4px gap that put 2.6px of the + inside
+    // the card above.
+    //
+    // Two bars with `inset: 0; margin: auto` are centered by geometry instead. The
+    // text stays in the markup and is hidden by font-size.
   .insert-btn {
     position: relative;
     flex: 0 0 auto;
@@ -1336,16 +1265,12 @@
   }
 
   // Directly under the ride name, outside .panel-contents-wrapper, so it stays put
-  // while the stop list scrolls.
-  //
-  // THE ROUTE LINE IS ALWAYS IN THE MARKUP, empty when none is focused, and that —
-  // not a height in em — is what stops this block resizing. `min-height: 2.6em` was
-  // here first with the wrong arithmetic: it reserved two lines where the content
-  // runs to three, so the panel moved by up to 23px on every scrub.
-  //
-  // Reserving it structurally beats reserving it numerically: a fixed height has to
-  // be re-derived from three values, and getting it wrong by 2.5px either clips the
-  // route line or leaves a gap.
+    // while the stop list scrolls.
+    //
+    // THE ROUTE LINE IS ALWAYS IN THE MARKUP, empty when none is focused, and that —
+    // not a height in em — is what stops this block resizing. `min-height: 2.6em` was
+    // here first with the wrong arithmetic: it reserved two lines where the content
+    // runs to three, so the panel moved by up to 23px on every scrub.
   .totals {
     font-weight: 600;
     margin: 0.15em 2.6em 0.6em 0;
@@ -1370,10 +1295,9 @@
       overflow: hidden;
     }
     // One line, always, and split so the numbers survive the truncation: the route's
-    // name is the only unbounded thing on it, so the name shrinks and ellipsizes
-    // while the figures hold their width. The full name is on #route-label above.
-    // min-height is what makes the empty copy hold its line on "All routes" — 1.3em
-    // of its own font size is exactly the one line the rule above sets.
+        // name is the only unbounded thing on it, so the name shrinks and ellipsizes while
+        // the figures hold their width. min-height is what makes the empty copy hold its
+        // line on "All routes".
     .totals-route {
       display: flex;
       gap: 0.35em;
@@ -1408,24 +1332,20 @@
       // panel redesign exists to remove.
       position: relative;
       // 0.2em, down from 0.35em. Three numbers came down together — this padding, the
-      // gap between rows, and the control heights — because a row's pitch is the sum of
-      // all three. Anything lower and the drag tab has no grip left.
-      //
-      // NO LONGER SYMMETRIC as of 2026-09-04: the bottom is half the top, because what
-      // sits under the last line is the 0.7em gray distance readout with its own
-      // leading, so the same padding reads as a gap there.
-      //
-      // .row-drag cancels this with a negative margin and .row-drag-ghost repeats it,
-      // because the drag mirror inherits nothing. CHANGE ALL THREE OR NONE.
+            // gap between rows, and the control heights — because a row's pitch is the sum of
+            // all three.
+            //
+            // NO LONGER SYMMETRIC: the bottom is half the top, because what sits under the
+            // last line is the 0.7em gray distance readout with its own leading.
+            //
+            // .row-drag cancels this with a negative margin and .row-drag-ghost repeats it.
+            // CHANGE ALL THREE OR NONE.
       padding: 0.2em 0 0.1em;
       background: $white;
-      // A CARD PER ROW, separated, rather than a continuous run divided by
-      // hairlines. The separation is what makes the drag tab read: butted
-      // against each other, one tab's rounded bottom-left and the next one's
-      // rounded top-left leave a lens-shaped notch at every joint, and a column
-      // of those reads as arrowheads down the edge rather than as a grip. The
-      // gap also replaces the rule that used to divide the rows, so nothing was
-      // lost by dropping it.
+      // A CARD PER ROW, separated, rather than a continuous run divided by hairlines.
+            // The separation is what makes the drag tab read: butted together, one tab's
+            // rounded bottom-left and the next one's rounded top-left leave a lens-shaped
+            // notch at every joint, and a column of those reads as arrowheads down the edge.
       border-radius: 8px;
 
       + .point-row {
@@ -1443,17 +1363,12 @@
     }
 
     // The drag handle, replacing the per-row up/down arrow pair. Dotted rather than an
-    // icon file: the conventional grip texture, no asset, crisp at any size.
-    //
-    // Both kinds of row get one — a stop drags to reorder, a POI drags to move its
-    // pin along the route.
-    //
-    // A tab down the left edge, rounded outside and square where it meets the row, so
-    // the two read as one object with a grip rather than an icon sitting first.
-    //
-    // The tint and radius live on the element and the dots on ::before: doing both on
-    // the element takes a two-value `background-clip`, and which layer the second
-    // value applies to is read differently by different engines.
+        // icon file: the conventional grip texture, no asset, crisp at any size. Both
+        // kinds of row get one — a stop drags to reorder, a POI drags to move its pin.
+        //
+        // A tab down the left edge, rounded outside and square where it meets the row.
+        // The tint and radius live on the element and the dots on ::before: doing both on
+        // the element takes a two-value `background-clip`, which engines read differently.
     .row-drag {
       position: relative;
       flex: none;
@@ -1464,14 +1379,10 @@
       border: none;
       appearance: none;
       font: inherit;
-      // THE ENTIRE LEFT SIDE OF THE ROW, edge to edge. `align-self: stretch`
-      // alone is not enough and that is the trap: it stretches to .row-main,
-      // while the vertical padding belongs to .point-row OUTSIDE it, so the tab
-      // stopped short at both ends and read as a floating stub rather than as
-      // part of the row. The negative margins cancel exactly that padding — keep
-      // the two numbers in step if either moves. The row is 0.2em over 0.1em
-      // since 2026-09-04, so this is too: a single -0.2em would overhang the
-      // bottom by a pixel and round the tab past the card it belongs to.
+      // THE ENTIRE LEFT SIDE OF THE ROW, edge to edge. `align-self: stretch` alone is
+            // not enough and that is the trap: it stretches to .row-main, while the vertical
+            // padding belongs to .point-row OUTSIDE it, so the tab stopped short at both ends.
+            // The negative margins cancel exactly that padding — keep the two numbers in step.
       align-self: stretch;
       margin: -0.2em 0 -0.1em;
       // 16px against the dot grid's 8px, so 4px of air each side. It was 24px
@@ -1481,29 +1392,25 @@
       border-radius: 8px 0 0 8px;
       cursor: grab;
       // THE ROUTE'S OWN COLOR, faded back. This was deliberately neutral on the
-      // reasoning that a grip is furniture, which held while only one route was on
-      // screen. With every route listed at once the left edge of each row is the
-      // fastest way to see where one route stops, so the grips read as a continuous
-      // rail down its rows.
-      //
-      // Two mixes, not one: the tab is faint enough to sit under the row's white and
-      // the dots strong enough to still read as a grip. Keep roughly this ratio.
-      //
-      // --route-color is inherited from .route-section; the fallbacks are the greys it
-      // used to be. Lifted 2026-09-14, because 20% and 60% were a gray column under a
-      // dark scheme.
+            // reasoning that a grip is furniture, which held while only one route was on
+            // screen; with every route listed at once the left edge of each row is the
+            // fastest way to see where one route stops.
+            //
+            // Two mixes, not one: the tab faint enough to sit under the row's white and the
+            // dots strong enough to still read as a grip. Lifted 2026-09-14, because 20% and
+            // 60% were a gray column under a dark scheme.
       background: color-mix(in srgb, var(--route-color, #{$neutral-88}) 38%, #{$white});
       color: color-mix(in srgb, var(--route-color, #{$neutral-50}) 80%, #{$white});
 
       // Two columns by four rows: an 8x16 box over a 4px tile, one dot per tile.
-      //
-      // **`background-position` MUST be `0 0` here, not `center`**: `center` aligns a
-      // TILE's center with the box's, so on an 8px box the tiles land at -2, 2 and 6 and
-      // the dots at 0, 4 and 8 — three columns with the outer two sliced in half. `0 0`
-      // starts the grid at the corner: eight whole dots.
-      //
-      // The two radii in the gradient are the dot's edge and where it reaches
-      // transparent; the gap between them is what antialiases it.
+            //
+            // **`background-position` MUST be `0 0` here, not `center`**: `center` aligns a
+            // TILE's center with the box's, so on an 8px box the dots land at 0, 4 and 8 —
+            // three columns with the outer two sliced in half. `0 0` starts the grid at the
+            // corner: eight whole dots.
+            //
+            // The two radii in the gradient are the dot's edge and where it reaches
+            // transparent; the gap between them is what antialiases it.
       &::before {
         content: "";
         position: absolute;
@@ -1549,12 +1456,10 @@
         content: "◦";
       }
     }
-    // THE ROW'S HEIGHT IS THIS PADDING. Every control in a row is either a text
-    // box or a 1.85em button, so the tallest of them sets the pitch and the two
-    // text boxes are the tallest. The generic input rule at the top of this file
-    // gives them 0.45em, which is the right amount of room for a form and too
-    // much for a list of forty of them — this overrides it for the row only,
-    // leaving every other field in the panel alone.
+    // THE ROW'S HEIGHT IS THIS PADDING. Every control in a row is either a text box or
+        // a 1.85em button, so the two text boxes set the pitch. The generic input rule at
+        // the top of this file gives them 0.45em, which is right for a form and too much
+        // for a list of forty; this overrides it for the row only.
     .row-name,
     .row-dur {
       padding: 0.28em 0.45em;
@@ -1564,17 +1469,16 @@
       min-width: 0;
     }
     // WIDTH BY FORMAT, and it has to be: the same 90 minutes is "1.5", "90" or
-    // "1h 30m", and the last is nearly twice the characters of the first. One width
-    // for all three either clips the long format or spends the difference on a field
-    // the other two do not need — out of the name field beside it.
-    //
-    // The attribute is written server-side onto #route-list from the same preference
-    // the rows are rendered with, so there is no flash of a wrongly-sized field. It is
-    // read by inheritance, so the ancestor is what matters.
-    //
-    // 4em is the floor and it is set by content: "43200" is the largest value the
-    // schema allows and "min" is the placeholder. At 3.6em the placeholder clipped to
-    // "mir", which reads as a typo rather than a width bug.
+        // "1h 30m", and the last is nearly twice the characters of the first. One width
+        // for all three either clips the long format or spends the difference out of the
+        // name field beside it.
+        //
+        // The attribute is written server-side onto #route-list from the same preference
+        // the rows are rendered with, so there is no flash of a wrongly-sized field, and
+        // it is read by inheritance.
+        //
+        // 4em is the floor and it is set by content: at 3.6em the placeholder clipped to
+        // "mir", which reads as a typo rather than a width bug.
     .row-dur {
       width: 4em;
     }
@@ -1583,19 +1487,14 @@
     &[data-duration-format="hm"] .row-dur {
       width: 5.6em;
     }
-    // FIXED WIDTH, and this is the sharpest instance of the panel rule. The
-    // button used to hold one 16px chip per role at `max-width: none`, so it ran
-    // roughly 18n + 10 wide — 28px at one role, about 316px of a 320px row at all
-    // seventeen, with the name field paying the difference. It now holds one icon
-    // and a count (see roleIconsHtml), so `width` is a constant and `flex: none`
-    // keeps flexbox from shrinking it when the name is long.
-    // SQUARE, because the icons are. They are drawn 1:1 and the box holding them
-    // was 3.1em x 2em to leave a second column for the count, which made every
-    // row carry a wide rectangle around a small square. The count is a corner
-    // badge now, so the button is square either way and the difference goes back
-    // to the name field. 1.85em is 26px at the map page's 14px root, which is
-    // what the row's text boxes measure once their padding came down — the two
-    // have to match or the taller one sets the pitch on its own.
+    // FIXED WIDTH, and this is the sharpest instance of the panel rule. The button used
+        // to hold one 16px chip per role at `max-width: none`, so it ran roughly 18n + 10
+        // wide — about 316px of a 320px row at all seventeen, with the name field paying.
+        // It holds one icon and a count now, so `width` is a constant and `flex: none`
+        // keeps flexbox from shrinking it.
+        // SQUARE, because the icons are. 1.85em is 26px at the map page's 14px root, which
+        // is what the row's text boxes measure — the two have to match or the taller one
+        // sets the pitch on its own.
     .row-roles-btn {
       position: relative;
       font: inherit;
@@ -1636,15 +1535,13 @@
         background: $white;
         color: $neutral-43;
       }
-      // The empty state: no roles yet. A solid dot in the DAY'S color rather
-      // than a "+" glyph — Ziad's call, 2026-08-22. `currentColor` is what makes
-      // it the route color for free: `.row-roles-btn` sets `color: inherit` a few
-      // lines up specifically so the band's --route-color reaches in here, and the
-      // role icons already ride on the same value.
-      //
-      // 10px against the 16px role chip, so a categorized row and an
-      // uncategorized one are still told apart at a glance in a column of
-      // thirty.
+      // The empty state: no roles yet. A solid dot in the ROUTE'S color rather than a
+            // "+" glyph. `currentColor` is what makes it the route color for free:
+            // `.row-roles-btn` sets `color: inherit` specifically so the band's
+            // --route-color reaches in here.
+            //
+            // 10px against the 16px role chip, so a categorized row and an uncategorized one
+            // are still told apart in a column of thirty.
       .role-add {
         width: 10px;
         height: 10px;
@@ -1734,18 +1631,16 @@
       resize: vertical;
     }
 
-    // "VMCSC splits off here → Santa Cruz". The peel-off route has to sit at the
-    // BOTTOM of the list — a route spliced in beside the cut makes everything
-    // after it inherit the leavers — so without this the only sign a group left
-    // is a route a long way down the panel.
-    //
-    // $signal, the same as `.route-riders.is-junction`, and for the same reason:
-    // somebody peeling off is the plan working, not a warning. Indented to clear
-    // the grip so it lines up with the row's name.
-    // A real <button>, so the UA chrome comes off. It has to be pressable rather
-    // than merely colored: the route it names is at the BOTTOM of the panel by
-    // construction, so this line is the way to it, and $signal text that does
-    // nothing when pressed is what a dot on a map must never be.
+    // "VMCSC splits off here → Santa Cruz". The peel-off route has to sit at the BOTTOM
+        // of the list — a route spliced in beside the cut makes everything after it
+        // inherit the leavers — so without this the only sign a group left is a route a
+        // long way down the panel.
+        //
+        // $signal, the same as `.route-riders.is-junction`: somebody peeling off is the
+        // plan working, not a warning.
+        // A real <button>, so the UA chrome comes off and it is pressable rather than
+        // merely colored — the route it names is at the bottom of the panel, so this line
+        // is the way to it.
     .row-splitoff {
       display: block;
       margin: 0.15em 0 0 1.9em;
@@ -1769,16 +1664,11 @@
       }
     }
 
-    // The written note, read-only, on the row. The textarea moved into the
-    // details panel and a note a rider has already written should not need two
-    // clicks to see — that is what it was written for.
-    //
-    // ONE LINE AND ELLIPSISED, with the whole text in a `title`: a note can run to
-    // 2000 characters and a row that grows to hold one buries the ride. Pressing
-    // the ⋮ is how you read and edit the rest.
-    //
-    // Indented to clear the grip so it lines up with the row's own name rather
-    // than starting at the card's edge.
+    // The written note, read-only, on the row: the textarea moved into the details
+        // panel and a note a rider has already written should not need two clicks to see.
+        //
+        // ONE LINE AND ELLIPSISED, with the whole text in a `title`: a note can run to
+        // 2000 characters and a row that grows to hold one buries the ride.
     .row-note {
       margin: 0.15em 0 0 1.9em;
       font-size: 0.72em;
@@ -1921,17 +1811,13 @@
       color: $brand;
     }
 
-    // HOW FAR IN, AND HOW FAR ON THIS TANK (#220).
-    //
-    // Quiet by default and on its own line under the row's controls. It is
-    // reference rather than an action — the rider is scanning down a route for the
-    // gap where fuel has to go — so it must not compete with the name field it
-    // sits under.
-    //
-    // A FIXED HEIGHT IS NOT NEEDED and would be wrong: the readout is absent
-    // entirely on the first point of every route and on any row with no distance
-    // yet, so reserving the line would put an empty band under every route's first
-    // stop. The rows below simply sit closer.
+    // HOW FAR IN, AND HOW FAR ON THIS TANK (#220). Quiet by default and on its own
+        // line under the row's controls: it is reference rather than an action, so it must
+        // not compete with the name field it sits under.
+        //
+        // A FIXED HEIGHT IS NOT NEEDED and would be wrong: the readout is absent entirely
+        // on the first point of every route, so reserving the line would put an empty band
+        // under every route's first stop.
     .row-dist {
       display: flex;
       flex-wrap: wrap;
@@ -1943,13 +1829,11 @@
       // stays tight, because what is under the figure is the edge of the card.
       margin: 0.4em 0 0 1.6em;
       font-size: 0.7em;
-      // ITS OWN LINE-HEIGHT, because the body's 1.5 is prose leading and this is
-      // a one-line figure. MEASURED, after halving the row's padding twice did
-      // nothing anybody could see: at a 16px root this text is 11.2px in a
-      // 16.8px box, so 2.8px of the gap under it was dead space INSIDE the
-      // readout — a third of the whole gap, and invisible to an inspector
-      // looking at padding. 1.2 keeps two lines legible when the tank figure
-      // wraps, which 1 does not.
+      // ITS OWN LINE-HEIGHT, because the body's 1.5 is prose leading and this is a
+            // one-line figure. MEASURED, after halving the row's padding twice did nothing
+            // anybody could see: at a 16px root this text is 11.2px in a 16.8px box, so 2.8px
+            // of the gap under it was dead space INSIDE the readout. 1.2 keeps two lines
+            // legible when the tank figure wraps, which 1 does not.
       line-height: 1.2;
       font-variant-numeric: tabular-nums;
       color: $neutral-50;
@@ -1979,14 +1863,12 @@
       margin: 0.2em 0 0.1em 1.6em;
     }
 
-    // #50's search scope, under the category chips: near the route's last point,
-    // or along its whole line. A two-state segmented control, and it replaced a
-    // checkbox plus a range slider on 2026-08-31 — see corridorHtml() in
-    // builder.js for why both halves are named rather than one being implied.
-    //
-    // ONE PILL, TWO SEGMENTS, no gap between them. The shared border is what
-    // makes it read as a choice between two things rather than as two buttons
-    // that happen to sit together.
+    // #50's search scope, under the category chips: near the route's last point, or
+        // along its whole line. A two-state segmented control, replacing a checkbox plus a
+        // range slider.
+        //
+        // ONE PILL, TWO SEGMENTS, no gap between them: the shared border is what makes it
+        // read as a choice between two things rather than two buttons side by side.
     .add-corridor {
       display: inline-flex;
       align-items: stretch;
@@ -2064,28 +1946,18 @@
     }
   }
 
-  // Save and Discard are gone — the builder autosaves — so what is left is
-  // undo, redo and a readout. The `.btn` rule that used to live here went with
-  // the Save button; it was scoped to this row and nothing else used it.
-  //
-  // STICKY, because this row used to fall off the bottom of the world. It was
-  // `position: static` at the end of a list that grows without limit, so on a
-  // seven-stop route Save sat 140px below the visible area and dropped further
-  // with every stop added — the controls a rider reaches for most were the ones
-  // furthest from reach. Sticking it to the bottom of the scroller costs the
-  // list nothing and means undo is always one click away.
-  //
-  // The background is opaque on purpose: content scrolls underneath it, and a
-  // translucent bar over moving text is unreadable.
-  // IN THE DRAWER'S FOOTER, outside the scroller entirely — see panelShell in
-  // src/views/layout.tsx for the band order. It was `position: sticky; bottom: 0`
-  // inside .panel-contents-wrapper, which looks the same until you scroll: a
-  // sticky element still belongs to its scroller, so it rode above the scrollbar
-  // and moved with the list's own padding. As a sibling of the scroller it cannot
-  // move at all.
-  //
-  // The border and the background went with the stickiness. .drawer-foot draws
-  // both now, because it is the thing with an edge against the list.
+  // Save and Discard are gone — the builder autosaves — so what is left is undo,
+    // redo and a readout.
+    //
+    // STICKY, because this row used to fall off the bottom of the world: it was static
+    // at the end of a list that grows without limit, so on a seven-stop route Save sat
+    // 140px below the visible area. The background is opaque on purpose, content
+    // scrolling underneath it.
+    // IN THE DRAWER'S FOOTER, outside the scroller entirely. It was `position: sticky;
+    // bottom: 0` inside .panel-contents-wrapper, which looks the same until you scroll:
+    // a sticky element still belongs to its scroller, so it rode above the scrollbar
+    // and moved with the list's own padding. The border and background went with the
+    // stickiness — .drawer-foot draws both now.
   .builder-actions {
     display: flex;
     align-items: center;
@@ -2096,21 +1968,17 @@
     border-top: none;
   }
 
-  // Undo and redo as glyphs. The pair was "Undo" and "Redo" beside "Save",
-  // "Discard changes" and a status line — 308px of controls in a 344px row,
-  // which wrapped to two lines at 47px tall. Losing two buttons to autosave and
-  // the words to icons brings the row back to one line with room to spare.
-  //
-  // THEY WERE TEXT GLYPHS AND ARE NOW A DRAWN ICON. U+21B6 and U+21B7 shipped
-  // with the icon row on 2026-08-15 on the reasoning that a standard character
-  // beats an asset, and in the panel that turned out to be wrong: Overpass draws
-  // both as hairline strokes, so at 15px they read as faint tick marks rather
-  // than as arrows, and at the 0.35 opacity of the disabled state — which is
-  // what a rider sees most of the time, since undo starts with nothing to undo —
-  // they very nearly vanish. The asset is one path with a real weight to it.
-  //
-  // Each still carries an aria-label, and the title attribute still names what
-  // will be undone — builder.js writes "Undo add stop" into it.
+  // Undo and redo as glyphs. The pair was "Undo" and "Redo" beside "Save", "Discard
+    // changes" and a status line — 308px of controls in a 344px row, which wrapped to
+    // two lines.
+    //
+    // THEY WERE TEXT GLYPHS AND ARE NOW A DRAWN ICON. U+21B6 and U+21B7 shipped on the
+    // reasoning that a standard character beats an asset, and that turned out wrong:
+    // Overpass draws both as hairline strokes, so at 15px they read as faint tick
+    // marks, and at the 0.35 opacity of the disabled state they very nearly vanish.
+    //
+    // Each still carries an aria-label, and the title attribute names what will be
+    // undone.
   .btn-icon {
     display: inline-flex;
     align-items: center;
@@ -2149,16 +2017,12 @@
     }
   }
 
-  // FIXED FOOTPRINT, and that is the whole design. This readout was on the
-  // epic's list of variable-length things that reflow whatever sits beside them:
-  // it cycles "Unsaved changes" -> "Saving…" -> "Saved" several times a minute,
-  // and at three different widths it would shove the view link back and forth
-  // continuously while a rider types.
-  //
-  // So the box is sized once, for the longest routine string, and every state
-  // renders inside it. A server error message is arbitrary length and gets
-  // ellipsized rather than being allowed to set the width — builder.js puts the
-  // full text on the title attribute.
+  // FIXED FOOTPRINT, and that is the whole design. This readout cycles "Unsaved
+    // changes" → "Saving…" → "Saved" several times a minute, and at three different
+    // widths it would shove the view link back and forth while a rider types.
+    //
+    // So the box is sized once, for the longest routine string. A server error message
+    // is arbitrary length and gets ellipsized rather than setting the width.
   .save-status {
     display: flex;
     align-items: center;
@@ -2257,29 +2121,21 @@
   }
 }
 
-// The place-search dropdown. TOP LEVEL, NOT nested under .builder-panel, for
-// the same reason .route-drag-ghost below is not: builder.js appends this to
-// <body>, so a `.builder-panel #search-results` selector would never match it.
-// It moved out of the panel when the single search box became one row per route —
-// there are up to 31 fields and one list, owned by nobody in particular.
+// The place-search dropdown. TOP LEVEL, NOT nested under .builder-panel, because
+// builder.js appends this to <body>: there are up to 31 fields and one list, owned
+// by nobody in particular.
 //
-// Fixed, not absolute, and positioned from JS — see placeResults() in
-// builder.js. Absolute made it a descendant of the panel's scroll box, so the
-// moment .panel-contents-wrapper gained overflow the dropdown was clipped at the
-// panel's bottom edge: three visible rows out of eight, on the control used to
-// add every stop. Fixed escapes the clip because nothing in the chain
-// establishes a containing block for it.
+// Fixed, not absolute, and positioned from JS. Absolute made it a descendant of the
+// panel's scroll box, so the dropdown was clipped at the panel's bottom edge —
+// three visible rows out of eight, on the control used to add every stop.
 //
-// The cost is that JS owns left/top/width and has to keep them current, which is
-// why the panel scrolling closes the dropdown rather than trying to track it.
+// The cost is that JS owns left/top/width, which is why panel scrolling closes the
+// dropdown rather than trying to track it.
 #search-results {
   position: fixed;
-  // ABOVE THE DRAWER, which is z-index 1000 (.floating-panel in _map.scss).
-  // This was 20 and correct while the list lived inside the panel — it only had
-  // to beat the panel's own children, and it shared the panel's stacking
-  // context. Appending it to <body> to serve 31 fields put it in competition
-  // with the panel itself, and 20 lost: the list was positioned, unhidden and
-  // painted underneath the drawer. Keep this above whatever .floating-panel is.
+  // ABOVE THE DRAWER, which is z-index 1000 (.floating-panel in _map.scss). This was
+    // 20 and correct while the list lived inside the panel; appending it to <body> put
+    // it in competition with the panel itself, and 20 lost.
   z-index: 1001;
   // JS sets width from the field's border box, so this has to measure the same
   // way or the 1px border either side makes the list 2px wider.
@@ -2327,15 +2183,11 @@
     }
   }
 
-  // THE OTHER HALF OF THE MAP PREVIEW. Hovering a dot lights its row and
-  // hovering a row lights its dot, so a rider can work in either direction —
-  // read a name and find it on the map, or spot a good position and find out
-  // what is there.
-  //
-  // A BACKGROUND RATHER THAN A SCROLL. The row is highlighted where it sits; a
-  // list that jumps to the hovered item while the pointer is what is driving it
-  // fights the rider, and on a twelve-result list every dot would shove the
-  // dropdown around.
+  // THE OTHER HALF OF THE MAP PREVIEW. Hovering a dot lights its row and hovering a
+    // row lights its dot, so a rider can work in either direction.
+    //
+    // A BACKGROUND RATHER THAN A SCROLL: a list that jumps to the hovered item while
+    // the pointer is what is driving it fights the rider.
   li.hit-nearby.is-lit {
     background: $neutral-94;
   }
@@ -2478,21 +2330,15 @@
 }
 
 // The row that follows the pointer during a drag. Top level, NOT nested under
-// .builder-panel, because Sortable is configured with fallbackOnBody and appends
-// this to <body> — nested here it would simply never match. It only exists at
-// all because forceFallback is on; with native drag-and-drop the browser draws
+// .builder-panel, because Sortable is configured with fallbackOnBody. It only exists
+// at all because forceFallback is on; with native drag-and-drop the browser draws
 // the drag image and it cannot be styled.
 //
-// It inherits nothing from the panel, so the width, surface and type all have to
-// be stated — and the padding and gap below are therefore copies of .point-row's
-// and .row-main's. Change those and change these, or the row visibly resizes the
-// moment it is picked up. --panel-width moved from #info-panel to html.map-page
-// when the timeline became a sibling of the panel, so it is in scope here now;
-// the literal stays as the fallback for a ghost appended before the page class.
-// The route's drag mirror, appended to <body> for the same reason .row-drag-ghost
-// is — fallbackOnBody puts it outside the panel, where it inherits nothing. A
-// whole route can be tall, so this one is capped and clipped rather than dragged
-// full height across the map.
+// It inherits nothing from the panel, so the padding and gap below are copies of
+// .point-row's and .row-main's. Change those and change these, or the row visibly
+// resizes the moment it is picked up.
+// The route's drag mirror, appended to <body> for the same reason. A whole route
+// can be tall, so this one is capped and clipped rather than dragged full height.
 .route-drag-ghost {
   box-sizing: border-box;
   width: var(--panel-width, 380px);
@@ -2540,18 +2386,15 @@
 
 // --- Delete this ride --------------------------------------------------------
 //
-// At the END of the panel contents, below the last route, and that placement is
-// the whole design. The meta-row and the action bar are both rows a rider's
-// pointer lives in while building — a destructive control belongs where someone
-// arrives on purpose, not where they click by reflex.
+// At the END of the panel contents, below the last route: the meta-row and the
+// action bar are both rows a pointer lives in while building, and a destructive
+// control belongs where someone arrives on purpose.
 //
 // --- Rider subgroups (#67) ---------------------------------------------------
 //
-// THE `.subgroups` BLOCK THAT WAS HERE IS GONE. It styled a <details> that
-// collapsed the group editor on a solo ride; the editor is the Groups tab now
-// and the tab strip does that job. What survives is every row inside it, which
-// did not change — and .sg-count, which moved from the summary to the strip and
-// is shared with .tab-count.
+// THE `.subgroups` BLOCK THAT WAS HERE IS GONE. It styled a <details> that collapsed
+// the group editor on a solo ride; the editor is the Groups tab now. What survives
+// is every row inside it, and .sg-count, which is shared with .tab-count.
 
 .sg-empty,
 .sg-note {
@@ -2615,14 +2458,12 @@
     background: none;
   }
 
-  // WHERE THE GROUP SETS OFF FROM. Full width so it takes the whole second line,
-  // and indented to the name field's own left edge rather than the row's — it is
-  // a fact about the group whose name is above it, and starting under the grip
-  // would read as another column.
-  //
-  // `min-width: 0` plus the ellipsis because a place name can be long and a
-  // 380px drawer cannot widen: the alternative is a row that grows a third line
-  // for one address. The full text is in a `title`.
+  // WHERE THE GROUP SETS OFF FROM. Full width so it takes the whole second line, and
+    // indented to the name field's own left edge rather than the row's — starting under
+    // the grip would read as another column.
+    //
+    // `min-width: 0` plus the ellipsis because a place name can be long and a 380px
+    // drawer cannot widen. The full text is in a `title`.
   .sg-start {
     flex: 0 0 100%;
     min-width: 0;
@@ -2651,14 +2492,12 @@
   }
 }
 
-// WHICH GROUPS RIDE THIS ROUTE. A <details> so it is one line until opened: a
-// route head already carries a grip, a twirl, a number, a title, a rider pill
-// and a menu, and three checkboxes laid flat would double its height on every
-// route of every ride.
+// WHICH GROUPS RIDE THIS ROUTE. A <details> so it is one line until opened: a route
+// head already carries a grip, a twirl, a number, a title, a rider pill and a menu,
+// and three checkboxes laid flat would double its height on every route.
 //
-// The summary reads the ticked names, or "Everyone" when they are all on — so
-// the closed state says the same thing the open one does, which is the whole
-// reason the single select was replaced.
+// The summary reads the ticked names, or "Everyone" when they are all on, so the
+// closed state says the same thing the open one does.
 .route-groups {
   flex: none;
   max-width: 10em;
@@ -2812,16 +2651,13 @@
   margin-top: 0.35rem;
 }
 
-// The reason the Split button is disabled, in place rather than as a toast after
-// a press that does nothing. Amber and not red: leaving too few riders behind is
-// a decision the planner is being stopped from making by accident, not a fault.
+// The reason the Split button is disabled, in place rather than as a toast after a
+// press that does nothing. Amber and not red: leaving too few riders behind is a
+// decision the planner is being stopped from making by accident, not a fault.
 //
 // $pending AND NOT $warning, which is the trap `.row-dist-dry` sits next to.
-// $warning is a BLACK-legend field color — it is what a warning diamond is
-// painted, not what text is set in — and it is measured at about 2.2:1 on white
-// in the high-contrast theme. $pending is the derivation that exists to survive
-// as text and is pinned as such by test/palette-contrast.ts. This is a sentence
-// a rider has to READ to know why a button will not press.
+// $warning is a BLACK-legend field color, measured at about 2.2:1 on white in the
+// high-contrast theme; $pending is the derivation that exists to survive as text.
 .split-warn {
   margin: 0.4rem 0 0;
   font-size: 0.8em;
@@ -2894,16 +2730,13 @@
   }
 }
 
-// The panel's primary action, full width BELOW "Add a group" — the group rows
-// and this button were one innerHTML until 2026-09-05, so nothing could be put
-// between them; it is the page's own markup now. It carries `.btn .btn-sm` for
-// its actual look — this only places it, because a `.btn` is inline-flex and
-// would otherwise sit hard against the note above it.
+// The panel's primary action, full width BELOW "Add a group" — the group rows and
+// this button were one innerHTML until 2026-09-05, so nothing could be put between
+// them. It carries `.btn .btn-sm` for its actual look; this only places it.
 //
-// CENTERED, because a full-width button whose label sits hard left reads as a
-// row of text somebody forgot to finish rather than as the thing to press.
-// Ziad's call, 2026-09-05. `.btn-sm` is in $btn-flat, so there is no guide-sign
-// arrow on the right for the label to be balanced against.
+// CENTERED, because a full-width button whose label sits hard left reads as a row of
+// text somebody forgot to finish. `.btn-sm` is in $btn-flat, so there is no
+// guide-sign arrow for the label to be balanced against.
 .sg-meet {
   display: flex;
   justify-content: center;
@@ -2918,13 +2751,12 @@
   }
 }
 
-// THE BUTTON AND ITS DIVERT DIAL, and the pair is what gets hidden on a solo
-// ride rather than the button alone — a bare "within 25 mi detour" under a ride
-// with one group is a control for a question nobody asked. The row carries the
-// top margin the button used to, so the two cannot drift apart.
+// THE BUTTON AND ITS DIVERT DIAL, and the pair is what gets hidden on a solo ride
+// rather than the button alone — a bare "within 25 mi detour" under a ride with one
+// group is a control for a question nobody asked.
 //
-// The same `[hidden]` trap as .sg-meet above and for the same reason: this sets
-// a `display`, which outranks the attribute.
+// The same `[hidden]` trap as .sg-meet above: this sets a `display`, which outranks
+// the attribute.
 .sg-meet-row {
   display: flex;
   align-items: center;
@@ -2959,20 +2791,15 @@
   white-space: nowrap;
 
   input {
-    // THE SPINNER IS WHAT EATS THIS, and 3.6em did not allow for it — the box
-    // was sized as though the digits had it to themselves, so Chrome's
-    // inner-spin-button took about a third of the content width off the right
-    // and clipped a two-digit number. Reported 2026-09-06.
-    //
-    // `em` here is the label's 0.8em, so this is smaller than it reads: 5em is
-    // about 56px, of which the spinner takes roughly 15 and the padding and
-    // border 9. That leaves comfortable room for the 200 the clamp allows,
-    // which is the widest value that can ever be in it.
-    //
-    // `flex: none` because this is a flex child with an explicit width, which
-    // defaults to `flex: 0 1 auto` and is therefore still SHRINKABLE — the
-    // width is a basis to be squeezed from rather than a size, and the first
-    // narrow viewport would take back what this line just gave.
+    // THE SPINNER IS WHAT EATS THIS, and 3.6em did not allow for it — the box was sized
+        // as though the digits had it to themselves, so Chrome's inner-spin-button took
+        // about a third of the content width off the right and clipped a two-digit number.
+        //
+        // `em` here is the label's 0.8em, so 5em is about 56px, of which the spinner takes
+        // roughly 15 and the padding and border 9.
+        //
+        // `flex: none` because a flex child with an explicit width still defaults to
+        // `flex: 0 1 auto` and is therefore SHRINKABLE.
     flex: none;
     width: 5em;
     padding: 0.15em 0.3em;
@@ -2991,14 +2818,12 @@
   color: $warning;
 }
 
-// WHERE THE RIDING DAY SHOULD END. An interruption in the list rather than a
-// control on a row: the rules top and bottom are what make it read as a break in
-// the route rather than as another thing attached to the point above it.
+// WHERE THE RIDING DAY SHOULD END. An interruption in the list rather than a control
+// on a row: the rules top and bottom are what make it read as a break in the route.
 //
 // Amber, on the same reasoning as .row-dist-dry — this is ADVICE, not a verdict.
-// Riding past four is a decision the rider is allowed to make, and #67's rule
-// about the fairness note applies here too: the app's job is to make the
-// consequence visible beside the choice, not to refuse it.
+// Riding past four is a decision the rider is allowed to make, and the app's job is
+// to make the consequence visible beside the choice.
 .bedtime-band {
   display: flex;
   flex-wrap: wrap;
@@ -3143,21 +2968,18 @@
   color: $neutral-57;
 }
 
-// THE ADD-A-GROUP FORM. A group cannot be made without a starting point, so
-// this collects one before anything exists — see openNewGroup(). It sits in
-// .tab-actions beside the button rather than inside #sg-body, which is rebuilt
-// whenever a route changes and would take a half-typed search with it.
-// FULL WIDTH THE WHOLE TIME, AND IT IS THE PARENT THAT MAKES IT SO. Ziad's
-// call, 2026-09-05. `.tab-actions` is a flex row, so this box was an auto-basis
-// flex item sized by its own content: it opened about as wide as the
-// placeholder and GREW with every character typed into the search. `flex: 0 0
-// 100%` takes it out of content sizing altogether. The button is `hidden` while
-// the form is open, so it needs no wrap to sit on its own line.
+// THE ADD-A-GROUP FORM. A group cannot be made without a starting point, so this
+// collects one before anything exists. It sits in .tab-actions beside the button
+// rather than inside #sg-body, which is rebuilt whenever a route changes and would
+// take a half-typed search with it.
+// FULL WIDTH THE WHOLE TIME, AND IT IS THE PARENT THAT MAKES IT SO. `.tab-actions`
+// is a flex row, so this box was an auto-basis flex item sized by its own content:
+// it GREW with every character typed into the search. `flex: 0 0 100%` takes it out
+// of content sizing altogether.
 //
-// `minmax(0, 1fr)` on the single column is the other half, and it is not
+// `minmax(0, 1fr)` on the single column is the other half and is not
 // belt-and-braces: a grid track is max-content by default, so a long prediction
-// or a long typed value would push the track — and the box with it — wider than
-// the drawer even once the flex basis was fixed.
+// would push the track wider than the drawer even once the flex basis was fixed.
 .sg-new {
   flex: 0 0 100%;
   // ON THE BOX ITSELF, NOT ONLY ON THE FIELDS INSIDE IT. `flex-basis: 100%`
@@ -3193,12 +3015,10 @@
 
 .sg-new-start,
 .sg-new-name {
-  // WIDTH FROM THE TRACK, NOT FROM THE CONTENT. An <input> has an intrinsic
-  // width of about twenty characters and a min-content width to match, so
-  // without these two the field sets the column width instead of taking it.
-  // box-sizing because there is no global border-box reset in style/ — see the
-  // gotcha in AGENTS.md — and 100% of a content box plus this padding would
-  // overflow the form.
+  // WIDTH FROM THE TRACK, NOT FROM THE CONTENT. An <input> has an intrinsic width of
+    // about twenty characters and a min-content width to match, so without these two
+    // the field sets the column width instead of taking it. box-sizing because there
+    // is no global border-box reset in style/.
   width: 100%;
   min-width: 0;
   box-sizing: border-box;
@@ -3402,15 +3222,13 @@
 // route list is the thing it exists to show; before this, a subgroup editor and a
 // roster link sat above it and pushed the route being edited below the fold.
 //
-// STUCK TO THE TOP OF THE SCROLLER, so the strip is reachable from route 9 without
-// scrolling back up. `position: sticky` rather than moving the strip out of
-// .panel-content: the tab panels are its siblings and have to scroll with it, so
-// it belongs to the same scroller.
+// STUCK TO THE TOP OF THE SCROLLER, so the strip is reachable from route 9.
+// `position: sticky` rather than moving the strip out of .panel-content: the tab
+// panels are its siblings and have to scroll with it.
 //
-// A BOTTOM RULE ACROSS THE WHOLE STRIP with the active tab punching through it.
-// That is what says the panel below belongs to the tab above rather than to the
-// strip as a whole—a pill-shaped selection would read as a segmented control,
-// which is a filter, and these are not filters.
+// A BOTTOM RULE ACROSS THE WHOLE STRIP with the active tab punching through it —
+// that is what says the panel below belongs to the tab above. A pill-shaped
+// selection would read as a segmented control, which is a filter, and these are not.
 .panel-tabs {
   position: sticky;
   top: 0;
@@ -3526,12 +3344,10 @@
   }
 }
 
-// A verb inside a note. A real <button> and not a click handler on the sentence
-// — the note carries the explanation and the button carries the action, and only
-// one of those a keyboard can reach. Styled as a link rather than as a .btn
+// A verb inside a note. A real <button> and not a click handler on the sentence —
+// only one of those a keyboard can reach. Styled as a link rather than as a .btn
 // because it sits mid-sentence, where a guide-sign field would read as a second
-// paragraph; $btn-flat is the list for buttons that want no sign, and this wants
-// no button at all.
+// paragraph.
 .note-action {
   padding: 0;
   border: none;
