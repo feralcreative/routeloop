@@ -153,26 +153,32 @@ const PREHEADER_PAD = '&zwnj;&nbsp;'.repeat(60)
 // — with the note that anything narrower renders a wordmark too short to read
 // beside 16px body copy.
 //
-// FOR THE BETA THE FILES CARRY THE SIGN, so they are 849×298, which is 425×149
-// at 1x: the word is 400×50 of that and the BETA sign hangs off its right end
-// into the extra. utils/build-email-logos.mjs writes both files from the SVGs
-// and prints the numbers to put here; run it without --beta when the beta ends.
+// FOR THE BETA THE FILES CARRY THE SIGN: the word is 400×50 of the composite
+// and the BETA sign hangs off its right end into the extra.
+// utils/build-email-logos.mjs writes both files from the SVGs and prints the
+// numbers to put here; run it without --beta when the beta ends.
 //
-// THE DISPLAYED SIZE IS HALF THAT, AND THE FILE IS NOT REDRAWN. Ziad's call,
-// 2026-09-22: the sign made the lockup tall enough to be the first half of
-// every message, so the same raster is drawn at 213×75 and the browser-side
-// rule about 400 being the floor no longer applies — that was about the word
-// alone, before the sign added 149px of height above it. Nothing is regenerated
-// because a 2x asset displayed at a quarter of its pixel size is sharper, not
-// softer, and the opaque grounds test/email-dark-mode.test.ts reads are
-// properties of the file rather than of the size it is drawn at. Halved and
-// rounded up from 212.5×74.5, which holds the 2.849 aspect to within a third of
-// a percent — an explicit width and height on the <img> is what Outlook needs,
-// so the pair has to be stated rather than derived.
-const LOGO_W = 213
-const LOGO_H = 75
-const LOGO_LIGHT = `${APP_ORIGIN}/img/logo-routeloop-email-hz@2x.png`
-const LOGO_DARK = `${APP_ORIGIN}/img/logo-routeloop-email-hz-dark@2x.png`
+// THE DISPLAYED SIZE IS HALF THAT. Ziad's call, 2026-09-22: the sign made the
+// lockup tall enough to be the first half of every message, so it is drawn at
+// 210×74 and the rule about 400 being the floor no longer applies — that was
+// about the word alone, before the sign added 149px of height above it. The
+// artwork Ziad drew for the beta is exported AT the displayed size, 210×74 with
+// a 420×148 at 2x, and the `@2x` file is the one in the markup: a retina asset
+// drawn at half its pixels is sharper rather than softer, and the opaque grounds
+// test/email-dark-mode.test.ts reads off each corner pixel are properties of the
+// file rather than of the size it is drawn at. An explicit width and height on
+// the <img> is what Outlook needs, so the pair is stated rather than derived —
+// and it has to MATCH the file, or the client scales the raster to a shape it
+// was not drawn at.
+//
+// THE `-beta-` IN THE NAME IS WHICH LOCKUP IT IS, not which environment ships
+// it: these carry the sign baked in, and the unsuffixed names are reserved for
+// the plain wordmark the beta ends with. utils/build-email-logos.mjs writes
+// whichever pair its flag names.
+const LOGO_W = 210
+const LOGO_H = 74
+const LOGO_LIGHT = `${APP_ORIGIN}/img/logo-routeloop-email-beta-hz@2x.png`
+const LOGO_DARK = `${APP_ORIGIN}/img/logo-routeloop-email-beta-hz-dark@2x.png`
 
 /**
  * The header wordmark.

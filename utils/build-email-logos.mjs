@@ -23,12 +23,19 @@ const beta = process.argv.includes('--beta')
 
 // The plain hz mark is 1500×184; in the composite it spans 988 of 1048, so
 // 1048 × (800 / 988) keeps the word itself at the size it has always been.
+// THE BETA PAIR IS NAMED FOR THE LOCKUP, so the unsuffixed names stay free for
+// the plain wordmark the beta ends with and neither overwrites the other.
+// src/emails/shell.tsx names the pair it draws.
 const JOBS = beta
   ? [
-      { src: 'public/img/logo-routeloop-hz-beta.svg', out: 'public/img/logo-routeloop-email-hz@2x.png', bg: '#ffffff' },
+      {
+        src: 'public/img/logo-routeloop-hz-beta.svg',
+        out: 'public/img/logo-routeloop-email-beta-hz@2x.png',
+        bg: '#ffffff',
+      },
       {
         src: 'public/img/logo-routeloop-hz-dk-beta.svg',
-        out: 'public/img/logo-routeloop-email-hz-dark@2x.png',
+        out: 'public/img/logo-routeloop-email-beta-hz-dark@2x.png',
         bg: '#000000',
       },
     ]
