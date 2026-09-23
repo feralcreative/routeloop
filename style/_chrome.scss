@@ -35,25 +35,20 @@
   }
 }
 
-// A page laid out as two columns of independent blocks—settings sections on
-// /prefs, fieldsets on /profile. Each cell keeps its own height, so the shorter
-// column simply ends early instead of stretching to match its neighbor.
+// A page laid out as two columns of independent blocks. Each cell keeps its own
+// height, so the shorter column ends early instead of stretching.
 //
 // THE COLUMN COUNT IS DECIDED BY THE VIEWPORT AND NOTHING ELSE. An `auto-fit` /
 // `minmax()` track list would let the CONTENT decide it, which is the
-// jumping-layout failure #130 names: a block must not change size as its value
-// changes. A media query cannot do that—every viewport has exactly one answer.
+// jumping-layout failure #130 names.
 //
 // Two columns start at 992px because that is the narrowest viewport where half
-// the wrap is still a usable column — ~430px each, after the 2rem padding either
-// side. Below it a radio row carrying a worked example reads cramped at half.
+// the wrap is still a usable column — ~430px each.
 //
 // **IT USED TO BE THE POINT WHERE `.page-wrap` HIT ITS CAP, AND SINCE THE CAP
-// WENT TO 1200px IT NO LONGER IS.** The breakpoint did not move with it, on
-// purpose: what decides whether two columns work is how wide each one ends up,
-// and 430px is 430px whether or not the container has stopped growing. Tying it
-// to the cap would have pushed two columns out to 1264px and made every viewport
-// between a single tall stack for no reason anybody could see.
+// WENT TO 1200px IT NO LONGER IS.** The breakpoint did not move with it on
+// purpose: what decides whether two columns work is how wide each ends up, and
+// 430px is 430px whether or not the container has stopped growing.
 .two-col {
   display: grid;
   gap: 2.5rem 2rem;
@@ -76,19 +71,14 @@
 // EQUAL-HEIGHT CELLS, WHICH IS THE OPPOSITE OF WHAT `.two-col` DOES BY DEFAULT.
 //
 // The plain grid sets `align-items: start` on purpose: its cells are independent
-// blocks and the shorter column simply ends early, because stretching a radio
-// group to match its neighbor leaves a tall box with a control floating at the
-// top of it. That is right for a bare section and wrong the moment the cell has
-// a VISIBLE EDGE — two boxes of obviously different heights side by side read as
-// a layout that has gone wrong, where two unboxed blocks just read as two
-// blocks. Ziad's call, 2026-09-07, for the notification groups.
+// blocks, and stretching a radio group to match its neighbor leaves a tall box
+// with a control floating at the top. That is right for a bare section and wrong
+// the moment the cell has a VISIBLE EDGE — two boxes of obviously different
+// heights read as a layout that has gone wrong. Ziad's call, 2026-09-07.
 //
-// It takes three declarations rather than one because the box is not the grid
-// item: the item is `.setting` and the border is on the `.setting-form` inside
-// it, so stretching the item alone gives a taller cell with the same short box
-// sitting at the top of it. The flex column is what passes the height through.
-// Same construction as `.three-col > .setting`, which lands its Save buttons on
-// one line by the same mechanism.
+// Three declarations rather than one because the box is not the grid item: the
+// item is `.setting` and the border is on the `.setting-form` inside it, so the
+// flex column is what passes the height through.
 .two-col--equal {
   align-items: stretch;
   // TIGHTER BETWEEN THE ROWS THAN `.two-col`'s 2.5rem, AND LOOSER AFTER THE LAST
@@ -134,32 +124,22 @@
 
 // THREE EQUAL COLUMNS, for a row of short radio groups (#178).
 //
-// The settings page is the case this exists for and it is worth stating why it
-// is not `.two-col`. Four settings in two columns went ragged: the cells keep
-// their own heights by design, so the shorter column simply ended early and the
-// page looked broken when nothing was misaligned. Every control on that page is
-// a radio group of three, so grouping them in THREES makes each row the same
-// height by construction and there is nothing left for `align-items: start` to
-// expose.
+// Worth stating why it is not `.two-col`: four settings in two columns went
+// ragged, because the cells keep their own heights and the shorter column ended
+// early. Every control on that page is a radio group of three, so grouping them
+// in THREES makes each row the same height by construction.
 //
 // Same fixed count and the same reason as `.two-col`: an `auto-fit`/`minmax()`
-// track list would let the CONTENT decide the column count, which is the
-// jumping-layout failure #130 names.
+// track list would let the CONTENT decide the column count (#130).
 //
-// Two columns at the middle breakpoint rather than dropping straight to one —
-// three groups of three do not fit in the wrap minus its padding at a readable
-// size, but two do, and a lone third under a pair reads as deliberate where a
-// hole in a three-track does not.
+// Two columns at the middle breakpoint rather than dropping straight to one — a
+// lone third under a pair reads as deliberate where a hole in a three-track does
+// not.
 //
 // ALIGN-ITEMS: STRETCH, WHICH IS WHERE THIS DEPARTS FROM `.two-col`, and the
-// departure is the point rather than an inconsistency. `.two-col` holds
-// INDEPENDENT blocks, so each keeping its own height is correct and a shorter
-// column ending early is honest. A `.three-col` row is one topic's settings side
-// by side, and they carry a Save button each — with `start` those buttons land
-// at three different heights, because a two-option group is shorter than a
-// three-option one. That is the same raggedness #178 was filed about, one level
-// down. Stretching the cells and pushing `.setting-actions` to the bottom (see
-// _account.scss) puts every Save on one line.
+// departure is the point: those are INDEPENDENT blocks, where a `.three-col` row
+// is one topic's settings side by side, each carrying a Save button. With `start`
+// those buttons land at three different heights.
 .three-col {
   display: grid;
   gap: 2rem;
@@ -183,11 +163,9 @@
 // FOUR AND FIVE ACROSS ON A DESKTOP. Ziad's call, 2026-09-21, once the choice
 // cards lost the sentence under each label: Appearance has four axes and Units
 // five, and the fourth or fifth cell wrapping onto a row of its own read as an
-// afterthought under a row of one-line cards. The modifier names the count the
-// row holds on a wide page; under those widths it falls back to the three-track
-// and the two-track above, because a five-across row at 992px is a 170px cell
-// and "Follow my distances" does not fit one. The gap tightens with the count
-// for the same reason.
+// afterthought. Under those widths it falls back to the three- and two-track,
+// because a five-across row at 992px is a 170px cell and "Follow my distances"
+// does not fit one.
 //@ LG ≥992px — four across.
 @media (min-width: 992px) {
   .three-col--four {
@@ -234,17 +212,14 @@ h1 {
   text-decoration: underline;
 }
 
-// The flat treatment. It is no longer what a plain `.btn` looks like — see the
-// guide sign below, which claims every `.btn` that does not opt out — but it is
-// still the base every variant is built on, and it is what the opt-outs render
-// as on their own.
+// The flat treatment. No longer what a plain `.btn` looks like — see the guide
+// sign below — but still the base every variant is built on, and what the
+// opt-outs render as on their own.
 // `[hidden]` LOSES TO `display` IN AN AUTHOR STYLESHEET, and this is where that
-// bites. The UA rule is `[hidden] { display: none }` at author-agnostic weight,
-// so any `.btn` given the attribute stays on screen — `el.hidden = true` reads as
-// a no-op and there is nothing in the console to say why. Restated here rather
-// than as a global reset, because this is the rule that creates the problem;
-// `.time-scope` and `.time-scope-set` in _map.scss each carry their own copy for
-// the same reason. autosave.js is what hides the Settings Save buttons.
+// bites: the UA rule is author-agnostic, so any `.btn` given the attribute stays
+// on screen and `el.hidden = true` reads as a no-op with nothing in the console.
+// Restated here rather than as a global reset, because this is the rule that
+// creates the problem; `.time-scope` carries its own copy.
 .btn[hidden] {
   display: none;
 }
@@ -284,36 +259,25 @@ h1 {
 
 // Highway guide-sign treatment: green field, white legend, and a white keyline
 // set in from the edge so a band of green still shows outside it. That inset
-// border is the whole construction of a US guide sign, and Overpass is drawn
-// from Highway Gothic (see $font), so the type was already most of the way
-// there — this is just the panel around it.
+// border is the whole construction of a US guide sign, and Overpass is drawn from
+// Highway Gothic, so the type was already most of the way there.
 //
 // The keyline is two stacked inset shadows rather than a pseudo-element, so it
-// works on both a <button> and an <a> with nothing extra in the markup. The
-// first repaints the outer 3px in the field color; the second would fill the
-// outer 5px white; what survives is a 2px white ring inset by 3px. Inset
-// shadows follow the border-radius, so the inner corners curve on their own —
-// squaring them off is what makes a hand-built version look wrong.
+// works on a <button> and an <a> with nothing extra in the markup: the first
+// repaints the outer 3px in the field color, the second would fill the outer 5px
+// white, and a 2px white ring inset by 3px survives. Inset shadows follow the
+// border-radius, so the inner corners curve on their own.
 //
-// Padding is looser than .btn's because the legend now has a keyline to clear,
-// and tighter on the arrow's side because its bounding box carries air the
-// glyphs of a word do not.
+// Padding is looser than .btn's because the legend has a keyline to clear, and
+// tighter on the arrow's side because its bounding box carries air glyphs do not.
 //
-// **This is what a button looks like by default.** Ziad's call, 2026-08-22:
-// every `.btn` is a guide sign with an arrow at the right unless it opts out.
-// `.btn-sign` is kept as an explicit alias because it is in markup and reads as
-// intent, but it no longer turns anything on that was off.
+// **This is what a button looks like by default.** Ziad's call, 2026-08-22.
+// `.btn-sign` is kept as an explicit alias because it reads as intent.
 //
-// **What opts out, and why it is a list rather than a rule.** A variant that
-// brings its own field color or its own size is not a guide sign: a red field
-// with a white keyline is the stop treatment's job, and a compact table button
-// is mostly keyline once 3px and 5px are set inside 0.4rem of padding. Those
-// variants keep the flat `.btn` above.
-//
-// The list is spelled out instead of being inferred, so ADDING A VARIANT IS A
-// DECISION. A new `.btn-something` gets the sign until it is named here, which
-// is the failure worth having — a button that looks like the rest of the app by
-// accident is better than one that quietly leaves the house style behind.
+// **What opts out is a LIST rather than a rule**, so ADDING A VARIANT IS A
+// DECISION: a variant bringing its own field color or size is not a guide sign,
+// and a new `.btn-something` gets the sign until it is named here. That is the
+// failure worth having.
 $btn-flat: ".btn-danger, .btn-approve, .btn-sm, .btn-quiet";
 
 // Two independent modifiers ride along:
@@ -323,11 +287,9 @@ $btn-flat: ".btn-danger, .btn-approve, .btn-sm, .btn-quiet";
 //   .btn.arrow-s              arrow at the right, pointing south
 //   .btn.arrow-left.arrow-ne  arrow at the left, pointing northeast
 //
-// Side and bearing are deliberately separate classes and not one .arrow-left-ne
-// per combination: there are 8 bearings on 2 sides, and a fused name means 16
-// rules to keep in step. The bearing defaults to whichever way the button's own
-// side faces, which is the pairing a real sign uses, so the common cases need no
-// bearing class at all.
+// Side and bearing are deliberately separate classes: 8 bearings on 2 sides means
+// a fused name is 16 rules to keep in step. The bearing defaults to whichever way
+// the button's own side faces, so the common cases need no bearing class.
 $sign-arrow-bearings: (
   "e": 0deg,
   "se": 45deg,
@@ -345,20 +307,15 @@ $sign-arrow-bearings: (
 // arrow, which used to carry a literal second copy — cannot drift apart.
 $sign-arrow-path: "M97 48L53 8V32H8V64H53V88Z";
 
-// One drawing, used by `::before` and — for `.arrow-both` — by `::after` too.
-// A mixin and not two copies of the path: the whole reason the arrow is rotated
+// One drawing, used by `::before` and — for `.arrow-both` — by `::after` too. A
+// mixin and not two copies of the path: the whole reason the arrow is rotated
 // rather than redrawn per bearing is that there should be exactly one shape to
-// correct if it is ever revised, and a second literal copy here would undo that
-// the moment someone edits one of them. Bearing is deliberately NOT set here —
-// every caller supplies its own.
+// correct. Bearing is deliberately NOT set here.
 //
-// TWO INKS, ONE SHAPE. With no `$ink` the arrow is the baked-white data URI the
-// base button has always drawn, which is right for every white-legend field and
-// is what the long note on `.btn::before` below defends. Given an ink it is a
-// MASK painted in that color instead — the construction _feedback.scss's yellow
-// card arrived at first, for the reason it states: a yield sign's legend is
-// black, so a white arrow on it is invisible. Pass `currentColor` to follow the
-// legend, or a token to pin it.
+// TWO INKS, ONE SHAPE. With no `$ink` the arrow is the baked-white data URI,
+// right for every white-legend field. Given an ink it is a MASK painted in that
+// color instead — the construction _feedback.scss arrived at first, because a
+// yield sign's legend is black and a white arrow on it is invisible.
 @mixin sign-arrow($ink: null) {
   flex: none;
   position: relative;
@@ -397,20 +354,15 @@ $sign-arrow-path: "M97 48L53 8V32H8V64H53V88Z";
 
 // `:not([hidden])` IS LOAD-BEARING AND IS NOT TIDINESS.
 //
-// `.btn[hidden] { display: none }` sits a hundred lines above with the comment
-// explaining why it has to exist at all — and it is (0,2,0), exactly what
-// `.btn.btn-sign` is, declared LATER. So this rule was quietly winning and every
-// SIGN button in the app ignored `el.hidden` even though the fix for that was
-// right there in the file. It went unnoticed because the one caller that hides a
-// button, autosave.js, hides them inside `.setting-actions`, and THAT collapses
-// itself when it has no visible child — so the button was invisible for a second
-// reason and nobody had cause to check the first. Putting anything else in that
+// `.btn[hidden] { display: none }` sits a hundred lines above, and it is (0,2,0)
+// — exactly what `.btn.btn-sign` is, declared LATER. So this rule was quietly
+// winning and every SIGN button ignored `el.hidden`. It went unnoticed because
+// the one caller that hides a button hides them inside `.setting-actions`, which
+// collapses itself when it has no visible child. Putting anything else in that
 // row brings all nine Save buttons back.
 //
-// Guarding the variant rather than restating the hidden rule after every
-// variant: there are eight `.btn.btn-sign.btn-*` blocks and a ninth would
-// reintroduce the bug, where a hidden sign button simply has no business
-// claiming a display at all.
+// Guarding the variant rather than restating the hidden rule after every one:
+// there are eight `.btn.btn-sign.btn-*` blocks and a ninth would reintroduce it.
 .btn.btn-sign:not([hidden]),
 .btn:not(#{$btn-flat}):not([hidden]) {
   display: inline-flex;
@@ -424,93 +376,70 @@ $sign-arrow-path: "M97 48L53 8V32H8V64H53V88Z";
   background: $interstate;
   color: $ink-light;
   border-radius: 10px;
-  // The legend is nudged down a tenth of an em, chosen by eye against the real
-  // login form rather than derived. `align-items: center` centers the text's
-  // line BOX, and the box is not centered on the letters: the baseline sits
-  // (ascent − descent) / 2 below the box's middle, so the glyphs ride high. The
-  // vertical padding still sums to 1.5rem, so the button's height does not move.
+  // The legend is nudged down a tenth of an em, chosen by eye. `align-items:
+  // center` centers the text's line BOX, and the box is not centered on the
+  // letters: the baseline sits (ascent − descent) / 2 below the middle, so the
+  // glyphs ride high. The vertical padding still sums to 1.5rem.
   //
-  // Worth knowing before touching it: that offset is independent of
-  // line-height. Setting `line-height: 1` was tried as the principled fix and
-  // moved nothing, because the term cancels — it only shrinks the box around an
-  // already off-center baseline. There is no line-height that centers the type
-  // and no arithmetic that lands on 0.1em; this is a taste value.
+  // That offset is independent of line-height — `line-height: 1` was tried as the
+  // principled fix and moved nothing, because the term cancels. There is no
+  // line-height that centers the type; this is a taste value.
   //
-  // It reads worse on /login than anywhere else, which is a red herring rather
-  // than a second bug: `.magic-form` stretches the button to the email field's
-  // 53px against the 45px it takes standing alone, and the extra field around
-  // the same offset is what makes it visible.
+  // It reads worse on /login than anywhere else, which is a red herring:
+  // `.magic-form` stretches the button to the email field's 53px.
   //
-  // There is no element around the label to shift on its own — it is a bare text
-  // node, and giving it a wrapper would cost this treatment the property worth
-  // having, that adding the class is the whole job. So the padding moves the
-  // whole flex line and the arrow is put back below.
+  // There is no element around the label to shift on its own, and giving it a
+  // wrapper would cost the property worth having — that adding the class is the
+  // whole job.
   padding: calc(0.75rem + 0.1em) 1.05rem calc(0.75rem - 0.1em) 1.4rem;
   letter-spacing: 0.01em;
   box-shadow:
     inset 0 0 0 3px $interstate,
     inset 0 0 0 5px $ink-light;
 
-  // The directional arrow, as an inline SVG in a background rather than markup:
-  // the treatment stays a class you add, with nothing to remember to put inside
-  // the element. It is one path — a 32-unit shaft meeting a head 80 units tall —
-  // because a road-sign arrow is a single solid shape, not a line with a
-  // chevron on it. Thin it and it stops reading as signage.
+  // The directional arrow, as an inline SVG in a background rather than markup, so
+  // the treatment stays a class you add. One path — a 32-unit shaft meeting an
+  // 80-unit head — because a road-sign arrow is a single solid shape. Thin it and
+  // it stops reading as signage.
   //
-  // The coordinates are the original 24-unit drawing multiplied by four. That
-  // buys nothing on its own; it is what keeps the shaft an integer after it was
-  // lengthened by a quarter, 36 to 45. At the original scale that step was 9 to
-  // 11.25 and every number in the path would have carried a decimal.
+  // The coordinates are the original 24-unit drawing times four, which is what
+  // keeps the shaft an integer after it was lengthened from 36 to 45.
   //
-  // It is drawn pointing east and rotated to everything else, so there is one
-  // path to correct if the shape is ever revised rather than eight that can
-  // drift apart. East is 0deg because CSS rotation is clockwise from the
-  // positive x-axis, which makes the bearing map below read like a compass.
+  // Drawn pointing east and rotated to everything else, so there is one path to
+  // correct rather than eight that can drift. East is 0deg because CSS rotation is
+  // clockwise from the positive x-axis.
   //
-  // The BOX is square even though the arrow is not. `contain` preserves aspect
-  // ratio, so a square box still draws it 1.3125em × 1.2em — the same size as a
-  // fitted box would — but a fitted box would be too short to hold the arrow
-  // once it is rotated a quarter turn, and north and south would spill past the
-  // keyline. 1.3125em is 1.2em × 105/96, the viewBox's own ratio.
+  // The BOX is square even though the arrow is not: `contain` preserves aspect
+  // ratio, and a fitted box would be too short to hold the arrow once rotated a
+  // quarter turn, so north and south would spill past the keyline.
   //
-  // The fill is baked white rather than tracking currentColor through a mask.
-  // The legend on this button is $white in every state including hover, so a
-  // mask would buy nothing and cost the prefix dance. Revisit only if a variant
-  // ever changes the legend color. `%23` is a literal `#` — unencoded, the
-  // browser reads the rest of the data URI as a fragment and the arrow vanishes.
+  // The fill is baked white rather than tracking currentColor through a mask — the
+  // legend is $white in every state, so a mask would buy nothing. `%23` is a
+  // literal `#`; unencoded, the browser reads the rest as a fragment and the arrow
+  // vanishes.
   //
-  // AND IT SURVIVES THE THEME UNCHANGED, which was an open question when the six
-  // palettes landed and is now answered rather than left pending: a data URI
-  // cannot carry a custom property, so a baked color there can only be right if
-  // the color it bakes is scheme-invariant. This one is. The arrow is a LEGEND on
-  // a sign field, and a legend does not follow the page — $ink-light is a literal
-  // #ffffff in all six palettes, for the same reason a yield sign still takes
-  // black ink at night. See the note on the two legends in _palette.scss, and the
-  // assertion in test/palette-contrast.test.ts that keeps them literal.
+  // AND IT SURVIVES THE THEME UNCHANGED: a data URI cannot carry a custom property,
+  // so a baked color there can only be right if it is scheme-invariant. This one
+  // is — the arrow is a LEGEND on a sign field, and $ink-light is a literal #ffffff
+  // in all six palettes, for the same reason a yield sign takes black ink at night.
   //
-  // `top` undoes the padding nudge for the arrow alone, so the legend moves and
-  // the arrow stays centered — its drawn shape is symmetric about its box, so
-  // centered is already right for it. Relative offset rather than a negative
-  // margin on purpose: margin would resize the flex line and drag the legend
-  // part of the way back up with it.
+  // `top` undoes the padding nudge for the arrow alone. Relative offset rather than
+  // a negative margin, which would resize the flex line.
   &::before {
     @include sign-arrow;
 
     transform: rotate(map.get($sign-arrow-bearings, "e"));
   }
 
-  // Side, by reversing the flex line rather than moving the arrow to ::after.
-  // There are only two items on it, so reversing swaps them, and it keeps the
-  // arrow on one pseudo-element instead of two that can drift. The element order
-  // the DOM sees does not change, which is right — the arrow is decoration and
-  // was never in the accessibility tree to begin with.
+  // Side, by reversing the flex line rather than moving the arrow to ::after. There
+  // are only two items on it, so reversing swaps them and keeps the arrow on one
+  // pseudo-element instead of two that can drift. The DOM order does not change,
+  // which is right — the arrow was never in the accessibility tree.
   //
-  // The horizontal padding swaps with it, so the tighter side stays the side the
-  // arrow is on.
+  // The horizontal padding swaps with it, so the tighter side stays the arrow's.
   //
   // This is the modifier that used to be the default, and the three buttons that
-  // relied on the old default carry it explicitly now: Download Me, Save Me, and
-  // the "Join the list" submit. They render exactly as they did.
+  // relied on that carry it explicitly now.
   &.arrow-left {
     flex-direction: row;
     padding-right: 1.4rem;
@@ -529,23 +458,16 @@ $sign-arrow-path: "M97 48L53 8V32H8V64H53V88Z";
     flex-direction: row-reverse;
   }
 
-  // A pair, one at each end. This is the one case that cannot be done by
-  // reversing the flex line, because it needs two arrows rather than one on a
-  // chosen side, so it spends `::after` — free on a guide sign, and unavailable
-  // only on .btn-stop, which carries no arrow at all.
+  // A pair, one at each end. The one case that cannot be done by reversing the flex
+  // line, because it needs two arrows rather than one on a chosen side, so it
+  // spends `::after`.
   //
-  // Both default to pointing outward, matching the single arrow's rule that a
-  // bearing follows the side it sits on. A bearing class overrides both together
-  // — `.arrow-both.arrow-n` is the flanking pair of up arrows — which is the
-  // only behavior worth having: two arrows on one sign pointing different ways
-  // is a contradiction, not a layout.
+  // Both default to pointing outward. A bearing class overrides both together —
+  // two arrows on one sign pointing different ways is a contradiction.
   //
-  // Padding goes tight on both sides for the same reason it swaps above: the
-  // arrow's bounding box carries air that a word's glyphs do not.
-  //
-  // It restores `flex-direction: row` explicitly, because the base now reverses
-  // the line: left alone, ::before would land on the RIGHT and ::after on the
-  // left, and the two outward bearings below would both be pointing inward.
+  // It restores `flex-direction: row` explicitly, because the base reverses the
+  // line: left alone, ::before would land on the RIGHT and both outward bearings
+  // would point inward.
   &.arrow-both {
     flex-direction: row;
     padding-right: 1.05rem;
@@ -592,58 +514,38 @@ $sign-arrow-path: "M97 48L53 8V32H8V64H53V88Z";
   }
 }
 
-// The stop sign: same family as the guide sign above — a field, and a white
-// keyline inset from the edge so a band of field still shows outside it — but
-// red and an octagon, and a REGULAR octagon, so it is a fixed square badge
-// rather than a button that grows with its label. Ziad's call, 2026-08-19. It
-// is the only control in the app shaped like this, which is the point: Delete
+// The stop sign: same family as the guide sign — a field, and a white keyline
+// inset from the edge — but red and a REGULAR octagon, so it is a fixed square
+// badge rather than a button that grows with its label. Ziad's call, 2026-08-19.
+// It is the only control in the app shaped like this, which is the point: Delete
 // Me should not be reachable by muscle memory in a column of identical pills.
 //
-// Two things the guide sign does cannot survive `clip-path`, so both are rebuilt
-// here rather than inherited:
+// Two things the guide sign does cannot survive `clip-path`, so both are rebuilt:
+// inset shadows follow `border-radius` rather than the clip, and `clip-path`
+// clips an outline too, so `:focus-visible` recolors the keyline instead.
 //
-//   - The keyline. Inset shadows follow `border-radius`, not the clip, so the
-//     ring would stay a rounded rectangle with its corners sliced off.
-//   - The focus ring. `clip-path` clips an outline too, so `:focus-visible`
-//     below recolors the keyline instead of drawing anything outside the shape.
-//
-// The keyline is three concentric octagons and still no extra markup: the
-// element paints the field, `::before` paints white inset 3px, `::after` paints
-// the field again inset 5px, and what survives is a 2px white ring — the same
-// 3px and 5px the guide sign uses. `::before` is the ARROW on every other
-// variant; a stop sign carries no bearing, so here it is free and is redefined
-// outright rather than patched. `width`/`height` have to be cleared explicitly:
-// left over from the arrow they would over-constrain a box that now sets all
-// four `inset` values, and the ring would come out an em and a third wide.
+// The keyline is three concentric octagons and still no extra markup: the element
+// paints the field, `::before` white inset 3px, `::after` the field again inset
+// 5px. `::before` is the ARROW on every other variant and is free here, so it is
+// redefined outright — `width`/`height` have to be cleared explicitly or they
+// over-constrain a box that now sets all four `inset` values.
 //
 // Both layers are `z-index: -1` under a stacking context the button makes for
-// itself. Positioned descendants otherwise paint ABOVE inline content and would
-// bury the legend; negative z-index puts them under the text but still over the
-// element's own background, which is the order wanted.
+// itself: positioned descendants otherwise paint ABOVE inline content and bury
+// the legend.
 //
 // A regular octagon inscribed in a square cuts each corner at 1 / (2 + √2) =
-// 29.289% of the side. That figure is why `aspect-ratio` forces the box square:
-// feed the same percentages a wider box and the diagonals stop being 45°, and it
-// reads as a stretched hexagon rather than as signage.
+// 29.289%, which is why `aspect-ratio` forces the box square — feed the same
+// percentages a wider box and it reads as a stretched hexagon.
 //
-// `box-sizing` is declared explicitly because there is NO global border-box
-// reset in this stylesheet — every other fixed-size box in the app sets its own.
-// Without it `width` and `aspect-ratio` describe the CONTENT box, the 1.5rem of
-// padding lands outside them, and the sign renders 24px wider than it says. That
-// is how it shipped for a route, and the tell was the legend refusing to wrap at
-// any viewport: it was being handed the full declared width to fit in.
+// `box-sizing` is declared explicitly because there is NO global border-box reset
+// here. Without it `width` and `aspect-ratio` describe the CONTENT box and the
+// sign renders 24px wider than it says; the tell was a legend refusing to wrap at
+// any viewport.
 //
-// The legend is left at the same size as every other button's — Ziad's call,
-// 2026-08-19 — which at this panel size means it wraps to two lines. It wraps
-// rather than being sized down: matching the rest of the app's type is worth
-// more here than keeping the label on one line, and a two-line legend is not
-// wrong on a sign. The keyline stays absolute at 3px and 5px either way, since
-// those are the values that tie this to the guide sign.
-//
-// The 2px ring comes out uniform on all eight sides for free, because a regular
-// octagon has the same apothem to every side — scaling one concentrically moves
-// every edge inward by the same distance. That is not true of the general case,
-// and it is the reason keeping it regular is worth the fixed footprint.
+// The legend stays at every other button's size and wraps to two lines, which is
+// not wrong on a sign. The 2px ring comes out uniform on all eight sides for free,
+// because a regular octagon has the same apothem to every side.
 $octagon-cut: 29.289%;
 $octagon-far: 70.711%;
 $octagon: polygon(
@@ -659,28 +561,23 @@ $octagon: polygon(
 
 // --- The wordmark's beta sign --------------------------------------------------
 //
-// `wordmark()` in views/logo.tsx wraps both inks in `.logo-lockup` and, while
-// the stage is a beta, adds `.logo-beta`: Ziad's broken BETA sign, hung from
-// a nail at the wordmark's right end. The numbers are read off the
-// composites he drew, so the sign hangs exactly where he put it: its own box
-// is 242×276 with the nail at 74.8% across and 19.6% down; on the horizontal
-// mark the nail sits at the wordmark's right edge, 120.6% of its height
-// down, and the sign is 24.5% of the wordmark's width; on the stacked mark
-// the nail is at 98.8% across, 117.3% down, and the sign is 60.5% wide.
-// `top` is a percentage of the lockup's HEIGHT and `left` of its WIDTH, so
-// each mark's aspect ratio (8.15 and 1.776) is folded into its numbers.
+// `wordmark()` wraps both inks in `.logo-lockup` and, while the stage is a beta,
+// adds `.logo-beta`: Ziad's broken BETA sign, hung from a nail at the wordmark's
+// right end. The numbers are read off the composites he drew, so the sign hangs
+// exactly where he put it — its own box is 242×276 with the nail at 74.8% across
+// and 19.6% down; on the horizontal mark the nail sits at the right edge, 120.6%
+// of its height down, and the sign is 24.5% of its width; on the stacked mark
+// 98.8% across, 117.3% down, 60.5% wide. `top` is a percentage of the lockup's
+// HEIGHT and `left` of its WIDTH, so each mark's aspect ratio is folded in.
 //
-// A surface that wants the sign smaller than the composite's proportion sets
-// `--sign-scale` on its lockup: the width shrinks and the nail stays put.
+// A surface wanting it smaller sets `--sign-scale`: the width shrinks and the
+// nail stays put.
 //
-// **THE STACKED MARK CARRIES A SMALLER SIGN, HUNG HIGHER.** The composite
-// hangs it a full logo-height below the baseline, which the header's
-// horizontal mark can afford — there is nothing under it but the page's top
-// margin — and the two stacked surfaces cannot: on the splash the eyebrow and
-// the headline sit right under the logo in a stack with no slack, and in the
-// notice modal the title does. So `.logo-lockup--tucked` hangs the sign from
-// the right edge of the LOOP line, at half the composite's size, ending at
-// the wordmark's own baseline. The nail is the same nail; the drop is not.
+// **THE STACKED MARK CARRIES A SMALLER SIGN, HUNG HIGHER.** The composite hangs
+// it a full logo-height below the baseline, which the header can afford and the
+// two stacked surfaces cannot — the splash's eyebrow and the modal's title sit
+// right under the logo. So `--tucked` hangs it from the LOOP line's right edge at
+// half size, ending at the wordmark's own baseline. Same nail; different drop.
 .logo-lockup {
   position: relative;
   display: inline-block;
@@ -730,57 +627,41 @@ $octagon: polygon(
 
 // --- The flat-field signs -----------------------------------------------------
 //
-// A family of three: the same panel as the guide sign above — keyline, radius,
-// shadow, legend treatment — with a different field and no arrow.
+// A family of three: the same panel as the guide sign — keyline, radius, shadow,
+// legend treatment — with a different field and no arrow.
 //
 // **THE FIELD IS A REAL DISTINCTION AND NOT A TINT.** On a US sign the color IS
-// the category, so each of these says something the green one cannot:
+// the category, so each says something the green one cannot:
 //
-//   .btn-recreation   $recreation, brown. The recreational and cultural class —
-//                     parks, trailheads, places you go TO rather than roads you
-//                     take. The friendship verbs: Add friend, Accept.
-//   .btn-regulatory   $stop, red. The regulatory class, and the rectangular one
-//                     rather than the octagon — WRONG WAY is exactly this panel.
-//                     Decline, which refuses a request rather than destroying
-//                     anything. .btn-stop below is the octagon and is spoken for.
-//   .btn-services     $disabled, blue. Motorist services and the
-//                     accessible-parking symbol. Follow, which is neither a
-//                     direction nor a request: it is unilateral, instant and
-//                     reversible.
-//   .btn-warning      $warning, amber, and the only one of the four with a BLACK
-//                     legend and a black keyline. The warning class — the
-//                     rectangular advisory panel rather than the diamond, which
-//                     is a shape a legend of more than one word does not fit.
-//                     Reloading out of the save-failure dialog: the one action
-//                     in this app that can lose work a rider can still see, and
-//                     a warning sign is exactly what that is for. Ziad's call,
-//                     2026-09-03.
+//   .btn-recreation   $recreation, brown. Parks, trailheads, places you go TO.
+//                     The friendship verbs: Add friend, Accept.
+//   .btn-regulatory   $stop, red, rectangular rather than the octagon — WRONG
+//                     WAY is exactly this panel. Decline, which refuses a
+//                     request rather than destroying anything.
+//   .btn-services     $disabled, blue. Motorist services. Follow, which is
+//                     unilateral, instant and reversible.
+//   .btn-warning      $warning, amber, and the only one with a BLACK legend and
+//                     keyline. Reloading out of the save-failure dialog: the one
+//                     action that can lose work a rider can still see. Ziad's
+//                     call, 2026-09-03.
 //
-// ALL FOUR DROP THE ARROW, and that is the same decision as the field rather
-// than a second one: a guide sign's whole grammar is "that way", and none of
-// these points anywhere.
+// ALL FOUR DROP THE ARROW, which is the same decision as the field rather than a
+// second one: a guide sign's grammar is "that way", and none of these points
+// anywhere. SIGNS, STILL — which is why they are `.btn.btn-sign.btn-*` and not
+// members of $btn-flat, which would take the keyline with them.
 //
-// SIGNS, STILL. Which is why they are `.btn.btn-sign.btn-*` and not members of
-// $btn-flat — flat would have taken the keyline with them.
+// `content: none` rather than `display: none` on the arrow: `display: none`
+// leaves the rule that sizes it in place for anything that re-shows it, where
+// `none` content means the box is never generated.
 //
-// `content: none` rather than `display: none` on the arrow. The pseudo-element
-// is a flex item, and `display: none` removes it from the line while leaving the
-// rule that sizes it in place for anything that later re-shows it; `none`
-// content means the box is never generated at all, which is the honest way to
-// say a variant has no arrow.
-//
-// The padding goes symmetric with it. The base tightens the arrow's side by
-// 0.35rem so the legend and the arrow are not evenly spaced from the edges — a
-// real sign's legend sits closer to its arrow than to its border. With no arrow
-// that asymmetry has nothing to describe and reads as a centering bug.
+// The padding goes symmetric with it — the base tightens the arrow's side, and
+// with no arrow that asymmetry reads as a centering bug.
 //
 // `$dark-ink` FLIPS TWO THINGS AT ONCE, AND THEY ARE NOT TWO DECISIONS. A
-// black-legend field takes black for its keyline as well as its legend — a real
-// warning sign has a black border, not a white one — and it must get LIGHTER on
-// hover rather than darker, which is the trap the ink-pairing note in
-// _tokens.scss spells out: darkening raises contrast under white ink and lowers
-// it under black. Both follow from which ink the field carries, so both hang off
-// the one argument and a caller cannot set one and forget the other.
+// black-legend field takes black for its keyline as well as its legend, and it
+// must get LIGHTER on hover rather than darker — the trap the ink-pairing note in
+// _tokens.scss spells out. Both follow from which ink the field carries, so a
+// caller cannot set one and forget the other.
 @mixin sign-field($field, $dark-ink: false) {
   // **$ink-light AND NOT $white, AS OF 2026-09-07, AND THE OLD NOTE HERE WAS
   // RIGHT THAT IT MATTERED.** It read "the white-legend signs are arguably wrong

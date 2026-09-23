@@ -40,13 +40,11 @@ import { jsonScript } from './json-script'
 import { analyticsMarkup } from './analytics'
 
 // Google's inline bootstrap loader, verbatim from their docs, which defines
-// google.maps.importLibrary() and nothing else. Map pages emit this instead of
-// a plain <script src=…&callback=…> because the engine imports "maps", "marker"
-// and "places" separately and on demand — the marker library in particular is
-// what Advanced Markers need and what the old callback form could not defer.
+// google.maps.importLibrary() and nothing else. Map pages emit this instead of a
+// plain <script src=…&callback=…> because the engine imports "maps", "marker"
+// and "places" separately and on demand.
 //
-// The key is public by design (it ships in page source; the referrer allow-list
-// is the only control on it), but it still goes through JSON.stringify so a
+// The key is public by design, but it still goes through JSON.stringify so a
 // malformed value cannot break out of the string literal.
 export function googleMapsLoader(key: string): string {
   return `<script>
@@ -72,17 +70,13 @@ export type NavKey =
   | 'builder'
   | 'import'
   | 'places'
-  // No 'friends' member either, removed on 2026-08-29 for the same reason as
-  // 'rides': /friends became a tab of the riders screen (#179), both its URLs
-  // set 'riders', and a key no NavItem carries is an aria-current that is wired
-  // and can never fire.
-  // 'profile' AND 'settings' NAME TWO DOORS INTO ONE PAGE (#269). The menu
-  // carried an item for each until #320 folded them into My Account, which
-  // carries 'settings'; 'profile' survives because /profile still SETS it, and
-  // a page entered by that door must not light My Account as though it were
-  // the Preferences tab. The rule on this union is that a key nothing sets is
-  // an aria-current that is wired and can never fire; a key no item carries is
-  // merely one the menu does not highlight.
+  // No 'friends' member either, removed 2026-08-29 for the same reason as 'rides':
+  // /friends became a tab of the riders screen (#179), both its URLs set 'riders',
+  // and a key no NavItem carries is an aria-current that can never fire.
+  // 'profile' AND 'settings' NAME TWO DOORS INTO ONE PAGE (#269). The menu carried
+  // an item for each until #320 folded them into My Account, which carries
+  // 'settings'; 'profile' survives because /profile still SETS it, and a page
+  // entered by that door must not light My Account as though it were Preferences.
   | 'profile'
   | 'settings'
   // ONE ADMIN KEY, NOT FOUR, as of 2026-09-07. `approvals`, `invites` and
@@ -130,13 +124,11 @@ export type PageOpts = {
   /**
    * Serialized to window.TB via jsonScript.
    *
-   * `version` is merged in by page() and does not belong here — public/js/feedback.js
-   * has always read `window.TB.version` into a bug report's diagnostics, and
-   * nothing ever set it, so every report filed so far names no build. That is
-   * also why TB is now emitted on EVERY page rather than only where a page asks
-   * for one: a report can be filed from anywhere the button is, and a report
-   * that cannot say which build it came from is the one thing the version was
-   * added to fix. Every existing reader guards with `window.TB && window.TB.x`.
+   * `version` is merged in by page() and does not belong here — feedback.js has
+   * always read `window.TB.version` into a bug report's diagnostics and nothing
+   * ever set it, so every report filed so far names no build. That is also why TB
+   * is emitted on EVERY page now: a report can be filed from anywhere the button
+   * is. Every existing reader guards with `window.TB && window.TB.x`.
    */
   tb?: Record<string, unknown>
   /**
@@ -159,19 +151,14 @@ export type PageOpts = {
   noscript?: string
   /**
    * Pre-fills `?area=` on the floating bug button, so screen 3 of the report can
-   * offer a one-tap confirm instead of eight cold chips. Values come from AREAS
-   * in src/feedback/policy.ts.
+   * offer a one-tap confirm instead of eight cold chips.
    *
-   * **It no longer decides whether the buttons appear.** They are site chrome as
-   * of 2026-08-23 and render on every page a signed-in rider can reach — this
-   * only makes the report better where the route happens to know the answer.
+   * **It no longer decides whether the buttons appear** — they are site chrome as
+   * of 2026-08-23 and render on every page a signed-in rider can reach.
    *
-   * Still opt-in rather than inferred, and deliberately so: `areaFromPath()` in
-   * src/feedback/policy.ts is the ONE inference mechanism, and it is reached
-   * from the request. page() never sees a path, so anything it worked out here
-   * would be a second mechanism that could disagree with the first. Where no
-   * area is given the link simply carries none, which is a state the form is
-   * built for.
+   * Still opt-in rather than inferred: `areaFromPath()` is the ONE inference
+   * mechanism and it is reached from the request, where page() never sees a path,
+   * so anything worked out here could disagree with it.
    */
   /** Kept although the dock that read it is gone: several pages pass it, the
    *  intake still accepts `?area=`, and removing it would be a churn of call
@@ -182,39 +169,26 @@ export type PageOpts = {
 // The menu, exactly as docs/main-menu.md specifies it. That file is the spec and
 // this is the implementation; change the spec first.
 //
-// Home leads the group, added 2026-08-15. It was deliberately absent on the
-// grounds that the logo already goes to `/`, which was sound while `/` was a
-// landing page and wrong once it became the dashboard: the stats page was
-// reachable only by clicking a logo, which nobody reads as "my numbers". The
-// giveaway sat in this file — `NavKey` has always included 'home' and home.tsx
-// has always set it, but no item carried the key, so the aria-current branch
-// below could never fire.
+// Home leads the group, added 2026-08-15. It was deliberately absent because the
+// logo already goes to `/` — sound while `/` was a landing page and wrong once it
+// became the dashboard. The giveaway sat in this file: `NavKey` has always
+// included 'home' and home.tsx has always set it, but no item carried the key.
 type NavItem = { key: NavKey; href: string; label: string }
 
-// OUT OF THE RIDES GROUP AND FIRST IN THE BAR, 2026-08-27 (#184). It was
-// `{ key: 'home', label: 'Your rides' }` at the head of RIDES_LINKS, under a
-// comment arguing that "Home" names a location rather than a purpose and that
-// the group was already called Rides.
+// OUT OF THE RIDES GROUP AND FIRST IN THE BAR, 2026-08-27 (#184). It was "Your
+// rides" at the head of RIDES_LINKS, under a comment arguing that "Home" names a
+// location rather than a purpose.
 //
-// **That argument was right and its premise is what changed.** Outside the
-// group the label has no "Rides" above it, so "Your rides" starts competing
-// with the three verbs still in the menu — and the page is not only rides
-// anyway. It is the stat tiles, then Your records, then the list. "Dash" is the
-// honest name for that page once it stands alone, and the old comment is struck
-// rather than left contradicting the code.
+// **That argument was right and its premise is what changed**: outside the group
+// the label has no "Rides" above it, so "Your rides" competes with the three
+// verbs still in the menu — and the page is not only rides anyway.
 //
-// THE KEY STAYS `home`, exactly as it did when /rides folded into / and the
-// label changed then too. The route, the file and the navKey every page sets
-// are all untouched; only the label and the position moved.
+// THE KEY STAYS `home`. The route, the file and every page's navKey are
+// untouched; only the label and the position moved.
 //
-// The wordmark also links to `/`, so the header carries two ways to the same
-// page. That is ordinary rather than a fault — Dash earns its place by being
-// LABELED, which a logo is not.
-//
-// `/dash` AND NOT `/` SINCE 2026-09-17: `/` sends a phone to /rides (see
-// src/routes/home.tsx), so a Dash item pointing at `/` would be a link a phone
-// could never follow. `/dash` is the same page with no redirect, on every
-// device. The wordmark keeps `/` on purpose — for a thumb, home is the list.
+// `/dash` AND NOT `/` SINCE 2026-09-17: `/` sends a phone to /rides, so a Dash
+// item pointing at `/` would be a link a phone could never follow. The wordmark
+// keeps `/` on purpose — for a thumb, home is the list.
 const DASH_LINK: NavItem = { key: 'home', href: '/dash', label: 'Dash' }
 
 // A destination and three verbs. The destination left the group on 2026-08-27
@@ -239,20 +213,15 @@ const ridesLinks = (w: Words): NavItem[] => [
 // Do not undo it while tidying the list up.
 const exploreLink = (w: Words): NavItem => ridesLinks(w).find((l) => l.key === 'explore')!
 
-// IN THE ACCOUNT MENU, NOT THE BAR, since 2026-08-29. These are four links for
-// the one rider who owns the site, and they were taking a top-level slot from
-// every rider-facing destination — on the widest nav the app has, since only an
-// admin sees them.
+// IN THE ACCOUNT MENU, NOT THE BAR, since 2026-08-29. Four links for the one
+// rider who owns the site, taking a top-level slot from every rider-facing
+// destination on the widest nav the app has.
 //
-// The account menu is where they belong on the same argument that put the
-// recycle bin there: it holds what acts on WHO YOU ARE rather than on what you
-// are planning, and "I am the person who approves riders" is exactly that.
+// The account menu holds what acts on WHO YOU ARE rather than on what you are
+// planning, and "I am the person who approves riders" is exactly that.
 //
-// FLATTENED BEHIND AN `<hr>` rather than nested as a second <details>. The
-// account menu is already a disclosure and a menu that opens into another menu
-// is two taps to reach a link that was one; the four labels say what they are
-// without a group heading over them, and the rule already separates the two
-// blocks below it.
+// FLATTENED BEHIND AN `<hr>` rather than nested as a second <details>: a menu
+// that opens into another menu is two taps to reach a link that was one.
 const RIDERS_LINK: NavItem = { key: 'riders', href: '/riders', label: 'Riders' }
 
 /**
@@ -272,16 +241,14 @@ export function avatarSrc(user: { id: number; avatarUrl?: string | null; avatarB
 
 // `badge` renders the same `.nav-badge` the account chip carries. Ziad's call,
 // 2026-09-08 (#288): the chip's badge says something happened and this one says
-// where to go for it, so making them a different shape would make the second
-// read as a different KIND of thing. The count was `Notifications (3)` in the
-// label until then — true, and invisible beside it.
+// where to go for it, so a different shape would read as a different KIND of
+// thing.
 //
-// **ZERO RENDERS NOTHING**, per the rule in _nav.scss: a badge showing 0 is
-// furniture that teaches people to stop reading badges.
+// **ZERO RENDERS NOTHING**, per _nav.scss: a badge showing 0 is furniture that
+// teaches people to stop reading badges.
 //
 // **THE BADGE IS `aria-hidden` AND THE LABEL CARRIES THE COUNT**, so a screen
-// reader hears "Notifications, 3 unread" once rather than the digit twice. That
-// is the same split the chip makes with its own visually-hidden line.
+// reader hears "Notifications, 3 unread" once rather than the digit twice.
 function NavLink({
   item,
   navKey,
@@ -317,33 +284,17 @@ function SiteHeader({
   unread?: number
   words?: Words
 }) {
-  // A map page gives the header a floating badge in the corner rather than a
-  // full-width bar, and the stacked mark suits that shape: at a legible height
-  // it is 114px wide against the horizontal lockup's 228px, so it takes half as
-  // much of the map. The gap is much wider than it used to be, because the
-  // horizontal lockup is now 8.15:1 where the old one was 3.5:1.
+  // A map page gives the header a floating badge rather than a full-width bar, and
+  // the stacked mark suits that shape — at a legible height it is 114px wide
+  // against the horizontal lockup's 228px.
   //
   // Both are the unsuffixed artwork. The suffix names the *background*, not the
-  // ink: no suffix is the dark lockup for a light ground, `-dk` is the reversed
-  // white one for a dark ground. It reads backwards at a glance, which is why it
-  // is written down — but it is the convention src/emails/shell.tsx was already
-  // using, so the alternative was two conventions instead of one.
-  //
-  // `-hz` is the one-line lockup; the stacked one carries no axis suffix at all.
-  // Both names are the artwork's own, as delivered.
-  // NO LOGO ON A MAP PAGE. It moved into the drawer on 2026-08-16 — see
-  // panelShell — because the drawer now runs the full height of the left edge
-  // and the floating badge sat exactly on top of its header. What is left of the
-  // header on a map page is the hamburger alone, in the opposite corner.
-  //
-  // The stacked artwork is therefore unused here; the drawer takes the
-  // horizontal lockup, which suits a wide, short header far better. Both inks are
-  // rendered and the stylesheet shows one (`wordmark()` in logo.tsx, #317): the
-  // suffix names the *background*, not the ink, so no suffix is the dark lockup
-  // for a light ground and `-dk` is the reversed white one for a dark ground. It
-  // reads backwards at a glance, which is why it is written down — but it is
-  // the convention src/emails/shell.tsx was already using, so the alternative
-  // was two conventions instead of one.
+  // ink: no suffix is the dark lockup for a light ground, `-dk` the reversed white
+  // one for a dark ground. It reads backwards at a glance, which is why it is
+  // written down — but it is the convention src/emails/shell.tsx already uses.
+  // NO LOGO ON A MAP PAGE. It moved into the drawer on 2026-08-16, because the
+  // drawer runs the full height of the left edge and the floating badge sat on top
+  // of its header. What is left here is the hamburger alone.
   return (
     <header class={`site-header${isMap ? ' site-header--map' : ''}`} id="site-header">
       {!isMap && (
@@ -352,24 +303,18 @@ function SiteHeader({
         </a>
       )}
       {/*
-        A SECOND DOOR INTO THE TOUR, AS A SMALL GUIDE SIGN BESIDE THE ACCOUNT
-        CHIP. Ziad's call, 2026-09-11: the account menu's item is the way back
-        in, and a way back in that lives two clicks deep in a menu is one nobody
-        finds. Same href and the same `data-tour-start` hook as the menu item,
-        so tour.js treats the two identically.
+          A SECOND DOOR INTO THE TOUR, AS A SMALL GUIDE SIGN BESIDE THE ACCOUNT CHIP.
+          Ziad's call, 2026-09-11: a way back in that lives two clicks deep in a menu is
+          one nobody finds. Same href and `data-tour-start` hook as the menu item.
 
-        A CHILD OF THE HEADER AND NOT OF `.nav-end`, because it has to be on the
-        builder too, and on a map page `.nav-end` is inside a closed drawer at
-        every width — the #300 problem, and the same answer: put it where the
-        drawer is not. In the desktop row `.site-menu` is `display: contents`,
-        so this lands between the group row and the chip; in the drawer layouts
-        it sits beside the hamburger, which on a map page is the whole header.
+          A CHILD OF THE HEADER AND NOT OF `.nav-end`, because it has to be on the
+          builder too, and on a map page `.nav-end` is inside a closed drawer at every
+          width — the #300 problem, and the same answer.
 
-        `hideTour` IS THE CHECKBOX ON /settings. Read off the session user the
-        way `unread` is, since page() is synchronous and called from dozens of
-        places. Not rendered at all rather than hidden: a rider who asked for it
-        gone gets no tab stop either.
-      */}
+          `hideTour` IS THE CHECKBOX ON /settings, read off the session user the way
+          `unread` is. Not rendered at all rather than hidden: a rider who asked for it
+          gone gets no tab stop either.
+        */}
       {user && !hideTourOf(user) && (
         <a class="nav-tour" href="/builder?tour" data-tour-start aria-label="Take the tour">
           {/* TWO WORDS OF THE THREE HIDE ON A PHONE (_nav.scss): the wordmark,
@@ -394,36 +339,24 @@ function SiteHeader({
       */}
       <details class="site-menu">
         {/*
-          THE UNREAD DOT, AND IT IS ON THE HAMBURGER BECAUSE THAT IS THE ONLY
-          CHROME A MAP PAGE ALWAYS SHOWS (#300). #288 made the account chip's
-          badge the route to the release notes on the recorded reasoning that the
-          chip "renders on every page including the map ones" — true of the DOM
-          and false of the screen: on a map page the nav is the drawer at every
-          width, so the chip and its badge sit inside a closed <details> and paint
-          nothing. Sampling the pixels at the chip's own coordinates on /m/:slug
-          returned map tiles and no red at all. The route existed; the signal did
-          not, and a rider had to open the menu speculatively — which is the thing
-          a badge exists to replace.
+            THE UNREAD DOT, ON THE HAMBURGER BECAUSE THAT IS THE ONLY CHROME A MAP PAGE
+            ALWAYS SHOWS (#300). #288 made the account chip's badge the route to the
+            release notes on the reasoning that the chip "renders on every page including
+            the map ones" — true of the DOM and false of the screen: on a map page the nav
+            is the drawer at every width, so the chip sits inside a closed <details> and
+            paints nothing. Sampling the pixels at its own coordinates returned map tiles.
 
-          **THE TWO CAN NEVER BOTH SHOW, AND CSS ALREADY GUARANTEES IT.** The
-          toggle is `display: none` above 992px on a chrome page and always shown
-          on a map page, so this dot appears exactly where the chip's badge cannot
-          — which also fixes the narrow-viewport chrome page, where the chip is in
-          the same closed drawer. No branching on `isMap`, and nothing to keep in
-          step with the breakpoint.
+            **THE TWO CAN NEVER BOTH SHOW, AND CSS ALREADY GUARANTEES IT.** The toggle is
+            `display: none` above 992px on a chrome page and always shown on a map page, so
+            this dot appears exactly where the chip's badge cannot. No branching on `isMap`.
 
-          **A DOT AND NOT `.nav-badge`, WHICH IS A DEPARTURE FROM #288's RULE AND
-          IS THE POINT.** That rule made the chip's badge and the menu item's one
-          shape because both NAME the thing: three unread notifications, here they
-          are. The hamburger cannot name anything — it is a container — so all it
-          can honestly say is "something inside here", and a count on it would
-          claim to be about the menu rather than about what the menu contains.
-          Ziad's call, 2026-09-10.
+            **A DOT AND NOT `.nav-badge`, WHICH IS A DEPARTURE FROM #288's RULE AND IS THE
+            POINT.** That rule made both badges one shape because both NAME the thing. A
+            hamburger cannot name anything — it is a container — so all it can honestly say
+            is "something inside here". Ziad's call, 2026-09-10.
 
-          The count still reaches a screen reader, through the label rather than
-          the dot: the dot is decorative, and `aria-label` is what the summary
-          announces. Zero renders nothing at all, per the rule in _nav.scss.
-        */}
+            The count still reaches a screen reader through the label rather than the dot.
+          */}
         <summary class="nav-toggle" aria-label={unread > 0 ? `Menu, ${unread} unread` : 'Menu'}>
           <span class="nav-bars" aria-hidden="true"></span>
           {user && unread > 0 && <span class="nav-toggle-dot" aria-hidden="true"></span>}
@@ -431,25 +364,17 @@ function SiteHeader({
         <nav class="site-nav" id="site-nav">
           <div class="nav-primary">
             {/*
-              THE WAY OFF A MAP PAGE, and the only item here that is not on every
-              page. It replaced an X in the drawer header on 2026-08-19 — see the
-              decision in docs/main-menu.md. The X sat a millimeter from collapse
-              and read as its pair, which the two are not: one keeps you on the
-              map and the other leaves it.
+                THE WAY OFF A MAP PAGE, and the only item here not on every page. It replaced
+                an X in the drawer header on 2026-08-19: the X sat a millimeter from collapse
+                and read as its pair, which the two are not — one keeps you on the map and the
+                other leaves it.
 
-              First, so it is the first thing under the thumb when the drawer
-              opens. `isMap` is the same flag that decides whether the header
-              draws a logo, so there is one answer to "is this a map page" rather
-              than two that can disagree.
+                First, so it is the first thing under the thumb when the drawer opens. `isMap`
+                is the same flag that decides whether the header draws a logo.
 
-              It used to branch on the user: a rider went back to `/rides` and a
-              visitor who followed a shared link got the front page. Since
-              /rides folded into / on 2026-08-24 both answers are the same URL,
-              and `/` already serves the right thing to each — the dashboard
-              behind `requireActive`, the splash to everyone else. The branch is
-              gone because there is nothing left for it to decide, not because
-              the distinction stopped mattering.
-            */}
+                It used to branch on the user; since /rides folded into / both answers are the
+                same URL and `/` already serves the right thing to each.
+              */}
             {isMap && (
               <a class="nav-exit-map" href="/">
                 Exit map
@@ -489,46 +414,27 @@ function SiteHeader({
 // shells. map-common.js binds the collapse toggle by these class names.
 //
 // THERE IS NO EXIT CONTROL IN THIS HEADER, as of 2026-08-19, and it is not an
-// omission. A map page has no site footer and its header is the floating nav, so
-// for a while the only way off the builder was the hamburger in the opposite
-// corner, which nobody finds — the builder read as a black hole. The first fix
-// put an X next to collapse, on the grounds that the corner is where a reader
-// already looks to dismiss a panel.
+// omission. Collapse and exit are different verbs — one keeps you on the map, the
+// other leaves it — and sitting them a millimeter apart made the more
+// consequential the easier to hit by accident. The exit is `Exit map`, first in
+// the menu; the hamburger was always the right place, it just needed to say so.
 //
-// That grouping was the mistake. Collapse and exit are different verbs — one
-// keeps you on the map, the other leaves it — and sitting them a millimeter
-// apart made the more consequential of the two the easier to hit by accident.
-// The exit is `Exit map`, first in the menu, in SiteHeader above; the hamburger
-// was always the right place, it just needed to say so. `exitHref` and
-// `exitLabel` went with it: the destination is a function of whether a rider is
-// signed in and nothing else, so no page has to pass it.
+// (Issue #91 describes the control in this header as an X: it never was one —
+// the button that remains renders icon-collapse.svg, a minimize glyph.)
 //
-// (Note for anyone reading issue #91, which describes the control in this header
-// as an X: it never was one, and still is not — the button that remains renders
-// icon-collapse.svg, a minimize glyph.)
-//
-// `titleHtml` exists for the builder, whose heading is an editable input rather
-// than text. The viewer passes a plain `title` and is unchanged.
-// IT IS A DRAWER, not a floating card, as of 2026-08-16. It runs the full height
+// `titleHtml` exists for the builder, whose heading is an editable input.
+// IT IS A DRAWER, not a floating card, as of 2026-08-16: it runs the full height
 // of the viewport flush against the left edge, the map is sized to the space
-// beside it rather than sitting underneath it, and collapsing narrows it to a
-// rail instead of shrinking it toward a corner. The `floating-panel` class is
-// kept because a handful of unrelated rules still key on it; the shape now comes
-// from `.map-drawer`.
+// beside it, and collapsing narrows it to a rail. `floating-panel` is kept
+// because unrelated rules still key on it.
 //
 // The order of the children IS the layout, and three of the four are pinned:
 //
 //   .drawer-head     the logo and the two controls. Fixed height.
 //   .panel-title     the ride name, and #totals under it on the builder.
-//   .panel-contents  the ONLY part that scrolls, and it takes whatever height is
-//                    left. This is what stops the drawer growing and shrinking
-//                    with its own content.
-//   .drawer-foot     pinned to the bottom edge. The builder puts the route
-//                    scrubber here; the viewer passes nothing and it collapses.
-//
-// THE LOGO LIVES HERE NOW rather than floating over the map. SiteHeader drops it
-// on a map page — see the `isMap` branch there — because a full-height drawer
-// occupies exactly the corner the floating badge used to.
+//   .panel-contents  the ONLY part that scrolls, taking whatever height is left.
+//                    This is what stops the drawer growing with its content.
+//   .drawer-foot     pinned to the bottom edge.
 export function panelShell(o: {
   title?: string
   titleHtml?: string
@@ -599,22 +505,19 @@ export function panelShell(o: {
   ).toString()
 }
 
-// The ride timeline, which is a bar across the bottom edge of the map rather
-// than a control in the panel.
+// The ride timeline, a bar across the bottom edge of the map rather than a
+// control in the panel.
 //
-// It is a SIBLING of #map and #info-panel — not a child of either — so callers
-// drop it straight into the page body beside them. Both map pages render it, and
-// it is one function rather than two copies because the previous arrangement was
-// two copies and they had already drifted: the viewer's carried `hidden` and the
+// A SIBLING of #map and #info-panel, so callers drop it into the page body beside
+// them. One function rather than two copies, because the previous arrangement was
+// two copies and they had already drifted — the viewer's carried `hidden` and the
 // builder's did not.
 //
-// It ships `hidden`. Both pages' JS unhides it once it knows the ride has a time
-// span to scrub — renderTimeline() in builder.js and in viewer.js — so a ride
-// with no dates never flashes a dead slider across the map on first paint.
+// It ships `hidden`, and both pages' JS unhides it once it knows the ride has a
+// span to scrub, so a ride with no dates never flashes a dead slider.
 //
-// The ids are the contract. builder.js and viewer.js both reach #time-slider and
-// #time-readout by getElementById and neither walks up from them, which is the
-// entire reason this move cost almost no JS.
+// The ids are the contract: both files reach #time-slider and #time-readout by
+// getElementById and neither walks up from them.
 export function rideTimeline(opts: { scopeToggle?: boolean; words?: Words } = {}): string {
   const w = opts.words ?? wordsFor(DEFAULT_VOCAB)
   return (
@@ -634,20 +537,15 @@ export function rideTimeline(opts: { scopeToggle?: boolean; words?: Words } = {}
             leaves it hidden on a one-route ride where the two scopes are the same
             slider. */}
         {opts.scopeToggle ? (
-          /* A DOUBLE-SIDED PILL, NOT ONE BUTTON THAT RELABELS ITSELF. Ziad's
-             call, 2026-09-07, and it finishes what the 2026-08-31 change
-             started: that one made the single button say which scope was ON
-             rather than what a click would do, because "Whole ride" while in
-             route scope had riders reading the word "ride" as their state. A
-             two-segment control removes the question entirely — both options
-             are on screen, and the filled one is where you are.
+          /* A DOUBLE-SIDED PILL, NOT ONE BUTTON THAT RELABELS ITSELF. Ziad's call,
+                2026-09-07, finishing what the 2026-08-31 change started: that one made the
+                single button say which scope was ON rather than what a click would do,
+                because "Whole ride" while in route scope had riders reading the word "ride"
+                as their state. Both options on screen removes the question entirely.
 
-             `role="group"` rather than a radiogroup: these are two buttons that
-             each carry `aria-pressed`, which is what a toggle pair is, and a
-             radio group would promise arrow-key roving that the bar does not
-             implement. renderTimeScope() fills in the pressed states and the
-             titles, and hides the whole pill on a one-route ride where the two
-             scopes are the same slider. */
+                `role="group"` rather than a radiogroup: these are two buttons each carrying
+                `aria-pressed`, and a radio group would promise arrow-key roving the bar does
+                not implement. */
           <div class="time-scope-set" id="time-scope" role="group" aria-label="What the slider covers" hidden>
             <button type="button" class="time-seg" data-scope="route" data-tip="time-scope" aria-pressed="true">
               {Wd(w, 'route')}
@@ -718,35 +616,26 @@ const SITE_LINKS: { href: string; label: string }[] = [
  * A `?` beside one field, holding that field's own instructions.
  *
  * **THE SECOND `?` IN THIS FILE, AND IT IS NOT `faqLink()`.** That one answers a
- * SITE-WIDE question and leaves the page to do it — the FAQ is the right home
- * for "what is the difference between a stop and a POI". This one answers a
- * question about ONE control, which #268 argues belongs beside the control: a
- * rider does not leave the page, does not lose the field they were typing in,
- * and does not scan a long document for the paragraph matching the box in front
- * of them. Ziad's call, 2026-09-07: instructions for a specific field go in a
- * bubble rather than sitting under it as permanent gray text.
+ * SITE-WIDE question and leaves the page to do it. This answers a question about
+ * ONE control, which #268 argues belongs beside the control. Ziad's call,
+ * 2026-09-07.
  *
- * **NATIVE `popover`, NO JAVASCRIPT AT ALL.** `popovertarget` gives the toggle,
- * Escape, light-dismiss and the top layer for free, and #268 says to reach for
- * that before building one. The top layer is also what makes it immune to being
- * clipped by whatever the field sits inside.
+ * **NATIVE `popover`, NO JAVASCRIPT AT ALL**: `popovertarget` gives the toggle,
+ * Escape, light-dismiss and the top layer, and the top layer is what makes it
+ * immune to being clipped by whatever the field sits inside.
  *
- * **POSITIONED BY CSS ANCHOR POSITIONING WHERE THERE IS ANY, AND CENTERED WHERE
- * THERE IS NOT.** A top-layer element has no natural relationship to its button,
- * so without `anchor-name` it lands wherever the viewport puts it. Firefox has
- * not shipped anchor positioning — the same row `typography.md` records for
- * `text-wrap: pretty` — so the `@supports` fallback in _forms.scss puts the
- * bubble near the top of the screen instead. Still readable, still dismissible,
- * still says the right thing: degraded, not broken.
+ * **POSITIONED BY CSS ANCHOR POSITIONING WHERE THERE IS ANY, CENTERED WHERE
+ * THERE IS NOT.** Firefox has not shipped it — the same row typography.md
+ * records for `text-wrap: pretty` — so the `@supports` fallback puts the bubble
+ * near the top of the screen. Degraded, not broken.
  *
- * **THE ID HAS TO BE UNIQUE ON THE PAGE**, and it is derived from the field name
- * rather than being passed in, because a duplicate would make one button open
- * another field's bubble and nothing would say so.
+ * **THE ID HAS TO BE UNIQUE ON THE PAGE**, derived from the field name rather
+ * than passed in: a duplicate would make one button open another field's bubble
+ * and nothing would say so.
  *
- * **IT IS FOR INSTRUCTIONS, NOT FOR DISCLOSURES.** Anything a rider needs to
- * read BEFORE they act — what a section does with their address, what is shared
- * with whom — stays visible as prose. A privacy statement behind a click is a
- * privacy statement most people never see.
+ * **IT IS FOR INSTRUCTIONS, NOT FOR DISCLOSURES.** Anything a rider needs to read
+ * BEFORE they act stays visible as prose — a privacy statement behind a click is
+ * one most people never see.
  */
 export const fieldHelp = (name: string, label: string, text: string): string =>
   (
