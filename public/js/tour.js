@@ -1,49 +1,32 @@
 // Show me around — the guided tour. #133, and the real one as of 2026-09-11.
 //
 // **AN INSTRUCTIONAL VIDEO ABOUT A PLANNING SESSION, THE SAME EVERY TIME.**
-// Ziad's call, 2026-09-11. A new rider watches one story unfold — a coast run
-// out of Oakland with three friends — and the only thing they press is Next,
-// Back, or Skip. Everything else is demonstrated: a flashing cursor types into
-// the real fields, the road draws, a shaping point is dragged onto another
-// highway, a start time lands, a second group is added, three riders arrive
-// on the roster, a fuel ring runs dry and a gas stop fixes it, a meeting point
-// is proposed and taken, a group splits off. Five parts, about thirty cards.
+// Ziad's call, 2026-09-11. A new rider watches one story — a coast run out of
+// Oakland with three friends — and the only thing they press is Next, Back or
+// Skip. Everything else is demonstrated. Five parts, about thirty cards.
 //
-// **EVERYTHING IS CANNED AND NOTHING IS ROUTED LIVE.** The ride was planned
-// once by utils/build-tour-ride.ts, the routing calls were made once, and the
-// result is public/tour/coast-run.json: thirteen KEYFRAMES, each a whole ride
-// payload, plus the recorded meeting-point proposal. Every demonstrating step
-// does its typing for show and then hands the next frame to
-// `TBBuilder.apply()`, which loads it through the builder's own load path and
-// saves it through the ordinary PUT. Zero Google spend per run; the cursor
-// still types into the search box, because watching the search work is the
-// point, but no `input` event is dispatched into a box that would call
-// Google on it.
+// **EVERYTHING IS CANNED AND NOTHING IS ROUTED LIVE.** The ride was planned once
+// by utils/build-tour-ride.ts and the result is thirteen KEYFRAMES in
+// public/tour/coast-run.json, each a whole ride payload. Every demonstrating step
+// types for show and hands the next frame to `TBBuilder.apply()`. Zero Google
+// spend per run: the cursor types into the search box, but no `input` event is
+// dispatched into a box that would call Google on it.
 //
-// **THE RIDE IS REAL AND IT IS BINNED AT THE END.** POST /api/tour/start makes
-// it (and the three guide riders, the first time), and /api/tour/done bins it
-// on Finish and on the X. What the rider takes away is the knowledge, not a
-// ride called Coast run they never planned.
+// **THE RIDE IS REAL AND IT IS BINNED AT THE END.** POST /api/tour/start makes it
+// and /api/tour/done bins it on Finish and on the X, so what the rider takes away
+// is the knowledge rather than a ride they never planned.
 //
-// **IT FOLLOWS THE RIDER ACROSS PAGES.** The roster lives on the ride's page,
-// the paddock on /profile, friends on /riders, and the share link on the
-// viewer, so a step carries a `page` and showing one that is not this page
-// saves where the tour is in sessionStorage, settles the builder, and
-// navigates; the next page's boot() resumes at that step. The saved position
-// is trusted ONLY when `<html data-tour-ride>` — the session's own record of
-// which ride the tour is building — names the same ride, so a tour that ended
-// on another tab, or somebody else signing in on this one, is dropped rather
-// than followed into a 404.
+// **IT FOLLOWS THE RIDER ACROSS PAGES.** A step carries a `page`, and showing one
+// that is not this page saves where the tour is in sessionStorage and navigates.
+// The saved position is trusted ONLY when `<html data-tour-ride>` names the same
+// ride, so a tour that ended on another tab is dropped rather than followed into
+// a 404.
 //
-// **A DEMONSTRATION WATCHES THE DOM AND CALLS `TBBuilder`, NEVER `state`.** The
-// hooks in builder.js are the one door: apply, settled, showMeet, openSplit,
-// setMoment, project, and fitTo. The tour reads its results off what is on
-// screen or off its own record of which frame it last applied.
+// **A DEMONSTRATION WATCHES THE DOM AND CALLS `TBBuilder`, NEVER `state`.**
 //
-// **SHEPHERD ARRIVES AS A MODULE AND THIS FILE IS NOT ONE.** See the note in
-// routes/builder.ts and views/tour-assets.ts: a `<link rel="modulepreload">`
-// carries the integrity hash and this file `import()`s its href after load.
-// If the CDN fails the tour is absent and every page is untouched.
+// **SHEPHERD ARRIVES AS A MODULE AND THIS FILE IS NOT ONE**: a
+// `<link rel="modulepreload">` carries the integrity hash and this file
+// `import()`s its href after load. If the CDN fails the tour is absent.
 (function () {
   "use strict";
 
@@ -137,26 +120,19 @@
 
   // ——— The steps ———
   //
-  // `at` is a data-tip key, a CSS selector (leading `.` or `#`), or a function
-  // returning the element; null centers the card. `nth` picks the nth visible
-  // match. `page` is which page the step lives on (builder when absent). `tab`
-  // is a panel tab to open first. `demo` is an async function that does the
-  // step's thing in front of the rider; `frame` is the keyframe it lands on
-  // and doubles as its "already done" test; `running` is the status line shown
-  // in place of Next until it settles. `needs` is a frame applied silently
-  // before a card that assumes it — an intro reached by Skip, or a card the
-  // rider comes back to the builder for. `then` is where the spotlight moves
-  // once the demonstration has landed: a card about adding a point starts on
-  // the search box and ends on the row the point became, or the rider is left
-  // looking at a lit search box under a row that appeared by itself. `press`
-  // is a control clicked before the anchor resolves, for a card pinned to
-  // something that only exists once a button has been pressed — a menu.
-  // `open` is a list of <details> opened before the card and closed after.
-  // `prep` runs after the reset and before the anchor resolves, for a plain
-  // card about something a reset clears. `replay` is copy for the sign-in
-  // page's recording of this tour (utils/record-tour-replay.ts), read by the
-  // recorder and nothing here: for the few cards whose live copy invites the
-  // rider to do something, which a recording cannot offer.
+  // `at` is a data-tip key, a CSS selector, or a function returning the element;
+  // null centers the card. `nth` picks the nth visible match. `page` is which page
+  // the step lives on (builder when absent). `tab` is a panel tab to open first.
+  // `demo` does the step's thing in front of the rider; `frame` is the keyframe it
+  // lands on and doubles as its "already done" test; `running` is the status line
+  // shown in place of Next. `needs` is a frame applied silently before a card that
+  // assumes it. `then` is where the spotlight moves once the demonstration lands,
+  // or the rider is left looking at a lit search box under a row that appeared by
+  // itself. `press` is a control clicked before the anchor resolves. `open` is a
+  // list of <details> opened before the card and closed after. `prep` runs after
+  // the reset and before the anchor resolves. `replay` is copy for the sign-in
+  // page's recording, for the few cards whose live copy invites the rider to do
+  // something a recording cannot offer.
   var STEPS = [
     {
       id: "welcome",
@@ -1420,17 +1396,13 @@
     return "seed";
   }
 
-  /** **A CARD DOES THE SAME THING ARRIVED AT FROM EITHER DIRECTION.** Ziad's
-   *  call, 2026-09-12. Back used to land on a card already satisfied — the
-   *  frame was applied, so it offered Next and showed nothing — where the
-   *  rider pressing Back wants to see it again, and a plain card about the
-   *  first point was shown over a ride that already had three. So a card
-   *  reached with a LATER frame applied puts the ride back to its scene
-   *  first (typed name gone, points gone); forward, the ride is already there
-   *  and this costs nothing. Only backward: a card reached ahead of its scene
-   *  is the `needs` case, handled by ensure(). `force` records the rollback,
-   *  or hasFrame() would still say the later frame holds and the card's
-   *  anchors would resolve to rows that are no longer on the page. */
+  /** **A CARD DOES THE SAME THING ARRIVED AT FROM EITHER DIRECTION.** Ziad's call,
+    *  2026-09-12. Back used to land on a card already satisfied — the frame was
+    *  applied, so it offered Next and showed nothing — where the rider pressing Back
+    *  wants to see it again. So a card reached with a LATER frame applied puts the
+    *  ride back to its scene first; forward it is already there and this costs
+    *  nothing. `force` records the rollback, or hasFrame() would still say the later
+    *  frame holds and the anchors would resolve to rows no longer on the page. */
   function resetFor(step) {
     if (currentPage() !== "builder") return Promise.resolve();
     var scene = sceneOf(step);
@@ -1483,26 +1455,21 @@
 
   // ——— Re-pinning ———
   //
-  // **A FRAME REPLACES THE ROUTE LIST'S CHILDREN, AND THE CARD IS PINNED TO
-  // ONE OF THEM.** renderRoutes() rewrites innerHTML on every edit, so the
-  // moment a frame lands the row a card points at is a detached node: the
-  // spotlight hole collapses, Floating UI positions the card against a 0×0
-  // box at the top-left, and when the demo finally re-shows the card it fades
-  // back in from nothing. Seen as "flashing and jumping" between cards 7 and
-  // 8, where two frames land in one demonstration.
+  // **A FRAME REPLACES THE ROUTE LIST'S CHILDREN, AND THE CARD IS PINNED TO ONE OF
+  // THEM.** renderRoutes() rewrites innerHTML on every edit, so the moment a frame
+  // lands the row a card points at is a detached node: the spotlight hole collapses
+  // and Floating UI positions the card against a 0×0 box at the top-left. Seen as
+  // "flashing and jumping" between cards 7 and 8.
   //
-  // The observer watches the list; the instant it is rewritten while a card
-  // is pinned inside it, the card is re-shown — Shepherd resolves the target
-  // afresh — with the fade suppressed, all inside the same task, so nothing
-  // is painted in between. `repinning` is read by `when.show` above.
-  // **COUNTED, NOT TIMED.** This was a boolean cleared on a setTimeout(0),
-  // and a beforeShowPromise that took longer than a task — the anchor wait,
-  // a tab click — let when.show run with the flag already down: it took the
-  // re-pin for a fresh arrival, ran the demonstration again, which reset the
-  // ride and re-applied the frame, whose re-render re-pinned, and so on
-  // forever, alternating two frames a second. Seen live on "Take one",
-  // 2026-09-12. Step.show() returns a promise that settles after _show, so
-  // the count comes down exactly when the show it belongs to is over.
+  // The observer watches the list and re-shows the card the instant it is rewritten
+  // — Shepherd resolves the target afresh — with the fade suppressed, all inside
+  // the same task.
+  // **COUNTED, NOT TIMED.** This was a boolean cleared on a setTimeout(0), and a
+  // beforeShowPromise longer than a task let when.show run with the flag already
+  // down: it took the re-pin for a fresh arrival, ran the demonstration again,
+  // which re-applied the frame, whose re-render re-pinned, forever. Seen live on
+  // "Take one", 2026-09-12. Step.show() settles after _show, so the count comes
+  // down exactly when the show it belongs to is over.
   var repinning = 0;
 
   function repin(shepherdStep) {

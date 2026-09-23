@@ -94,21 +94,19 @@ const getViewable = (slug: string, viewer: UserRow | null): Promise<RideRow | un
 
 const app = new Hono<AuthEnv>()
 
-// THE FIRST ROUTE IN THE FILE, and both of the things it is above are the
-// reason it is here rather than anywhere else.
+// THE FIRST ROUTE IN THE FILE, and both of the things it is above are the reason.
 //
 // ABOVE THE LEGACY_HOSTS REDIRECT, because the deploy probes with
 // `Host: 127.0.0.1` and that table would answer a health check with a 301 the
-// moment somebody added a hostname to it. A probe that follows a redirect to
-// the canonical name is measuring the tunnel and Cloudflare, not this container.
+// moment somebody added a hostname to it — measuring the tunnel and Cloudflare
+// rather than this container.
 //
 // ABOVE withSession, because a health check that takes a session lookup is
-// measuring the wrong thing — and once this is what the deploy gates on, it is
-// also a session lookup every thirty seconds forever for no reader.
+// measuring the wrong thing, and it would be one every thirty seconds forever.
 //
-// The DB probe is deliberately `select 1` and not a real query. The question is
-// whether the pool can reach Postgres at all; anything richer would start
-// reporting the health of whatever table it happened to touch.
+// The DB probe is deliberately `select 1`: the question is whether the pool can
+// reach Postgres at all, and anything richer reports the health of whatever table
+// it touched.
 app.get('/healthz', async (c) => {
   let dbUp = false
   try {
@@ -134,29 +132,22 @@ app.get('/healthz', async (c) => {
 })
 
 // Keep the former domains alive during the one-year transition, but make the
-// canonical host unambiguous for cookies, sharing, and search engines. Each
-// legacy host maps to its own environment so staging never lands on prod. It
-// runs ahead of every route, so a request arriving on a legacy hostname is
-// redirected before any auth handler sees it.
+// canonical host unambiguous for cookies, sharing and search engines. Each legacy
+// host maps to its own environment so staging never lands on prod, and it runs
+// ahead of every route.
 //
-// The direction has now reversed twice: to routeloop.app, back to tankbag.app on
-// 2026-07-29, and back to routeloop.app on 2026-08-11. Both hostnames still
-// resolve to the same container over their own tunnel routes, so no tunnel
-// change is needed — only which name wins.
+// The direction has reversed twice; both hostnames resolve to the same container
+// over their own tunnel routes, so a flip is only about which name wins.
 //
-// This table is inverted on a flip, never find-and-replaced. Replacing the
+// THIS TABLE IS INVERTED ON A FLIP, NEVER FIND-AND-REPLACED: replacing the
 // strings in place maps a host to itself, and a 301 to itself is an infinite
 // redirect loop that takes the whole site down.
 //
 // rollchart.app is a third name Ziad owns and has never used. Its entries are
-// deliberately INERT: nothing routes that hostname to this container, so no
-// request can arrive under it and nothing here runs. They exist so that if the
-// name is ever pointed at the tunnel, it lands on the canonical host instead of
-// serving a second copy of the site with its own session cookies — which is the
-// actual failure an unlisted hostname causes, and a quiet one, because the site
-// looks fine under the wrong name. No stage entry, because there is no
-// stage.rollchart.app and inventing one would be config for a thing that has
-// never existed.
+// deliberately INERT — nothing routes that hostname here — and exist so that if
+// it is ever pointed at the tunnel it lands on the canonical host instead of
+// serving a second copy of the site with its own session cookies, which is the
+// actual failure an unlisted hostname causes and a quiet one.
 const LEGACY_HOSTS: Readonly<Record<string, string>> = {
   'tankbag.app': 'routeloop.app',
   'www.tankbag.app': 'routeloop.app',
@@ -249,24 +240,19 @@ if (IS_DEV) {
 // header. Mounted after the static assets so they skip the database entirely.
 app.use('*', withSession)
 
-// /dashboard was the rides list until 2026-08-15, when it became /rides — see
-// the header of src/routes/rides.tsx for why the old name was wrong, for why
-// /rides then folded into / on 2026-08-24, and for why it came back out on
-// 2026-09-15. This keeps a bookmark or a pasted link working. STILL POINTED AT
-// `/` after the list moved back to /rides: Dash is `/`, this 301 is cached in
-// every browser that ever saw it, and a bookmark this old was to "the app"
-// rather than to a list that has moved three times since.
+// /dashboard was the rides list until 2026-08-15 — see src/routes/rides.tsx for
+// why the old name was wrong and for the two moves since. STILL POINTED AT `/`
+// after the list moved back to /rides: this 301 is cached in every browser that
+// ever saw it, and a bookmark this old was to "the app" rather than to a list
+// that has moved three times.
 //
-// It sits ahead of every route module rather than inside one, next to the
-// LEGACY_HOSTS redirect it is the path-level twin of, so there is one place to
-// look for "why did this URL move". A 301 rather than a 302: this URL is gone
-// for good and a browser caching that is the desired outcome, which was not
-// true of the /rides → / hop — and that hop is gone, which is the proof.
+// It sits ahead of every route module, next to the LEGACY_HOSTS redirect it is
+// the path-level twin of, so there is one place to look for "why did this URL
+// move". A 301 rather than a 302: this URL is gone for good.
 //
-// POINTED STRAIGHT AT THE DESTINATION rather than at /rides, which would work
-// and would cost every one of these visitors a second round trip. A redirect
-// chain is also the shape that quietly becomes a loop the next time one of these
-// is edited.
+// POINTED STRAIGHT AT THE DESTINATION rather than at /rides, which would cost a
+// second round trip — and a redirect chain is the shape that quietly becomes a
+// loop the next time one is edited.
 app.get('/dashboard', (c) => c.redirect('/', 301))
 
 app.route('/', authRoutes)
@@ -360,20 +346,17 @@ app.get('/m/:slug', async (c) => {
   const label = builderLabel(member)
   const builderLink = label ? { href: `/builder/${m.id}`, label } : null
   // One shell for both sources. ride.json has served them identically since the
-  // timeline work added per-leg spans — an imported ride is one route with one
-  // leg — so the ported engine renders it without special-casing.
+  // timeline work added per-leg spans, so the ported engine needs no special case.
   // THE RANGE IS FOR MEMBERS ONLY, AND IT IS TRIMMED TO TWO FIELDS.
   //
-  // A roster is gated on membership rather than on visibility — who is coming
-  // is a fact about people, and a share link is permission to see a route — so
-  // GroupRange's `riderName` and `bikeLabel` must not reach a stranger holding
-  // a public ride's URL. They are dropped here rather than gated downstream:
-  // what the viewer's range circle needs is a number and a fuel type, and the
-  // two identifying fields have no use on that surface at all.
+  // A roster is gated on membership rather than visibility — who is coming is a
+  // fact about people — so GroupRange's `riderName` and `bikeLabel` must not reach
+  // a stranger holding a public ride's URL. Dropped here rather than downstream:
+  // the range circle needs a number and a fuel type, and the two identifying fields
+  // have no use on that surface.
   //
-  // Null for a non-member means no circle, which is the same answer a member
-  // with no bike on file gets. Nothing on the page distinguishes them, so the
-  // absence of a circle never reports whether somebody is on the roster.
+  // Null for a non-member means no circle, the same answer a member with no bike
+  // gets, so the absence never reports whether somebody is on the roster.
   const full = onRoster ? await groupRange(m.id) : null
   const range = full ? { miles: full.miles, fuelType: full.fuelType } : null
   // GENERATED PER REQUEST RATHER THAN STORED. It is a few milliseconds of pure
@@ -436,21 +419,18 @@ app.get('/api/public/rides/:slug/ride.json', async (c) => {
       .where(eq(routeLegs.routeId, r.id))
       .orderBy(routeLegs.position)
 
-    // Concatenate leg geometries and record where each leg lands in the result.
-    // Note this drops *any* consecutive duplicate, not just the shared joints
-    // between legs — imported tracks carry repeats mid-leg too, so a leg's span
-    // here is usually shorter than its stored geometry. That was harmless when
-    // the output was one flat line; it is load-bearing now that indices point
-    // into it. `track` stays exactly what it always was —
-    // every consumer renders it, and one concat path serving both imported and
-    // native rides is deliberate (see the route_legs comment in schema.ts). The
-    // index pairs are additive: without them a client receives a single flat
-    // line and cannot tell where one leg ends and the next begins, which is
-    // precisely what mapping a moment to a leg requires.
+    // Concatenate leg geometries and record where each leg lands in the result. It
+    // drops *any* consecutive duplicate, not just the shared joints — imported tracks
+    // carry repeats mid-leg too, so a leg's span here is usually shorter than its
+    // stored geometry. Harmless when the output was one flat line; load-bearing now
+    // that indices point into it.
+    //
+    // The index pairs are additive: without them a client receives a single flat line
+    // and cannot tell where one leg ends, which is what mapping a moment to a leg
+    // requires.
     //
     // Consecutive legs share their joint, so leg n+1's startIndex is leg n's
-    // endIndex rather than the point after it. That is the same continuity the
-    // geometry has: the next leg starts where the previous one ended.
+    // endIndex — the same continuity the geometry has.
     const track: Track = []
     const legsOut: { distanceM: number; durationS: number; startIndex: number; endIndex: number }[] = []
     for (const leg of legs) {
@@ -524,19 +504,17 @@ app.get('/api/public/rides/:slug/ride.json', async (c) => {
       // builder — a client wanting a time for one of those estimates it from
       // distanceM rather than treating the route as that much shorter.
       legs: legsOut,
-      // ONE ORDERED LIST, both kinds, `kind` on each element — the same shape
-      // the builder payload and the native JSON have carried since 2026-08-23.
+      // ONE ORDERED LIST, both kinds, `kind` on each element — the same shape the
+      // builder payload and the native JSON have carried since 2026-08-23.
       //
-      // This used to be two arrays, `stops` and `pois`, and the reason was that
-      // the viewer draws markers and a timeline and never renders the points as a
-      // sequence, so the interleaved order bought it nothing. That reason went
-      // away on 2026-08-24, when a POI became part of the route: `legs[i]` joins
-      // `points[i]` to `points[i+1]`, so the schedule in ride-time.js walks the
-      // points and the legs together and two arrays cannot tell it the order.
+      // It used to be two arrays, because the viewer draws markers and a timeline and
+      // never renders the points as a sequence. That went away when a POI became part
+      // of the route: `legs[i]` joins `points[i]` to `points[i+1]`, so ride-time.js
+      // walks the points and the legs together and two arrays cannot tell it the order.
       //
       // Both kinds carry durationMin — time spent at a viewpoint is time spent.
-      // `details` is absent rather than null for a non-owner, so whether a stop
-      // has a gate code is not observable.
+      // `details` is absent rather than null for a non-owner, so whether a stop has a
+      // gate code is not observable.
       points: pts.map((p) => withDetails(pointOut(p), p, details)),
     })
   }
@@ -631,29 +609,23 @@ app.on('GET', ['/api/public/maps/:slug/routeloop.json', '/api/public/maps/:slug/
 
 // One file per route, zipped, each named by the convention.
 //
-// This is the download that makes a round trip lossless for the formats that
-// are not: a route's date cannot live inside a GPX or a KML, so it lives in the
-// filename, and one file per route is what gives every route a filename of its own.
-// Drag the archive back into /import and the ride comes back with its routes in
-// order and dated.
+// This is what makes a round trip lossless for the formats that are not: a
+// route's date cannot live inside a GPX or a KML, so it lives in the filename,
+// and one file per route gives every route one. Drag the archive back into
+// /import and the ride comes back in order and dated.
 //
-// Always generated, never streamed from stored originals. A stored file is one
-// file for the whole ride by definition — an imported ride's original has no
-// per-route split to hand back — so preferring it here would silently answer a
+// Always generated, never streamed from stored originals: a stored file is one
+// file for the whole ride by definition, so preferring it would answer a
 // different question than the one asked.
 //
-// Its own path segment rather than a `.zip` suffix on the existing route: a
-// suffix would have to be spelled inside the format regex, and a `:format`
-// param that sometimes carries an extension is exactly the kind of thing that
-// reads fine and matches wrong.
-// The ride's generated thumbnail. Registered ahead of the generic `:format`
-// route below for the same reason the zip route is — that route is constrained
-// to four extensions today, but the convention in this file is that the specific
-// path comes first, and the zip route is the standing evidence for why.
+// Its own path segment rather than a `.zip` suffix — a `:format` param that
+// sometimes carries an extension reads fine and matches wrong.
+// The ride's generated thumbnail, registered ahead of the generic `:format` route
+// for the same reason the zip route is: the specific path comes first.
 //
 // Served from here rather than from public/ because the file lives under
-// STORAGE_PATH, outside the web root, and because a private ride's picture has
-// to pass the same visibility gate the ride does. getViewable is that gate.
+// STORAGE_PATH, outside the web root, and because a private ride's picture has to
+// pass the same visibility gate the ride does.
 app.get('/api/public/maps/:slug/thumb.png', async (c) => {
   const m = await getViewable(c.req.param('slug'), c.get('user'))
   if (!m || !m.thumbHash) return c.text('Not found', 404)
@@ -741,21 +713,17 @@ app.get('/api/public/maps/:slug/:format{kml|gpx|geojson|csv}', async (c) => {
 
   const strand = await resolveStrand(m.id, c.get('user')?.id ?? null, c.req.query('group'))
 
-  // The stored original wins where there is one AND IT IS STILL TRUE. Generating
-  // it otherwise would be lossy for no reason: the file carries styling, folders
-  // and per-point detail this app does not model and therefore cannot reproduce.
+  // The stored original wins where there is one AND IT IS STILL TRUE: it carries
+  // styling, folders and per-point detail this app cannot reproduce.
   //
   // EXCEPT WHEN THE RIDE HAS BEEN EDITED SINCE — see originalIsCurrent(). A save
-  // does not rewrite the file and nothing clears it, so an imported ride that
-  // has been re-cut in the builder would otherwise hand back the pre-edit
-  // upload, silently. Until #172 that took typing the URL to reach; there is a
-  // button on it now.
+  // does not rewrite the file and nothing clears it, so an imported ride re-cut in
+  // the builder would otherwise hand back the pre-edit upload, silently.
   //
-  // EXCEPT WHEN A STRAND WAS ASKED FOR. A stored original is the whole ride as
-  // it was uploaded and knows nothing about subgroups, so handing it to a rider
-  // who asked for their own approach would answer a different question than the
-  // one they asked — silently, and with more routes than they expect. An imported
-  // ride has no subgroups in practice, so this branch is nearly always taken.
+  // EXCEPT WHEN A STRAND WAS ASKED FOR: a stored original is the whole ride as
+  // uploaded and knows nothing about subgroups, so handing it to a rider who asked
+  // for their own approach answers a different question, with more routes than they
+  // expect.
   if (spec.hasStored(m) && originalIsCurrent(m) && strand.subgroupId === undefined) {
     // readMapFile, not mapFilePath + readFile: the file may be under either
     // spelling and this is the only thing that knows both. Serving the brotli
@@ -867,27 +835,20 @@ function viewerPanel(
             )}
           </div>
           {/*
-            #226. A NATIVE POPOVER, since 2026-09-16, and a <details> before
-            that. Both open with JavaScript off — a rider standing at a meeting
-            point on one bar of signal is exactly who needs this, and
-            showModal() would need the page's scripts to have arrived — and the
-            popover is what the <details> could not be: IN THE TOP LAYER. The
-            card was `position: fixed` inside the drawer, and the drawer is a
-            stacking context at $z-map-panel with the timeline bar a sibling at
-            the same level, so the code sat under the scrubber; on a phone the
-            sheet's transform also made "fixed" mean "fixed to the sheet". The
-            top layer is above every stacking context on the page, `::backdrop`
-            is the dark scrim, and Escape and a tap outside close it.
-
-            `popovertarget` is declarative, so the button works with no script.
-            A browser without popover ignores the attribute and shows the card
-            inline under the button — _map.scss makes that case a plain card in
-            the drawer rather than a floating one.
-
-            The link is printed under the code as well. A QR is unreadable to
-            anyone who cannot point a camera at it, and reading the URL out is
-            the fallback that always works.
-          */}
+              #226. A NATIVE POPOVER, since 2026-09-16, and a <details> before that. Both
+              open with JavaScript off — a rider standing at a meeting point on one bar of
+              signal is exactly who needs this — and the popover is what the <details> could
+              not be: IN THE TOP LAYER. The card was `position: fixed` inside the drawer, a
+              stacking context at $z-map-panel with the timeline bar a sibling at the same
+              level, so the code sat under the scrubber; on a phone the sheet's transform
+              also made "fixed" mean "fixed to the sheet".
+            
+              `popovertarget` is declarative, so the button works with no script. A browser
+              without popover ignores the attribute and shows the card inline.
+            
+              The link is printed under the code as well: a QR is unreadable to anyone who
+              cannot point a camera at it.
+            */}
           {qrSvg && (
             <div class="qr-share">
               <button
@@ -1027,25 +988,19 @@ const server = serve({ fetch: app.fetch, port: PORT }, (info) => {
 installShutdown(server, DRAIN_GRACE_MS)
 
 // **STAGE RUNS NO UNATTENDED JOB, BECAUSE THEY WOULD ALL WRITE TO PRODUCTION.**
-// Ziad's call, 2026-09-09 (#305). Stage shares prod's database and prod's disk,
-// and prod's own container already runs every one of these — so stage running
-// them is duplication with nothing gained, and three of them are worse than
-// that:
+// Ziad's call, 2026-09-09 (#305). Stage shares prod's database and disk, and
+// prod's own container already runs every one — so stage running them is
+// duplication, and three are worse than that:
 //
 //   startTrashPurge      DESTROYS rides past the thirty-day hold. A deliberate
-//                        delete on stage being a real delete is the accepted
-//                        cost of sharing a database; an UNATTENDED destruction
-//                        fired by a stage deploy is not the same thing.
-//   startAccountPurge    destroys accounts. Gated on PURGE_ACCOUNTS as well,
-//                        which config.ts now also forces off here.
+//                        delete on stage being real is the accepted cost of
+//                        sharing a database; an UNATTENDED destruction fired by
+//                        a stage deploy is not the same thing.
+//   startAccountPurge    destroys accounts.
 //   announceReleases     would mail every rider about a build PROD HAS NOT
-//                        SHIPPED — and because it is claimed once through a
-//                        primary key, stage taking the claim means prod's later
-//                        deploy announces nothing, silently and permanently.
-//
-// The other two are merely pointless here: the quota sweep repairs a tally prod
-// is already repairing, and the thumbnail sweep writes files into prod's
-// storage that prod would write anyway.
+//                        SHIPPED — and being claimed once through a primary key,
+//                        stage taking the claim means prod's own deploy
+//                        announces nothing, silently and permanently.
 //
 // The consequence to state rather than treat as a bug: none of these can be
 // tested on stage. Testing a sweep means running it against production from
