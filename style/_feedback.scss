@@ -3,25 +3,18 @@
 
 // The rider feedback flow: intake, "what you've sent", and the floating way in.
 //
-// **This surface is pinned to light values and stays that way.** The app has no
-// dark theme today, so nothing here looks unusual — but the pin is the point
-// rather than an accident of timing. A dark UI on a phone screen in direct
-// sunlight is close to unreadable, and this flow is used outdoors more than any
-// other screen in the app: at a gas stop, in a parking lot, with the sun
-// overhead. Decided 2026-08-16. When a dark theme arrives, `.feedback-flow` is
-// the surface it must skip, and there is no `prefers-color-scheme` block below
-// on purpose.
+// **This surface is pinned to light values and stays that way.** A dark UI on a
+// phone screen in direct sunlight is close to unreadable, and this flow is used
+// outdoors more than any other screen in the app. Decided 2026-08-16. When a dark
+// theme arrives, `.feedback-flow` is the surface it must skip, and there is no
+// `prefers-color-scheme` block below on purpose.
 //
-// The sizing is not the house scale, also on purpose. Every target here is
-// bigger than the app's, because the hands using it are gloved:
+// The sizing is not the house scale, also on purpose — every target here is
+// bigger, because the hands using it are gloved. WCAG 2.2 AA floors a target at
+// 24px and AAA at 44px; a gloved thumb needs more, so tap targets are 56–60px
+// with 12–16px between them, body text is 17px minimum, and contrast targets 7:1.
 //
-//   WCAG 2.2 AA floors a target at 24px and AAA at 44px. A gloved thumb needs
-//   more than AAA, so tap targets are 56–60px with 12–16px between adjacent
-//   ones. Body text is 17px minimum and labels are 20px semibold. Contrast
-//   targets 7:1 rather than the 4.5:1 minimum, and there is no gray-on-gray
-//   helper text anywhere.
-//
-// **No thin or light font weights in this flow.** They smear in glare, which is
+// **No thin or light font weights in this flow** — they smear in glare, which is
 // the exact condition it is designed for.
 
 @use "palette";
@@ -584,42 +577,29 @@ $fb-legend-dark: palette.light("ink-dark");
 // --- The floating way in -----------------------------------------------------
 
 // On the builder and the viewer only, and a plain <a> rather than a scripted
-// overlay: it has to work when the page around it is the thing that is broken,
-// which is the entire circumstance it exists for.
+// overlay: it has to work when the page around it is the thing that is broken.
 //
 // **It is inset from the right edge, not tucked into the corner, and that is
 // measured rather than taste.** Google stacks its controls in a column down the
-// right edge, so anything anchored to that corner sits on one. The first attempt
-// lifted it 120px off the bottom and landed on a control that is ABOVE the zoom
-// pair rather than below it. Clearing the column horizontally is what actually
-// works; clearing it vertically does not, because the column is most of the
-// edge.
+// right edge, so anything anchored to that corner sits on one. Clearing the
+// column horizontally is what works; clearing it vertically does not, because the
+// column is most of the edge.
 //
-// The bottom offset then only has to clear the attribution strip.
-//
-// **RE-MEASURED 2026-08-29 FOR #173**, which scaled Google's controls to 0.7 —
-// see the block in _map.scss. Stated as offsets from the right edge rather than
-// as absolute x, because those held for one viewport width and nothing else:
-// Google anchors the bundle at `right: 40px` with a 10px margin, so the column
-// used to run 10–50px in from that edge and now runs 22–50px. The dock is
-// `right: 72px` and 56px wide, so it occupies 72–128px. The 22px of daylight
-// between them is unchanged by the scale, which is why the 72px did not move.
-//
-// Re-measure again if the control layout changes: `.gm-bundled-control` and
-// `.gm-control-active` on the right edge are the things to check.
+// **RE-MEASURED 2026-08-29 FOR #173**, which scaled Google's controls to 0.7.
+// Stated as offsets from the right edge rather than absolute x: Google anchors
+// the bundle at `right: 40px` with a 10px margin, so the column now runs 22–50px
+// in. The dock is `right: 72px` and 56px wide, so the 22px of daylight between
+// them is unchanged by the scale.
 // THE PAIR. Reporting something broken and reading what changed are different
 // errands, so they are two marks rather than one control with a menu.
 //
-// The help launcher: one control at the corner that opens a short menu.
+// The help launcher is the support-widget shape — Intercom, Zendesk, Crisp —
+// chosen because a tester recognizes it before they read anything. Ziad's call,
+// 2026-08-23.
 //
-// This is the support-widget shape — Intercom, Zendesk, Crisp, Drift — chosen
-// because a tester recognizes it before they read anything. Ziad's call,
-// 2026-08-23. It replaced a dock of two permanent marks, which saved a tap on
-// the bug report and charged a second piece of chrome on every screen for it.
-//
-// The DOCK is what is positioned; the launcher and the menu inside it are laid
-// out against it. Before this the buttons were positioned individually and every
-// responsive rule below moved them, so the wrapper inherits that job wholesale.
+// The DOCK is what is positioned; the launcher and the menu are laid out against
+// it. Before this the buttons were positioned individually and every responsive
+// rule moved them.
 .fab-dock {
   position: fixed;
   // A plain corner inset. `right: 72px` was clearing the map's control column,
@@ -646,28 +626,22 @@ $fb-legend-dark: palette.light("ink-dark");
   display: none;
 }
 
-// Over a map the dock still has to clear the zoom and basemap controls stacked
-// down the right edge, which is what the old unconditional 72px was for.
+// Over a map the dock still has to clear the zoom and basemap controls down the
+// right edge, which is what the old unconditional 72px was for.
 //
-// AND THE TIMELINE, AT EVERY WIDTH. The bar is fixed along the bottom edge of
-// the map and runs out to --map-control-gutter on the right; the dock sits 72px
-// in from that same edge, so the two overlapped by about 45px — landing the
-// shield squarely on the last of the slider's travel, which is the end of the
-// ride and the part hardest to grab back. Reported as #221, on a desktop, and
-// the reason it was never caught is that the ≤767px block below has cleared the
-// bar since the route the sheet layout landed. This is that rule for every other
-// width, where there is no sheet and the bar is the only thing to clear.
+// AND THE TIMELINE, AT EVERY WIDTH. The bar runs out to --map-control-gutter and
+// the dock sits 72px in from the same edge, so the two overlapped by about 45px —
+// landing the shield on the last of the slider's travel, which is the end of the
+// ride and the part hardest to grab back. Reported as #221; it was never caught
+// because the ≤767px block has cleared the bar since the sheet layout landed.
 //
 // --fb-fab-timeline-clear is 0px until the bar is actually on screen, so a ride
-// with no dates gets the base number exactly: .map-timeline ships [hidden] and
-// renderTimeline() unhides it only once the ride has a span. :has() rather than
-// a class, so nothing has to remember to keep the two in step.
+// with no dates gets the base number exactly. :has() rather than a class, so
+// nothing has to remember to keep the two in step.
 //
-// The phone block redeclares BOTH the variable and `bottom`, and does it later
-// in the file, so this is a base that block overrides rather than a rule
-// fighting it. Note it declares the variable WITHOUT --panel-inset, because
-// there the term is stacked on the sheet's own height rather than on the map's
-// bottom edge — keep the two spellings distinct if you touch either.
+// The phone block redeclares BOTH the variable and `bottom`, later in the file,
+// so this is a base it overrides. Note it declares the variable WITHOUT
+// --panel-inset — keep the two spellings distinct if you touch either.
 html.map-page {
   --fb-fab-timeline-clear: 0px;
 }
@@ -861,18 +835,14 @@ html.map-page:has(.map-timeline:not([hidden])) {
 }
 
 // GUIDE-SIGN GREEN, WHICH IS $interstate AND NOT $go. These marks are a field in
-// currentColor with the glyph knocked out in WHITE, so the field has to be one
-// that carries a white legend — $go is the traffic signal, takes black ink, and
-// sits at 3.8:1 behind white. $interstate is the green a guide sign is actually
-// painted, clears 4.5:1 under white, and is already what .fab-launcher paints
-// the shield, so the row and the button that opened it read as one thing.
+// currentColor with the glyph knocked out in WHITE, so the field has to carry a
+// white legend — $go is the traffic signal, takes black ink, and sits at 3.8:1
+// behind white. $interstate is the green a guide sign is painted, clears 4.5:1,
+// and is already what .fab-launcher paints the shield.
 //
-// Still not a second alarm-colored disc, which is the rule this replaces rather
-// than breaks: one red mark in a two-item menu is what makes the bug easy to
-// find, and two reds would make it harder. Green against red is also the pair
-// dichromacy flattens, so note what carries the distinction here instead — two
-// different glyphs and two text labels. The color is never the only cue, and
-// under the colorblind palette both tokens shift to blues by design.
+// Still not a second alarm-colored disc: one red mark in a two-item menu is what
+// makes the bug easy to find. Green against red is also the pair dichromacy
+// flattens, so the distinction is carried by two glyphs and two labels.
 .fab-item-mark--notes {
   color: $interstate;
 }
@@ -907,18 +877,14 @@ html.map-page:has(.map-timeline:not([hidden])) {
 
 //@ SM ≤767px — the button rides above the sheet rather than over it.
 //
-// This is the breakpoint at which #info-panel stops being a left drawer and
-// becomes a full-width sheet along the bottom edge (see _map.scss), which is
-// the moment `right: 72px` stops being enough to keep the two apart. Measured
+// This is where #info-panel stops being a left drawer and becomes a full-width
+// sheet, which is the moment `right: 72px` stops keeping the two apart. Measured
 // on /builder/9 before this rule existed: at 393x852 the button sat on a stop's
-// duration field, and at 700x900 it covered a stop's name and duration together.
-// (Both measurements were taken when this was a labeled 153px-wide button; it
-// is a 56px launcher now, so the overlap is smaller and the rule still right.)
+// duration field, and at 700x900 it covered a name and duration together.
 //
-// The sheet's own height is read from --sheet-height rather than repeated, so
-// the two can only move together. The timeline gets a term of its own because
-// it has already claimed the band directly over the sheet on a ride with dates;
-// on a ride without one it is [hidden] and the term collapses to zero.
+// The sheet's own height is read from --sheet-height rather than repeated. The
+// timeline gets a term of its own because it has already claimed the band over
+// the sheet on a dated ride; without dates it is [hidden] and the term collapses.
 @media (max-width: 767px) {
   html.map-page {
     --fb-fab-clear: var(--sheet-collapsed-height);
