@@ -861,11 +861,11 @@ export async function accountPage(
           <div class="three-col">
             <section class="setting" id="vehicle">
               <h3>
-                Default: what you are on
+                What makes you go?
                 {raw(
                   choiceKey(
                     'vehicle',
-                    'what you are on',
+                    'what makes you go',
                     VEHICLE_CHOICES.map((c) => ({ label: c.label, tip: c.example })),
                   ),
                 )}
@@ -894,11 +894,11 @@ export async function accountPage(
 
             <section class="setting" id="power">
               <h3>
-                Default: what it runs on
+                What makes <em>it</em> go?
                 {raw(
                   choiceKey(
                     'power',
-                    'what it runs on',
+                    'what makes it go',
                     POWER_CHOICES.map((c) => ({ label: c.label, tip: c.example })),
                   ),
                 )}
