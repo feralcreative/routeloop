@@ -38,7 +38,7 @@ import { db } from '../db/index'
 import { userProfiles } from '../db/schema'
 import { DELETION_HOLD_DAYS } from '../account/policy'
 import { DURATION_FORMAT_CHOICES, toDurationFormat } from '../maps/duration'
-import { DATE_FORMAT_CHOICES } from './date-format'
+import { dateFormatChoices } from './date-format'
 import { CLOCK_CHOICES, resolveClock, toClock } from './clock'
 import { VOLUME_CHOICES, toVolumeUnits } from './volume'
 import { MOTION_CHOICES, toMotion } from './motion'
@@ -287,6 +287,9 @@ export async function accountPage(
   // The words the presets alone would give, with no Custom row — what each
   // jargon row marks as "default".
   const presetWords = wordsFor({ ...vocab, jargon: {} })
+  // Today, written three ways — resolved once per render so all three read the
+  // same date even across midnight.
+  const dateChoices = dateFormatChoices()
   // The page's own words: the rider's default preset with their Custom rows,
   // which is what every surface with no ride on it reads.
   const w = wordsFor(vocab)
@@ -677,20 +680,20 @@ export async function accountPage(
                   choiceKey(
                     'dateFormat',
                     'dates',
-                    DATE_FORMAT_CHOICES.map((c) => ({ label: c.label, tip: `reads ${c.example}` })),
+                    dateChoices.map((c) => ({ label: c.label, tip: c.tip })),
                   ),
                 )}
               </h3>
               <form method="post" action="/settings/date-format" class="setting-form" data-autosave>
                 <fieldset class="choice-set">
                   <legend class="visually-hidden">Date format</legend>
-                  {DATE_FORMAT_CHOICES.map((choice) => (
+                  {dateChoices.map((choice) => (
                     <Choice
                       name="dateFormat"
                       id={choice.id}
                       checked={choice.id === dateFormat}
                       label={choice.label}
-                      tip={`reads ${choice.example}`}
+                      tip={choice.tip}
                     />
                   ))}
                 </fieldset>
