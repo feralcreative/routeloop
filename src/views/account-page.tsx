@@ -577,11 +577,11 @@ export async function accountPage(
               */}
               <fieldset class="choice-set">
                 <legend class="choice-legend">
-                  Map tiles
+                  Map theme
                   {raw(
                     choiceKey(
                       'mapScheme',
-                      'map tiles',
+                      'the map theme',
                       MAP_SCHEME_CHOICES.map((c) => ({ label: c.label, tip: c.hint })),
                     ),
                   )}
