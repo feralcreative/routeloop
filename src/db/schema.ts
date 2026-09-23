@@ -35,13 +35,12 @@ export const userStatusEnum = pgEnum('user_status', ['pending', 'active', 'block
 // meaning. See canView(); nothing should read this enum and decide for itself.
 export const visibilityEnum = pgEnum('visibility', ['public', 'unlisted', 'private', 'friends'])
 // WHICH EVENT IS PINNED when several subgroups' clocks are solved against each
-// other. A second axis from WHOSE clock is pinned (rides.primary_subgroup_id),
-// and keeping them separate dissolves the contradiction #143 was written with:
+// other. A second axis from WHOSE clock is pinned (rides.primary_subgroup_id):
 // one group setting the departure while another is pinned at 9am is two anchors.
 //
 //   departure  the primary group leaves at their route's start_at; everyone else
 //              is solved to arrive at the meet when they do
-//   meet       the first meet is fixed; every group is solved backwards from it
+//   meet       the first meet is fixed; every group solved backwards from it
 //   arrival    the primary group reaches the end at a fixed time
 export const timeAnchorEnum = pgEnum('time_anchor', ['departure', 'meet', 'arrival'])
 // Three ways to hand out access, and the difference is not only max_uses. An
@@ -58,14 +57,12 @@ export const pointKindEnum = pgEnum('point_kind', ['stop', 'poi'])
 // public/js/duration.js; keep the three members here in step with the array
 // there, which test/duration.test.ts also pins.
 export const durationFormatEnum = pgEnum('duration_format', ['hours', 'hm', 'minutes'])
-// How a DATE and a clock are written, per rider — a display layer over storage
-// that is untouched by it.
+// How a DATE and a clock are written, per rider — a display layer over storage.
 //
 // The members are real BCP-47 tags rather than an abstract mdy/dmy/ymd, so Intl
 // does the formatting and number grouping follows the date order. THE CLOCK
-// FOLLOWED TOO UNTIL 2026-09-07, when it got its own column (#270) — it still
-// follows by DEFAULT, and `clock` overrides `hour12` alone. The formatters live
-// in src/views/date-format.ts, pinned by test/date-format.test.ts.
+// FOLLOWED TOO UNTIL #270, when it got its own column — it still follows by
+// DEFAULT, and `clock` overrides `hour12` alone.
 export const dateFormatEnum = pgEnum('date_format', ['en-US', 'en-GB', 'en-CA'])
 // The two appearance axes. Deliberately two enums rather than one of six members:
 // theme is about which signals a rider can distinguish and scheme is about
@@ -79,12 +76,10 @@ export const schemeEnum = pgEnum('scheme', ['system', 'light', 'dark'])
 // two-state toggle defaulting to on would silently override the OS setting of
 // every rider who already asked for less motion. See src/views/motion.ts.
 export const motionEnum = pgEnum('motion', ['system', 'always', 'never'])
-// The map tiles' own light/dark, separate from the page's (2026-09-14). A dark
-// page with a light map is a real preference — the tiles are the thing being
-// read and a dark basemap loses the road hierarchy — so the map is not simply
-// slaved to `scheme`. `follow` means "whatever the page is", which is the
-// default, and it is the ABSENCE of a `data-map-scheme` stamp the way `system`
-// is for the page. See src/views/appearance.ts.
+// The map tiles' own light/dark, separate from the page's. A dark page with a
+// light map is a real preference — the tiles are what is being read and a dark
+// basemap loses the road hierarchy. `follow` is the default and is the ABSENCE of
+// a `data-map-scheme` stamp, the way `system` is for the page.
 export const mapSchemeEnum = pgEnum('map_scheme', ['follow', 'light', 'dark'])
 
 // Miles or kilometers. ITS OWN AXIS rather than derived from `date_format`,
@@ -94,33 +89,28 @@ export const mapSchemeEnum = pgEnum('map_scheme', ['follow', 'light', 'dark'])
 export const unitsEnum = pgEnum('units', ['imperial', 'metric'])
 
 // Twelve- or twenty-four-hour time. A THIRD MEMBER RATHER THAN A BOOLEAN, and
-// `locale` is the default because it is what the app already did: `date_format`
-// stores real BCP-47 tags precisely so Intl decides digit order, padding and the
-// clock together.
+// `locale` is the default because it is what the app already did.
 //
-// THIS REVERSES THAT CALL NARROWLY (#270, 2026-09-07): an American who wants
-// twenty-four-hour time is a real rider, and the only way to give them one was
-// also giving them 24/08/2026. The override is `hour12` alone, so the locale
-// still decides the order, the padding and the separator.
+// THIS REVERSES THAT CALL NARROWLY (#270): an American who wants twenty-four-hour
+// time is a real rider, and the only way to give them one was also giving them
+// 24/08/2026. The override is `hour12` alone, so the locale still decides the
+// order, the padding and the separator.
 export const clockEnum = pgEnum('clock', ['locale', 'h12', 'h24'])
 
-// Gallons or liters. A THIRD AXIS beside `units` and `date_format`, for the same
-// reason `units` is its own enum rather than derived from the date format: a
-// rider can want miles and a metric fuel volume, or the reverse.
+// Gallons or liters. A THIRD AXIS beside `units` and `date_format`: a rider can
+// want miles and a metric fuel volume, or the reverse.
 //
-// `auto` FOLLOWS `units` AND IS THE DEFAULT, which is not the same as folding
-// the two together. Deriving would leave a metric rider no way to ask for
-// gallons; defaulting means they never have to ask for liters. See
-// src/views/volume.ts.
+// `auto` FOLLOWS `units` AND IS THE DEFAULT, which is not the same as folding the
+// two together — deriving would leave a metric rider no way to ask for gallons.
 export const volumeUnitsEnum = pgEnum('volume_units', ['auto', 'gallons', 'liters'])
-// Whether a control explains itself, for #133. TWO MEMBERS AND NOT A BOOLEAN: a
-// checkbox that sends nothing when unchecked cannot tell "the rider said no"
-// from "the form was malformed", which for an autosaved form is the difference
-// between storing a choice and storing an accident.
+// Whether a control explains itself (#133). TWO MEMBERS AND NOT A BOOLEAN: a
+// checkbox that sends nothing when unchecked cannot tell "the rider said no" from
+// "the form was malformed", which for an autosaved form is the difference between
+// storing a choice and storing an accident.
 //
 // **DEFAULTED TO `on`, AND THAT DIRECTION IS THE FEATURE.** Every other default
 // here answers "what did the rider not say"; this one answers "what does somebody
-// who has never been here need", and those point opposite ways.
+// who has never been here need".
 export const tipsEnum = pgEnum('tips', ['on', 'off'])
 // The 17-category taxonomy carried over from the KML naming convention;
 // canonical metadata lives in src/maps/roles.ts.
@@ -148,12 +138,10 @@ export const waypointRoleEnum = pgEnum('waypoint_role', [
 // is the only classification they are asked for; everything else about a report
 // is inferred or optional.
 export const feedbackKindEnum = pgEnum('feedback_kind', ['bug', 'idea', 'question'])
-// The OWNER'S GATE, and the thing that makes a bug private without a private-bug
-// feature: nothing is visible to anyone but its author and the owner until it is
-// 'published'. Deliberately separate from feedback_status below — collapsing the
-// two into one enum is the mistake this pair exists to prevent, because a bug is
-// routinely 'fixed' while still 'pending' and there is nothing contradictory
-// about that.
+// The OWNER'S GATE, and what makes a bug private without a private-bug feature:
+// nothing is visible to anyone but its author and the owner until it is
+// 'published'. Deliberately separate from feedback_status — a bug is routinely
+// 'fixed' while still 'pending' and there is nothing contradictory about that.
 export const feedbackStateEnum = pgEnum('feedback_state', ['pending', 'published', 'declined', 'duplicate', 'spam'])
 // The RIDER-FACING lifecycle, orthogonal to the gate above. Every member has a
 // label and a sub-line in STATUS_META in src/feedback/policy.ts, and
@@ -182,9 +170,8 @@ export const users = pgTable(
     displayName: varchar('display_name', { length: 255 }).notNull(),
     username: varchar('username', { length: 30 }), // null until the rider picks one
     // The rider's stable public handle: `{first-username}-{YYMMDDTHHMMZ}`. Written
-    // once, when a username is first chosen, and never again — a later username
-    // change deliberately does not touch it, so anything that ever referred to this
-    // rider keeps resolving.
+    // once and never again — a later username change deliberately does not touch it,
+    // so anything that ever referred to this rider keeps resolving.
     //
     // Derived, so it cannot exist before the username does, which is why this is
     // nullable. Uniqueness holds by construction: usernames are unique at any
@@ -198,38 +185,30 @@ export const users = pgTable(
     // insert path instead.
     status: userStatusEnum('status').notNull().default('active'),
     // When the "you're approved" email went out — what makes it exactly-once for the
-    // life of an account. /admin can toggle active → blocked → active freely, so
-    // "did the status change" would mail a rider on every reinstatement.
+    // life of an account. /admin can toggle active → blocked → active freely, so "did
+    // the status change" would mail a rider on every reinstatement.
     //
-    // Nullable with no default: push stamps a default onto every existing row, which
-    // would mark every current account as already-notified. To resend: set it NULL.
+    // Nullable with no default: a default would mark every current account as
+    // already-notified. To resend: set it NULL.
     approvedEmailAt: timestamp('approved_email_at'),
     // When an invite let this rider into the Rider Survey, or null if none has.
-    //
     // Denormalized from invite_redemptions → invites.grants_survey because it decides
     // whether to render a Survey nav item on every page render, and this row is
     // already loaded by withSession. The join is the truth; this is the cache.
-    //
-    // A timestamp rather than a boolean because it also answers "when".
     surveyInvitedAt: timestamp('survey_invited_at'),
     canManageRiders: boolean('can_manage_riders').notNull().default(false),
-    // 100 MB, raised from 25 when stored originals started being compressed.
+    // 100 MB, raised from 25 when stored originals started being compressed — the
+    // rise is the POINT of that change: brotli takes a real 8-route GPX import from
+    // 834 kB to 60 kB. Quota accounting deliberately still counts the UNCOMPRESSED
+    // size, so the saving reaches the rider as a bigger number here.
     //
-    // The rise is the POINT of that change: brotli takes a real 8-route GPX import
-    // from 834 kB to 60 kB. Quota accounting deliberately still counts the
-    // UNCOMPRESSED size — an allowance must not depend on how well a rider's file
-    // happened to zip — so the saving reaches them as a bigger number here.
+    // Only IMPORTED files count, and one import is stored three times over.
     //
-    // Only IMPORTED files count, and one import is stored three times over (the
-    // original, a generated KML and a generated GPX), which is what size_bytes sums.
-    //
-    // Bounded below by the 16 MB per-request body limit and the 200,000-point ride
-    // cap, whose worst case is about 24 MB: a quota under either refuses a
-    // legitimate import for a reason the rider cannot see.
+    // Bounded below by the 16 MB body limit and the 200,000-point ride cap, whose
+    // worst case is about 24 MB: a quota under either refuses a legitimate import.
     //
     // Changing this default does NOT touch existing rows — ALTER COLUMN SET DEFAULT
-    // applies to new inserts only, which is why
-    // utils/deploy/sql/2026-08-08-quota-25mb.sql carries an explicit UPDATE.
+    // applies to new inserts only.
     quotaBytes: bigint('quota_bytes', { mode: 'number' }).notNull().default(104857600), // 100 MB
     // Denormalized cache of sum(rides.size_bytes), incremented on import and
     // decremented on delete, with no reconciler — so it drifts, and has. The
@@ -244,10 +223,9 @@ export const users = pgTable(
     //
     // Three nullable timestamps rather than a fourth user_status value, because
     // status has to survive the round trip: a pending rider and a blocked rider can
-    // both delete, and "Save Me" has to put them back exactly where they were. A
-    // 'deleted' status forces a previous_status column anyway.
+    // both delete, and "Save Me" has to put them back exactly where they were.
     //
-    // Nullable with no default: null means "has never asked to leave".
+    // Null means "has never asked to leave".
     deletionRequestedAt: timestamp('deletion_requested_at'),
     // The deadline, stored rather than derived from deletion_requested_at +
     // DELETION_HOLD_DAYS. It is a promise made to a person on a date, and
@@ -261,28 +239,23 @@ export const users = pgTable(
     // WHEN A WARNING WAS LAST SENT — ANTI-REPEAT STAMPS RATHER THAN FLAGS. The
     // question is never "should this rider be warned" but "have they been warned
     // about THIS", which a boolean cannot answer a second time after the condition
-    // clears.
-    //
-    // `quota_warned_at` is CLEARED when a rider drops back under the line, so one who
-    // frees space and fills it again is told again.
+    // clears. `quota_warned_at` is CLEARED when a rider drops back under the line.
     quotaWarnedAt: timestamp('quota_warned_at'),
     // The account-deletion warning. Never cleared by the sweep: Save Me clears
     // `purge_after` itself, and a rider who asks to leave a second time gets a
     // fresh `purge_after` — so the sweep's own "is this stamp older than the
     // current request" test is what makes the second warning fire.
     purgeWarnedAt: timestamp('purge_warned_at'),
-    // A GUIDE RIDER: one of the three seeded accounts the guided tour invites onto
-    // its demo ride. Ziad's call, 2026-09-11. They are REAL ROWS — a real
-    // membership, a real bike with a real range — because every surface the tour
-    // shows reads those tables, and faking them client-side means a second rendering
-    // path for each.
+    // A GUIDE RIDER: one of the three seeded accounts the guided tour invites onto its
+    // demo ride. They are REAL ROWS — a real membership, a real bike with a real range
+    // — because every surface the tour shows reads those tables.
     //
     // What the flag buys is exclusion: never listed on /riders or /@handle, neither
     // friendable nor followable, never mailed, and invitable WITHOUT a friendship. A
-    // null email is not a safe discriminator for any of that, since legacy rows carry
-    // one. Created lazily by POST /api/tour/start rather than at boot: stage shares
-    // prod's database and runs no boot jobs, and under blue/green a boot insert lands
-    // while the OLD color, which does not filter on this, is still serving.
+    // null email is not a safe discriminator, since legacy rows carry one. Created
+    // lazily by POST /api/tour/start rather than at boot: stage shares prod's database
+    // and runs no boot jobs, and under blue/green a boot insert lands while the OLD
+    // color, which does not filter on this, is still serving.
     isGuide: boolean('is_guide').notNull().default(false),
   },
   (t) => [
@@ -308,11 +281,9 @@ export const userProfiles = pgTable('user_profiles', {
   firstName: varchar('first_name', { length: 80 }),
   lastName: varchar('last_name', { length: 80 }),
   // What the rider calls the place they set off from — "Bill's apartment", "the
-  // shop". MIRRORS start_label EXACTLY, including being nullable with the
-  // fallback living in code rather than in a column default: "Home" is a
-  // FALLBACK and not a stored value, so a rider who clears the field goes back
-  // to it instead of having it written into their profile as though they had
-  // typed it. `homeSeed()` in routes/builder.ts is the one reader.
+  // shop". MIRRORS start_label EXACTLY, including being nullable with the fallback
+  // living in code rather than in a column default: "Home" is a FALLBACK and not a
+  // stored value, so a rider who clears the field goes back to it.
   homeLabel: varchar('home_label', { length: 120 }),
   addressLine: varchar('address_line', { length: 255 }),
   city: varchar('city', { length: 120 }),
@@ -344,14 +315,11 @@ export const userProfiles = pgTable('user_profiles', {
   venmo: varchar('venmo', { length: 120 }),
   paypal: varchar('paypal', { length: 120 }),
   zelle: varchar('zelle', { length: 120 }),
-  // The first genuine preference on the profile, and the first real content on
-  // /settings. It changes how the builder's duration field reads and nothing
-  // else: the stored unit is minutes and every export, the roadbook and the
-  // timeline are untouched by it.
+  // The first genuine preference on the profile. It changes how the builder's
+  // duration field reads and nothing else: the stored unit is minutes and every
+  // export, the roadbook and the timeline are untouched by it.
   //
-  // Defaulted rather than nullable so there is no third state to handle. Every
-  // reader would otherwise have to answer "null means what?" and they would not
-  // all answer the same way.
+  // Defaulted rather than nullable so there is no third state to handle.
   durationFormat: durationFormatEnum('duration_format').notNull().default('hours'),
   // Defaulted rather than nullable for the same reason as durationFormat above:
   // no third state for every reader to interpret differently. The signup path
@@ -386,13 +354,10 @@ export const userProfiles = pgTable('user_profiles', {
   // who said nothing would have wanted" but "what somebody seeing this for the
   // first time needs" — see the enum's own note.
   tips: tipsEnum('tips').notNull().default('on'),
-  // WHEN THE GUIDED TOUR WAS FINISHED OR DISMISSED, and the one column here
-  // deliberately NULLABLE rather than defaulted: "has never been offered the tour"
-  // decides whether it runs on its own, and it is not the same as "ran it and
-  // dismissed it at step one".
-  //
-  // A TIMESTAMP RATHER THAN A BOOLEAN, because the next question is always "how
-  // long ago". Stamped on both Finish and Skip.
+  // WHEN THE GUIDED TOUR WAS FINISHED OR DISMISSED, deliberately NULLABLE rather
+  // than defaulted: "has never been offered the tour" decides whether it runs on its
+  // own, and is not the same as "ran it and dismissed it at step one". A TIMESTAMP
+  // RATHER THAN A BOOLEAN, because the next question is always "how long ago".
   tourDoneAt: timestamp('tour_done_at', { withTimezone: true }),
   // WHETHER THE HEADER'S "Take the tour" SIGN IS HIDDEN. Ziad's call, 2026-09-11:
   // right for a new rider and furniture for one who has taken it twice. A boolean
@@ -400,13 +365,11 @@ export const userProfiles = pgTable('user_profiles', {
   // was hidden. The account menu's item survives either way, so this removes an
   // affordance and never the feature.
   hideTour: boolean('hide_tour').notNull().default(false),
-  // THE RIDE THE TOUR IS CURRENTLY BUILDING, OR THE ONE IT LEFT BEHIND. The
-  // tour creates a real ride (everything it does is real, which is its own
-  // promise) and bins it on Finish and on Skip — but a tab closed mid-tour
-  // leaves it live, so the next start bins whatever this still names and the
-  // hourly trash sweep bins one older than a day. `set null` on delete so a
-  // ride binned and purged by any other path leaves nothing dangling. Cleared
-  // by POST /api/tour/done. See src/routes/tour.ts.
+  // THE RIDE THE TOUR IS CURRENTLY BUILDING, OR THE ONE IT LEFT BEHIND. The tour
+  // creates a real ride and bins it on Finish and on Skip — but a tab closed mid-tour
+  // leaves it live, so the next start bins whatever this still names and the hourly
+  // trash sweep bins one older than a day. `set null` on delete so a ride purged by
+  // any other path leaves nothing dangling.
   tourRideId: bigint('tour_ride_id', { mode: 'number' }).references(() => rides.id, { onDelete: 'set null' }),
   // Places to push DOWN a place search (#271). FREE TEXT AND NOT A JOIN TABLE: the
   // intended use is as loose as it sounds — a category and one chain by name in the
@@ -416,24 +379,19 @@ export const userProfiles = pgTable('user_profiles', {
   // match costs one result ranked lower, and the one time a rider is out of fuel
   // with an ARCO in front of them is the time this must not have hidden it.
   avoidPlaces: varchar('avoid_places', { length: 1000 }),
-  // The mirror of the column above: places to push UP a place search. Ziad's call,
-  // 2026-09-07.
+  // The mirror of the column above: places to push UP a place search.
   //
   // TWO COLUMNS AND NOT ONE SIGNED LIST — a leading `-` or `+` would be a syntax to
   // learn, where the point is that a rider types "ARCO, Costco Gas" the way they
-  // would say it.
-  //
-  // NOTHING STOPS A TERM APPEARING IN BOTH, and the ranking resolves it rather than
-  // the schema refusing it; a CHECK could not express it anyway.
+  // would say it. NOTHING STOPS A TERM APPEARING IN BOTH; the ranking resolves it.
   favorPlaces: varchar('favor_places', { length: 1000 }),
-  // HOW MUCH FURTHER OUT OF THEIR WAY THAN NECESSARY A JOINING GROUP MAY BE SENT
-  // to meet sooner, in miles (#370). The builder seeds its dial from this; the dial
-  // is still per press.
+  // HOW MUCH FURTHER OUT OF THEIR WAY THAN NECESSARY A JOINING GROUP MAY BE SENT to
+  // meet sooner, in miles (#370). The builder seeds its dial from this; the dial is
+  // still per press.
   //
-  // NULLABLE WITH THE DEFAULT IN CODE (`DEFAULT_DIVERT_MI`) — the `home_label`
-  // arrangement rather than the defaulted-column one: a rider who clears the box
-  // goes back to the app's default rather than carrying the number it was that day.
-  // Clamped on the way in and out, which is why there is no CHECK.
+  // NULLABLE WITH THE DEFAULT IN CODE — the `home_label` arrangement: a rider who
+  // clears the box goes back to the app's default rather than carrying the number it
+  // was that day. Clamped on the way in and out, which is why there is no CHECK.
   meetDivertMi: integer('meet_divert_mi'),
   // WHAT THE APP CALLS THINGS (#321). The rider's default preset — a vehicle and
   // what powers it — and their own words for any term set to Custom.
@@ -484,22 +442,16 @@ export const userProfiles = pgTable('user_profiles', {
 // is a reason to stop, the other is what a machine drinks.
 export const fuelTypeEnum = pgEnum('fuel_type', ['gas', 'electric'])
 
-// THE PADDOCK — a rider's bikes.
+// THE PADDOCK — a rider's bikes. Owned by the rider and not by any ride: which
+// bike somebody brought is ride membership's problem (#71).
 //
-// Owned by the rider and not by any ride. Which bike somebody brought is ride
-// membership's problem (#71): a bike is a fact about a person that outlives any
-// trip, and the fuel math only needs a range.
+// RANGE IS STORED IN METERS, although the rider types miles. #150 will let a rider
+// switch the site to metric, and a value stored in whatever unit somebody typed
+// drifts on every round trip.
 //
-// RANGE IS STORED IN METERS, although the rider types miles. Both spellings
-// exist here already, so this is a choice: #150 will let a rider switch the site
-// to metric, and a value stored in whatever unit somebody typed drifts on every
-// round trip — 300 km against a mile column is 186 mi stored and 299.3 km read
-// back.
-//
-// NULLABLE, and null is not zero. Null means nobody has measured this bike's
-// range, which is the state every bike starts in; zero would mean a machine that
-// cannot leave the driveway. Range features must skip a null rather than treating
-// it as a very thirsty bike.
+// NULLABLE, and null is not zero: null means nobody has measured this bike's range,
+// where zero would mean a machine that cannot leave the driveway. Range features
+// must skip a null rather than treating it as a very thirsty bike.
 export const bikes = pgTable(
   'bikes',
   {
@@ -571,13 +523,12 @@ export const bikes = pgTable(
 )
 
 // Every username a rider has held, current one included. Two jobs: showing them
-// their own history, and keeping a released name out of anyone else's hands for
-// a cooling-off period so a change of mind is recoverable.
+// their own history, and keeping a released name out of anyone else's hands for a
+// cooling-off period.
 //
 // The window cannot be an index — "unavailable unless you are the rider who
 // released it" is not something a unique constraint can express — so it is an
-// application check, and uq_username_lower on users remains the hard guard
-// against two riders holding the same name at once.
+// application check, and uq_username_lower remains the hard guard.
 export const usernameHistory = pgTable(
   'username_history',
   {
@@ -655,21 +606,18 @@ export const loginTokens = pgTable(
   ],
 )
 
-// A grant of access, issued by a manager, redeemed by whoever holds the link.
+// A grant of access, issued by a manager, redeemed by whoever holds the link. The
+// token follows login_tokens exactly: random bytes handed out, only the SHA-256
+// hash stored. An invite deliberately identifies no person — a group link is read
+// by a whole Discord channel.
 //
-// The token follows login_tokens exactly: random bytes handed out, only the
-// SHA-256 hash stored. What is deliberately NOT here is any notion of the invite
-// identifying a person — a group link is read by a whole Discord channel, so the
-// only identity that matters is the one the redeemer signs in with.
-//
-// Not a second authorization system: grants_beta performs the same pending →
-// active transition /admin performs, through the same rule in src/emails/rules.ts.
+// Not a second authorization system: grants_beta performs the same pending → active
+// transition /admin performs, through the same rule in src/emails/rules.ts.
 //
 // THE SECURITY MODEL IS REVOCABLE-AND-OBSERVABLE, NOT UNFORGEABLE. A link pasted
-// into a channel will leak past it; treat that as certain. uq_redemption_invite_user
-// stops one account redeeming twice, and nothing stops one person with three
-// Google accounts. What works is max_uses as a hard budget, label so you can tell
-// which link leaked, expires_at, revoked_at, and rotating token_hash.
+// into a channel will leak past it; treat that as certain. What works is max_uses
+// as a hard budget, label so you can tell which link leaked, expires_at,
+// revoked_at, and rotating token_hash.
 export const invites = pgTable(
   'invites',
   {
@@ -694,15 +642,10 @@ export const invites = pgTable(
     usedCount: integer('used_count').notNull().default(0),
     expiresAt: timestamp('expires_at').notNull(),
     revokedAt: timestamp('revoked_at'),
-    // SET NULL, not cascade, and nullable for that reason alone.
-    //
-    // Cascading means purging a manager deletes their invites, and invite_redemptions
-    // cascades from invites — so it would take OTHER riders' record of how they got
-    // in. That audit trail is not the departing rider's to take; their own redemption
-    // row still goes via invite_redemptions.user_id.
-    //
-    // Losing "who minted it" is the cheapest thing to lose: label already carries the
-    // human meaning of a link.
+    // SET NULL, not cascade, and nullable for that reason alone: cascading means
+    // purging a manager deletes their invites, and invite_redemptions cascades from
+    // invites — so it would take OTHER riders' record of how they got in. Losing "who
+    // minted it" is the cheapest thing to lose; label carries the human meaning.
     createdBy: bigint('created_by', { mode: 'number' }).references(() => users.id, { onDelete: 'set null' }),
     createdAt: timestamp('created_at').notNull().defaultNow(),
     updatedAt: timestamp('updated_at').notNull().defaultNow(),
@@ -721,13 +664,11 @@ export const invites = pgTable(
 //
 // The unique index is the idempotency MECHANISM, not a report: it makes a
 // double-click, a retried POST and a second visit a week later all cost one seat.
-// redeemInvite() reads a zero-row insert as "this rider is already in".
 //
-// consumed_seat records whether this redemption incremented used_count. It is
-// false when the invite had nothing to give this rider — an already active member
-// opening a group link — because seats are a budget for letting NEW people in.
-// Without it, a 25-seat link in a channel of 40 riders who mostly have accounts
-// is exhausted by people who gained nothing.
+// consumed_seat records whether this redemption incremented used_count. It is false
+// when the invite had nothing to give this rider, because seats are a budget for
+// letting NEW people in — without it, a 25-seat link in a channel of 40 riders who
+// mostly have accounts is exhausted by people who gained nothing.
 export const inviteRedemptions = pgTable(
   'invite_redemptions',
   {
@@ -752,15 +693,10 @@ export const inviteRedemptions = pgTable(
 // rider, no surrogate id to keep in sync.
 //
 // answers is jsonb and the question set lives in src/survey/questions.ts, so
-// changing a question is a code change and never a migration: push is the only
-// migration tool here and it is dangerous, so this feature is deliberately
-// DDL-free after day one.
+// changing a question is a code change and never a migration.
 //
-// $type<> is a compile-time claim Postgres does not enforce. EVERY read goes
-// through parseAnswers(), which is lenient by design — a draft written under
-// version 1 and read by version 2 code has missing keys.
-//
-// submitted_at null means a draft in progress.
+// $type<> is a compile-time claim Postgres does not enforce. EVERY read goes through
+// parseAnswers(), which is lenient by design. submitted_at null means a draft.
 export const surveyResponses = pgTable(
   'survey_responses',
   {
@@ -805,51 +741,41 @@ export const rides = pgTable(
     // road a ride takes, unattended, on a site real riders have accounts on, should
     // be a thing the owner asked for.
     altVotesCloseAt: timestamp('alt_votes_close_at', { withTimezone: true }),
-    // THE MAIN GROUP: whose clock is fixed AND, since #239, whose road every
-    // other group joins when a meeting point is proposed. Not a decision the app
-    // can make fairly on its own:
-    // 3 miles against 60 to a 6am meet is unfair, the same two distances to a
-    // 10am meet heading the other way is not, and only the planner knows which
-    // they are looking at. #67 is explicit that the DEFAULT must not be the
-    // planner's own group — it is the one most likely to be nearest the meet,
-    // so that default reproduces the unfair case every time and the planner
-    // does not notice, being the one who rode three miles.
+    // THE MAIN GROUP: whose clock is fixed AND, since #239, whose road every other
+    // group joins when a meeting point is proposed. Not a decision the app can make
+    // fairly on its own — 3 miles against 60 to a 6am meet is unfair, the same two
+    // distances to a 10am meet heading the other way is not. #67 is explicit that the
+    // DEFAULT must not be the planner's own group: it is the one most likely to be
+    // nearest the meet, so that default reproduces the unfair case every time.
     primarySubgroupId: bigint('primary_subgroup_id', { mode: 'number' }).references(
       (): AnyPgColumn => rideSubgroups.id,
       {
         onDelete: 'set null',
       },
     ),
-    // DEAD AS OF 2026-09-03 (#239) AND READ BY NOTHING. It held whose route a
-    // rendezvous was proposed against, kept separate on the reasoning that the two
-    // come apart — the same group when Sacramento joins Oakland's run, not the same
-    // thing when Seattle and San Francisco meet in eastern Oregon. That reasoning is
-    // struck rather than deleted so it is not rediscovered and acted on:
-    // `primary_subgroup_id` carries both axes now.
-    //
-    // The column stays because dropping one is two deploys under expand/contract.
+    // DEAD AS OF #239 AND READ BY NOTHING. It held whose route a rendezvous was
+    // proposed against, kept separate on the reasoning that the two come apart. That
+    // reasoning is struck rather than deleted so it is not rediscovered and acted on:
+    // `primary_subgroup_id` carries both axes now. The column stays because dropping
+    // one is two deploys under expand/contract.
     trunkSubgroupId: bigint('trunk_subgroup_id', { mode: 'number' }).references((): AnyPgColumn => rideSubgroups.id, {
       onDelete: 'set null',
     }),
     timeAnchor: timeAnchorEnum('time_anchor').notNull().default('departure'),
-    // WHEN THE RIDER WANTS TO BE LOOKING FOR A BED, as minutes from midnight — 960
-    // is 4pm. Null means they have not said, which is most rides.
+    // WHEN THE RIDER WANTS TO BE LOOKING FOR A BED, as minutes from midnight. Null
+    // means they have not said, which is most rides.
     //
-    // A WALL CLOCK, LIKE `routes.start_at`: "I like to stop by four" means four where
-    // the bike is. Minutes from midnight rather than a `time` column because there is
-    // no date to attach it to and no zone to read it in, and an integer cannot
-    // accidentally acquire either.
+    // A WALL CLOCK, LIKE `routes.start_at`. Minutes from midnight rather than a
+    // `time` column because there is no date to attach it to and no zone to read it
+    // in, and an integer cannot accidentally acquire either.
     //
-    // PER RIDE rather than per rider or per route. Ziad's call, 2026-09-03: a relaxed
-    // tour and a hard push want different answers, the setting travels with a shared
-    // ride, and a per-route one would ask nine times for one answer.
+    // PER RIDE rather than per rider or per route: a relaxed tour and a hard push
+    // want different answers, and a per-route one would ask nine times.
     stopByMin: integer('stop_by_min'),
-    // WHICH VEHICLE THIS RIDE IS FOR (#321). Per ride from the start, Ziad's
-    // call, 2026-09-13: a rider who owns a bike and a car plans rides for
-    // each, and the words on every surface showing the ride follow this pair.
-    // Null means unset: each viewer reads it in their own default words, which
-    // is what every ride carried before this existed. Varchar for the reason
-    // the profile's columns are; coerced by src/views/vocab.ts on every read.
+    // WHICH VEHICLE THIS RIDE IS FOR (#321). Per ride from the start: a rider who owns
+    // a bike and a car plans rides for each, and the words on every surface showing
+    // the ride follow this pair. Null means unset. Varchar for the reason the
+    // profile's columns are; coerced by src/views/vocab.ts on every read.
     vehicle: varchar('vehicle', { length: 20 }),
     power: varchar('power', { length: 20 }),
     gpxPresent: boolean('gpx_present').notNull().default(false),
@@ -863,20 +789,16 @@ export const rides = pgTable(
     // Kept separate rather than folded into kml_bytes so "how big is the KML"
     // stays answerable.
     sourceBytes: integer('source_bytes').notNull().default(0),
-    // WHEN THE STORED ORIGINAL WAS WRITTEN, so an export can tell a ride that still
-    // IS its uploaded file from one rebuilt in the builder since.
-    // `updated_at > original_stored_at` is the whole test, deliberately the same
-    // shape as `updated_at > thumb_built_at`.
+    // WHEN THE STORED ORIGINAL WAS WRITTEN, so an export can tell a ride that still IS
+    // its uploaded file from one rebuilt in the builder since.
+    // `updated_at > original_stored_at` is the whole test, the same shape as
+    // `updated_at > thumb_built_at`.
     //
-    // It exists because the export route prefers the stored original — rightly,
-    // since that file carries styling and per-point detail this app does not model —
-    // and nothing clears it when the builder saves. A rider who imported a GPX, spent
-    // an hour re-cutting it and pressed Export got the pre-edit file back, silently.
+    // It exists because the export route prefers the stored original and nothing
+    // clears it when the builder saves: a rider who imported a GPX, spent an hour
+    // re-cutting it and pressed Export got the pre-edit file back, silently.
     //
-    // NULL where nothing was ever stored, which is every ride built here: a ride with
-    // no original cannot have a stale one, and the export path checks `hasStored`
-    // first. Nullable with no default, or every existing row would claim its original
-    // was written the day the column was added.
+    // NULL where nothing was ever stored, which is every ride built here.
     originalStoredAt: timestamp('original_stored_at'),
     // Must include every byte column. used_bytes is incremented by the app on
     // import and decremented by this on delete, so a column missing here means
@@ -887,37 +809,25 @@ export const rides = pgTable(
     stopCount: smallint('stop_count').notNull().default(0),
     viewCount: integer('view_count').notNull().default(0),
     // The thumbnail's bookkeeping. Both null means one has never been built, which is
-    // the state every existing ride starts in and the state a ride with no drawable
-    // geometry stays in.
+    // the state a ride with no drawable geometry stays in.
     //
     // `thumb_hash` fingerprints the Static Maps request MINUS the API key; the sweep
-    // recomputes and skips the fetch when it matches, so retitling a ride or flipping
-    // visibility costs a query and nothing else.
+    // recomputes and skips the fetch when it matches.
     //
-    // There is deliberately NO byte column here. The PNG is derived data, not the
-    // rider's file: it must not eat a quota that exists to bound uploads, and
-    // `size_bytes` must name every byte column on this table. Same reasoning as
-    // feedback_attachments.
+    // There is deliberately NO byte column here: the PNG is derived data, not the
+    // rider's file, and `size_bytes` must name every byte column on this table.
     thumbHash: varchar('thumb_hash', { length: 32 }),
     thumbBuiltAt: timestamp('thumb_built_at'),
 
     // The recycle bin. Same three-column shape as the GTFO hold on `users`, and
-    // deliberately so: that is a 30-day reversible hold that ends in a purge,
-    // and so is this. See src/trash/policy.ts for the rules and
-    // src/account/policy.ts for the original argument behind each column.
-    //
-    // Nullable with no default, for the reason approved_email_at documents
-    // above: a schema push stamps a default onto every existing row. Null here
-    // means "not in the bin", which is true of every row today, so there is no
-    // backfill to get wrong.
+    // deliberately so: that is a 30-day reversible hold that ends in a purge, and so
+    // is this. Nullable with no default, for the reason approved_email_at documents
+    // above; null here means "not in the bin".
     deletedAt: timestamp('deleted_at'),
-    // The deadline, stored rather than derived from deleted_at + the constant.
-    // It is a promise made to a person on a date, so changing TRASH_HOLD_DAYS
-    // later must not retroactively move a purge date a rider was already shown.
-    //
-    // Recomputed on every trash, which is ALSO what makes the reset work: taking
-    // a ride out of the bin and putting it back sets a fresh 30 days with no
-    // separate mechanism.
+    // The deadline, stored rather than derived from deleted_at + the constant: it is a
+    // promise made to a person on a date, so changing TRASH_HOLD_DAYS must not
+    // retroactively move a purge date a rider was already shown. Recomputed on every
+    // trash, which is also what makes the reset work.
     purgeAfter: timestamp('purge_after'),
     // Claimed by the purge before it starts, so a crash cannot wedge the row and
     // two triggers cannot both run it. Rides carry this and places/groups do not
@@ -925,14 +835,10 @@ export const rides = pgTable(
     // half-finish; a place purge is one statement.
     purgeStartedAt: timestamp('purge_started_at'),
 
-    // WHEN THE RIDER WAS WARNED THIS RIDE WAS ABOUT TO BE DESTROYED.
-    //
-    // Set once, a week out, by the hourly trash sweep. It is NOT cleared on
-    // restore and does not need to be: `purge_after` is recomputed from scratch
-    // on every trash, so a ride taken out of the bin and put back has a fresh
-    // deadline, and the sweep compares this stamp against that deadline rather
-    // than merely testing it for null. A stamp older than the current hold is a
-    // warning about a purge that never happened, and the ride is warned again.
+    // WHEN THE RIDER WAS WARNED THIS RIDE WAS ABOUT TO BE DESTROYED. Set once, a week
+    // out, by the hourly trash sweep. NOT cleared on restore and it does not need to
+    // be: `purge_after` is recomputed on every trash, and the sweep compares this
+    // stamp against that deadline rather than testing it for null.
     purgeWarnedAt: timestamp('purge_warned_at'),
 
     // WHAT A SAVE IS CHECKED AGAINST, so two riders in one builder cannot silently
@@ -940,8 +846,7 @@ export const rides = pgTable(
     // carrying an older value is refused with a 409.
     //
     // A COUNTER RATHER THAN `updated_at`: two saves inside the same millisecond are
-    // indistinguishable by a timestamp — not hypothetical at a 3-second autosave —
-    // and it would make correctness depend on the database's clock resolution.
+    // indistinguishable by a timestamp at a 3-second autosave.
     //
     // It covers the RIDE-level fields only. Routes are merged per uid and carry their
     // own hash, because refusing a whole save because somebody renamed route 4 is
@@ -974,14 +879,8 @@ export const rides = pgTable(
 )
 
 // One route within a ride: ordered stops joined by routed legs. The time model
-// (startAt/endAt) exists now so the timeline slider is pure UI later.
-// distanceM/durationS are caches over the route's legs.
-//
-// Called `routes` until 2026-08-09, which collided twice: with `route` meaning
-// a whole ride in the import copy, and with the ~130 `adminRoutes`/`app.route()`
-// identifiers that mean HTTP handlers. Every rider-facing surface already said
-// "route" — the builder slider, the viewer legend, ROUTE_COLORS, the `d02` filename
-// field — so the table moved to meet them rather than the other way around.
+// (startAt/endAt) exists so the timeline slider is pure UI; distanceM/durationS are
+// caches over the route's legs.
 //
 // A route is a *position* within a ride, not a calendar date: two routes can share
 // a date, and a ride with no dates at all still has routes.
@@ -995,110 +894,78 @@ export const routes = pgTable(
     position: smallint('position').notNull(), // 0-based order within the ride
     title: varchar('title', { length: 150 }).notNull().default(''),
     color: varchar('color', { length: 7 }).notNull().default('#0000cc'),
-    // A WALL CLOCK AT THE DEPARTURE POINT, CARRIED AS UTC — not an instant.
-    // Ziad's call, 2026-08-24: a time is a time is a time at the departure
-    // point, so a 9am departure is 9am where the bike is and nothing converts it
-    // into anyone's local time. `public/js/route-clock.js` is the only place the
-    // conversion between this and an input field happens; read its header first.
+    // A WALL CLOCK AT THE DEPARTURE POINT, CARRIED AS UTC — not an instant. A 9am
+    // departure is 9am where the bike is and nothing converts it into anyone's local
+    // time; `public/js/route-clock.js` is the only place the conversion between this
+    // and an input field happens.
     //
-    // The type stays `timestamptz` even though the value is now naive, and that
-    // is measured rather than assumed: node-postgres parses `timestamp without
-    // time zone` in the PROCESS's zone, so a stored 09:00 read back on a Pacific
-    // machine comes out 16:00Z and the app's behavior depends on `TZ`.
-    // `timestamptz` round-trips the exact digits in both directions with no type
-    // parser and no environment dependency. The type is a carrier, not a claim.
+    // The type stays `timestamptz` although the value is naive, and that is measured:
+    // node-postgres parses `timestamp without time zone` in the PROCESS's zone, so a
+    // stored 09:00 read back on a Pacific machine comes out 16:00Z. `timestamptz`
+    // round-trips the exact digits with no environment dependency.
     startAt: timestamp('start_at', { withTimezone: true }),
     endAt: timestamp('end_at', { withTimezone: true }),
     distanceM: integer('distance_m').notNull().default(0),
     durationS: integer('duration_s').notNull().default(0),
     // How twisty the route's roads are, in degrees of heading change per mile.
-    // See src/maps/twist.ts. Computed from geometry at write time in both the
-    // builder save and the KML/GPX import, so imported rides get one too.
-    //
-    // Nullable on purpose, and null is NOT the same as 0: 0 claims the road is
-    // straight, null says nothing has measured it. Every row predating this
-    // column is null until utils/backfill-twistiness.ts runs, and a route with
-    // no legs stays null forever.
+    // Computed from geometry at write time in both the builder save and the KML/GPX
+    // import. Nullable, and null is NOT 0: 0 claims the road is straight, null says
+    // nothing has measured it. A route with no legs stays null forever.
     twistinessDpm: integer('twistiness_dpm'),
     // The same figure over the twistiest 20-mile stretch of the route, which is
     // the number that actually tells a rider whether to go — a route average
     // buries 40 good miles under 200 of slab.
     twistinessBestDpm: integer('twistiness_best_dpm'),
-    // THE DAY'S DURABLE IDENTITY, and the same answer points.uid is to the same
-    // problem — see src/maps/uid.ts. `routes.id` churns on every save because the
-    // builder's PUT deletes and re-inserts every route, and `alt_group` below is
-    // renumbered densely from 0 every time, so NEITHER can be referenced from
-    // another table. A vote on an alternate is the first feature that needs a
-    // route to keep its identity across a save, and this is what it keeps.
-    //
-    // Client-minted, exactly like a point's: same alphabet, same length, or the
-    // save 400s. Backfilled for every pre-existing row in drizzle/0015.
+    // THE ROUTE'S DURABLE IDENTITY, the same answer points.uid is to the same problem.
+    // `routes.id` churns on every save and `alt_group` is renumbered densely, so
+    // NEITHER can be referenced from another table. Client-minted, exactly like a
+    // point's: same alphabet, same length, or the save 400s.
     uid: varchar('uid', { length: 12 }).notNull(),
-    // WHOSE DAY THIS IS. Null means everyone rides it — the trunk — and that is
-    // the value every route that predates #67 carries, which is why this needed
-    // no backfill.
+    // WHOSE ROUTE THIS IS. Null means everyone rides it — the trunk — and that is the
+    // value every route predating #67 carries, which is why this needed no backfill.
     //
-    // A subgroup owns a SUBSEQUENCE of the ride's positions rather than a
-    // parallel numbering of its own, so uq_route_ride_pos is untouched and a
-    // multi-route approach is simply more routes: Seattle takes 0 and 1, SF takes
-    // 2, the trunk takes 3. Which routes happen on the same calendar route is
-    // carried by start_at, which already exists.
+    // A subgroup owns a SUBSEQUENCE of the ride's positions rather than a parallel
+    // numbering of its own, so uq_route_ride_pos is untouched and a multi-route
+    // approach is simply more routes.
     //
-    // `set null` on delete: removing a subgroup makes its routes everyone's
-    // rather than destroying them. Losing a rider's planned road because they
-    // renamed a group wrong would be the place_groups mistake over again.
+    // `set null` on delete: removing a subgroup makes its routes everyone's rather
+    // than destroying them.
     subgroupId: bigint('subgroup_id', { mode: 'number' }).references((): AnyPgColumn => rideSubgroups.id, {
       onDelete: 'set null',
     }),
     // ALTERNATES: two or more candidate routings for the same stretch, of which
-    // exactly one counts toward the ride's mileage. See src/maps/alts.ts, which
-    // owns every rule about these two columns.
+    // exactly one counts toward the ride's mileage. src/maps/alts.ts owns every rule.
     //
     // A WITHIN-PAYLOAD PARTITION KEY, NOT A STABLE ID. `alt_group` is rewritten
     // densely from 0 on every save and means only "these routes are siblings".
-    // Nothing may store it, join to it from another table, or expect the value
-    // a rider saw yesterday. That is forced rather than chosen: the autosave in
-    // src/routes/builder.ts deletes every route of a ride and reinserts it, so no
-    // `routes.id` survives a save and a real foreign key has nothing to point at.
+    // Nothing may store it or join to it: the autosave deletes every route of a ride
+    // and reinserts it, so no `routes.id` survives a save.
     //
-    // Null means a plain route. A group always has at least two members — one is
-    // dissolved back to null — so a non-null value here is never alone.
+    // Null means a plain route. A group always has at least two members.
     altGroup: smallint('alt_group'),
-    // Which member of the group counts. Meaningless while alt_group is null,
-    // and forced true there so a stale false cannot hide a plain route from every
-    // mileage total in the app.
-    //
-    // NOT NULL DEFAULT true is what makes this migration need no backfill:
-    // `alt_group IS NULL, alt_active = TRUE` is already a true description of
-    // every row that existed before it, so every stored rides.total_miles and
-    // every dashboard figure stays correct on the route it lands. Contrast
-    // twistiness_dpm above, which needed utils/backfill-twistiness.ts.
+    // Which member of the group counts. Meaningless while alt_group is null, and
+    // forced true there so a stale false cannot hide a plain route from every mileage
+    // total in the app. NOT NULL DEFAULT true is what makes this need no backfill:
+    // `alt_group IS NULL, alt_active = TRUE` already describes every earlier row.
     altActive: boolean('alt_active').notNull().default(true),
-    // WHAT THIS ROUTE ASKS OF THE ROUTER — see src/maps/route-prefs.ts, which owns
-    // the shape and the mapping to Google's `routeModifiers`.
+    // WHAT THIS ROUTE ASKS OF THE ROUTER — see src/maps/route-prefs.ts. PER ROUTE
+    // RATHER THAN PER RIDE: a Saturday in the hills and the Monday slog home want
+    // opposite answers.
     //
-    // PER ROUTE RATHER THAN PER RIDE, Ziad's call 2026-09-02: a Saturday in the hills
-    // and the Monday slog home want opposite answers.
-    //
-    // NULLABLE WITH NO DEFAULT, which is what makes this safe in one deploy under
-    // expand/contract: null means no preference, every row predating the column
-    // already means that, and the previous release never writes the field. `{}` is
-    // normalized to null so one state cannot have two spellings.
-    //
-    // jsonb rather than three booleans because the set grows. The shape is not open —
-    // routePrefsSchema is `.strict()`.
+    // NULLABLE WITH NO DEFAULT, which is what makes it safe in one deploy under
+    // expand/contract, and `{}` is normalized to null so one state cannot have two
+    // spellings. jsonb rather than three booleans because the set grows; the shape is
+    // not open — routePrefsSchema is `.strict()`.
     routePrefs: jsonb('route_prefs').$type<RoutePrefs>(),
     // WHAT THIS ROUTE CONTAINED WHEN IT WAS LAST WRITTEN — see route-revision.ts. It
     // is what lets a save merge per route instead of refusing whole.
     //
-    // STORED RATHER THAN COMPUTED ON READ, which is the point of the column: the
-    // merge needs one cheap `select uid, content_hash`, where recomputing means
-    // loading every point and leg of every route on every save — roughly 2N queries
-    // on a 31-route ride at a 3-second cadence.
+    // STORED RATHER THAN COMPUTED ON READ: the merge needs one cheap `select uid,
+    // content_hash`, where recomputing means loading every point and leg of every
+    // route on every save.
     //
-    // NULLABLE, and null means UNKNOWN rather than changed: every route written before
-    // this column carries one, and mergeRoutes() takes the client's version on an
-    // unknown. Refusing on a null would have made this migration an outage.
+    // NULLABLE, and null means UNKNOWN rather than changed: mergeRoutes() takes the
+    // client's version on an unknown, so this migration was not an outage.
     contentHash: varchar('content_hash', { length: 32 }),
   },
   (t) => [
@@ -1108,12 +975,11 @@ export const routes = pgTable(
     // alt_votes is keyed by (ride_id, route_uid). A global unique index would also
     // make importing a native JSON file twice fail on the second copy.
     uniqueIndex('uq_route_ride_uid').on(t.rideId, t.uid),
-    // A TRIPWIRE, NOT A GATE. resolveAltGroups() is total and always elects
-    // exactly one active member, so this should be unreachable — it is here to
-    // turn a hole in that function into a loud failure rather than a quietly
-    // stored ride whose mileage is wrong. Partial, because the pair is only
-    // meaningful for grouped routes: without the WHERE, every plain route in a ride
-    // would collide on (ride_id, NULL).
+    // A TRIPWIRE, NOT A GATE. resolveAltGroups() is total and always elects exactly one
+    // active member, so this should be unreachable — it turns a hole in that function
+    // into a loud failure rather than a quietly stored ride whose mileage is wrong.
+    // Partial, because without the WHERE every plain route would collide on
+    // (ride_id, NULL).
     uniqueIndex('uq_route_alt_active')
       .on(t.rideId, t.altGroup)
       .where(sql`${t.altActive} and ${t.altGroup} is not null`),
@@ -1122,18 +988,13 @@ export const routes = pgTable(
 
 // The dots (docs/ideas.md). EVERY point in a route is ordered — `position` is the
 // rider's own sequence and is set for both kinds. `kind` says only whether the
-// point anchors routing: a stop does and a POI does not, so legs connect
-// consecutive STOPS while POIs sit between them without bending the road.
+// point anchors routing.
 //
-// Ziad's call, 2026-08-23, and it replaced a model where only stops carried a
-// position and a POI's place in the list was DERIVED by projecting it onto the
-// route's track. That derivation had no answer before a route existed — every POI
-// on a trackless route reported distance 0 — and the new model needs one, because
-// a point now starts life as a POI and is promoted later. Promotion is a flag
-// flip that moves nothing.
+// It replaced a model where only stops carried a position and a POI's place was
+// DERIVED by projecting it onto the route's track — a derivation with no answer
+// before a route existed, where every POI on a trackless route reported distance 0.
 //
-// The third dot kind — ephemeral shaping waypoints — lives in
-// route_legs.via_points, not here.
+// The third dot kind, ephemeral shaping waypoints, lives in route_legs.via_points.
 export const points = pgTable(
   'points',
   {
@@ -1147,18 +1008,13 @@ export const points = pgTable(
     lat: doublePrecision('lat').notNull(),
     lng: doublePrecision('lng').notNull(),
     name: varchar('name', { length: 255 }).notNull().default(''),
-    // WHERE THE SPOT IS, IN WORDS, AND IT IS PUBLIC — which is what makes it a
-    // column here rather than a field on point_details. Ziad's call,
-    // 2026-09-04: the popup names a place and a rider reading a shared ride has
-    // no way to tell which Shell in Bakersfield is meant.
+    // WHERE THE SPOT IS, IN WORDS, AND IT IS PUBLIC — which is what makes it a column
+    // here rather than a field on point_details: the popup names a place and a rider
+    // reading a shared ride has no way to tell which Shell in Bakersfield is meant.
     //
-    // `point_details.address` is a DIFFERENT field and stays where it is: that
-    // one is owner-only, typed by hand, and sits beside the confirmation number
-    // and the gate code. This one is what Google answered when the point was
-    // added, and it goes out in ride.json to every viewer.
-    //
-    // Null is the ordinary state: a point dropped on the map has no address to
-    // carry, and nothing geocodes one after the fact.
+    // `point_details.address` is a DIFFERENT field: owner-only, typed by hand, beside
+    // the confirmation number. This one is what Google answered when the point was
+    // added. Null is the ordinary state for a point dropped on the map.
     address: varchar('address', { length: 300 }),
     description: varchar('description', { length: 2000 }),
     roles: waypointRoleEnum('roles')
@@ -1167,36 +1023,27 @@ export const points = pgTable(
       .default(sql`'{}'::waypoint_role[]`),
     durationMin: integer('duration_min'),
     // TIME ONLY A LATE GROUP SPENDS, where duration_min is time everyone spends.
-    // Meaningful on a meeting point and nowhere else. Ziad's call, 2026-08-26,
-    // after #67 left it open.
+    // Meaningful on a meeting point and nowhere else.
     //
-    // The two behave differently and that is the whole reason for a second
-    // column: dwell pushes the shared departure later for everybody, slack is a
-    // margin ahead of it that absorbs one group running late without moving
-    // anyone. See routeSchedule and solveStrands in src/subgroups/schedule.ts.
+    // The two behave differently, which is the whole reason for a second column:
+    // dwell pushes the shared departure later for everybody, slack is a margin ahead
+    // of it that absorbs one group running late without moving anyone.
     //
-    // Null is not zero. Null means nobody set any; 0 means none is wanted, and
-    // a meet deliberately run to the minute is a real thing to say.
+    // Null is not zero: null means nobody set any, 0 means none is wanted.
     slackMin: integer('slack_min'),
     distFromStartM: integer('dist_from_start_m'), // server-computed cumulative meters
     // The point's DURABLE identity, and the thing `id` is not.
     //
     // `PUT /api/rides/:id` deletes and re-inserts every route and point on every
-    // save — a deliberate decision on 2026-08-15, and autosave makes it happen
-    // constantly. So `id` churns, and anything that referenced a point across a
-    // save would silently lose it. Rich stop details is the first feature that
-    // needs a point to keep its identity, and this is how it does: the client
-    // owns the uid, the save carries it through unchanged, and point_details is
-    // keyed by it rather than by the row id that keeps changing.
+    // save, so `id` churns and anything referencing a point across a save would
+    // silently lose it. point_details is keyed by this rather than by the row id.
     //
-    // Client-generated rather than server-assigned so the builder can attach
-    // details to a stop it has only just created, before any save has happened.
-    // A payload arriving without one — an old tab, a native JSON file written
-    // before this shipped, an import from another app — gets one server-side.
+    // Client-generated so the builder can attach details to a stop it has only just
+    // created. A payload arriving without one gets one server-side.
     //
-    // Unique per DAY and not globally: it only ever has to disambiguate within
-    // the ride being saved, and a global unique index would make two riders
-    // importing the same file collide for no reason.
+    // Unique per ROUTE and not globally: it only has to disambiguate within the ride
+    // being saved, and a global index would make two riders importing the same file
+    // collide for no reason.
     uid: varchar('uid', { length: 12 }).notNull(),
   },
   (t) => [
@@ -1216,16 +1063,13 @@ export const points = pgTable(
 // check-in and check-out, phone, address, links, and freeform notes.
 //
 // A SEPARATE TABLE, and that is the load-bearing part of the whole feature.
-// `points` is what `ride.json` is built from and what every export serializes,
-// so a confirmation number stored as a column on `points` is one forgetful
-// `select()` away from a public share. Keeping it in its own table means the
-// public path cannot leak it by accident — it has to JOIN to leak it, and a
-// join is visible in review in a way an extra column in a `select *` is not.
-// Same reasoning that splits `user_profiles` from `users`.
+// `points` is what `ride.json` is built from and what every export serializes, so
+// a confirmation number stored as a column there is one forgetful `select()` away
+// from a public share. Its own table has to be JOINed to leak, and a join is
+// visible in review. Same reasoning that splits `user_profiles` from `users`.
 //
-// Keyed by (ride_id, uid) rather than by point_id, because point ids churn on
-// every save — see points.uid above. ride_id cascades, so deleting a ride takes
-// the details with it; a point deleted from a ride is cleaned up by uid at save
+// Keyed by (ride_id, uid) rather than by point_id, because point ids churn on every
+// save. ride_id cascades; a point deleted from a ride is cleaned up by uid at save
 // time, in src/maps/ride-graph.ts.
 export const pointDetails = pgTable(
   'point_details',
@@ -1258,31 +1102,23 @@ export const pointDetails = pgTable(
 )
 
 /**
- * What a rider said about a ride, or about one point on it. #190.
+ * What a rider said about a ride, or about one point on it (#190).
  *
  * **ANCHORED TO A POINT BY `uid`, OR TO THE RIDE WHEN `point_uid` IS NULL.** Two
- * anchors and one table: "is this hotel actually walkable" belongs on the stop,
- * "can we leave an hour earlier" belongs on the ride, and splitting them into two
- * tables would mean two queries, two policies and two chances to forget the gate.
+ * anchors and one table: splitting them would mean two queries, two policies and
+ * two chances to forget the gate.
  *
  * **AN ORPHANED COMMENT DEMOTES TO THE RIDE. IT IS NEVER DELETED BY A SAVE, AND
  * THIS IS THE OPPOSITE OF EVERY OTHER uid-KEYED CHILD OF A RIDE.** point_details
- * and alt_votes are both reconciled away when their uid leaves the payload —
- * correctly, because they are DATA ABOUT a point and a point that is gone has
- * none. A comment is a thing a PERSON said. Deleting a stop must not silently
- * delete somebody's words, so demoteOrphanComments() in src/comments/service.ts
- * sets point_uid to null instead and the thread carries on at ride level.
+ * and alt_votes are reconciled away when their uid leaves the payload, correctly,
+ * because they are DATA ABOUT a point. A comment is a thing a PERSON said, so
+ * demoteOrphanComments() sets point_uid to null and the thread carries on.
  *
- * **`point_label` IS DENORMALIZED FOR EXACTLY THAT MOMENT.** It is the name the
- * point had when the comment was written, copied at write time, and it is what
- * keeps a demoted comment readable — the row it referred to is gone, so there is
- * nothing left to join to and "on Shell, Oakdale" is the only thing that stops
- * the comment being about nothing. It is never updated afterwards: it records
- * what the commenter was looking at, not what the stop is called now.
+ * **`point_label` IS DENORMALIZED FOR EXACTLY THAT MOMENT**: the row it referred
+ * to is gone, so "on Shell, Oakdale" is the only thing that stops the comment
+ * being about nothing. Never updated afterwards.
  *
- * Cascades from `rides` like point_details, for the same reason — the builder
- * deletes every route and point on every save, and a comment that did not survive
- * that would not survive being written.
+ * Cascades from `rides` like point_details, for the same reason.
  */
 export const rideComments = pgTable(
   'ride_comments',
@@ -1319,32 +1155,25 @@ export const rideComments = pgTable(
 
 // HOW A SUGGESTION ENDED, and only ever written together with resolved_at. There
 // is deliberately no `pending` member and no `stale` one: pending is resolved_at
-// being null, and stale is DERIVED from the target route's fingerprint. A member
-// for either would be a second answer to a question the data already answers,
-// and the stale one would additionally be wrong the moment a route was edited back.
+// being null, and stale is DERIVED from the target route's fingerprint — a stored
+// one would be wrong the moment a route was edited back.
 export const suggestionOutcomeEnum = pgEnum('suggestion_outcome', ['accepted', 'discarded', 'withdrawn'])
 
 /**
  * A proposed change to one route of a ride, waiting for an owner to take it or
- * leave it. #190.
+ * leave it (#190).
  *
- * **A SUGGESTION IS A WHOLE DAY, NOT A FIELD-LEVEL DIFF.** The builder deletes
+ * **A SUGGESTION IS A WHOLE ROUTE, NOT A FIELD-LEVEL DIFF.** The builder deletes
  * and re-inserts every route and point on every save, so there is no stable row to
- * hang a per-field change off — `uid` is the only identity that survives, and a
- * diff expressed in uids still has to be reconciled against an owner who has
- * been editing underneath. Storing the proposed route whole means accepting one is
- * a replace, which is an operation this app already does on every save.
+ * hang a per-field change off. Storing the proposed route whole means accepting
+ * one is a replace, which this app already does on every save.
  *
  * **STALENESS IS DERIVED, NEVER STORED.** `base_fingerprint` is what the target
  * route looked like when the suggestion was made; a suggestion is stale when the
- * route's fingerprint no longer matches. Nothing has to sweep, nothing has to be
- * invalidated on save, and a route edited and then edited BACK correctly stops
- * being stale — which a stored flag would get wrong. Same reasoning as
- * junctions() in src/subgroups/policy.ts: the shape changes every time somebody
- * drags something, and a stored answer is wrong the first time they do.
+ * fingerprint no longer matches. Nothing has to sweep, and a route edited and then
+ * edited BACK correctly stops being stale, which a stored flag would get wrong.
  *
- * **THE TARGET IS A DAY `uid`, NEVER AN `id`.** routes.id churns on every save.
- * Same rule alt_votes follows and for the same reason.
+ * **THE TARGET IS A ROUTE `uid`, NEVER AN `id`.** routes.id churns on every save.
  */
 export const rideSuggestions = pgTable(
   'ride_suggestions',
@@ -1377,23 +1206,20 @@ export const rideSuggestions = pgTable(
   (t) => [index('idx_ride_suggestion_ride').on(t.rideId, t.createdAt)],
 )
 
-// Leg i connects stop i to stop i+1, carrying the road-snapped geometry from
-// the Directions API (distance/duration are Directions-authoritative — the
-// mileage authority). via_points are the rider's ephemeral shaping waypoints.
-// THIS IS NOW TRUE OF IMPORTED RIDES TOO. They used to store one leg at
-// position 0 holding the whole track, which the viewer coped with because it
-// renders concat(legs) either way — but the builder's model IS this invariant,
-// so an import could never be opened, saved or exported as valid native JSON.
-// The import cuts the uploaded track at its stops now; see
-// src/maps/track-split.ts, and utils/split-imported-legs.ts for the rows that
-// predate it. The one thing that has not changed: distance/duration on an
-// imported leg come from geometry, not from Directions, because an imported
-// ride never touches the router.
+// Leg i connects point i to point i+1, carrying the road-snapped geometry from the
+// Directions API (distance/duration are Directions-authoritative). via_points are
+// the rider's ephemeral shaping waypoints.
 //
-// Still `route_legs` after routes stopped being called routes, deliberately: the
-// "route" here is the path a route traces, which is what these legs compose, not
-// a reference to the renamed table. The column below is the reference, and it
-// moved.
+// THIS IS NOW TRUE OF IMPORTED RIDES TOO. They used to store one leg at position 0
+// holding the whole track, which the viewer coped with — but the builder's model IS
+// this invariant, so an import could never be opened, saved or exported as valid
+// native JSON. The import cuts the uploaded track at its stops now; see
+// src/maps/track-split.ts. The one thing unchanged: distance and duration on an
+// imported leg come from geometry, because an imported ride never touches the
+// router.
+//
+// Still `route_legs` after routes stopped being called routes: the "route" here is
+// the path a route traces, not a reference to the renamed table.
 export const routeLegs = pgTable(
   'route_legs',
   {
@@ -1413,21 +1239,17 @@ export const routeLegs = pgTable(
   (t) => [uniqueIndex('uq_leg_route_pos').on(t.routeId, t.position)],
 )
 
-// One submission of any kind — a bug, an idea or a question. The word is
-// "report": never "ticket", never "issue" (that belongs to GitHub), never
-// "post". See docs/rider-feedback.md.
+// One submission of any kind — a bug, an idea or a question. The word is "report":
+// never "ticket", never "issue", never "post". See docs/rider-feedback.md.
 //
 // state and status are two columns on purpose; the enums above say why.
 //
 // The audience shapes the columns. Riders are motorcyclists on phones, often
-// outdoors, who will not write reproduction steps and will abandon a form that
-// asks — so `body` is the only required field, `title` is DERIVED from it by
-// titleFrom() rather than requested, and every other text column is optional.
-// frequency is "steps to reproduce" asked in a way someone will actually
-// answer.
+// outdoors, who will not write reproduction steps and will abandon a form that asks
+// — so `body` is the only required field, `title` is DERIVED from it, and every
+// other text column is optional.
 //
-// priority is owner-only and must NEVER reach a rider-facing surface. A rider
-// who sees "your bug is P3" is a support incident.
+// priority is owner-only and must NEVER reach a rider-facing surface.
 export const feedback = pgTable(
   'feedback',
   {
@@ -1490,16 +1312,14 @@ export const feedbackVotes = pgTable(
 
 // What the browser was doing, captured silently so no rider is ever asked a
 // technical question. Its own table rather than a column on feedback because the
-// blob runs 5–50 KB and every board query would otherwise drag it across the
-// wire for nothing.
+// blob runs 5–50 KB and every board query would drag it across the wire.
 //
-// $type<> is a compile-time claim Postgres does not enforce, exactly as on
-// survey_responses.answers above: every read goes through parseDiagnostics(),
-// which is lenient by design and never casts.
+// $type<> is a compile-time claim Postgres does not enforce: every read goes
+// through parseDiagnostics(), which is lenient by design and never casts.
 //
-// NOTHING REACHES THIS COLUMN UNREDACTED. src/feedback/diagnostics.ts strips
-// query strings and fragments from every URL and there are no coordinates in
-// here at all — geolocation is recorded as a permission state, never a position.
+// NOTHING REACHES THIS COLUMN UNREDACTED. src/feedback/diagnostics.ts strips query
+// strings and fragments from every URL, and geolocation is recorded as a permission
+// state, never a position.
 export const feedbackDiagnostics = pgTable('feedback_diagnostics', {
   feedbackId: bigint('feedback_id', { mode: 'number' })
     .primaryKey()
@@ -1535,20 +1355,16 @@ export const feedbackAttachments = pgTable(
   (t) => [index('idx_feedback_attachment').on(t.feedbackId)],
 )
 
-// A rider's reusable library of locations: home, the good fuel stop, the meet
-// point everyone knows. Dropped into any ride as a stop.
+// A rider's reusable library of locations: home, the good fuel stop, the meet point
+// everyone knows. Dropped into any ride as a stop.
 //
-// **A place is COPIED into a ride, never referenced.** Ziad's call, 2026-08-21.
-// There is deliberately no `place_id` on `points`: a ride is a record of what
-// the rider planned, so renaming "Bob's Gas" or deleting it must not reach back
-// and rewrite a ride from last year. It also sidesteps the churn problem
-// entirely — points are deleted and re-inserted on every save, so a foreign key
-// from a point to a place would have to survive that, and there is no reason to
-// make it.
+// **A place is COPIED into a ride, never referenced.** There is deliberately no
+// `place_id` on `points`: a ride is a record of what the rider planned, so renaming
+// "Bob's Gas" must not reach back and rewrite a ride from last year. It also
+// sidesteps the churn problem, points being deleted and re-inserted on every save.
 //
-// The cost, stated plainly so nobody re-litigates it as a bug: fixing a badly
-// placed pin fixes it for FUTURE rides only. Rides that already copied it keep
-// the old coordinates.
+// The cost, stated so nobody re-litigates it as a bug: fixing a badly placed pin
+// fixes it for FUTURE rides only.
 export const placeGroups = pgTable(
   'place_groups',
   {
@@ -1571,15 +1387,12 @@ export const placeGroups = pgTable(
     createdAt: timestamp('created_at').notNull().defaultNow(),
   },
   (t) => [
-    // PARTIAL, and that is what stops the bin blocking a name. Unique on
-    // (owner, name) across every row would mean a rider who trashed "Oregon"
-    // could not create a new "Oregon" — refused on the strength of a row they
-    // cannot see and were told was gone. Excluding trashed rows frees the name
-    // immediately.
+    // PARTIAL, and that is what stops the bin blocking a name: unique on (owner, name)
+    // across every row would mean a rider who trashed "Oregon" could not create a new
+    // one, refused on the strength of a row they cannot see.
     //
-    // The flip side, and it has to be handled in the restore path rather than
-    // here: restoring a group whose name has since been reused collides. Refuse
-    // that restore and say which name is taken.
+    // The flip side, handled in the restore path rather than here: restoring a group
+    // whose name has since been reused collides, and that restore is refused by name.
     uniqueIndex('uq_place_group_name')
       .on(t.ownerId, t.name)
       .where(sql`${t.deletedAt} is null`),
@@ -1597,14 +1410,12 @@ export const places = pgTable(
     ownerId: bigint('owner_id', { mode: 'number' })
       .notNull()
       .references(() => users.id, { onDelete: 'cascade' }),
-    // NULLABLE, and that is a usability decision rather than an omission.
-    // Requiring a group would mean inventing one before a rider can save their
-    // first place, which is friction in front of the very first use. Ungrouped
-    // is a real state and the UI shows it as its own section.
+    // NULLABLE, a usability decision rather than an omission: requiring a group would
+    // mean inventing one before a rider can save their first place. Ungrouped is a
+    // real state and the UI shows it as its own section.
     //
-    // `set null` on delete rather than cascade: deleting a group must not delete
-    // the places in it. Losing a rider's saved locations because they tidied up
-    // a folder name would be unforgivable and is exactly what cascade would do.
+    // `set null` on delete rather than cascade: deleting a group must not delete the
+    // places in it.
     groupId: bigint('group_id', { mode: 'number' }).references(() => placeGroups.id, { onDelete: 'set null' }),
     name: varchar('name', { length: 255 }).notNull(),
     lat: doublePrecision('lat').notNull(),
@@ -1670,30 +1481,24 @@ export type SuggestionOutcome = (typeof suggestionOutcomeEnum.enumValues)[number
 // --- The rider layer --------------------------------------------------------
 
 // WHO A RIDE BELONGS TO, which is an identity rather than a permission. What a
-// rider may DO about a ride is ride_perm below, deliberately a second column:
-// folding the ladder into this enum would make `owner` a rung, and every rule
-// that asks "is this the owner" would start having to ask "or one of these".
+// rider may DO is ride_perm below, deliberately a second column: folding the ladder
+// into this enum would make `owner` a rung, and every rule that asks "is this the
+// owner" would start having to ask "or one of these".
 //
 // `owner` IS HELD BY MORE THAN ONE ROW SINCE #190 — co-owners rather than an
-// ownership transfer, Ziad's call 2026-08-28. rides.owner_id stays singular and
-// keeps meaning the creator and the QUOTA holder, because rides.size_bytes rolls
-// up to users.used_bytes through one owner and reconcileUsedBytes() rebuilds
-// every tally on that assumption. Co-ownership is a roster role; the bytes
-// belong to the creator.
+// ownership transfer. rides.owner_id stays singular and keeps meaning the creator
+// and the QUOTA holder, because rides.size_bytes rolls up to users.used_bytes
+// through one owner. Co-ownership is a roster role; the bytes belong to the creator.
 export const rideRoleEnum = pgEnum('ride_role', ['owner', 'rider'])
 
-// WHAT A MEMBER MAY DO to the ride they are on. Least to most: look at it,
-// discuss it, propose changes to it, change it. #190.
+// WHAT A MEMBER MAY DO to the ride they are on. Least to most: look at it, discuss
+// it, propose changes to it, change it (#190).
 //
 // THE MEMBER ORDER IS NOT THE RANK AND CANNOT BE REORDERED LATER. Same trap as
-// visibilityEnum: `ALTER TYPE ... ADD VALUE` appends, so a pgEnum's order is
-// fixed the route it is created and putting a new rung "in the right place" means
-// rebuilding every column using the type. Nothing may sort by this, compare two
-// members of it, or read one and decide what it outranks — PERM_RANK in
-// src/members/policy.ts is the only ordering, and every gate asks that.
-//
-// It happens to read in ascending order today. That is a convenience for a human
-// reading the file and is not something any code may rely on.
+// visibilityEnum: `ALTER TYPE ... ADD VALUE` appends, so putting a new rung "in the
+// right place" means rebuilding every column using the type. Nothing may sort by
+// this or compare two members — PERM_RANK in src/members/policy.ts is the only
+// ordering. It happens to read in ascending order today; nothing may rely on that.
 export const ridePermEnum = pgEnum('ride_perm', ['view', 'comment', 'suggest', 'edit'])
 
 // Distinct from role, because a rider who declined is still on the roster —
@@ -1705,12 +1510,10 @@ export const friendshipStatusEnum = pgEnum('friendship_status', ['pending', 'acc
 // A NAMED SET OF RIDERS SHARING AN APPROACH — the Oakland contingent, the
 // Sacramento contingent. The primitive #67 is built on.
 //
-// NOT CHURNED ON SAVE, unlike routes and points. The builder's PUT deletes and
-// re-inserts every route of a ride, and if it did the same here every
-// ride_members.subgroup_id would be orphaned on the first edit. So
-// insertRideGraph reconciles these BY UID — upsert what the payload carries,
-// delete what it does not — which is why they have a uid at all and why ids
-// here are safe to reference where routes' and points' are not.
+// NOT CHURNED ON SAVE, unlike routes and points: if the PUT deleted and re-inserted
+// these, every ride_members.subgroup_id would be orphaned on the first edit. So
+// insertRideGraph reconciles them BY UID, which is why they have a uid at all and
+// why ids here are safe to reference where routes' and points' are not.
 export const rideSubgroups = pgTable(
   'ride_subgroups',
   {
@@ -1733,18 +1536,14 @@ export const rideSubgroups = pgTable(
   (t) => [uniqueIndex('uq_subgroup_ride_uid').on(t.rideId, t.uid), index('idx_subgroup_ride').on(t.rideId)],
 )
 
-// A rider's relationship to a ride: the primitive several planned features
-// assume and none of them owns.
+// A rider's relationship to a ride: the primitive several planned features assume
+// and none of them owns. Every ride insert seeds its owner a row here, in the same
+// transaction.
 //
-// LIVE SINCE #68 — the note that used to sit here saying the table was schema
-// only predates the invite path and was wrong from the route seedOwner() landed.
-// Every ride insert seeds its owner a row here, in the same transaction.
-//
-// TWO AXES, THREE COLUMNS, AND THEY ARE ALL DIFFERENT QUESTIONS. `role` is who
-// the ride belongs to, `perm` is what this rider may do to it, and `rsvp` is
-// whether they are coming. A rider who declined still holds their permission
-// level, and an owner's `perm` is never read at all — see rankOf() in
-// src/members/policy.ts, where `owner` outranks the whole ladder.
+// TWO AXES, THREE COLUMNS, AND THEY ARE ALL DIFFERENT QUESTIONS. `role` is who the
+// ride belongs to, `perm` is what this rider may do to it, and `rsvp` is whether
+// they are coming. A rider who declined still holds their permission level, and an
+// owner's `perm` is never read at all — `owner` outranks the whole ladder.
 export const rideMembers = pgTable(
   'ride_members',
   {
@@ -1756,18 +1555,16 @@ export const rideMembers = pgTable(
       .notNull()
       .references(() => users.id, { onDelete: 'cascade' }),
     role: rideRoleEnum('role').notNull().default('rider'),
-    // WHAT THIS RIDER MAY DO, defaulting to `suggest` — the top of what an
-    // invitation grants on its own. Edit is a deliberate promotion by an owner
-    // and never something an invite hands out, which is the whole shape of #190.
+    // WHAT THIS RIDER MAY DO, defaulting to `suggest` — the top of what an invitation
+    // grants on its own. Edit is a deliberate promotion by an owner and never
+    // something an invite hands out, which is the whole shape of #190.
     //
-    // Existing rows backfilled to `suggest` rather than to `view`: it grants
-    // comment and suggest rights to riders whose owners never chose that, which
-    // was accepted because the alternative makes every existing owner promote
-    // their roster by hand before the feature does anything at all.
+    // Existing rows backfilled to `suggest` rather than `view`: it grants comment and
+    // suggest rights to riders whose owners never chose that, accepted because the
+    // alternative makes every existing owner promote their roster by hand.
     //
-    // An owner's value here is never read. It is left at the default rather than
-    // stamped to `edit`, so that demoting a co-owner is one column changing and
-    // not two that can disagree.
+    // An owner's value here is never read, and is left at the default rather than
+    // stamped to `edit`, so demoting a co-owner is one column changing and not two.
     perm: ridePermEnum('perm').notNull().default('suggest'),
     rsvp: rsvpEnum('rsvp').notNull().default('invited'),
     // Which approach this rider is on. NULLABLE AND THAT IS LOAD-BEARING: a
@@ -1778,14 +1575,11 @@ export const rideMembers = pgTable(
     subgroupId: bigint('subgroup_id', { mode: 'number' }).references((): AnyPgColumn => rideSubgroups.id, {
       onDelete: 'set null',
     }),
-    // WHICH BIKE THEY ARE BRINGING, which #52 needs and which a rider's default
-    // bike cannot answer on its own: the whole point of owning two is that you
-    // pick one per ride. Null falls back to their default — see bikesOnRide()
-    // in src/bikes/service.ts — so a rider who has never said still counts
-    // toward the group's range.
-    //
-    // `set null` rather than cascade: selling a bike must not throw its owner
-    // off every ride they were on.
+    // WHICH BIKE THEY ARE BRINGING, which #52 needs and which a rider's default bike
+    // cannot answer on its own: the point of owning two is that you pick one per ride.
+    // Null falls back to their default, so a rider who has never said still counts
+    // toward the group's range. `set null` rather than cascade: selling a bike must
+    // not throw its owner off every ride they were on.
     bikeId: bigint('bike_id', { mode: 'number' }).references((): AnyPgColumn => bikes.id, { onDelete: 'set null' }),
     // `set null` rather than cascade: the rider who did the inviting may leave,
     // and losing their account must not evict everyone they brought.
@@ -1840,35 +1634,27 @@ export const friendships = pgTable(
   ],
 )
 
-// Who a rider watches. A SECOND RELATION, and deliberately not a mode of the
-// first one above.
+// Who a rider watches. A SECOND RELATION, and deliberately not a mode of
+// `friendships`.
 //
 // **DIRECTION IS THE DATA HERE, WHICH IS WHY THERE IS NO CANONICAL ORDERING.**
-// `friendships` holds one row per pair under `rider_a < rider_b` because "are
-// these two friends" is one question with one answer; following is two
-// independent questions and A following B says nothing about B following A. So
-// there are two columns with distinct meanings, two rows for a mutual follow,
-// and no `ck_..._order` check — copying that constraint here would make the
-// relation symmetric, which is the whole thing it is not.
+// `friendships` holds one row per pair under `rider_a < rider_b` because "are these
+// two friends" is one question with one answer; following is two independent
+// questions. So there are two columns with distinct meanings, two rows for a mutual
+// follow, and no order check — copying that constraint here would make the relation
+// symmetric, which is the whole thing it is not.
 //
-// **NO STATUS COLUMN, BECAUSE THERE IS NOTHING TO ACCEPT.** A friendship has a
-// lifecycle — pending, accepted, blocked — and needs a status to sit in. A
-// follow is done the moment it is made and undone by deleting the row. A
-// `pending` follow would be a friend request with a different name.
+// **NO STATUS COLUMN, BECAUSE THERE IS NOTHING TO ACCEPT.** A follow is done the
+// moment it is made and undone by deleting the row; a `pending` follow would be a
+// friend request with a different name.
 //
 // **FOLLOWING GRANTS NO VISIBILITY. NOT ANY. EVER.** It decides what reaches a
-// rider's feed and nothing else — `canView()` in src/access/policy.ts does not
-// know this table exists and must not learn. A one-way relationship the other
-// rider never agreed to cannot be a key to anything: if following granted what
-// friendship grants, `friends` visibility would be openable by anyone willing
-// to press a button, and the level would mean nothing. The feed shows PUBLIC
-// rides, which the follower could already have seen on /explore; what following
-// buys is that they no longer have to go looking.
+// rider's feed and nothing else — `canView()` does not know this table exists and
+// must not learn. If following granted what friendship grants, `friends` visibility
+// would be openable by anyone willing to press a button.
 //
-// **A BLOCK REMOVES THE ROW IN BOTH DIRECTIONS AND REFUSES A NEW ONE.** A block
-// that left a follow standing would leave the blocked rider watching the
-// blocker's feed, which is precisely what a block is for stopping. See
-// src/follows/policy.ts.
+// **A BLOCK REMOVES THE ROW IN BOTH DIRECTIONS AND REFUSES A NEW ONE**, or the
+// blocked rider goes on watching the blocker's feed.
 export const follows = pgTable(
   'follows',
   {
@@ -1896,15 +1682,12 @@ export const follows = pgTable(
 // One member's pick among a route's alternates.
 //
 // KEYED BY (ride_id, route_uid), NOT BY route_id, and cascading from `rides` rather
-// than from `routes` — the same arrangement point_details has and for the same
-// reason. The builder's PUT deletes and re-inserts every route of a ride on every
-// save, so a foreign key to `routes` would take every vote with it the first time
-// anybody moved a stop. `routes.uid` is what survives that.
+// than `routes` — the same arrangement point_details has: the builder's PUT deletes
+// and re-inserts every route on every save, so a foreign key to `routes` would take
+// every vote with it the first time anybody moved a stop.
 //
-// The flip side is the same too: nothing cleans these up automatically, so
-// `reconcileVotes()` in src/votes/service.ts deletes rows whose uid left the
-// payload. Skip that and a vote for a deleted alternate lives forever and keeps
-// counting.
+// The flip side is the same too: `reconcileVotes()` deletes rows whose uid left the
+// payload, or a vote for a deleted alternate lives forever and keeps counting.
 export const altVotes = pgTable(
   'alt_votes',
   {
@@ -1919,51 +1702,40 @@ export const altVotes = pgTable(
     updatedAt: timestamp('updated_at').notNull().defaultNow(),
   },
   (t) => [
-    // THE COMPOSITE KEY IS THE ANTI-DOUBLE-VOTE MECHANISM, enforced by Postgres
-    // rather than by a check a second code path could forget — the same argument
-    // feedback_votes makes about (feedback_id, user_id).
+    // THE COMPOSITE KEY IS THE ANTI-DOUBLE-VOTE MECHANISM, enforced by Postgres rather
+    // than by a check a second code path could forget.
     //
-    // What it CANNOT enforce is one vote per alt GROUP, because a group has no
-    // durable id: it forms and dissolves as a rider edits, and `alt_group` is
-    // renumbered on every save. castVote() resolves the group from the current
-    // routes and clears the member's other votes in it. That rule lives in the
-    // service and nowhere else.
+    // What it CANNOT enforce is one vote per alt GROUP, because a group has no durable
+    // id: it forms and dissolves as a rider edits, and `alt_group` is renumbered on
+    // every save. castVote() resolves the group from the current routes and clears the
+    // member's other votes in it.
     primaryKey({ columns: [t.rideId, t.routeUid, t.userId] }),
     index('idx_alt_vote_ride').on(t.rideId),
   ],
 )
 
-// WHO IS ON THIS STRETCH OF ROAD. Ziad's call, 2026-09-06, and it supersedes
-// `routes.subgroup_id` as the answer to that question without removing it.
+// WHO IS ON THIS STRETCH OF ROAD. It supersedes `routes.subgroup_id` as the answer
+// to that question without removing it.
 //
 // A SUBGROUP COULD NOT SAY IT. A route carried one subgroup or none, and a rider
 // belonged to one subgroup for the whole ride — so "three riders join at Portland
-// and one of them peels off at Eugene" had nowhere to live: those three share a
-// group, and the group is what a route is tagged with. Every real ride Ziad has
-// planned breaks it the same way, because the set of people riding together
-// changes for reasons that have nothing to do with where anybody set off from.
+// and one of them peels off at Eugene" had nowhere to live. Every real ride breaks
+// it the same way, because the set of people riding together changes for reasons
+// that have nothing to do with where anybody set off from.
 //
 // SO THE PRIMITIVE IS THE RIDER, NOT THE GROUP. A group survives as a convenience
-// for assigning several riders at once and as the thing a meeting point is
-// proposed FOR — it still answers "where does this lot set off from" — but it is
-// no longer what says who rides a route.
+// for assigning several riders at once and as the thing a meeting point is proposed
+// FOR; it is no longer what says who rides a route.
 //
-// KEYED ON `route_uid` AND CASCADING FROM `rides`, NOT FROM `routes`. `routes.id`
-// churns on every save — the builder's PUT deletes and re-inserts the whole graph
-// — so an id here would be dangling the first time anybody moved a stop. Same
-// arrangement as `alt_votes` and `point_details`, and it carries the same
-// obligation: `reconcileRouteRiders()` deletes rows whose uid left the payload, and
-// `insertRideGraph` calls it. Skip that and a deleted route keeps its roster
-// forever.
+// KEYED ON `route_uid` AND CASCADING FROM `rides`, NOT FROM `routes`, since
+// `routes.id` churns on every save. Same arrangement as `alt_votes` and
+// `point_details`, and the same obligation: `reconcileRouteRiders()` deletes rows
+// whose uid left the payload.
 //
 // ROWS ARE AN OVERRIDE, AND THEIR ABSENCE IS NOT "NOBODY". A route with no rows
-// INHERITS the set from the route before it, and the first route of a ride with
-// no rows is ridden by the whole roster — Ziad's call, 2026-09-06, because that
-// is how a ride actually reads: you say who leaves and who joins, not who is
-// present on each of nine routes. `resolveRouteRiders()` in src/riders/policy.ts
-// is the walk, and it is the only place that rule lives. A route ridden by
-// nobody is not a thing anyone means, which is what makes the absence
-// unambiguous.
+// INHERITS the set from the route before it, and the first route of a ride with none
+// is ridden by the whole roster — that is how a ride reads: you say who leaves and
+// who joins. `resolveRouteRiders()` is the walk and the only place the rule lives.
 export const routeRiders = pgTable(
   'route_riders',
   {
@@ -1974,25 +1746,17 @@ export const routeRiders = pgTable(
     riderId: bigint('rider_id', { mode: 'number' })
       .notNull()
       .references(() => users.id, { onDelete: 'cascade' }),
-    // WHICH GROUP THEY ARE RIDING AS, ON THIS ROUTE. Ziad's call, 2026-09-06,
-    // and it is a DIFFERENT QUESTION from `ride_members.subgroup_id`, which is
-    // the group a rider BELONGS to on this ride — their home group, the one they
-    // set off with. This is who they are riding as on one stretch: VMCSC on
-    // their own feeder, the main group from the moment they join it.
+    // WHICH GROUP THEY ARE RIDING AS, ON THIS ROUTE — a DIFFERENT QUESTION from
+    // `ride_members.subgroup_id`, which is the group a rider BELONGS to on this ride.
+    // This is who they are riding as on one stretch: VMCSC on their own feeder, the
+    // main group from the moment they join it.
     //
     // A GROUP DOES NOT GET DELETED WHEN IT MERGES, IT JUST STOPS APPLYING. VMCSC
-    // survives on the route it rode as VMCSC, which is exactly what a later split
-    // reads back to offer "split off as VMCSC again" with those riders prefilled
-    // — the common case on the way home, and the reason this is stored per route
-    // rather than as a flag on the group.
+    // survives on the route it rode as VMCSC, which is what a later split reads back
+    // to offer "split off as VMCSC again" with those riders prefilled.
     //
-    // NULL MEANS THE MAIN GROUP, not "no group". Everyone riding together is
-    // riding as the main group, and the main group is `subgroups[0]` rather than
-    // a row anything points at — so a null here says "with everybody", which is
-    // what an inherited row on a shared route should say.
-    //
-    // `set null` on delete, matching `routes.subgroup_id` before it: deleting a
-    // group makes its routes everybody's rather than destroying them.
+    // NULL MEANS THE MAIN GROUP, not "no group": everyone riding together is riding as
+    // the main group. `set null` on delete, matching `routes.subgroup_id`.
     subgroupId: bigint('subgroup_id', { mode: 'number' }).references(() => rideSubgroups.id, {
       onDelete: 'set null',
     }),
@@ -2005,26 +1769,20 @@ export type PlaceRow = typeof places.$inferSelect
 export type RideMemberRow = typeof rideMembers.$inferSelect
 // WHAT A RIDER HAS TURNED OFF, AND ONLY WHAT THEY HAVE TURNED OFF.
 //
-// **A ROW IS AN ANSWER; THE ABSENCE OF ONE IS "NEVER ASKED".** The default lives
-// in src/notifications/policy.ts — email on, browser off — and this table stores
-// the deviation, exactly as `home_label` stores a name and lets "Home" live in
-// code. That is what lets us change our mind about a default and have it reach
-// every rider who never expressed an opinion while reaching none of the riders
-// who did, and it is the only arrangement that works on the FIRST new event: a
-// `default true` column writes nothing for existing riders, because their row
-// does not exist yet, so the default has to be in code regardless.
+// **A ROW IS AN ANSWER; THE ABSENCE OF ONE IS "NEVER ASKED".** The default lives in
+// src/notifications/policy.ts — email on, browser off — and this table stores the
+// deviation, as `home_label` stores a name and lets "Home" live in code. That is
+// what lets a default change reach every rider who never expressed an opinion and
+// none of the riders who did, and it is the only arrangement that works on the
+// FIRST new event: a `default true` column writes nothing for a row that does not
+// exist yet.
 //
-// **`event` IS A varchar AND NOT A pgEnum, DELIBERATELY.** Nearly every other
-// closed vocabulary here is an enum and should be; this one is the exception
-// because the whole point of a notification catalog is that the next one is a
-// code change. `ALTER TYPE … ADD VALUE` per event would make "tell riders about
-// X" a migration and a deploy, and would grow the same ordering scar tissue
-// `visibility` carries. src/notifications/catalog.ts is the validator, and
+// **`event` IS A varchar AND NOT A pgEnum, DELIBERATELY.** The whole point of a
+// notification catalog is that the next one is a code change; `ALTER TYPE … ADD
+// VALUE` per event would make "tell riders about X" a migration and a deploy.
 // `isEvent()` is what every read goes through — a row naming an event this build
 // has never heard of is IGNORED rather than trusted, which is also what makes
 // removing an event safe with no migration behind it.
-//
-// Cascades from `users`, so an account purge takes a rider's answers with it.
 export const notificationPrefs = pgTable(
   'notification_prefs',
   {
@@ -2047,27 +1805,19 @@ export const notificationPrefs = pgTable(
 // A BROWSER NOTIFICATION WAITING TO BE RAISED.
 //
 // **THIS EXISTS BECAUSE CHROME'S NOTIFICATION API ONLY FIRES FROM AN OPEN PAGE.**
-// `new Notification(...)` is a call a live document makes; it is not a delivery
-// channel a server can reach on its own — that is Web Push, which needs a
-// service worker, a VAPID key pair through the deploy allow-list AND the compose
-// block, and a dependency. Ziad's call, 2026-09-07, was the browser's own
-// notification and not push, so the server's half of the job is to LEAVE the
-// message somewhere the next open page will find it. This table is that
-// somewhere, and `public/js/notifications.js` is what polls it.
+// `new Notification(...)` is a call a live document makes, not a delivery channel a
+// server can reach — that is Web Push, which needs a service worker, a VAPID pair
+// and a dependency. So the server's half of the job is to LEAVE the message where
+// the next open page will find it, and `public/js/notifications.js` polls it.
 //
-// **`delivered_at` IS WHAT STOPS A SECOND RAISE**, not a delete. A row survives
-// being shown so that two tabs cannot both raise it (the poll claims by
-// stamping) and so that a failure to raise is distinguishable from a message
-// that was never stored. Rows are pruned on read rather than by a timer — the
-// poll deletes that rider's delivered rows older than the retention window,
-// which is self-limiting, costs no sixth `unref()`d interval, and cannot run for
-// a rider who has stopped visiting (whose rows the account purge takes anyway).
+// **`delivered_at` IS WHAT STOPS A SECOND RAISE**, not a delete: a row survives
+// being shown so two tabs cannot both raise it and so a failure to raise is
+// distinguishable from a message that was never stored. Rows are pruned on read
+// rather than by a timer, which is self-limiting and costs no sixth interval.
 //
 // **NOTHING IS WRITTEN HERE FOR A RIDER WHO HAS THE BROWSER CHANNEL OFF.** The
-// preference is checked before the insert, not before the raise, so turning the
-// channel on does not surface a backlog of everything that happened while it was
-// off — which would be a wall of toasts on the next page load and is nobody's
-// idea of switching a setting on.
+// preference is checked before the insert, so turning the channel on does not
+// surface a backlog of everything that happened while it was off.
 export const notifications = pgTable(
   'notifications',
   {
@@ -2092,12 +1842,10 @@ export const notifications = pgTable(
     // WHEN A TOAST WAS RAISED FOR IT. Set by the poll, which claims and stamps
     // in one statement so two tabs cannot both raise the same message.
     deliveredAt: timestamp('delivered_at'),
-    // WHEN THE RIDER READ IT IN THE CENTER, which is a DIFFERENT question from
-    // whether a toast fired and must not share a column with it. Ziad's call,
-    // 2026-09-07, when the account menu grew a Notifications item with an unread
-    // count: a rider with browser notifications on would otherwise have every
-    // badge silently cleared by a toast they may never have looked at, and a
-    // rider with them off — which is the default — would have `delivered_at`
+    // WHEN THE RIDER READ IT IN THE CENTER, a DIFFERENT question from whether a toast
+    // fired, which must not share a column with it: a rider with browser notifications
+    // on would otherwise have every badge silently cleared by a toast they never
+    // looked at, and a rider with them off — the default — would have `delivered_at`
     // null forever and every notification permanently unread.
     readAt: timestamp('read_at'),
   },
@@ -2124,18 +1872,15 @@ export const notifications = pgTable(
 //
 // A release note becomes an ordinary `notifications` row for every rider (#288),
 // raised on boot by the build that carries the note. Two things make that need a
-// table rather than a flag in memory: the fan-out must happen ONCE across
-// restarts, and blue/green starts TWO containers per deploy, which race.
+// table: the fan-out must happen ONCE across restarts, and blue/green starts TWO
+// containers per deploy, which race.
 //
 // **THE PRIMARY KEY IS THE CLAIM.** An insert with `onConflictDoNothing` either
-// wins or reports zero rows, atomically, in one statement — so the loser skips
-// the fan-out without a lock, a lease or an expiry. Same reasoning as the
-// `mkdir` deploy lock: test-then-write has a window that hands it to both.
+// wins or reports zero rows, atomically, so the loser skips the fan-out without a
+// lock or a lease. Same reasoning as the `mkdir` deploy lock.
 //
-// The id is a slug of the release's own heading, minted by
-// src/releases/latest.ts. It is deliberately NOT the build sha — every deploy
-// has a new one whether or not a release note was written, so keying on the
-// build re-announces an unchanged entry on the next unrelated deploy.
+// The id is a slug of the release's own heading, deliberately NOT the build sha:
+// every deploy has a new one whether or not a note was written.
 export const announcedReleases = pgTable('announced_releases', {
   id: varchar('id', { length: 120 }).primaryKey(),
   announcedAt: timestamp('announced_at').notNull().defaultNow(),
