@@ -103,30 +103,22 @@
 // THE PALETTE, SHOWN AS ITSELF. Ziad's call, 2026-09-07.
 //
 // Every chip is a `var()` on a token the theme redefines, so the bar follows the
-// choice with no script and cannot drift from what the app paints — it is not a
-// picture OF the palette, it is the palette. `restamp()` in autosave.js flips
-// the attribute and this repaints with everything else.
+// choice with no script and cannot drift — it is not a picture OF the palette, it
+// is the palette.
 //
 // ONE ROW THAT WRAPS RATHER THAN A GRID: nine chips is a strip on any width the
 // settings column takes, and a grid would leave a ragged last row on a phone.
-// FULL WIDTH, AGAINST THE 85ch ITS SIBLING PARAGRAPHS TAKE. The bar is a `<p>`,
-// so it caught `.setting-topic > p`'s measure and stopped two thirds of the way
-// across — a measure is for prose and this is a picture. It spans the row of
-// controls under it now, which is what it is a picture OF.
+// FULL WIDTH, AGAINST THE 85ch ITS SIBLING PARAGRAPHS TAKE — the bar is a `<p>`,
+// so it caught `.setting-topic > p`'s measure, and a measure is for prose.
 //
 // **SCOPED, BECAUSE A BARE `.palette-bar` LOSES.** `.setting-topic > p` is a
 // class AND a type selector, which outranks a single class however far down the
-// file it sits — so `max-width: none` on `.palette-bar` alone was simply
-// discarded, with the bar rendering at exactly the width it had before and
-// nothing to say why.
-// SHOW ME AROUND IS A FOLDING CARD AT THE TOP OF PROFILE (#339). The card,
-// the eased fold and the disc are `_fold.scss`'s, shared with the release
-// notes; what is decided here is the bar. Open, the summary is the heading
-// with its lead under it; closed, the same summary IS the subtle one-line
-// bar — heading, lead, disc — because a folded <details> shows nothing but
-// its summary, so there is no second drawing to keep in step. The disc sits at
-// the end of the bar by flex rather than by absolute position, which is what
-// lets the heading and the lead wrap under it on a phone.
+// file it sits, so `max-width: none` alone was simply discarded.
+// SHOW ME AROUND IS A FOLDING CARD AT THE TOP OF PROFILE (#339). The card, the
+// eased fold and the disc are `_fold.scss`'s; what is decided here is the bar.
+// Open, the summary is the heading with its lead under it; closed, the same
+// summary IS the one-line bar, because a folded <details> shows nothing but its
+// summary — so there is no second drawing to keep in step.
 .fold-card.setting-topic {
   @include fold.fold-card;
 
@@ -255,22 +247,18 @@
 }
 
 // THE SAVE STATE IS A BORDER ON THE GROUP, since 2026-09-07. Ziad's call: every
-// option saves itself and the Save buttons go, so the thing that used to be a
-// button plus a "Saved" chip is now the edge of the group it belongs to.
+// option saves itself and the Save buttons go, so what used to be a button plus a
+// "Saved" chip is now the edge of the group it belongs to.
 //
-// **AMBER IS UNSAVED, NOT RED**, and that is the one place this departs from how
-// it was asked for. `error` already owns red and a failed save is the state a
-// rider must not mistake for anything else — in this app's own vocabulary red is
-// a verdict and amber is advice, which is exactly the difference between "you
-// have not saved yet" and "this did not save".
+// **AMBER IS UNSAVED, NOT RED**, which is the one place this departs from how it
+// was asked for: `error` already owns red, and in this app's vocabulary red is a
+// verdict and amber is advice.
 //
-// A BORDER THAT IS ALWAYS THERE, transparent at rest rather than absent. Adding
-// a border on the first keystroke would move every control in the group down by
-// two pixels as the rider typed.
+// A BORDER THAT IS ALWAYS THERE, transparent at rest rather than absent — adding
+// one on the first keystroke would move every control down by two pixels.
 //
 // `$pending` and not `$warning` for the amber: `$warning` is a black-legend field
-// tuned to carry type, and as a hairline on white it measures about 2.2:1. Same
-// trap the split dialog's warning line records.
+// tuned to carry type, and as a hairline on white it measures about 2.2:1.
 .setting-form,
 .profile-form fieldset {
   border: 2px solid transparent;
@@ -296,20 +284,15 @@
 
 // A GROUP THAT SHOWS ITS EDGE AT REST.
 //
-// `.setting` is deliberately unboxed — boxing every section makes a settings
-// page read as a run of warnings — and that holds for a page of six radio
-// groups under six headings. The notification groups are the case it does not
-// hold for: five tables of checkboxes with nothing between them, where the
-// question is which set a given row belongs to, and a heading alone does not
-// answer it once the sets sit two-abreast.
+// `.setting` is deliberately unboxed — boxing every section makes a settings page
+// read as a run of warnings. The notification groups are the case that does not
+// hold for: five tables of checkboxes with nothing between them, where a heading
+// alone does not say which set a row belongs to once they sit two-abreast.
 //
-// **IT ONLY PAINTS A BORDER THAT WAS ALREADY RESERVED.** Every `.setting-form`
-// carries a transparent 2px edge so the save state has somewhere to appear
-// without moving the controls down two pixels; this colors the resting state of
-// that same edge, so the box costs no layout at all. The `[data-save]` rules
-// above outrank this on specificity by construction — a class against a class
-// plus an attribute — so the sequence a rider sees is gray, amber, green, gray,
-// rather than a border appearing out of nothing and vanishing again.
+// **IT ONLY PAINTS A BORDER THAT WAS ALREADY RESERVED**, so the box costs no
+// layout at all. The `[data-save]` rules above outrank this by construction, so
+// the sequence is gray, amber, green, gray rather than a border appearing out of
+// nothing.
 .setting-form--boxed {
   border-color: $grey;
 }
@@ -365,16 +348,12 @@
   }
 }
 
-// A radio group drawn as a stack of rows rather than as a form: each choice
-// carries its own worked example, because the labels alone ("Hours", "Minutes")
-// do not tell a rider what they are about to see in the field. The example is
-// the actual output of the formatter, not a string typed here, so it cannot go
-// stale — see DURATION_FORMAT_CHOICES in src/maps/duration.ts. **IT IS A
-// TOOLTIP SINCE 2026-09-21, NOT A LINE UNDER THE LABEL**: a sentence under every
-// option made a three-option group 270px tall, and the label is what a rider
-// picks from. `Choice` in views/account-page.tsx carries it as `title` and as
-// tips.js's inline body; `.choice-example` survives only as hidden text inside
-// the label, for the accessible name.
+// A radio group drawn as a stack of rows: each choice carries its own worked
+// example, because the labels alone ("Hours", "Minutes") do not tell a rider what
+// they are about to see. The example is the formatter's actual output, so it
+// cannot go stale. **IT IS A TOOLTIP SINCE 2026-09-21, NOT A LINE UNDER THE
+// LABEL**: a sentence under every option made a three-option group 270px tall.
+// `.choice-example` survives only as hidden text, for the accessible name.
 .choice-set {
   margin: 0 0 1rem;
   padding: 0;
@@ -523,12 +502,11 @@
 // NOTIFICATIONS — thirteen events across two channels, as a real <table>.
 //
 // **A TABLE AND NOT A GRID OF DIVS, BECAUSE IT IS ONE.** Two column headers
-// govern every row, and a screen reader that can say "Email, checkbox, checked"
-// while moving down the column is doing something no `display: grid` over a list
-// of labels can. The visible column heads are the only labels those checkboxes
-// would otherwise have — the per-box text is `.visually-hidden` because
-// repeating "Email me when somebody comments" beside a two-letter header would
-// make the table unreadable for everyone who can see it.
+// govern every row, and a screen reader saying "Email, checkbox, checked" while
+// moving down the column is doing something no `display: grid` over a list of
+// labels can. The visible column heads are the only labels those checkboxes would
+// otherwise have — the per-box text is `.visually-hidden` because repeating it
+// beside a two-letter header would make the table unreadable for everyone else.
 //
 // It scrolls inside its own container rather than letting the page scroll
 // sideways, which is the house rule for every wide thing.
@@ -670,17 +648,14 @@
 }
 
 // A grid rather than a flex row, so every control sits in ONE shared column and
-// their centers line up down the page. `justify-content: space-between` lined up
-// their right EDGES, and the three controls are three different widths — a guide
-// sign, an octagon, and a line of text standing in for a button with nothing to
-// do — so three different centers came down a section that reads as a stack of
-// signs.
+// their centers line up. `space-between` lined up their right EDGES, and the
+// three controls are three different widths — a guide sign, an octagon, and a
+// line of text — so three different centers came down a section that reads as a
+// stack of signs.
 //
 // The track is a fixed width and not `max-content` because each row is its own
-// grid: sizing to content would size it to that row's own control and put the
-// centers straight back where they were. A control wider than the track
-// overflows evenly on both sides and stays centered, so the number is a
-// comfortable fit rather than a hard limit.
+// grid: sizing to content would put the centers straight back where they were. A
+// control wider than the track overflows evenly and stays centered.
 .gtfo-item {
   display: grid;
   grid-template-columns: minmax(0, 1fr) 12rem;
@@ -858,18 +833,16 @@
   }
 }
 
-// WHO YOU ARE, which is the one fieldset on this form holding two unlike things:
-// the identity fields, and the picture they are a picture OF.
+// WHO YOU ARE, the one fieldset on this form holding two unlike things: the
+// identity fields, and the picture they are a picture OF.
 //
-// FULL-SPAN AND THEN TWO COLUMNS OF ITS OWN, rather than letting the picture be
-// a sibling cell of `.two-col`. As a sibling it took a whole grid cell for a
-// 96px circle and four controls, and it pushed Home base and Public starting
-// point into different rows — those two are the one place on this form where a
-// rider is genuinely comparing two answers, so they have to sit side by side.
+// FULL-SPAN AND THEN TWO COLUMNS OF ITS OWN, rather than letting the picture be a
+// sibling cell of `.two-col`. As a sibling it took a whole grid cell for a 96px
+// circle and pushed Home base and Public starting point into different rows —
+// those two are the one place a rider is genuinely comparing two answers.
 //
-// The picture is on the RIGHT and its track is fixed: it is 96px of circle plus
-// two short buttons, so a fractional track would stretch it across half the page
-// at wide widths and leave the fields cramped beside it.
+// The picture is on the RIGHT with a fixed track: a fractional one would stretch
+// 96px of circle across half the page at wide widths.
 .who-you-are .who-grid {
   display: grid;
   gap: 1.5rem 2rem;
@@ -1090,22 +1063,18 @@
   min-width: 0;
 }
 
-// A GUIDE SIGN AT ABOUT A THIRD SCALE. Same construction as `.btn` — the green
-// field with a white keyline set in from the edge, which is what a US guide sign
-// actually is — built locally rather than through `sign-field()`, following the
-// `fb-sign()` precedent in _feedback.scss: that mixin also sets a button's
-// padding, its gap and its arrow suppression, and this is none of those.
+// A GUIDE SIGN AT ABOUT A THIRD SCALE. Same construction as `.btn` — green field,
+// white keyline set in from the edge — built locally rather than through
+// `sign-field()`, following the `fb-sign()` precedent: that mixin also sets a
+// button's padding, gap and arrow suppression, and this is none of those.
 //
 // **THE KEYLINE IS 2px/3px AND NOT 3px/5px, WHICH IS THE WHOLE POINT OF A TINY
 // ONE.** Those widths are tuned for a full-size button; kept at this scale the
-// ring is most of the sign and the legend has nowhere to sit. Scaled in px
-// rather than em because a keyline is a drawn line — at 0.72rem an em-based 3px
-// lands on a fraction of a device pixel and renders as a gray smear.
+// ring is most of the sign. In px rather than em because a keyline is a drawn
+// line — at 0.72rem an em-based 3px lands on a fraction of a device pixel.
 //
-// $ink-light and never $white: a legend does not follow the page, which is #282
-// and what test/sign-legend.test.ts exists for. That also makes the baked white
-// in `sign-arrow`'s data URI correct here, since the token is a literal #ffffff
-// in all six palettes.
+// $ink-light and never $white: a legend does not follow the page (#282), which is
+// also what makes the baked white in `sign-arrow`'s data URI correct here.
 .notif-more {
   display: inline-flex;
   align-items: center;
@@ -1134,24 +1103,17 @@
     inset 0 0 0 2px $interstate,
     inset 0 0 0 3px $ink-light;
 
-  // East is 0deg, so there is deliberately no `transform` here — the shape is
-  // drawn pointing east and `$sign-arrow-bearings` maps "e" to 0deg.
+  // East is 0deg, so there is deliberately no `transform` — the shape is drawn
+  // pointing east and `$sign-arrow-bearings` maps "e" to 0deg.
   //
   // **SMALLER THAN THE MIXIN'S OWN 1.3125em.** Ziad's call, 2026-09-09: at that
-  // size the head is about 1.7x the cap height of the legend beside it and reads
-  // as the subject of the sign rather than as punctuation on it. 1em puts it at
-  // roughly 1.3x. The box stays SQUARE — `contain` preserves the aspect ratio,
-  // so it draws 1em x 0.914em either way, and a fitted box would only matter for
-  // a bearing this sign does not use.
+  // size the head is about 1.7x the legend's cap height and reads as the subject of
+  // the sign rather than punctuation on it. The box stays SQUARE.
   //
   // **THE MIXIN'S OWN `top: -0.1em` IS KEPT, AND OVERRIDING IT TO 0 WAS WRONG.**
-  // That nudge is what the asymmetric padding above requires, not something left
-  // over from `.btn`: the extra top padding shifts the whole flex line down to
-  // put the LEGEND at optical center, and the arrow — whose drawn shape is
-  // symmetric about its box — does not want that shift, so it is lifted back.
-  // Zeroing it left the arrow riding about a pixel low against the type, which
-  // is what Ziad reported. Same correction, same value, for the same reason
-  // _chrome.scss states it.
+  // That nudge is what the asymmetric padding requires: the extra top padding puts
+  // the LEGEND at optical center, and the arrow — symmetric about its box — does
+  // not want that shift. Zeroing it left the arrow riding a pixel low.
   &::after {
     @include chrome.sign-arrow;
 
@@ -1180,24 +1142,18 @@
 // this rule only gives it a size and a fallback.
 //
 // **THE FIELD AND THE INK BOTH LEFT THIS FILE ON 2026-09-09.** Ziad's call. The
-// disc was keyed on `[data-tone]` here — advice amber, a verdict red, everything
-// else the blue sign field — with a `--icon-ink` flip on the amber. Two things
-// were wrong with that and only one was visible: eleven of the thirteen events
-// resolved to the SAME blue, so the color said nothing the mark had not already
-// said; and `routes/icons.tsx` had to carry a second copy of the tone-to-field
-// table to draw its "as assigned" swatches, which its own comment flagged as
-// two lists that "have to agree, or the swatch beside a name recommends a color
-// the center does not use".
+// disc was keyed on `[data-tone]` here, and two things were wrong with that:
+// eleven of the thirteen events resolved to the SAME blue, so the color said
+// nothing the mark had not; and `routes/icons.tsx` carried a second copy of the
+// tone-to-field table, which its own comment flagged as two lists that have to
+// agree.
 //
-// So the mapping is one table in TypeScript and reaches the element as
-// `style="color:var(--x);--icon-ink:var(--y)"`, exactly as the workbench already
-// does it. `data-mark` and `data-tone` are still emitted and are still the
-// readable record of what a row is; neither carries a hue.
+// `data-mark` and `data-tone` are still emitted as the readable record of what a
+// row is; neither carries a hue.
 //
-// **THE FALLBACK BELOW IS NOT DEAD.** It is what paints the disc if the inline
-// style is ever dropped, and it is the same blue `DEFAULT_FIELD` names — so the
-// failure is a mark that looks like an informational one rather than a black
-// disc with an invisible glyph.
+// **THE FALLBACK BELOW IS NOT DEAD**: it paints the disc if the inline style is
+// ever dropped, so the failure is a mark that looks informational rather than a
+// black disc with an invisible glyph.
 .notif-mark {
   grid-area: mark;
   width: 26px;
@@ -1218,15 +1174,12 @@
 }
 
 // THE JARGON TABLE (#321). One row per term, four columns: the term, where it
-// shows up, and two pills — the DEFAULT, carrying the word the two pickers
-// above give and moved by jargon.js as they change, and CUSTOM with its box
-// inside it. Ziad's call, 2026-09-21, replacing a pill for every preset's word
-// and, the same evening, a two-column split of the rows: the example in its
-// own column is what makes a row one line. `.setting--wide` lifts the 60ch
-// measure cap, because four columns want the room and the prose is one line
-// under the heading. A power row under Pedal is `.is-off`: the pills go and
-// the note says why, toggled by jargon.js as the picker changes so the page
-// does not need a reload to agree with itself.
+// shows up, and two pills — the DEFAULT, carrying the word the two pickers give
+// and moved by jargon.js as they change, and CUSTOM with its box inside it.
+// Ziad's call, 2026-09-21, replacing a pill for every preset's word: the example
+// in its own column is what makes a row one line. `.setting--wide` lifts the 60ch
+// measure cap. A power row under Pedal is `.is-off`: the pills go and the note
+// says why, toggled by jargon.js so the page needs no reload.
 .setting--wide {
   max-width: none;
 }
