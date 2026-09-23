@@ -8,7 +8,7 @@
 import { describe, expect, it } from 'vitest'
 import {
   DATE_FORMATS,
-  DATE_FORMAT_CHOICES,
+  dateFormatChoices,
   DEFAULT_DATE_FORMAT,
   fmtClock,
   fmtDateFull,
@@ -35,13 +35,12 @@ describe('the three digit orders', () => {
     expect(fmtDateNumeric(D, 'en-CA')).toBe('2026-08-24')
   })
 
-  // THE EXAMPLES ARE HAND-WRITTEN STRINGS AND THE FORMATTER IS THE AUTHORITY, so
-  // they are checked against it rather than trusted. A settings page that shows a
-  // rider one shape and then prints another is worse than showing nothing, and
-  // nothing else would catch the two drifting.
+  // THE LABEL IS THE FORMATTER'S OWN OUTPUT since 2026-09-22, so the drift this
+  // once guarded against is gone by construction — what is left to pin is that
+  // the settings page and the printed date come from the same call.
   it('shows each choice the shape it actually produces', () => {
-    for (const choice of DATE_FORMAT_CHOICES) {
-      expect(choice.example, choice.id).toBe(fmtDateNumeric(D, choice.id))
+    for (const choice of dateFormatChoices(D)) {
+      expect(choice.label, choice.id).toBe(fmtDateNumeric(D, choice.id))
     }
   })
 
@@ -126,22 +125,27 @@ describe('guessing from Accept-Language', () => {
 
 describe('the settings choices', () => {
   it('offers exactly the supported formats, once each', () => {
-    expect(DATE_FORMAT_CHOICES.map((c) => c.id)).toEqual([...DATE_FORMATS])
+    expect(dateFormatChoices(D).map((c) => c.id)).toEqual([...DATE_FORMATS])
   })
 
-  it('gives every choice a label and a worked example', () => {
-    for (const c of DATE_FORMAT_CHOICES) {
+  it('gives every choice a date and a tooltip naming the order', () => {
+    for (const c of dateFormatChoices(D)) {
       expect(c.label.trim(), c.id).not.toBe('')
-      expect(c.example.trim(), c.id).not.toBe('')
+      expect(c.tip.trim(), c.id).not.toBe('')
     }
   })
 
-  // The example is what the rider compares, so it has to be what they will
-  // actually see. A stale example is a lie in the one place the setting is
-  // explained.
-  it('shows an example that matches what the formatter produces', () => {
-    for (const c of DATE_FORMAT_CHOICES) {
-      expect(c.example, c.id).toContain(fmtDateNumeric(D, c.id))
-    }
+  // The three are the SAME DATE in three orders, which is the question being
+  // asked: a set that differed by date as well would compare nothing.
+  it('writes one date three ways', () => {
+    const parts = dateFormatChoices(D).map((c) => c.label.split('-').sort().join())
+    expect(new Set(parts).size).toBe(1)
+  })
+
+  // It moves with the day rather than being frozen at boot.
+  it('follows the date it is given', () => {
+    const later = new Date('2027-01-02T09:05:00Z')
+    expect(dateFormatChoices(later).map((c) => c.label)).not.toEqual(dateFormatChoices(D).map((c) => c.label))
+    expect(dateFormatChoices(later)[0].label).toBe(fmtDateNumeric(later, 'en-US'))
   })
 })

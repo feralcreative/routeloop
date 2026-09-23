@@ -69,10 +69,31 @@ export const DEFAULT_DATE_FORMAT: DateFormat = 'en-US'
 export const toDateFormat = (v: unknown): DateFormat =>
   DATE_FORMATS.includes(v as DateFormat) ? (v as DateFormat) : DEFAULT_DATE_FORMAT
 
-/** The settings page's radio set. `example` is the same instant in all three. */
+/** What each choice does to an order, for the tooltip beside the date itself. */
+const DATE_FORMAT_ORDERS: { id: DateFormat; order: string; pattern: string }[] = [
+  { id: 'en-US', order: 'Month first', pattern: 'MM-DD-YYYY' },
+  { id: 'en-GB', order: 'Day first', pattern: 'DD-MM-YYYY' },
+  { id: 'en-CA', order: 'Year first', pattern: 'YYYY-MM-DD' },
+]
+
 /**
- * The settings page's radio set. The examples are the same DATE in all three,
- * which is the question being asked.
+ * The settings page's radio set: TODAY, written each of the three ways, which is
+ * the same date in all three because the order is the whole question.
+ *
+ * **THE LABEL IS THE FORMATTER'S OWN OUTPUT, NOT A HAND-WRITTEN EXAMPLE.** Ziad's
+ * call, 2026-09-22, over "Month first" and then over the bare pattern: a rider
+ * picking a date format wants to see a date. Computing it removes the whole class
+ * of drift the old test existed to catch — a page showing one shape and printing
+ * another — and it is the same call `fmtDateNumeric` makes everywhere else, so
+ * the two cannot disagree by construction. `tip` carries the order in words.
+ *
+ * **IT IS A FUNCTION BECAUSE TODAY MOVES.** A module-level constant would be
+ * frozen at boot and a long-running container would show the day it started on.
+ *
+ * **THE DATE IS UTC, like every other date this module prints**, so a rider west
+ * of Greenwich late in the evening sees tomorrow's — which is a sample of a
+ * SHAPE rather than a claim about what day it is, and the alternative is a zone
+ * the server does not have.
  *
  * THE CLOCK CAME OUT OF THESE ON 2026-09-07 (#270). They read
  * "8/24/2026, 9:05 AM" while the clock was decided here and nowhere else — true
@@ -81,16 +102,12 @@ export const toDateFormat = (v: unknown): DateFormat =>
  * they were choosing. The Clock control carries the time examples now, and each
  * setting shows only what it decides.
  */
-export const DATE_FORMAT_CHOICES: { id: DateFormat; label: string; example: string }[] = [
-  // LABELED AS THE PATTERN, not as "Month first". Ziad's call, 2026-09-22: the
-  // order IS the choice, and MM-DD-YYYY says it in the shape a rider is about to
-  // see, where the old labels made them read the example to find out what the
-  // label meant. The examples stay, pinned against the formatter by
-  // test/date-format.test.ts.
-  { id: 'en-US', label: 'MM-DD-YYYY', example: '08-24-2026' },
-  { id: 'en-GB', label: 'DD-MM-YYYY', example: '24-08-2026' },
-  { id: 'en-CA', label: 'YYYY-MM-DD', example: '2026-08-24' },
-]
+export const dateFormatChoices = (now: Date = new Date()): { id: DateFormat; label: string; tip: string }[] =>
+  DATE_FORMAT_ORDERS.map((o) => ({
+    id: o.id,
+    label: fmtDateNumeric(now, o.id),
+    tip: `${o.order}, as ${o.pattern}`,
+  }))
 
 // UTC, EVERYWHERE IN THIS FILE, and it is the CORRECT reading rather than a
 // workaround — which is what it used to be.
