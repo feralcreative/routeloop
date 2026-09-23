@@ -98,7 +98,10 @@ export const SCHEME_CHOICES: { id: Scheme; label: string; hint: string }[] = [
 ]
 
 export const MAP_SCHEME_CHOICES: { id: MapScheme; label: string; hint: string }[] = [
-  { id: 'follow', label: 'Match the page', hint: 'Dark tiles on a dark page, light on a light one.' },
-  { id: 'light', label: 'Light', hint: 'Light tiles whatever the page is.' },
-  { id: 'dark', label: 'Dark', hint: 'Dark tiles whatever the page is.' },
+  // NOT "TILES". Ziad's call, 2026-09-22: nobody outside mapping knows the word,
+  // and the rider is choosing how the map LOOKS. The group is Map theme and the
+  // sentences say map.
+  { id: 'follow', label: 'Match the page', hint: 'A dark map on a dark page, a light one on a light page.' },
+  { id: 'light', label: 'Light', hint: 'A light map whatever the page is.' },
+  { id: 'dark', label: 'Dark', hint: 'A dark map whatever the page is.' },
 ]
