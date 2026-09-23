@@ -3469,28 +3469,23 @@
         // string meant "no group" or a missing field.
         group: raw === "" ? null : Number(raw),
       });
-      // Re-read rather than patching the cache: the answer is the server's, and
-      // a row left showing an assignment that was refused is the worst outcome
-      // available here.
+      // Re-read rather than patching the cache: a row left showing an assignment that
+      // was refused is the worst outcome available here.
       ridersStale();
       if (!ok) toast("That group could not be set.", true);
     });
 
-    // SAVE, THEN RE-READ. The group picker is built from the SERVER's list, which
-    // carries both the uid the client holds and the numeric id
-    // ride_members.subgroup_id needs, so a group made since the last save is not in
-    // it. This is the one press that closes that gap.
-    //
-    // ridersStale() runs from the save's completion rather than beside it: re-reading
-    // before the write lands gets the same list back and the button looks broken.
+    // SAVE, THEN RE-READ. The picker is built from the SERVER's list, which carries
+    // both the uid and the numeric id, so a group made since the last save is not in
+    // it. ridersStale() runs from the save's COMPLETION: re-reading before the write
+    // lands gets the same list back and the button looks broken.
     host.addEventListener("click", async (e) => {
       if (e.target.id !== "riders-save") return;
       e.target.disabled = true;
       e.target.textContent = "Saving…";
       try {
-        // saveNow(), not save(): awaiting save() while the autosave is already in
-        // flight returns immediately having written nothing, and this button's
-        // whole job is that the group exists on the server afterwards.
+        // saveNow(), not save(): awaiting save() while the autosave is in flight returns
+        // immediately having written nothing.
         await saveNow();
       } finally {
         ridersStale();
@@ -3502,9 +3497,8 @@
       const row = e.target.closest(".rider-row");
       if (!row) return;
       const name = row.querySelector(".rider-name").textContent;
-      // A confirm rather than an undo, because this one is not in the builder's
-      // history at all: it is a write to the roster that lands immediately, and
-      // beginEdit() covers the ride payload only.
+      // A confirm rather than an undo: this is a write to the roster that lands
+      // immediately, and beginEdit() covers the ride payload only.
       if (!window.confirm("Take " + name + " off this " + W("journey") + "?")) return;
       const ok = await riderPost("remove", { rider: Number(row.dataset.rider) });
       ridersStale();
@@ -3526,48 +3520,35 @@
   }
 
   // --- Rider subgroups (#67) ------------------------------------------------
-  //
-  // A named set of riders sharing an approach. A ROUTE belongs to one, or to
-  // nobody — which means everyone rides it. See src/subgroups/policy.ts; a
-  // subgroup owns a subsequence of one dense sequence, so nothing here reorders
-  // or renumbers anything.
-  //
-  // RENDERS NOTHING UNTIL A RIDER ADDS ONE. A solo ride is the overwhelming
-  // majority and should not pay a line of panel for a feature about groups.
+    //
+    // A named set of riders sharing an approach. A ROUTE belongs to one, or to
+    // nobody — which means everyone rides it. RENDERS NOTHING UNTIL A RIDER ADDS
+    // ONE, a solo ride being the overwhelming majority.
 
   function subgroupByUid(u) {
     return state.meta.subgroups.find((g) => g.uid === u) || null;
   }
 
   /**
-     * A route of its own for a group that has just been added, starting where the
-     * rider said that group starts.
-     *
-     * A GROUP MUST HAVE A STARTING POINT AND CANNOT BE MADE WITHOUT ONE. Ziad's
-     * call, 2026-09-04. It seeded at the RIDE'S start before that — so every group
-     * arrived with the one fact it owns filled in wrong, and every proposal made
-     * from it was about a road nobody rides.
-     *
-     * THE GROUP'S COLOR, NOT THE NEXT IN THE PALETTE: a group's line has to read as
-     * one thing wherever it appears.
-     *
-     * IT DEPARTS WHEN THE RIDE DOES, as a placeholder — syncDeparturesToMeet
-     * rewrites it, and leaving it undated keeps the group off the timeline.
-     *
-     * Appended rather than inserted ahead of the main group's routes, which would
-     * renumber everything already planned.
-     */
+         * A route of its own for a group that has just been added, starting where the
+         * rider said that group starts — it seeded at the RIDE'S start before, so every
+         * group arrived with the one fact it owns filled in wrong.
+         *
+         * THE GROUP'S COLOR, not the next in the palette: a group's line has to read as
+         * one thing wherever it appears. It departs when the ride does, as a
+         * placeholder syncDeparturesToMeet rewrites, and is appended rather than
+         * inserted, which would renumber everything already planned.
+         */
   function seedGroupRoute(g, start) {
     if (state.routes.length >= MAX_ROUTES) return;
     const route = newRoute(g.color);
     route.subgroupUid = g.uid;
     route.points.push(newPoint(start.lngLat[0], start.lngLat[1], start.name, start.address));
-    // The route's first point is a stop, exactly as it is when a rider drops
-    // one on an empty route. Without it the seed is a POI, nothing ever
+    // The route's first point is a stop. Without it the seed is a POI, nothing ever
     // promotes it, and the ride cannot be saved at all — #233.
     ensureRouteHasStop(route);
-    // Tagged `start` for the same reason the first point of any route is: it is
-    // where somebody sets off, and the roadbook and the hand-off both read it.
+    // Tagged `start` for the same reason the first point of any route is: the
+    // roadbook and the hand-off both read it.
     if (!route.points[0].roles.length) route.points[0].roles = ["start"];
     const first = ALT.activeRoutes(state.routes)[0];
     route.startAt = (first && first.startAt) || null;
@@ -3575,24 +3556,21 @@
   }
 
   // --- Who is on this stretch of road ------------------------------------
-  //
-  // #67's last mile, and the thing subgroups could not say: a route carried ONE
-  // group and a rider belonged to ONE group for the whole ride, so "three riders
-  // join at Portland and one peels off at Eugene" had nowhere to live. Ziad's
-  // call, 2026-09-06: the rider is the primitive.
-  //
-  // HELD SEPARATELY FROM state.routes AND NOT IN THE PAYLOAD — reconciled by uid
-  // like votes and point details, and set by its own press rather than riding on
-  // the autosave. NULL UNTIL IT LOADS, which the row renderer checks.
+    //
+    // #67's last mile, and the thing subgroups could not say: a route carried ONE
+    // group and a rider belonged to ONE group, so "three riders join at Portland and
+    // one peels off at Eugene" had nowhere to live. The rider is the primitive.
+    //
+    // HELD SEPARATELY FROM state.routes AND NOT IN THE PAYLOAD — reconciled by uid
+    // like votes, and set by its own press. NULL UNTIL IT LOADS.
   function routeRidersOf(route) {
     const rr = state.routeRiders;
     if (!rr || !route || !route.uid) return null;
     return rr.byUid[route.uid] || null;
   }
 
-  /** Load the resolved sets. Cheap, and re-read after every write because one
-   *  route's override changes every route after it that inherits — patching a
-   *  local copy from the request just sent is wrong from the next route on. */
+  /** Load the resolved sets. Re-read after every write because one route's
+   *  override changes every route after it that inherits. */
   async function loadRouteRiders() {
     if (!state.rideId) return;
     try {
@@ -3600,8 +3578,8 @@
       if (!res.ok) return;
       applyRouteRiders(await res.json());
     } catch (err) {
-      // Not a toast. The line is an annotation on a row; a ride is perfectly
-      // editable without it, and a failure here must not read as a save problem.
+      // Not a toast: the line is an annotation on a row, and a failure here must not
+      // read as a save problem.
       console.warn("[builder] route riders:", err);
     }
   }
@@ -3610,11 +3588,9 @@
     if (!data || !Array.isArray(data.routes)) return;
     const byUid = {};
     for (const r of data.routes) byUid[r.uid] = r;
-    // BOTH DIRECTIONS OF THE GROUP MAP, because the two identifier spaces meet
-    // here exactly as they do on the Riders tab: this file holds a group by UID
-    // (the client mints those) while `route_riders.subgroup_id` and the resolved
-    // sets are numeric IDS the server owns. Built once per load rather than
-    // looked up per row.
+    // BOTH DIRECTIONS OF THE GROUP MAP: this file holds a group by UID while
+    // `route_riders.subgroup_id` and the resolved sets are numeric IDS. Built once
+    // per load rather than looked up per row.
     const groups = data.groups || (state.routeRiders && state.routeRiders.groups) || [];
     const idOfGroup = {};
     const uidOfGroup = {};
@@ -3629,17 +3605,15 @@
       uidOfGroup: uidOfGroup,
       groupIds: idOfGroup,
       junctions: data.junctions || [],
-      // Only present on the GET. A write answers with the resolution and not
-      // with the roster, which does not change, so the held one is kept.
+      // Only present on the GET: a write answers with the resolution and not with the
+      // roster, so the held one is kept.
       riders: data.riders || (state.routeRiders && state.routeRiders.riders) || [],
     };
     renderRoutes();
     // renderRoutes() draws every Starts and Ends field EMPTY and leaves
-    // refreshDerived() to fill them, and this is the one caller that runs
-    // after the load's own refresh has already happened — so a stored start
-    // time rendered, was replaced by a blank field when this answer landed a
-    // moment later, and stayed blank until the next edit. Seen on every
-    // dated ride opened in the builder.
+    // refreshDerived() to fill them, and this is the one caller running AFTER the
+    // load's own refresh — so a stored start time rendered, went blank when this
+    // answer landed, and stayed blank until the next edit.
     renderTimes();
   }
 
@@ -3650,14 +3624,12 @@
   };
 
   /**
-    * The line under a route head saying who rides it.
-    *
-    * IT NAMES THE CHANGE, NOT THE WHOLE SET, once a ride has junctions: "Dylan
-    * joins here" is what a planner looks for, where four names repeated down every
-    * row is noise to diff by eye. The full set is in the `title` and the picker.
-    *
-    * EMPTY WHEN THE RIDE HAS ONE RIDER, which is nearly every ride.
-    */
+        * The line under a route head saying who rides it.
+        *
+        * IT NAMES THE CHANGE, NOT THE WHOLE SET, once a ride has junctions: "Dylan
+        * joins here" is what a planner looks for. The full set is in the `title` and
+        * the picker. EMPTY WHEN THE RIDE HAS ONE RIDER, which is nearly every ride.
+        */
   function routeRidersHtml(route, r) {
     const rr = routeRidersOf(route);
     if (!rr) return "";
@@ -3693,16 +3665,15 @@
   }
 
   /**
-    * The picker: tick who is on this route.
-    *
-    * A DIALOG RATHER THAN A ROW CONTROL. The set can be the whole roster and the
-    * list has to show who is NOT on the route, which a 380px drawer row cannot. It
-    * also keeps a re-rendering control out of the route list — #188.
-    *
-    * "EVERYONE FROM HERE ON" IS THE CLEAR BUTTON, labeled for what it does rather
-    * than what it stores: clearing the override makes the route inherit from the
-    * one before it, so the honest label is about the change, not the row.
-    */
+        * The picker: tick who is on this route.
+        *
+        * A DIALOG RATHER THAN A ROW CONTROL — the set can be the whole roster and the
+        * list has to show who is NOT on the route, which a 380px drawer row cannot. It
+        * also keeps a re-rendering control out of the route list (#188).
+        *
+        * "EVERYONE FROM HERE ON" IS THE CLEAR BUTTON, labeled for what it does:
+        * clearing the override makes the route inherit from the one before it.
+        */
   function openRouteRiders(r) {
     const route = state.routes[r];
     const rr = routeRidersOf(route);
@@ -3739,10 +3710,9 @@
     }
   }
 
-  // Built once and reused, the same arrangement as errorDialog() and for the
-  // same reasons: appended to <body> because showModal() needs the top layer,
-  // and both buttons carry `.btn` because the panel's own button rules are
-  // nested inside `.builder-panel`, which a dialog in the top layer is not.
+  // Built once and reused, as errorDialog() is: appended to <body> because
+  // showModal() needs the top layer, and both buttons carry `.btn` because the
+  // panel's own button rules are nested inside `.builder-panel`.
   function routeRidersDialog() {
     let el = $("tb-riders");
     if (el) return el;
@@ -3757,9 +3727,8 @@
       '<ul class="rider-picks"></ul>' +
       "</div>" +
       '<div class="modal-error-acts">' +
-      // "Same as before" and NOT "Clear": what it does is make this route follow
-      // the one before it, which on route 1 is the whole roster. The label names
-      // the change rather than the storage.
+      // "Same as before" and NOT "Clear": it makes this route follow the one before
+      // it, which on route 1 is the whole roster.
       '<button type="button" class="btn btn-quiet" data-riders-inherit>Same as before</button>' +
       '<button type="button" class="btn" data-riders-save>Save</button>' +
       "</div>";
@@ -3781,15 +3750,10 @@
   }
 
   /**
-    * Set who rides one route.
-    *
-    * `riders` is either bare ids or `{id, group}` objects and the endpoint takes
-    * both. The object form says who they are RIDING AS on this stretch, which a
-    * feeder tag and a split both need; the picker sends bare ids.
-    *
-    * Returns whether it landed, because the split writes two routes and has to know
-    * whether the first took.
-    */
+        * Set who rides one route. `riders` is either bare ids or `{id, group}` and the
+        * endpoint takes both; the object form says who they are RIDING AS on this
+        * stretch. Returns whether it landed, because the split writes two routes.
+        */
   async function putRouteRiders(uid, riders) {
     if (!state.rideId) return false;
     try {
@@ -3813,25 +3777,23 @@
   // The picker that sits in a route header. Empty string when the ride has no
   // subgroups, so routeSectionHtml concatenates nothing.
   /**
-     * Which groups ride this route, as a checkbox list.
-     *
-     * **A SINGLE SELECT COULD NOT TELL THE TRUTH.** Ziad's call, 2026-09-06, from a
-     * staged meet-up: with VMCSF and VMCSC merged but VMCSLO still on approach, the
-     * shared route read "Everyone", because one id cannot say "these two of three".
-     *
-     * **THE TICKS ARE DERIVED FROM WHO IS ON THE ROUTE, BY THEIR HOME GROUP** —
-     * once VMCSC joins the main group their stored group is null, so reading stored
-     * values would tick nothing. `groupsOnRoute()` derives it server-side.
-     *
-     * **Everyone is a shortcut, not a value**, and shows ticked exactly when every
-     * group is on the route. A `<details>` so it is one line until opened.
-     */
+         * Which groups ride this route, as a checkbox list.
+         *
+         * **A SINGLE SELECT COULD NOT TELL THE TRUTH**: with two of three groups
+         * merged, one id cannot say so and the shared route read "Everyone".
+         *
+         * **THE TICKS ARE DERIVED FROM WHO IS ON THE ROUTE, BY THEIR HOME GROUP** —
+         * once a group joins the main group their stored group is null, so reading
+         * stored values would tick nothing. `groupsOnRoute()` derives it server-side.
+         *
+         * **Everyone is a shortcut, not a value.**
+         */
   function routeSubgroupHtml(route, r) {
     const groups = state.meta.subgroups;
     if (groups.length === 0) return "";
     const rr = routeRidersOf(route);
     // Until the resolution lands there is nothing honest to tick, and guessing
-    // "Everyone" is the exact claim this control exists to stop making.
+    // "Everyone" is the claim this control exists to stop making.
     if (!rr) return "";
     const on = new Set((rr.groups || []).map((g) => (g == null ? "" : String(g))));
     const mainUid = groups[0] && groups[0].uid;
@@ -3840,10 +3802,9 @@
       const id = idOf(g);
       if (id != null && on.has(String(id))) return true;
       // AND THE MAIN GROUP ALSO OWNS THE NULL ENTRY, which is not the same as being
-      // it: a rider explicitly assigned to it carries its real id, a rider assigned to
-      // no group carries null and is riding with everybody. Both tick the first box.
-      // Reading only the null left the main group unticked on every route of a ride
-      // whose roster was filled in properly.
+      // it: a rider explicitly assigned carries its real id, one assigned to no group
+      // carries null. Both tick the first box; reading only the null left the main
+      // group unticked on every route of a properly filled-in roster.
       return g.uid === mainUid && on.has("");
     };
     const all = groups.every(ticked);
@@ -3881,15 +3842,12 @@
   }
 
   /**
-    * Apply a tick: put every member of the chosen groups on this route.
-    *
-    * **MORE THAN ONE GROUP MEANS THEY ARE RIDING TOGETHER, SO THEY RIDE AS THE MAIN
-    * GROUP.** Ziad's call, 2026-09-06: when a group joins, their own group stops
-    * applying — it does not disappear, it stays on the feeder route they rode as
-    * it, which is what a later split reads back. One group ticked is a feeder.
-    *
-    * Goes through the same PUT the rider picker uses, because it is the same fact.
-    */
+        * Apply a tick: put every member of the chosen groups on this route.
+        *
+        * **MORE THAN ONE GROUP MEANS THEY ARE RIDING TOGETHER, SO THEY RIDE AS THE
+        * MAIN GROUP.** Their own group does not disappear — it stays on the feeder
+        * route they rode as it, which a later split reads back. One group is a feeder.
+        */
   function applyRouteGroups(r, uids) {
     const route = state.routes[r];
     if (!route || !route.uid) return;
@@ -3900,8 +3858,7 @@
     const feeder = chosen.size === 1 ? [...chosen][0] : null;
     const riders = [];
     for (const m of rr.riders || []) {
-      // Same rule in the other direction: no home group means riding with
-      // everybody, which is the main group.
+      // Same rule the other way: no home group means riding with everybody.
       const homeUid = m.group == null ? mainUid : rr.uidOfGroup[m.group] || mainUid;
       if (!chosen.has(homeUid)) continue;
       // Riding as their own group only when theirs is the ONLY group here.
@@ -3918,26 +3875,23 @@
     const count = $("sg-count");
     if (count) count.textContent = groups.length ? String(groups.length) : "";
 
-    // UNREACHABLE BY DESIGN — a ride always has at least one group, seeded at
-    // state init and again on load. Repaired rather than rendered around: an
-    // empty panel here would be a dead end the rider cannot get out of, and the
-    // seed is one line.
+    // UNREACHABLE BY DESIGN — a ride always has at least one group. Repaired rather
+    // than rendered around: an empty panel here is a dead end the rider cannot get
+    // out of, and the seed is one line.
     if (groups.length === 0) {
       state.meta.subgroups.push(seedGroup());
       state.meta.primarySubgroup = state.meta.subgroups[0].uid;
       return renderSubgroups();
     }
 
-    // ORDER IS RANK, AND THE FIRST ROW IS THE MAIN GROUP. Ziad's call, 2026-09-03:
-    // promotion is a DRAG rather than a picker, so `subgroups[0]` IS the main group
-    // and `primarySubgroup` is kept equal to its uid rather than being a second,
-    // independently settable fact. Two ways to say the same thing is what made this
-    // panel read as machinery.
-    //
-    // ONE CONTAINER HOLDING NOTHING BUT `.sg-row`, which is not a style choice:
-    // Sortable's raw `oldIndex`/`newIndex` count EVERY child, so a section header
-    // between rows would make them read about double — #166. The "Main group" label
-    // is INSIDE the first row for that reason.
+    // ORDER IS RANK, AND THE FIRST ROW IS THE MAIN GROUP: promotion is a DRAG, so
+        // `subgroups[0]` IS the main group and `primarySubgroup` is kept equal to its
+        // uid rather than being independently settable.
+        //
+        // ONE CONTAINER HOLDING NOTHING BUT `.sg-row`, which is not a style choice:
+        // Sortable's raw indices count EVERY child, so a section header between rows
+        // would make them read about double (#166). The "Main group" label is INSIDE
+        // the first row for that reason.
     host.innerHTML =
       '<div class="sg-list" id="sg-list">' +
       groups
@@ -3948,10 +3902,8 @@
             '" data-sg="' +
             esc(g.uid) +
             '">' +
-            // A real <button>, not a decorative grip: it is the keyboard path
-            // and the path that still works when the SortableJS CDN does not.
-            // Same arrangement as a route's handle, which replaced two move
-            // buttons on 2026-08-16.
+            // A real <button>, not a decorative grip: the keyboard path, and the path
+            // that still works when the SortableJS CDN does not.
             '<button type="button" class="sg-drag" data-tip="sg-drag" title="Drag to reorder, or focus and use the arrow keys"' +
             ' aria-label="Reorder ' +
             esc(g.name) +
@@ -3961,89 +3913,69 @@
             '" aria-label="Color for ' +
             esc(g.name) +
             '">' +
-            // autocomplete and data-1p-ignore for the reason spelled out on
-            // .route-title in routeSectionHtml: "Name of this group" reads to a
-            // password manager as a person's name.
+            // autocomplete and data-1p-ignore for the reason on .route-title: "Name of
+            // this group" reads to a password manager as a person's name.
             '<input class="sg-name" type="text" maxlength="80" autocomplete="off" data-1p-ignore value="' +
             esc(g.name) +
             '" aria-label="Name of this group">' +
             (i === 0
               ? '<span class="sg-main-tag">Main</span>'
-              : // NO DELETE ON THE MAIN GROUP, which is what guarantees a ride
-                // always has one — a simpler invariant than "you cannot delete
-                // the last" and the one Ziad asked for. Demote it by dragging
-                // another group over it, then it can go like any other.
+              : // NO DELETE ON THE MAIN GROUP, which is what guarantees a ride always
+                // has one. Demote it by dragging another group over it.
                 '<button type="button" class="sg-del" data-tip="sg-del" title="Remove this group" aria-label="Remove ' +
                 esc(g.name) +
                 '">×</button>') +
-            // WHERE THIS GROUP SETS OFF FROM, under its name. Ziad's call, 2026-09-06: a
-            // starting point is the one fact a group owns, and once the form closed it was
-            // invisible, so a panel of three groups said nothing about which was which. It
-            // is also the fastest way to spot a group seeded at the ride's own start.
-            //
-            // INSIDE THE ROW, NOT A SIBLING — Sortable's raw indices count every child of
-            // the LIST, so a line between two rows is #166 waiting to happen.
+            // WHERE THIS GROUP SETS OFF FROM, under its name: the one fact a group owns,
+            // invisible once the form closed. INSIDE THE ROW, NOT A SIBLING — Sortable's
+            // raw indices count every child of the LIST (#166).
             groupStartHtml(g.uid) +
             "</div>",
         )
         .join("") +
       "</div>" +
-      // Only what is PINNED now — the group it applies to is the one at the top of the
-      // list above, so naming it again in a select was the redundancy.
-      // WHAT IS PINNED IS ALWAYS THE MAIN GROUP'S DEPARTURE, so there is no control
-      // for it. Ziad's call, 2026-09-03: that is the one time a planner actually
-      // knows, and the meet and the arrival are both worked out from it.
-      //
-      // `rides.time_anchor` keeps its other members and schedule.ts keeps solving for
-      // them; nothing sets them. What survives is the fairness note, which is about
-      // WHOSE departure and is a live question.
+      // Only what is PINNED now: the group it applies to is the one at the top of the
+            // list, so naming it again in a select was the redundancy.
+            // WHAT IS PINNED IS ALWAYS THE MAIN GROUP'S DEPARTURE, so there is no control
+            // for it — that is the one time a planner actually knows, and the meet and the
+            // arrival are worked out from it. `rides.time_anchor` keeps its other members
+            // and nothing sets them. What survives is the fairness note.
       (groups.length < 2 ? "" : '<div class="sg-anchor"><p class="sg-anchor-note" id="sg-anchor-note"></p></div>');
     initGroupDrag($("sg-list"));
     renderAnchorNote();
-    // ONE BUTTON FOR THE RIDE, NOT ONE PER GROUP — #239. The question has one
-    // answer for everybody. It appears with the second group and lives in the page's
-    // own markup, so this only decides whether it shows. `.sg-meet` sets
-    // `display: flex`, which BEATS the `hidden` attribute, so the stylesheet carries
-    // an explicit `[hidden]` rule; without it this line does nothing.
-    // THE ROW, NOT THE BUTTON: the divert field sits beside it and has to come and go
-    // with it, or a solo ride shows a bare "within 25 mi detour".
+    // ONE BUTTON FOR THE RIDE, NOT ONE PER GROUP (#239): the question has one answer
+        // for everybody. It lives in the page's own markup, so this only decides whether
+        // it shows — and `.sg-meet` sets `display: flex`, which BEATS the `hidden`
+        // attribute, so the stylesheet carries an explicit `[hidden]` rule.
+        // THE ROW, NOT THE BUTTON: the divert field has to come and go with it.
     const meetRow = $("sg-meet-row");
     if (meetRow) meetRow.hidden = groups.length < 2;
-    // A PROPOSAL ABOUT A GROUP THAT IS GONE HAS TO BE TAKEN DOWN HERE. The
-    // output used to be rebuilt empty by the innerHTML above; it is static now,
-    // so deleting the second group would leave its candidate list on screen and
-    // its dots on the map.
+    // A PROPOSAL ABOUT A GROUP THAT IS GONE HAS TO BE TAKEN DOWN HERE. The output is
+    // static now, so deleting the second group would leave its candidate list on
+    // screen and its dots on the map.
     if (groups.length < 2 && state.meet) clearMeet();
     // THE PROPOSAL IS STATE, SO IT SURVIVES A RE-RENDER OF THIS PANEL. Taking a
-    // meeting point moves a route's departure, which calls renderRoutes(), which
-    // cascades into here and rebuilds #sg-meet-out — so the sections for the groups
-    // still undecided were written into an element that had just been replaced, and
-    // choosing group 2's point silently wiped group 3's. Rendering from `state.meet`
-    // is also what makes the panel and the map agree.
+    // meeting point calls renderRoutes(), which cascades into here — so the sections
+    // for the undecided groups were written into an element that had just been
+    // replaced, and choosing group 2's point silently wiped group 3's.
     renderMeetOut();
   }
 
   /**
-     * The line under a group row saying where it sets off from.
-     *
-     * THE GROUP'S OWN FIRST ROUTE, FALLING BACK TO ITS STRAND — the same rule
-     * `startRouteOf()` follows server-side, or the panel names a place the proposer
-     * is not using. Active routes only.
-     *
-     * EMPTY RATHER THAN A PLACEHOLDER: "not set" for a state that lasts a second
-     * reads as a warning about nothing.
-     *
-     * IT REFRESHES WITH renderSubgroups() AND NOT WITH EVERY POINT EDIT — that
-     * rebuilds `#sg-body` and its `.sg-name` inputs, costing a rider the group name
-     * they were typing (#188). The line can be a beat behind a renamed first point.
-     */
+         * The line under a group row saying where it sets off from.
+         *
+         * THE GROUP'S OWN FIRST ROUTE, FALLING BACK TO ITS STRAND — the rule
+         * `startRouteOf()` follows server-side, or the panel names a place the proposer
+         * is not using. EMPTY RATHER THAN A PLACEHOLDER.
+         *
+         * IT REFRESHES WITH renderSubgroups() AND NOT WITH EVERY POINT EDIT, which
+         * would cost a rider the group name they were typing (#188).
+         */
   function groupStartHtml(groupUid) {
     const active = ALT.activeRoutes(state.routes);
     // THE MAIN GROUP TAKES THE FIRST ROUTE OF ITS STRAND AND SKIPS THE SEARCH,
-    // mirroring `startRouteOf`'s `isMain`. Since splitting tags the main group's
-    // continuation, searching for their own tagged route now finds the road AFTER
-    // a split and this line would name the split stop as where the ride begins.
-    // For the main group a shared route ahead of their own is theirs.
+    // mirroring `startRouteOf`'s `isMain`: splitting tags the main group's
+    // continuation, so searching for their own tagged route finds the road AFTER a
+    // split and this line would name the split stop as where the ride begins.
     const isMain = state.meta.subgroups[0] && state.meta.subgroups[0].uid === groupUid;
     const strand = active.filter((d) => !d.subgroupUid || d.subgroupUid === groupUid);
     const route = isMain ? strand[0] : active.find((d) => d.subgroupUid === groupUid) || strand[0];
@@ -4054,13 +3986,9 @@
     return '<p class="sg-start" title="' + esc(name) + '">from ' + esc(name) + "</p>";
   }
 
-  /** Redraw the proposal and re-pair its rows with the dots on the map.
-   *
-   *  #sg-meet-out is no longer rebuilt by renderSubgroups() — the button and the
-   *  output are static markup since 2026-09-05 — but this still runs on every
-   *  render, because showMeetPreview() binds hover handlers to the ROWS and
-   *  those are recreated whenever the proposal is redrawn. Drawing from
-   *  `state.meet` is what keeps the panel and the map showing one object. */
+  /** Redraw the proposal and re-pair its rows with the dots on the map. It runs on
+   *  every render because showMeetPreview() binds hover handlers to the ROWS, which
+   *  are recreated whenever the proposal is redrawn. */
   function renderMeetOut() {
     const out = $("sg-meet-out");
     if (!out || !state.meet || !(state.meet.groups || []).length) return;
@@ -4068,8 +3996,8 @@
     showMeetPreview(out, state.meet);
   }
 
-  /** Take a proposal down: the panel, the state it is drawn from, and the dots
-   *  and approach lines it put on the map. */
+  /** Take a proposal down: the panel, the state it is drawn from, and the dots and
+   *  approach lines it put on the map. */
   function clearMeet() {
     state.meet = null;
     state.meetNote = "";
@@ -4079,33 +4007,26 @@
   }
 
   /**
-     * The "add a group" form: a name and, required, where that group starts.
-     *
-     * A GROUP MUST HAVE A STARTING POINT AND CANNOT BE MADE WITHOUT ONE. Ziad's
-     * call, 2026-09-04. The button used to seed the group's route at the RIDE'S
-     * start — the one place a satellite provably does not set off from — so every
-     * group arrived with the one fact it owns filled in wrong.
-     *
-     * IT LIVES IN `.tab-actions` AND NOT IN `#sg-body`, which renderSubgroups()
-     * rebuilds: a form inside would lose the half-typed search it holds. #188 again.
-     *
-     * NAME SEARCH ONLY: the question is which town a group sets off from, and
-     * "coffee" is not an answer to it. That also keeps it to the Autocomplete SKU.
-     */
+         * The "add a group" form: a name and, required, where that group starts. The
+         * button used to seed the group's route at the RIDE'S start — the one place a
+         * satellite provably does not set off from.
+         *
+         * IT LIVES IN `.tab-actions` AND NOT IN `#sg-body`, which renderSubgroups()
+         * rebuilds: a form inside would lose the half-typed search it holds (#188).
+         *
+         * NAME SEARCH ONLY: the question is which town a group sets off from, which
+         * also keeps it to the Autocomplete SKU.
+         */
   function openNewGroup() {
     const add = $("sg-add");
     if (!add || document.querySelector(".sg-new")) return;
     add.hidden = true;
     const box = document.createElement("div");
     box.className = "sg-new";
-    // THE NAME COMES FIRST NOW, AND IT IS NO LONGER LABELED OPTIONAL. Ziad's call,
-    // 2026-09-06: the field sat under a search box whose pick is what CREATES the
-    // group, so the rider reached the commit before the name and "(optional)" told
-    // them not to go back for it. The order now matches the order the form acts in.
-    //
-    // THE FALLBACK STAYS, WHICH IS WHY THE LABEL IS NOT A LIE: createGroup() still
-    // names a group after the place it starts from, so a nameless group remains
-    // impossible to make.
+    // THE NAME COMES FIRST NOW, AND IT IS NO LONGER LABELED OPTIONAL: the field sat
+    // under a search box whose pick is what CREATES the group, so the rider reached
+    // the commit before the name. THE FALLBACK STAYS, which is why the label is not
+    // a lie — createGroup() still names a group after the place it starts from.
     box.innerHTML =
       '<label class="sg-new-lab" for="sg-new-name">Group name</label>' +
       '<input class="sg-new-name" id="sg-new-name" type="text" maxlength="80" autocomplete="off"' +
@@ -4123,10 +4044,8 @@
     let hits = [];
     let timer = null;
     let seq = 0;
-    // THE FIRST FIELD TAKES FOCUS, which is now the name rather than the search.
-    // It used to be the search because that was the only field that mattered;
-    // the name is what the rider is asked for first now, and focus landing past
-    // it would say the opposite of what the order says.
+    // THE FIRST FIELD TAKES FOCUS, which is now the name rather than the search:
+    // focus landing past it would say the opposite of what the order says.
     nameField.focus();
 
     box.querySelector(".sg-new-cancel").addEventListener("click", closeNewGroup);
@@ -4146,9 +4065,8 @@
         return;
       }
       timer = setTimeout(async () => {
-        // Predictions come back out of order often enough to matter; a slow
-        // early keystroke must not overwrite a fast later one. Same guard the
-        // route's own search carries, for the same reason.
+        // Predictions come back out of order often enough to matter; a slow early
+        // keystroke must not overwrite a fast later one.
         const mine = ++seq;
         if (!state.map) return;
         let found = [];
@@ -4160,9 +4078,8 @@
         if (mine !== seq || !box.isConnected) return;
         hits = found;
         if (!hits.length) {
-          // NAMES THE VIEWPORT, the same as the route's search does: the search is
-          // RESTRICTED to what is on screen, so "no matches" is a fact about the
-          // map rather than about the world, and zooming out is the move.
+          // NAMES THE VIEWPORT, as the route's search does: the search is RESTRICTED
+          // to what is on screen, so "no matches" is a fact about the map.
           hitList.innerHTML = '<li class="sg-new-empty">No matches on screen—zoom out to search wider.</li>';
           hitList.hidden = false;
           return;
@@ -4188,9 +4105,8 @@
       if (!btn) return;
       const h = hits[Number(btn.dataset.i)];
       if (!h) return;
-      // Coordinates are fetched only for the pick — Place Details is billed per
-      // call, so resolving every prediction would cost five times as much for a
-      // rider who is going to choose one.
+      // Coordinates are fetched only for the pick — Place Details is billed per call,
+      // so resolving every prediction would cost five times as much.
       const picked = await h.resolve().catch(() => null);
       if (!picked) return toast("Could not locate that place", true);
       createGroup(picked, nameField.value.trim());
@@ -4208,19 +4124,16 @@
   }
 
   /**
-   * Make the group, with the starting point that is now known.
-   *
-   * NAMED AFTER THE PLACE unless the rider typed something. Ziad's call,
-   * 2026-09-04: "Group 2" says nothing about who it is, and "Santa Cruz" is what
-   * a planner calls them anyway. A typed name always wins — the same rule the
-   * ride title follows, and the reason there is no flag to keep in step here is
-   * that the field is read once, at the moment of creation.
-   */
+      * Make the group, with the starting point that is now known.
+      *
+      * NAMED AFTER THE PLACE unless the rider typed something: "Group 2" says nothing
+      * about who it is, and "Santa Cruz" is what a planner calls them anyway.
+      */
   function createGroup(place, typedName) {
     beginEdit("add a group");
-    // Walks the route palette so two groups are never the same color. It is the
-    // group's own color rather than a route's because a group spans several routes
-    // and its line has to read as one thing across all of them.
+    // Walks the route palette so two groups are never the same color. The group's
+    // own color rather than a route's, because a group spans several routes and its
+    // line has to read as one thing across all of them.
     const color = ROUTE_COLORS[state.meta.subgroups.length % ROUTE_COLORS.length];
     const g = {
       uid: uid(),
@@ -4228,27 +4141,25 @@
       color: color,
     };
     state.meta.subgroups.push(g);
-    // NOT PROMOTED. A ride always has a main group already, so a group added now is
-    // a joining one, and taking the main slot from underneath them would silently
-    // re-point every meeting-point proposal at a road nobody has planned.
-    //
-    // The fairness half matters MORE than it did: the seed is the planner's own
-    // group, so the default main group IS theirs — exactly the case #67 says the app
-    // must not choose silently. renderAnchorNote fires from the second group on.
-    //
-    // Re-derived rather than conditionally set: the main group IS the first in the
-    // list, so reading it back is the one spelling that cannot drift.
+    // NOT PROMOTED. A ride always has a main group, so a group added now is a joining
+        // one, and taking the main slot from underneath them would silently re-point
+        // every meeting-point proposal at a road nobody has planned.
+        //
+        // The fairness half matters MORE than it did: the seed is the planner's own
+        // group, so the default main group IS theirs — exactly the case #67 says the app
+        // must not choose silently.
+        //
+        // Re-derived rather than conditionally set: the main group IS the first in the
+        // list, so reading it back is the one spelling that cannot drift.
     state.meta.primarySubgroup = state.meta.subgroups[0].uid;
-    // AND IT COMES WITH A ROUTE OF ITS OWN, starting where the rider just said.
-    // Ziad's call, 2026-09-04, reported as "I added a third group, so there
-    // should be three distinct routes". A group used to be a TAG and nothing
-    // else: adding one changed nothing a rider could see, and giving it a road
-    // meant knowing to add a route and then assign it from the route's own picker —
-    // two steps, in a different tab, that nothing on screen asked for.
+    // AND IT COMES WITH A ROUTE OF ITS OWN, starting where the rider just said. A
+    // group used to be a TAG and nothing else: adding one changed nothing a rider
+    // could see, and giving it a road meant two steps in a different tab that
+    // nothing on screen asked for.
     seedGroupRoute(g, place);
     closeNewGroup();
-    // The new group cannot be assigned to anybody until the ride saves, which
-    // the Riders tab says itself.
+    // The new group cannot be assigned to anybody until the ride saves, which the
+    // Riders tab says itself.
     ridersStale();
     renderRoutes();
     rebuildLayers();
@@ -4262,43 +4173,39 @@
     if (!add) return;
 
     // A GROUP CANNOT BE MADE WITHOUT A STARTING POINT, so the button opens a form
-    // rather than creating anything. Ziad's call, 2026-09-04.
+    // rather than creating anything.
     add.addEventListener("click", openNewGroup);
 
-    // BOUND DIRECTLY, because this button is in the page's own markup now rather
-    // than inside #sg-body — it was delegated from that element while
-    // renderSubgroups() rebuilt it on every render, and a delegated handler on a
-    // static element is a listener that can never fire.
+    // BOUND DIRECTLY, because this button is in the page's own markup rather than
+    // inside #sg-body: a delegated handler on a static element can never fire.
     const meetBtn = $("sg-meet-all");
     if (meetBtn) meetBtn.addEventListener("click", findMeet);
 
     // SESSION STATE AND NOT A RIDE FIELD, like corridorOn and ringOn: how far a
-    // detour is worth is a question about the press being made, and it does not
-    // survive a reload on purpose — the rider's own default is what a planner should
-    // get on a ride they have just opened.
-    //
-    // `change` and not `input`: a number box fires on every keystroke, so typing
-    // "120" would put state through 1 and then 12.
+        // detour is worth is a question about the press being made, and it does not
+        // survive a reload on purpose — the rider's own default is what a planner should
+        // get on a ride they have just opened.
+        //
+        // `change` and not `input`: a number box fires on every keystroke, so typing
+        // "120" would put state through 1 and then 12.
     const divert = $("sg-divert");
     if (divert) {
       divert.addEventListener("change", () => {
-        // AN EMPTY BOX MEANS THE DEFAULT, NOT ZERO. `Number("")` is 0, which the
-        // clamp below would lift to the one-mile floor — refusing every
-        // candidate on the ride, for a rider whose only act was to clear the
-        // field. Same trap as clampDivert() server-side, where a test caught it.
+        // AN EMPTY BOX MEANS THE DEFAULT, NOT ZERO. `Number("")` is 0, which the clamp
+        // below would lift to the one-mile floor, refusing every candidate on the
+        // ride for a rider whose only act was to clear the field.
         const raw = divert.value.trim();
         const n = raw === "" ? NaN : Number(raw);
-        // OUT OF RANGE IS PUT BACK IN THE BOX, not silently corrected on the way
-        // to the server. The server clamps too — it does not trust a form — but
-        // a rider who typed 900 and got answers within 200 deserves to see the
-        // number that was actually used.
+        // OUT OF RANGE IS PUT BACK IN THE BOX, not silently corrected on the way to the
+        // server: a rider who typed 900 and got answers within 200 deserves to see
+        // the number that was actually used.
         state.maxDivertMi = Number.isFinite(n) ? Math.min(200, Math.max(1, n)) : window.TB.maxDivertMi || 10;
         divert.value = String(state.maxDivertMi);
       });
     }
 
-    // Delegated on the body, because every row is rebuilt by renderSubgroups
-    // and a handler bound to a row would be thrown away with it.
+    // Delegated on the body, because every row is rebuilt by renderSubgroups and a
+    // handler bound to a row would be thrown away with it.
     const body = $("sg-body");
     body.addEventListener("input", (e) => {
       const row = e.target.closest(".sg-row");
@@ -4308,10 +4215,9 @@
       if (e.target.classList.contains("sg-name")) {
         beginEdit("rename a group");
         g.name = e.target.value;
-        // NOT renderRoutes() — that would rebuild the field being typed in and
-        // lose the caret on every keystroke. The route pickers go stale for the
-        // length of the edit, which nobody can see, and the next render fixes
-        // them.
+        // NOT renderRoutes() — that would rebuild the field being typed in and lose the
+        // caret on every keystroke. The route pickers go stale for the length of the
+        // edit, which nobody can see.
         markDirty();
       } else if (e.target.classList.contains("sg-color")) {
         beginEdit("recolor a group");
@@ -4320,10 +4226,9 @@
       }
     });
 
-    // The keyboard half of the drag handle, and the path that still works when
-    // the SortableJS CDN does not. preventDefault because the drawer scrolls,
-    // and an arrow key that both moves the row and scrolls the panel loses the
-    // row off the screen — the same reasoning as the route grip.
+    // The keyboard half of the drag handle, and the path that still works when the
+    // SortableJS CDN does not. preventDefault because an arrow key that both moves
+    // the row and scrolls the panel loses the row off the screen.
     body.addEventListener("keydown", (e) => {
       const grip = e.target.closest(".sg-drag");
       if (!grip) return;
@@ -4336,18 +4241,15 @@
       const from = state.meta.subgroups.findIndex((g) => g.uid === uidOfRow);
       if (from < 0) return;
       moveGroup(from, from + dir);
-      // renderSubgroups() has replaced the button that was focused, so focus
-      // goes back to the same GROUP's grip at its new position — by uid, not by
-      // index, which is the thing that just changed.
+      // renderSubgroups() has replaced the focused button, so focus goes back to the
+      // same GROUP's grip by uid, not by index, which is what just changed.
       const moved = body.querySelector('.sg-row[data-sg="' + CSS.escape(uidOfRow) + '"] .sg-drag');
       if (moved) moved.focus();
     });
 
-    // TAKING A CANDIDATE IS DELEGATED ON #sg-meet-out, NOT ON #sg-body. It rode
-    // on the body handler while the proposal was rendered inside that element;
-    // the output is its own static element since 2026-09-05, so a handler on the
-    // body would never see the click — and the failure is a Take button that
-    // silently does nothing, with no error anywhere.
+    // TAKING A CANDIDATE IS DELEGATED ON #sg-meet-out, NOT ON #sg-body: the output is
+    // its own static element, so a handler on the body would never see the click —
+    // and the failure is a Take button that silently does nothing.
     const meetOut = $("sg-meet-out");
     if (meetOut) {
       meetOut.addEventListener("click", (e) => {
@@ -4364,19 +4266,13 @@
     });
   }
 
-  // DELETING A GROUP UN-TAGS ITS DAYS RATHER THAN DESTROYING THEM — the same
-  // thing `set null` does server-side, done here so undo and the map agree with
-  // what the save will do. A rider tidying up a group name must not lose the
-  // road they planned.
+  // DELETING A GROUP UN-TAGS ITS ROUTES RATHER THAN DESTROYING THEM — the same
+  // thing `set null` does server-side. A rider tidying up a group name must not
+  // lose the road they planned.
   function removeSubgroup(g) {
-    // THE MAIN GROUP CANNOT BE DELETED, and that one rule is what guarantees a
-    // ride always has a group — simpler than "you cannot delete the last one",
-    // which is the shape this replaced. Demote it first by dragging another
-    // group over it; then it goes like any other.
-    //
-    // The × is not rendered on it, so this is the backstop for a stale DOM
-    // rather than a path a rider takes — but the invariant lives here and the
-    // rendering is the courtesy.
+    // THE MAIN GROUP CANNOT BE DELETED, and that one rule is what guarantees a ride
+    // always has a group. Demote it first by dragging another group over it. The ×
+    // is not rendered on it, so this is the backstop for a stale DOM.
     if (state.meta.subgroups[0] && state.meta.subgroups[0].uid === g.uid) return;
     beginEdit("remove a group");
     state.meta.subgroups = state.meta.subgroups.filter((x) => x.uid !== g.uid);
@@ -4384,8 +4280,7 @@
       if (d.subgroupUid === g.uid) d.subgroupUid = null;
     });
     // Re-derived rather than repaired: the main group is whatever is first, and
-    // deleting a non-main group cannot change that — but reading it from the
-    // list keeps the two from ever disagreeing.
+    // reading it from the list keeps the two from ever disagreeing.
     state.meta.primarySubgroup = state.meta.subgroups[0].uid;
     if (state.meta.trunkSubgroup === g.uid) state.meta.trunkSubgroup = null;
     // renderRoutes() cascades into renderSubgroups() — see moveGroup.
@@ -4395,15 +4290,11 @@
   }
 
   // Asks the server where everybody should meet. The computation is pure geometry
-  // and calls no router — src/subgroups/rendezvous.ts — so it is cheap enough to
-  // press repeatedly.
-  //
-  // NO GROUP ARGUMENT, which is #239 in one line: the answer is one meeting point
-  // for the ride.
-  //
-  // IT NEEDS A SAVED RIDE, because the proposal is made against the STORED routes.
-  // Proposing against unsaved edits would mean shipping the whole ride up to ask,
-  // for an answer about roads that do not exist yet.
+    // and calls no router, so it is cheap enough to press repeatedly.
+    //
+    // NO GROUP ARGUMENT, which is #239 in one line: one meeting point for the ride.
+    //
+    // IT NEEDS A SAVED RIDE, the proposal being made against the STORED routes.
   async function findMeet() {
     const out = $("sg-meet-out");
     if (!state.rideId) {
@@ -4419,18 +4310,17 @@
         body: JSON.stringify({ maxDivertMi: state.maxDivertMi }),
       });
       const data = await res.json();
-      // A REFUSAL IS NOT A FAILURE AND MUST NOT READ AS ONE. The catch below
-      // used to swallow this, which cost a browser pass: the server answered
-      // 400 "unknown group" — the ride had been saved without it — and the
-      // panel said "could not work one out just now", which is what it also
-      // says when the network is down.
+      // A REFUSAL IS NOT A FAILURE AND MUST NOT READ AS ONE. The catch below used to
+      // swallow this: the server answered 400 "unknown group" and the panel said
+      // "could not work one out just now", which is what it says when the network
+      // is down.
       if (!res.ok) {
         out.innerHTML = '<p class="sg-note">Could not work one out just now.</p>';
         return;
       }
-      // HELD, because taking one group's meeting point re-renders the panel for
-      // the groups still undecided — the whole point of answering everybody on
-      // one press is that the other answers survive the first decision.
+      // HELD, because taking one group's meeting point re-renders the panel for the
+      // groups still undecided, and the other answers have to survive the first
+      // decision.
       state.meet = data;
       state.meetNote = "";
       out.innerHTML = meetAllHtml(data);
@@ -4444,9 +4334,8 @@
   }
 
   /** Every candidate in the press, flattened in the order the sections render
-   *  them, each tagged with the group it belongs to. One list is what the map
-   *  wants — the dots share a single preview slot — and the running index is
-   *  what pairs a dot with its row. */
+   *  them, each tagged with its group. One list is what the map wants, and the
+   *  running index is what pairs a dot with its row. */
   function meetFlat(data) {
     const out = [];
     for (const g of (data && data.groups) || []) {
@@ -4456,16 +4345,13 @@
   }
 
   /**
-    * The candidates on the map, one numbered dot each, matching the rows.
-    *
-    * THE SAME MECHANISM THE PLACE SEARCH USES — `setSearchPreview` — rather than a
-    * second kind of temporary marker. A proposal is exactly what that was built
-    * for: a short ordered list gone the moment the rider chooses. Reusing it means
-    * the dots are already pressable and hover both ways (#232).
-    *
-    * `label` is passed because the search's default accessible name is "Add …",
-    * which is the wrong verb here.
-    */
+        * The candidates on the map, one numbered dot each, matching the rows.
+        *
+        * THE SAME MECHANISM THE PLACE SEARCH USES — `setSearchPreview` — rather than a
+        * second kind of temporary marker, so the dots are already pressable and hover
+        * both ways (#232). `label` is passed because the search's default accessible
+        * name is "Add …".
+        */
   function showMeetPreview(host, data) {
     if (!state.map) return;
     const flat = meetFlat(data);
@@ -4478,12 +4364,10 @@
     }
     state.previewOwner = "meet";
     const rows = Array.from(host.querySelectorAll(".sg-meets li"));
-    // EVERY GROUP'S CANDIDATES AT ONCE, EACH IN ITS OWN GROUP'S COLOR. Ziad's call,
-    // 2026-09-04. They shipped in $brand — the first entry in ROUTE_COLORS and so
-    // the color most main groups are painted in — which made the dots blue on a blue
-    // line. The joining group is the right one to borrow from, because the proposal
-    // is about them; with three satellites the color is also the only thing saying
-    // which decision a dot belongs to.
+    // EVERY GROUP'S CANDIDATES AT ONCE, EACH IN ITS OWN GROUP'S COLOR. They shipped
+    // in $brand — the color most main groups are painted in — which made the dots
+    // blue on a blue line. The joining group is the right one to borrow from, and
+    // with three satellites the color is the only thing saying whose a dot is.
     setSearchPreview(
       state.map,
       flat.map(({ c, group, name }, i) => ({
@@ -4491,24 +4375,20 @@
         name: "Meeting point " + (i + 1),
         color: (subgroupByUid(group) || {}).color || null,
         num: i + 1,
-        // The row's own headline fact, in the row's own words, led by whose
-        // decision it is — with several groups on one map the tip is the only
-        // place the dot can say that in words. Built here and not in
-        // map-common.js so that file stays out of miles-versus-kilometers.
+        // The row's own headline fact, led by whose decision it is. Built here and not
+        // in map-common.js so that file stays out of miles-versus-kilometers.
         tip: (name ? name + SEP : "") + meetTip(c),
         label: "Use meeting point " + (i + 1) + " for " + (name || "this group") + ", " + meetTip(c),
       })),
-      // HOVERING THE DOT LIFTS ITS ROAD TOO, not just its row. #232's rule is
-      // that a dot and its row hover BOTH ways, and the approach line is the
-      // third thing that pairing is about — a rider running the pointer over
-      // three dots is asking which road each one means.
+      // HOVERING THE DOT LIFTS ITS ROAD TOO: #232's rule is that a dot and its row
+      // hover BOTH ways, and a rider running the pointer over three dots is asking
+      // which road each one means.
       (i) => {
         rows.forEach((li, j) => li.classList.toggle("is-lit", j === i));
         highlightMeetApproaches(state.map, i);
       },
-      // PRESSING THE DOT PRESSES THE ROW'S BUTTON, rather than repeating what
-      // takeMeet does with the row's dataset — a second copy of that call would
-      // drift the first time the data attributes changed.
+      // PRESSING THE DOT PRESSES THE ROW'S BUTTON, rather than repeating what takeMeet
+      // does with the row's dataset — a second copy would drift.
       (i) => {
         const btn = rows[i] && rows[i].querySelector(".sg-take");
         if (btn) btn.click();
@@ -4528,17 +4408,12 @@
   }
 
   // THE ROADS THE JOINING GROUPS WOULD ACTUALLY RIDE, drawn from what the proposal
-  // already returned.
-  //
-  // FETCHED BY THE SERVER, NOT HERE, as of 2026-09-03: it routes them anyway to
-  // measure each approach against the group's fuel range, so asking again would
-  // pay Google twice and let the drawing disagree with the number that filtered.
-  //
-  // ONE ROAD PER CANDIDATE, in the joining group's color — `group` is the flat
-  // index the hover pairs on.
-  //
-  // THIS IS THE COMPARISON, not decoration: the long way round the lake and the
-  // short slog down the interstate are two shapes before they are two numbers.
+    // already returned. FETCHED BY THE SERVER, NOT HERE: it routes them anyway to
+    // measure each approach against the group's fuel range, so asking again would pay
+    // Google twice and let the drawing disagree with the number that filtered.
+    //
+    // ONE ROAD PER CANDIDATE, in the joining group's color; `group` is the flat index
+    // the hover pairs on. THIS IS THE COMPARISON, not decoration.
   function drawMeetApproaches(flat) {
     if (!state.map) return;
     const paths = [];
@@ -4550,11 +4425,10 @@
     setMeetApproaches(state.map, paths);
   }
 
-  /** One line of what a candidate costs, shared by the row and its dot so the
-   *  two cannot say different things about the same place. */
+  /** One line of what a candidate costs, shared by the row and its dot. */
   function meetTip(c) {
-    // `mi` IS THE EXTRA OVER A GROUP'S CHEAPEST WAY OF JOINING (#370), so a
-    // zero is a group at its cheapest and not a group sent nowhere.
+    // `mi` IS THE EXTRA OVER A GROUP'S CHEAPEST WAY OF JOINING (#370), so a zero is a
+    // group at its cheapest and not a group sent nowhere.
     const worst = (c.diverts || []).filter((d) => !d.onRoute && d.mi > 0).sort((a, b) => b.mi - a.mi)[0];
     return (
       (c.name ? c.name + SEP : "") +
@@ -4565,51 +4439,40 @@
     );
   }
 
-  // EVERY ONE OF THESE NAMES THE THING THE PLANNER SHOULD DO NEXT. The set
-  // before #239 named the app's internal state instead — "there are no shared
-  // routes yet" is true, unhelpful, and describes the very thing the planner
-  // pressed the button to get.
+  // EVERY ONE OF THESE NAMES THE THING THE PLANNER SHOULD DO NEXT. The set before
+  // #239 named the app's internal state instead — "there are no shared routes yet"
+  // is true, unhelpful, and describes what the planner pressed the button to get.
   const MEET_REASONS = {
     "one-group": "Add a second group—a meeting point needs at least two starting places.",
     // ONE ENTRY FOR no-routes. The route rename folded "no-days" into this key and
-    // left both lines, and in an object literal the later one wins silently —
-    // esbuild's minifier reported it.
-    // ITS OWN MESSAGE, because "nowhere works" sent the planner hunting for a
-    // geometry problem in a ride whose real state was that nobody had drawn a road.
-    // NAMES THE GROUP, because which one has to be planned first is the whole of
-    // what the planner needs — the same reason firstIssue() renders `route 2`
-    // rather than `routes.1`.
+        // left both lines, and in an object literal the later one wins silently.
+        // ITS OWN MESSAGE, because "nowhere works" sent the planner hunting for a
+        // geometry problem in a ride whose real state was that nobody had drawn a road.
+        // NAMES THE GROUP, the same reason firstIssue() renders `route 2`.
     "no-routes": "Plan the main group’s route to the destination first—that is the road a meeting point sits on.",
-    // A REAL ANSWER, not a failure. Groups approaching a destination from
-    // opposite sides have nowhere sensible to meet short of it, and offering the
-    // least bad option would be worse than saying so.
+    // A REAL ANSWER, not a failure. Groups approaching a destination from opposite
+    // sides have nowhere sensible to meet short of it.
     "none-viable":
       "No meeting point works without sending somebody a long way round. Check that every group’s route ends at the same place.",
   };
 
   /**
-    * The whole answer: one section per joining group, in the order the server
-    * proposed for them.
-    *
-    * A SECTION EACH RATHER THAN ONE LIST. Ziad's call, 2026-09-04: one press answers
-    * the whole question and the decisions are knocked down one at a time. A blended
-    * list could not say which group a row was for.
-    *
-    * A group already carrying a chosen point is still re-proposed for — changing
-    * your mind is ordinary, and the row menu removes the point.
-    */
+        * The whole answer: one section per joining group, in the order the server
+        * proposed for them. A SECTION EACH RATHER THAN ONE LIST — one press answers the
+        * whole question and the decisions are knocked down one at a time, and a blended
+        * list could not say which group a row was for.
+        *
+        * A group already carrying a chosen point is still re-proposed for.
+        */
   function meetAllHtml(data) {
     const groups = data.groups || [];
-    // THE RIDE-WIDE REFUSALS ARE STILL RIDE-WIDE, and they are checked FIRST.
-    // Nothing is proposed for anybody when there is one group, no routes or no
-    // routes, so those are said once at the top rather than repeated under every
-    // group's name — and this branch is the one that names the main group, which
-    // a bare "no groups came back" could not.
+    // THE RIDE-WIDE REFUSALS ARE STILL RIDE-WIDE, and they are checked FIRST:
+    // nothing is proposed for anybody when there is one group or no routes, so those
+    // are said once at the top. This branch is the one that names the main group.
     if (data.reason) {
       let msg = MEET_REASONS[data.reason] || MEET_REASONS["none-viable"];
-      // The server names the main group where it has one, so the line reads
-      // "Plan Oakland's route…" rather than making the planner work out which
-      // group the app means.
+      // The server names the main group where it has one, so the line reads "Plan
+      // Oakland's route…" rather than making the planner work out which it means.
       if (data.reason === "no-routes" && data.group) {
         msg = "Plan " + esc(data.group) + "'s route to the destination first—that is the road a meeting point sits on.";
       }
@@ -4628,11 +4491,9 @@
           esc(g.name || "Group") +
           " joins here</h4>";
         const body = meetResultHtml(g, n);
-        // The running number is what pairs a row with its dot, and it runs
-        // across the WHOLE press rather than per section — the dots share one
-        // map and one preview slot, so two groups both numbering from 1 would
-        // put two number 1s on the same road. The section's color is what says
-        // whose is whose; the number is only ever an identity.
+        // The running number pairs a row with its dot and runs across the WHOLE press
+        // rather than per section: the dots share one map, so two groups numbering
+        // from 1 would put two number 1s on the same road.
         n += (g.candidates || []).length;
         return '<section class="sg-meet-group" data-sg="' + esc(g.group) + '">' + head + body + "</section>";
       })
@@ -4641,21 +4502,17 @@
 
   function meetResultHtml(data, base) {
     if (data.candidates.length && data.note === "out-of-range") {
-      // NAMES THE COMPROMISE. These stations are real and on the road; what they
-      // are not is reachable on the tank somebody arrives with. Saying "here are
-      // three meeting points" without that would send a group at a forecourt
-      // they run dry twenty miles short of.
+      // NAMES THE COMPROMISE: these stations are real and on the road, and what they
+      // are not is reachable on the tank somebody arrives with.
       return (
         '<p class="sg-note">No gas station both groups can reach on one tank—these need a fuel stop first:</p>' +
         meetListHtml(data.candidates, data.group, base)
       );
     }
     if (data.candidates.length && data.note === "no-gas") {
-      // SAYS WHICH KIND IT GAVE, which is the whole reason the fallback is
-      // allowed. A stretch with no station is ordinary on a rural road, and a
-      // rider who asked for a forecourt and got a mile marker has to be told
-      // that is what happened — otherwise the next question is why the app
-      // ignored them.
+      // SAYS WHICH KIND IT GAVE, which is why the fallback is allowed: a stretch with
+      // no station is ordinary on a rural road, and a rider who asked for a
+      // forecourt and got a mile marker has to be told.
       return (
         '<p class="sg-note">No gas station on the stretch everyone can reach—these are the best spots on the road:</p>' +
         meetListHtml(data.candidates, data.group, base)
@@ -4663,20 +4520,17 @@
     }
     if (!data.candidates.length) {
       // PER GROUP NOW, so it names the group rather than the ride: with three
-      // satellites, two of which have somewhere to meet, "no meeting point
-      // works" said once at the top would be false about the ride and useless
-      // about the group it is true of.
+      // satellites, two of which have somewhere to meet, "no meeting point works"
+      // said once at the top would be false about the ride.
       return '<p class="sg-note">Nowhere works for this group without a long way round.</p>';
     }
     return meetListHtml(data.candidates, data.group, base);
   }
 
   function meetListHtml(candidates, groupUid, base) {
-    // The badge takes the group's color because the badge IS the pairing: the
-    // dot on the map carries the same number, and with three groups proposing at
-    // once the number alone is ambiguous the moment two sections are on screen
-    // together. Inline, because the color is a rider's choice and there is no
-    // class for an arbitrary hex.
+    // The badge takes the group's color because the badge IS the pairing: the dot on
+    // the map carries the same number, and with three groups proposing at once the
+    // number alone is ambiguous. Inline, there being no class for an arbitrary hex.
     const color = (subgroupByUid(groupUid) || {}).color || "";
     return (
       '<ul class="sg-meets">' +
@@ -4697,26 +4551,21 @@
             c.lng +
             '" data-along="' +
             c.alongM +
-            // WHICH GROUP IS JOINING, carried on the button for the same reason
-            // the name is: the row IS the decision, and looking the group up
-            // again when the button is pressed is a second chance to disagree
-            // about which one the rider meant.
+            // WHICH GROUP IS JOINING, carried on the button: the row IS the decision,
+            // and looking the group up again on press is a second chance to disagree.
             '" data-group="' +
             esc(groupUid || "") +
             '"' +
-            // The name rides along on the button rather than being looked up
-            // again when it is pressed: the row is what the rider chose, and a
-            // second lookup by coordinate is a second chance to disagree.
+            // The name rides along for the same reason.
             (c.name ? ' data-name="' + esc(c.name) + '"' : "") +
             ">Use this</button>" +
             '<span class="sg-meet-fact">' +
             (c.name
               ? "<strong>" + esc(c.name) + "</strong>" + (c.address ? SEP + esc(shortAddress(c.address)) : "") + SEP
               : "") +
-            // WHAT IT COSTS EACH GROUP BY NAME. One number for the worst-hit
-            // group would be the honest headline and an unreadable one — the
-            // planner cannot tell whose it is, which is the whole thing #67 asks
-            // them to be able to see before they choose.
+            // WHAT IT COSTS EACH GROUP BY NAME. One number for the worst-hit group
+            // would be the honest headline and an unreadable one — the planner cannot
+            // tell whose it is, which is what #67 asks them to see before choosing.
             costPerGroup(c) +
             SEP +
             c.sharedPct +
@@ -4730,71 +4579,60 @@
   }
 
   // Google returns a full postal address and the panel is 380px wide. The street
-  // and the town is what tells two forecourts of the same brand apart; the state
-  // and the postcode are the parts a rider already knows.
+  // and the town tell two forecourts of the same brand apart; the state and the
+  // postcode are the parts a rider already knows.
   function shortAddress(a) {
     return String(a).split(",").slice(0, 2).join(",").trim();
   }
 
   // "on their way" rather than "+0 mi" for a group whose road already passes
   // through the point: zero extra miles is the arithmetic, and what it MEANS is
-  // that this is not a detour for them at all. Two routes that converge get a
-  // line saying so for every group, which is the answer a planner most wants and
-  // the one a column of zeroes would bury.
+  // that this is not a detour for them at all — the answer a planner most wants
+  // and the one a column of zeroes would bury.
   function costPerGroup(c) {
     return (c.diverts || [])
       .map((d) => {
         const g = subgroupByUid(d.group);
         const name = g ? g.name : "a group";
-        // A zero that is not on-route is this group's cheapest way of joining
-        // the ride — still a road to ride, so not "on their way", and not a
-        // detour either.
+        // A zero that is not on-route is this group's cheapest way of joining — still a
+        // road to ride, so not "on their way", and not a detour either.
         return esc(name) + (d.onRoute ? " on their way" : d.mi > 0 ? " +" + d.mi + " mi" : " their shortest way in");
       })
       .join(SEP);
   }
 
   // ACCEPTING A PROPOSAL PUTS THE MEETING POINT ON EVERY GROUP'S ROUTE, THE MAIN
-  // GROUP'S INCLUDED — theirs is the road it was found on, so adding it turns a
-  // suggested coordinate into a stop with a name, a dwell and a roadbook row.
-  //
-  // INSERTED BEFORE EACH GROUP'S LAST POINT, not appended: the last point is the
-  // destination, so appending would route past the meeting point and back to it.
-  //
-  // THE MAIN GROUP IS PLACED BY DISTANCE AND EVERY OTHER GROUP BY POSITION.
-  // Second-to-last was the rule for all of them until 2026-09-04 — true of a
-  // joining group, false of the main one, whose route is the ride and has stops
-  // all along it, where the meet landed after every stop the rider had planned.
-  // `alongM` is threaded through the response and placeMeetOnMain walks the strand
-  // back to a route and a slot. A joining group keeps the position rule because
-  // there is nothing to measure, but never before its first point.
-  //
-  // GOES THROUGH addPoint LIKE EVERY OTHER POINT: a second path would be a second
-  // path to keep in step with routing, undo and the map.
-  //
-  // The prebuilt carries `meet`, which is still only a LABEL — junctions() derives
-  // the boundary from the route list and reads no role. Cutting the routes is
-  // cutSharedStretch, on accept since 2026-09-06.
+    // GROUP'S INCLUDED — theirs is the road it was found on.
+    //
+    // INSERTED BEFORE EACH GROUP'S LAST POINT, not appended: the last point is the
+    // destination, so appending would route past the meeting point and back to it.
+    //
+    // THE MAIN GROUP IS PLACED BY DISTANCE AND EVERY OTHER GROUP BY POSITION.
+    // Second-to-last was the rule for all of them, true of a joining group and false
+    // of the main one, whose route has stops all along it — the meet landed after
+    // every stop the rider had planned. `alongM` is threaded through the response
+    // and placeMeetOnMain walks the strand back to a route and a slot.
+    //
+    // GOES THROUGH addPoint LIKE EVERY OTHER POINT. The prebuilt carries `meet`,
+    // which is still only a LABEL — junctions() derives the boundary from the route
+    // list and reads no role. Cutting the routes is cutSharedStretch.
   /**
-     * Where the meeting point goes on the main group's own road.
-     *
-     * WHAT THE MAIN GROUP HAS THAT NOBODY ELSE DOES IS A ROUTE THE POINT WAS
-     * MEASURED AGAINST, so the response says how far along it the meet is — and a
-     * route with stops on it needs that number, because "before the last point" put
-     * a meeting point 200 miles up the road after every stop the rider had planned.
-     *
-     * THE STRAND, NOT THE GROUP'S OWN ROUTES: `alongM` is measured along the same
-     * concatenation the server built, so the walk back must use the same definition
-     * or it lands on the wrong route.
-     *
-     * NULL WHEN THERE IS NO DISTANCE TO USE — the caller falls back to the position
-     * rule, so a missing number costs the placement and not the feature.
-     */
+         * Where the meeting point goes on the main group's own road.
+         *
+         * THE MAIN GROUP HAS A ROUTE THE POINT WAS MEASURED AGAINST, so the response
+         * says how far along it the meet is — and a route with stops on it needs that
+         * number, because "before the last point" put a meeting point 200 miles up the
+         * road after every stop the rider had planned.
+         *
+         * THE STRAND, NOT THE GROUP'S OWN ROUTES: `alongM` is measured along the same
+         * concatenation the server built. NULL WHEN THERE IS NO DISTANCE TO USE, and
+         * the caller falls back to the position rule.
+         */
   function placeMeetOnMain(alongM) {
     const uid = state.meta.subgroups[0] && state.meta.subgroups[0].uid;
     if (!uid || !Number.isFinite(alongM)) return null;
-    // ACTIVE DAYS ONLY, matching the server — a losing alternate is not a road
-    // anybody is riding, so it contributes no distance to walk through.
+    // ACTIVE ROUTES ONLY, matching the server: a losing alternate is not a road
+    // anybody is riding.
     const active = ALT.activeRoutes(state.routes);
     const strand = active.filter((d) => !d.subgroupUid || d.subgroupUid === uid);
     const place = DIST.placeAlongStrand(strand, alongM);
@@ -4811,32 +4649,26 @@
     if (!Number.isFinite(lat) || !Number.isFinite(lng)) return;
     const alongM = Number(d.along);
 
-    // THE ONE GROUP THIS ROW IS ABOUT, and its LAST route by index — addPoint takes
-    // an index and everything downstream is expressed in one.
-    //
-    // ONE GROUP, NOT ALL OF THEM, since 2026-09-04: taking group 2's meeting point
-    // must not drop a point on group 3's road, which is still undecided. A group with
-    // no route of its own is skipped rather than refused.
+    // THE ONE GROUP THIS ROW IS ABOUT, and its LAST route by index. ONE GROUP, NOT
+    // ALL OF THEM: taking group 2's meeting point must not drop a point on group 3's
+    // road, which is still undecided. A group with no route of its own is skipped.
     const lastOf = new Map();
     state.routes.forEach((route, i) => {
       if (route.subgroupUid && route.subgroupUid === d.group) lastOf.set(route.subgroupUid, i);
     });
 
-    // THE MAIN GROUP IS PLACED BY DISTANCE, EVERY OTHER GROUP BY POSITION, and
-    // that asymmetry is the shape of what is known rather than an inconsistency.
-    // `alongM` is measured along the MAIN group's strand and means nothing on
-    // anybody else's road; a joining group contributes a starting point and has
-    // no road to measure into until this insert draws one.
+    // THE MAIN GROUP IS PLACED BY DISTANCE, EVERY OTHER GROUP BY POSITION, which is
+    // the shape of what is known rather than an inconsistency: `alongM` is measured
+    // along the MAIN group's strand and means nothing on anybody else's road.
     const mainPlace = placeMeetOnMain(alongM);
     if (mainPlace) lastOf.delete(mainPlace.uid);
     if (lastOf.size === 0 && !mainPlace) return;
 
     const names = [];
     const placed = [];
-    // BACK TO FRONT, so an insert never moves an index still to be used. The
-    // routes here are distinct so it would survive either order, but doing
-    // index-shifting edits in reverse is the habit that keeps the multi-route
-    // paths in this file correct.
+    // BACK TO FRONT, so an insert never moves an index still to be used. These routes
+    // are distinct so either order would survive, but reverse is the habit that keeps
+    // the multi-route paths in this file correct.
     const targets = [...lastOf.entries()];
     if (mainPlace) targets.push([mainPlace.uid, mainPlace.routeIndex]);
     targets.sort((a, b) => b[1] - a[1]);
@@ -4845,45 +4677,38 @@
       const route = state.routes[routeIndex];
       if (!route || route.points.length === 0) continue;
       const g = subgroupByUid(uidOfGroup);
-      // NAMED AFTER THE STATION where there is one, so the route list reads
-      // "Shell" rather than a row every group has three of. The `meet` role is
-      // what says what it is FOR; the name says where it is.
+      // NAMED AFTER THE STATION where there is one, so the route list reads "Shell"
+      // rather than a row every group has three of. The `meet` role says what it is
+      // FOR; the name says where it is.
       const pt = newPoint(lng, lat, d.name || "Meeting point", d.address);
-      // `gas` alongside `meet` when it is a forecourt: the fuel overlay reads
-      // that role to decide where a tank refills, and a meeting point everyone
-      // fills up at is exactly a refuel the range ring should know about.
+      // `gas` alongside `meet` when it is a forecourt: the fuel overlay reads that role
+      // to decide where a tank refills.
       pt.roles = d.name ? ["meet", "gas"] : ["meet"];
       // NEVER BEFORE THE FIRST POINT. A joining group contributes a STARTING POINT and
       // nothing else, so its route is routinely one point long — and `points.length -
       // 1` is 0 there, which put the meeting point ahead of where the group sets off
-      // and made elapsedToPointS() return 0, telling them to leave as everyone
-      // arrives. The floor of 1 is clamped up by addPoint, so a one-point route
-      // appends.
+      // and made elapsedToPointS() return 0.
       const at =
         mainPlace && uidOfGroup === mainPlace.uid ? Math.max(1, mainPlace.at) : Math.max(1, route.points.length - 1);
       routed.push(addPoint(lng, lat, pt.name, routeIndex, pt, at));
-      // THE POINT'S OWN uid RIDES ALONG, and everything downstream resolves the
-      // index from it rather than trusting `at`. addPoint clamps the slot to the
-      // route's length, so `at` is where the point was ASKED to go and not
-      // necessarily where it went — and the two places that read it back, the
-      // departure sync and the route cut, are both off by one the moment they
-      // disagree. A uid is the identity that survives every edit in this file.
+      // THE POINT'S OWN uid RIDES ALONG, and everything downstream resolves the index
+      // from it rather than trusting `at`: addPoint clamps the slot to the route's
+      // length, so `at` is where the point was ASKED to go. A uid is the identity
+      // that survives every edit in this file.
       placed.push({ uid: uidOfGroup, routeIndex, at, puid: pt.uid });
       if (g) names.push(g.name);
     }
 
-    // THIS GROUP'S CANDIDATES GO AND EVERYBODY ELSE'S STAY. The decision that
-    // was just made is done — leaving its other two dots up would read as three
-    // meeting points for one group — but the groups still undecided are the
-    // whole reason a press answers everybody at once, and clearing the map here
-    // is what would send the planner back to the button for each of them.
+    // THIS GROUP'S CANDIDATES GO AND EVERYBODY ELSE'S STAY. The decision just made
+    // is done, but the groups still undecided are the whole reason a press answers
+    // everybody at once.
     const out = $("sg-meet-out");
     if (state.meet) {
       state.meet = { ...state.meet, groups: (state.meet.groups || []).filter((g) => g.group !== d.group) };
     }
     const rest = (state.meet && state.meet.groups) || [];
-    // IN STATE, NOT ONLY IN THE DOM, for the same reason the proposal is: this
-    // panel is rebuilt out from under us the moment a departure moves.
+    // IN STATE, NOT ONLY IN THE DOM: this panel is rebuilt out from under us the
+    // moment a departure moves.
     state.meetNote =
       '<p class="sg-note">Added to ' +
       esc(names.reverse().join(", ")) +
@@ -4891,23 +4716,17 @@
     out.innerHTML = state.meetNote + (rest.length ? meetAllHtml(state.meet) : "");
     showMeetPreview(out, state.meet);
 
-    // WAITS FOR THE REAL ROADS. Every leg here is a straight placeholder until
-    // the Routes responses land, and syncing departures to a straight-line
-    // duration would set every time to a number that is about to change — with
-    // nothing to say it had. This is the one caller that awaits addPoint.
+    // WAITS FOR THE REAL ROADS. Every leg here is a straight placeholder until the
+    // Routes responses land, and syncing to a straight-line duration would set every
+    // time to a number that is about to change. The one caller that awaits addPoint.
     Promise.all(routed).then(() => {
       // The remaining groups' sections are re-rendered with the result rather than
-      // replaced by it: the departure line is about the decision just made, and the
-      // sections under it are the ones still to make.
-      //
-      // `$("sg-meet-out")` IS RE-READ rather than closed over — it was replaced on
-      // every render until 2026-09-05, and re-reading is the form that survives that
-      // being true again.
+      // replaced by it. `$("sg-meet-out")` IS RE-READ rather than closed over, which
+      // is the form that survives it being replaced on every render again.
       const sync = syncDeparturesToMeet(placed);
-      // THE SHARED STRETCH BECOMES ITS OWN DAY, and it happens after the sync
-      // rather than before it because the sync addresses routes by index and this
-      // changes them. It also needs the arrival the sync worked out: the shared
-      // route starts at the meeting point, which is the moment everybody is there.
+      // THE SHARED STRETCH BECOMES ITS OWN ROUTE, after the sync rather than before it
+      // because the sync addresses routes by index and this changes them. It also
+      // needs the arrival the sync worked out.
       state.meetNote = '<p class="sg-note">' + sync.note + cutSharedStretch(placed, sync.arrival) + "</p>";
       const host = $("sg-meet-out");
       if (!host) return;
@@ -4917,18 +4736,16 @@
   }
 
   /**
-    * Set every sub-group's departure so they reach the meeting point when the main
-    * group does.
-    *
-    * THE MAIN GROUP'S CLOCK IS THE ONE THAT HOLDS, which is the same rule the
-    * fairness note is about and the reason `time_anchor` needs no control. So this
-    * never moves the main group's route — a planner who set a 7am start keeps it.
-    *
-    * ARITHMETIC ON THE STORED VALUE, WITH NO ZONE ANYWHERE. `startAt` is a wall
-    * clock carried as UTC, so adding seconds stays in the same representation — see
-    * route-clock.js, the only place that value is converted. Do not reach for a
-    * local Date here.
-    */
+        * Set every sub-group's departure so they reach the meeting point when the main
+        * group does.
+        *
+        * THE MAIN GROUP'S CLOCK IS THE ONE THAT HOLDS, which is why `time_anchor` needs
+        * no control, so this never moves the main group's route.
+        *
+        * ARITHMETIC ON THE STORED VALUE, WITH NO ZONE ANYWHERE. `startAt` is a wall
+        * clock carried as UTC, so adding seconds stays in the same representation. Do
+        * not reach for a local Date here.
+        */
   function syncDeparturesToMeet(placed) {
     const mainUid = state.meta.subgroups[0] && state.meta.subgroups[0].uid;
     const main = placed.find((p) => p.uid === mainUid);
@@ -4937,10 +4754,9 @@
     const mainRoute = state.routes[main.routeIndex];
     const mainAt = meetIndex(mainRoute, main);
     const mainStart = mainRoute && routeStartS(mainRoute);
-    // NOTHING TO SYNC TO, said rather than silently skipped. An undated main route
-    // is the ordinary state of a ride nobody has put a date on yet, and a rider
-    // who watched three departure times not change deserves to know it was this
-    // and not a failure.
+    // NOTHING TO SYNC TO, said rather than silently skipped: an undated main route is
+    // the ordinary state of a ride nobody has dated, and a rider who watched three
+    // departure times not change deserves to know it was this and not a failure.
     if (mainStart == null) {
       return {
         note:
@@ -4954,10 +4770,9 @@
     if (mainToMeet == null) return { note: "They now ride through it.", arrival: null };
     const arrival = mainStart + mainToMeet;
 
-    // ITS OWN UNDO STEP. The point inserts pushed theirs while the rider was
-    // watching; this lands a second or two later when the Routes responses do,
-    // and folding it into the last insert would make one undo take back a
-    // departure time the rider had already read on screen.
+    // ITS OWN UNDO STEP. This lands a second or two after the inserts, when the
+    // Routes responses do, and folding it into the last one would make a single undo
+    // take back a departure time the rider had already read.
     beginEdit("sync departures");
     const moved = [];
     for (const p of placed) {
@@ -4966,26 +4781,20 @@
       const at = meetIndex(route, p);
       const toMeet = at == null ? null : elapsedToPointS(route, at);
       if (toMeet == null) continue;
-      // The seconds are dropped so a rider is given a departure on the minute —
-      // a route's duration is seconds-precise and "leave at 07:43:19" is a
-      // false precision nobody can act on. Rounding DOWN, because the alternative
-      // is telling somebody to leave after the moment they had to.
+      // Seconds are dropped so a rider is given a departure on the minute. Rounding
+      // DOWN, because the alternative is telling somebody to leave after the moment
+      // they had to.
       const departS = Math.floor((arrival - toMeet) / 60) * 60;
       const wasS = routeStartS(route);
       route.startAt = new Date(departS * 1000).toISOString();
-      // THE GROUP'S EARLIER ROUTES COME WITH IT. Only the route HOLDING the meet was
-      // moved until 2026-09-06, so moving a departure two hours earlier left the group
-      // arriving at the meet the route before they set off from the previous night's
-      // hotel. Ziad's call: the whole approach shifts.
-      //
-      // BY THE SAME DELTA, WHICH PRESERVES THE GAPS — solving each earlier route
-      // backwards would mean deciding how long a night is, which is already in the
-      // rider's dates. An undated route is skipped rather than given one.
+      // THE GROUP'S EARLIER ROUTES COME WITH IT, by the SAME DELTA, which preserves
+      // the gaps: solving each earlier route backwards would mean deciding how long a
+      // night is, which is already in the rider's dates. An undated route is skipped.
       if (wasS != null) shiftEarlierRoutes(p.uid, p.routeIndex, departS - wasS);
       moved.push(subgroupName(p.uid) + " " + fmtMoment(departS));
     }
-    // refreshDerived() syncs every route's end from its new start, so the ends
-    // follow the departures without this touching endAt itself.
+    // refreshDerived() syncs every route's end from its new start, so the ends follow
+    // without this touching endAt.
     renderRoutes();
     refreshDerived();
     markDirty();
@@ -4997,14 +4806,12 @@
   }
 
   /**
-   * Where the meeting point actually landed in a route.
-   *
-   * BY uid, NEVER BY THE SLOT IT WAS ASKED FOR. `addPoint` clamps its `at` to
-   * the route's length, so a request to insert at 3 into a two-point route lands at
-   * 2 — and both readers of this number, the departure sync and the route cut, are
-   * silently off by one when that happens. `points.uid` is the identity that
-   * survives every edit in this file, which is exactly what it is for.
-   */
+      * Where the meeting point actually landed in a route.
+      *
+      * BY uid, NEVER BY THE SLOT IT WAS ASKED FOR. `addPoint` clamps its `at` to the
+      * route's length, so a request to insert at 3 into a two-point route lands at 2,
+      * and both readers of this number are silently off by one when that happens.
+      */
   function meetIndex(route, p) {
     if (!route) return null;
     const i = route.points.findIndex((pt) => pt.uid === p.puid);
@@ -5012,15 +4819,10 @@
   }
 
   /**
-    * Move a group's routes BEFORE `routeIndex` by `deltaS` seconds.
-    *
-    * Its own routes only — a shared route belongs to the main group's clock, which
-    * this must never touch. Wall clock carried as UTC, so this is arithmetic on the
-    * stored value with no zone anywhere.
-    *
-    * `endAt` is left alone: refreshDerived() re-derives every route's end from its
-    * start, so a value set here would be overwritten a moment later.
-    */
+        * Move a group's routes BEFORE `routeIndex` by `deltaS` seconds. Its own routes
+        * only — a shared route belongs to the main group's clock. `endAt` is left
+        * alone: refreshDerived() re-derives it from the start a moment later.
+        */
   function shiftEarlierRoutes(groupUid, routeIndex, deltaS) {
     if (!deltaS) return;
     for (let i = 0; i < routeIndex && i < state.routes.length; i++) {
@@ -5033,58 +4835,46 @@
   }
 
   /**
-    * Cut the shared stretch out of the main group's route and make it a route of
-    * its own, ridden by everybody.
-    *
-    * WHAT ACCEPTING A MEETING POINT USED TO LEAVE BEHIND: the main group's route
-    * ran straight through the meet to the destination, so the road after it was
-    * tagged to the main group while every other group was expected to ride it, and
-    * the rider was told to split it themselves. Ziad's call, 2026-09-06.
-    *
-    * THE TAIL IS UNTAGGED, WHICH IS THE WHOLE POINT — an untagged route is ridden
-    * by everyone, so this turns "the main group's road, which the others somehow
-    * join" into #67's structure: one approach per group, then a shared route.
-    * `junctions()` derives a MEET at that boundary with no column and no flag.
-    *
-    * IT GOES AFTER THE LAST APPROACH, NOT AFTER THE ROUTE IT WAS CUT FROM.
-    * `strandOf` builds a strand in position order, so a shared route ahead of a
-    * joining group's approach puts the ride home before the ride out — and the main
-    * group's route is routinely first, so the naive splice is wrong in the ordinary
-    * case rather than the exotic one.
-    *
-    * IT STARTS AT THE ARRIVAL, NOT THE NEXT MORNING, which is the opposite of
-    * `splitRouteHere`: everybody meets and rides on. An undated ride stays undated.
-    *
-    * ITS OWN UNDO STEP, like the departure sync's — one press should give back the
-    * ride the rider was looking at rather than three edits.
-    *
-    * Returns the sentence for the note, or "" when there was nothing to cut, which
-    * is the ordinary outcome rather than a failure.
-    */
+        * Cut the shared stretch out of the main group's route and make it a route of
+        * its own, ridden by everybody.
+        *
+        * THE TAIL IS UNTAGGED, WHICH IS THE WHOLE POINT — an untagged route is ridden
+        * by everyone, so this turns "the main group's road, which the others somehow
+        * join" into #67's structure: one approach per group, then a shared route.
+        * `junctions()` derives a MEET at that boundary with no column and no flag.
+        *
+        * IT GOES AFTER THE LAST APPROACH, NOT AFTER THE ROUTE IT WAS CUT FROM.
+        * `strandOf` builds a strand in position order, so a shared route ahead of a
+        * joining group's approach puts the ride home before the ride out — and the main
+        * group's route is routinely first, so the naive splice is wrong in the ordinary
+        * case.
+        *
+        * IT STARTS AT THE ARRIVAL, NOT THE NEXT MORNING, the opposite of
+        * `splitRouteHere`: everybody meets and rides on.
+        *
+        * ITS OWN UNDO STEP. Returns the sentence for the note, or "" when there was
+        * nothing to cut, which is ordinary rather than a failure.
+        */
   function cutSharedStretch(placed, arrival) {
     const mainUid = state.meta.subgroups[0] && state.meta.subgroups[0].uid;
     const main = placed.find((p) => p.uid === mainUid);
     if (!main) return "";
     // OBJECTS, RESOLVED ONCE, BEFORE ANY SPLICE. Everything below inserts routes,
-    // which moves every index after the insert — and `placed` holds the indices
-    // as they were when the points went in. Holding the route OBJECT and asking
-    // for its index at the moment it is needed is the only form that survives
-    // two cuts in one press. Same reason meetIndex() resolves a point by uid.
+    // which moves every index after the insert, and `placed` holds the indices as
+    // they were. Holding the route OBJECT is the only form that survives two cuts in
+    // one press — the same reason meetIndex() resolves a point by uid.
     const held = placed.map((p) => ({ p: p, route: state.routes[p.routeIndex] || null })).filter((h) => h.route);
 
     const mainRoute = state.routes[main.routeIndex];
     const i = mainRoute ? meetIndex(mainRoute, main) : null;
     // NOTHING AFTER THE MEET IS NOT AN ERROR: canSplitAt refuses the last point, and
-    // a main group whose route ends at the meeting point has no shared stretch.
-    //
-    // THE JOINING TAILS ARE STILL CUT IN THAT CASE, which is why this is a branch
-    // rather than an early return — it used to be one, so the ordinary shape meant
-    // no joining group's road past the meet was ever trimmed.
+    // a main group whose route ends at the meeting point has no shared stretch. THE
+    // JOINING TAILS ARE STILL CUT IN THAT CASE, which is why this is a branch rather
+    // than an early return.
     if (i == null || !SPLIT.canSplitAt(mainRoute, i)) {
-      // GUARD BEFORE beginEdit, like every other refusal in this file. With no
-      // main cut to make and no joining tail to trim — which is the ordinary
-      // shape — an unconditional beginEdit here pushes an undo step for nothing,
-      // and the rider presses undo and watches nothing happen.
+      // GUARD BEFORE beginEdit, like every other refusal in this file: with nothing to
+      // cut — the ordinary shape — an unconditional beginEdit pushes an undo step for
+      // nothing.
       if (!held.some((h) => h.p.uid !== mainUid && splittableAtMeet(h))) return "";
       beginEdit("split at the meeting point");
       return cutJoiningTails(held, mainUid);
@@ -5115,27 +4905,23 @@
     syncEnd(cut.first);
     if (arrival != null) cut.second.startAt = new Date(arrival * 1000).toISOString();
 
-    // AFTER THE LAST APPROACH. Every placed route is an approach to this meeting
-    // point, so the shared stretch belongs after all of them — and the indices
-    // are re-read from the array rather than taken from `placed`, because the
-    // splice above has already moved everything past `r`.
+    // AFTER THE LAST APPROACH: every placed route is an approach to this meeting
+    // point. The indices are re-read from the array rather than taken from `placed`,
+    // the splice above having moved everything past `r`.
     let after = r;
     for (const h of held) {
       const at = state.routes.indexOf(h.route);
       if (at > after) after = at;
     }
     state.routes.splice(after + 1, 0, cut.second);
-    // THE ACTIVE DAY IS AN INDEX, so inserting ahead of it moves what it points
-    // at. `splitRouteHere` gets away with not doing this because it finishes with
-    // goToRoute(); this deliberately does not move the rider's attention — they
-    // are reading the panel, not the route list — so the index has to be carried
-    // across by hand or the next map click lands on the wrong route.
+    // THE ACTIVE ROUTE IS AN INDEX, so inserting ahead of it moves what it points at.
+    // `splitRouteHere` gets away with not doing this because it finishes with
+    // goToRoute(); this deliberately does not move the rider's attention, so the
+    // index has to be carried across by hand.
     if (state.active > after) state.active += 1;
 
-    // AND EVERY JOINING GROUP THAT DREW PAST THE MEETING POINT. Their approach
-    // has to END there — that is what an approach is — so a route running
-    // through it to somewhere else is a group riding past the place they were
-    // told to stop and wait.
+    // AND EVERY JOINING GROUP THAT DREW PAST THE MEETING POINT: an approach has to
+    // END there, or the group rides past the place they were told to wait.
     const tails = cutJoiningTails(held, mainUid);
 
     renderRoutes();
@@ -5147,23 +4933,18 @@
   }
 
   /**
-    * End every joining group's approach AT the meeting point, keeping whatever they
-    * had drawn past it.
-    *
-    * A joining group contributes a starting point and nothing else, so normally
-    * there is nothing to do. This exists for a planner who drew their own
-    * destination: the approach ran THROUGH the meeting point to somewhere else.
-    *
-    * **NOTHING IS DELETED, AND THAT IS DELIBERATE.** The road past the meet is
-    * usually redundant, but "usually" is a judgment about somebody else's plan, and
-    * a silent delete cannot be undone by looking at the screen. It becomes a route
-    * of that group's own and the note names them, so one press removes it.
-    *
-    * **BACK TO FRONT**, so an insert never moves an index still to be used.
-    */
+        * End every joining group's approach AT the meeting point, keeping whatever they
+        * had drawn past it. Normally there is nothing to do; this exists for a planner
+        * who drew their own destination.
+        *
+        * **NOTHING IS DELETED**: the road past the meet is usually redundant, but
+        * "usually" is a judgment about somebody else's plan and a silent delete cannot
+        * be undone by looking at the screen. It becomes a route of that group's own.
+        *
+        * **BACK TO FRONT**, so an insert never moves an index still to be used.
+        */
   /** Whether this group drew road PAST the meeting point. The ordinary answer is
-   *  no: a joining group contributes a starting point, so by the time the meet
-   *  is added its route is two points and the meet is the last of them. */
+   *  no: by the time the meet is added their route is two points. */
   function splittableAtMeet(h) {
     const i = meetIndex(h.route, h.p);
     return i != null && SPLIT.canSplitAt(h.route, i);
@@ -5181,13 +4962,11 @@
       if (state.routes.length >= MAX_ROUTES) break;
       const route = t.h.route;
       const i = meetIndex(route, t.h.p);
-      // The ordinary outcome: the meeting point is the last thing on their
-      // route, so their approach already ends there.
+      // The ordinary outcome: their approach already ends at the meeting point.
       if (i == null || !SPLIT.canSplitAt(route, i)) continue;
       const cut = SPLIT.splitRouteAt(route, i, uid);
-      // THEIR OWN, not shared: this is a road one group drew and nobody else
-      // agreed to ride. Inheriting the approach's group is what keeps it out of
-      // everybody else's strand.
+      // THEIR OWN, not shared: this is a road one group drew and nobody else agreed to
+      // ride. Inheriting the approach's group keeps it out of everybody else's strand.
       cut.second.subgroupUid = route.subgroupUid;
       cut.second.color = route.color;
       cut.second.title = "";
@@ -5212,14 +4991,13 @@
   };
 
   /**
-   * The dialog's own events. Bound once, when it is built.
-   *
-   * The destination search is `openNewGroup()`'s, verbatim in shape: a 300ms
-   * debounce, a three-character floor, and a `seq` counter so a slow response for
-   * an old query cannot overwrite a fast one for the current query. Coordinates
-   * are fetched only for the PICK, because Place Details bills per call and a
-   * rider typing a town name would otherwise spend one per keystroke.
-   */
+      * The dialog's own events, bound once when it is built.
+      *
+      * The destination search is `openNewGroup()`'s in shape: a 300ms debounce, a
+      * three-character floor, and a `seq` counter so a slow response for an old query
+      * cannot overwrite a fast one. Coordinates are fetched only for the PICK,
+      * because Place Details bills per call.
+      */
   function wireSplitDialog(el) {
     const close = () => {
       if (typeof el.close === "function" && el.open) el.close();
@@ -5238,8 +5016,7 @@
 
     destField.addEventListener("input", () => {
       // Typing invalidates a pick: the field no longer names the place whose
-      // coordinates are held, and committing those would send them somewhere the
-      // rider is no longer looking at.
+      // coordinates are held.
       el.dataset.dest = "";
       refreshSplitGo(el);
       clearTimeout(timer);
@@ -5291,10 +5068,10 @@
       if (!route || !rr) return close();
       const riderIds = [...el.querySelectorAll(".rider-picks input:checked")].map((x) => Number(x.value));
       let groupUid = el.querySelector(".split-group").value;
-      // A NEW GROUP IS MINTED BEFORE THE SAVE, because the save is what creates
-      // it: reconcileSubgroups matches on the uid this file holds. Never promoted
-      // — subgroups[0] is the main group and taking that slot from underneath the
-      // ride would re-point every meeting-point proposal at a road nobody planned.
+      // A NEW GROUP IS MINTED BEFORE THE SAVE, because the save is what creates it:
+      // reconcileSubgroups matches on the uid this file holds. Never promoted —
+      // taking subgroups[0] from underneath the ride would re-point every
+      // meeting-point proposal at a road nobody planned.
       if (!groupUid) {
         const name = el.querySelector(".split-name").value.trim();
         const g = {
@@ -5324,8 +5101,8 @@
       }
       close();
       btn.textContent = "Split";
-      // The road is drawn and undoable either way; only the rider record can fail
-      // on its own, and a rider who is told nothing would read the split as done.
+      // The road is drawn and undoable either way; only the rider record can fail on
+      // its own, and a rider told nothing would read the split as done.
       const ok = await writeSplitRiders(result, choice);
       if (!ok)
         toast("The split is drawn, but who rides it could not be saved—try the riders pill on those routes", true);
@@ -5333,17 +5110,16 @@
   }
 
   /**
-    * The split dialog, built once and appended to `<body>`.
-    *
-    * A DIALOG FOR THE SAME REASON THE RIDER PICKER IS ONE: three questions — who
-    * leaves, which of them, where they are going — and a 380px drawer row has
-    * nowhere to put that. `showModal()` needs the top layer, which is why both
-    * buttons carry `.btn`: the panel's own rules are nested inside
-    * `.builder-panel`.
-    *
-    * THE GROUP LIST COMES FROM THE SERVER, NOT `state.meta.subgroups` — only the
-    * server's carries the numeric id `route_riders.subgroup_id` needs.
-    */
+        * The split dialog, built once and appended to `<body>`.
+        *
+        * A DIALOG FOR THE SAME REASON THE RIDER PICKER IS ONE: three questions — who
+        * leaves, which of them, where they are going — and a 380px drawer row has
+        * nowhere to put that. Both buttons carry `.btn` because the panel's own rules
+        * are nested inside `.builder-panel` and `showModal()` needs the top layer.
+        *
+        * THE GROUP LIST COMES FROM THE SERVER, NOT `state.meta.subgroups` — only the
+        * server's carries the numeric id `route_riders.subgroup_id` needs.
+        */
   function splitGroupDialog() {
     let el = $("tb-split");
     if (el) return el;
@@ -5376,14 +5152,11 @@
   }
 
   /**
-   * Open the split dialog on a stop.
-   *
-   * Only riders who are ON this stretch are offered — splitting off somebody who
-   * is not there is not a thing anyone means — and the group picker prefills from
-   * `lastRiders`, which is `ridersWhoRodeAs()` server-side: the people who last
-   * rode as that group. Editable afterwards, which is what covers the one or two
-   * who carry on rather than going home with their own lot.
-   */
+      * Open the split dialog on a stop. Only riders who are ON this stretch are
+      * offered, and the group picker prefills from `lastRiders` — the people who last
+      * rode as that group. Editable afterwards, which covers the one or two who carry
+      * on rather than going home with their own lot.
+      */
   function openSplitGroup(r, i) {
     const route = state.routes[r];
     const rr = routeRidersOf(route);
@@ -5415,8 +5188,8 @@
     el.querySelector(".split-group").focus();
   }
 
-  /** The rider list, re-drawn whenever the chosen group changes so the prefill
-   *  follows it. Ticks come from `lastRiders`; the list is who is on the route. */
+  /** The rider list, re-drawn whenever the chosen group changes. Ticks come from
+   *  `lastRiders`; the list is who is on the route. */
   function renderSplitPicks(el) {
     const route = state.routes[Number(el.dataset.route)];
     const rr = routeRidersOf(route);
@@ -5442,7 +5215,7 @@
     refreshSplitGo(el);
   }
 
-  /** Everything the Split button waits for, in one place so the reason a rider
+  /** Everything the Split button waits for, in one place, so the reason a rider
    *  cannot press it is always the one shown beside the list. */
   function refreshSplitGo(el) {
     const route = state.routes[Number(el.dataset.route)];
@@ -5469,37 +5242,29 @@
   }
 
   /**
-    * Peel a group off the ride at a stop: the structural half.
-    *
-    * THE MIRROR OF `cutSharedStretch`. Accepting a meeting point leaves the tail
-    * UNTAGGED because everybody rides together from there; a split is the same cut
-    * read the other way, so the tail is tagged with whoever carries on.
-    *
-    * **THE CONTINUATION IS TAGGED WITH WHOEVER KEEPS RIDING IT, WHICH TAGS THE MAIN
-    * GROUP FOR THE FIRST TIME.** Ziad's call, 2026-09-07. `null` means EVERYONE
-    * rides a route, so leaving the continuation shared is a false and expensive
-    * statement: `strandOf` would hand the leavers the main group's entire onward
-    * road — the ride-34 origin bug in a third costume. It costs `startRouteOf` a
-    * parameter, and `groupStartHtml` and `longestApproach` the same correction.
-    *
-    * **THE PEEL-OFF ROUTE GOES TO THE END OF THE LIST, NOT BESIDE THE CUT.**
-    * `resolveRouteRiders` is a linear walk carrying a set forward, so a route
-    * spliced in mid-list makes every route AFTER it inherit the leavers, silently.
-    * `test/route-riders.test.ts` pins both readings against each other.
-    *
-    * **NOTHING IS RE-ROUTED EXCEPT THE ONE NEW LEG** — the leavers' road from the
-    * stop to where they are going.
-    *
-    * `choice` is `{ groupUid, riderIds, destination }`. Returns both route uids.
-    */
+        * Peel a group off the ride at a stop: the structural half, the mirror of
+        * `cutSharedStretch`.
+        *
+        * **THE CONTINUATION IS TAGGED WITH WHOEVER KEEPS RIDING IT, WHICH TAGS THE MAIN
+        * GROUP FOR THE FIRST TIME.** `null` means EVERYONE rides a route, so leaving the
+        * continuation shared would hand the leavers the main group's entire onward road
+        * through `strandOf`. It costs `startRouteOf` a parameter, and `groupStartHtml`
+        * and `longestApproach` the same correction.
+        *
+        * **THE PEEL-OFF ROUTE GOES TO THE END OF THE LIST, NOT BESIDE THE CUT.**
+        * `resolveRouteRiders` is a linear walk carrying a set forward, so a route
+        * spliced in mid-list makes every route AFTER it inherit the leavers, silently.
+        *
+        * **NOTHING IS RE-ROUTED EXCEPT THE ONE NEW LEG.** `choice` is
+        * `{ groupUid, riderIds, destination }`; returns both route uids.
+        */
   function splitGroupOffAt(r, i, choice) {
     const route = state.routes[r];
     const g = subgroupByUid(choice.groupUid);
     if (!route || !g) return null;
     const cutting = SPLIT.canSplitAt(route, i);
-    // GUARDS BEFORE beginEdit, like every other refusal in this file — a refused
-    // split must push no undo step. Two routes are added when the stop is interior
-    // and one when the route already begins there.
+    // GUARDS BEFORE beginEdit: a refused split must push no undo step. Two routes are
+    // added when the stop is interior and one when the route already begins there.
     if (!SPLIT.canPeelOffAt(route, i)) return null;
     if (state.routes.length + (cutting ? 2 : 1) > MAX_ROUTES) {
       toast("Route limit reached (" + MAX_ROUTES + ")", true);
@@ -5509,9 +5274,8 @@
     const mainUid = state.meta.subgroups[0] && state.meta.subgroups[0].uid;
     const stop = route.points[i];
     // THE ARRIVAL, NOT THE NEXT MORNING, which is where this diverges from
-    // splitRouteHere for the same reason cutSharedStretch does: a rider splitting
-    // a route by hand is usually marking where they slept, and here everybody
-    // arrives and one lot turns off. Null on an undated ride, which is ordinary.
+    // splitRouteHere for the reason cutSharedStretch does: everybody arrives and one
+    // lot turns off. Null on an undated ride, which is ordinary.
     const startS = routeStartS(route);
     const toStop = startS == null ? null : elapsedToPointS(route, i);
     const arrival = startS == null || toStop == null ? null : startS + toStop;
@@ -5530,23 +5294,21 @@
       continuation.color =
         ROUTE_COLORS.find((c) => !used.has(c)) || ROUTE_COLORS[state.routes.length % ROUTE_COLORS.length];
       state.routes.splice(r, 1, cut.first, continuation);
-      // splitRouteHere omits this and gets away with it because the identity check
-      // in computeLeg discards a stale response; the sequence array still ends up
-      // one short of the route array, so every index past `r` is reading the wrong
-      // entry. Splice it here rather than inherit the bug.
+      // splitRouteHere omits this and gets away with it because computeLeg's identity
+      // check discards a stale response; the sequence array still ends up one short,
+      // so every index past `r` reads the wrong entry.
       state.legSeq.splice(r + 1, 0, []);
       syncEnd(cut.first);
       if (arriveIso) continuation.startAt = arriveIso;
       if (state.active > r) state.active += 1;
     } else if (route.subgroupUid == null && mainUid) {
-      // No cut to make: the route already begins at this stop. It still has to
-      // stop claiming everybody, for the same reason the cut half does.
+      // No cut to make: the route already begins at this stop. It still has to stop
+      // claiming everybody.
       continuation.subgroupUid = mainUid;
     }
 
-    // The leavers' road. seedGroupRoute()'s recipe, plus a destination — and it
-    // builds its own first point rather than reusing splitRouteAt's carried copy,
-    // which drops `address`.
+    // The leavers' road. seedGroupRoute()'s recipe plus a destination, building its
+    // own first point rather than reusing splitRouteAt's copy, which drops `address`.
     const peel = newRoute(g.color);
     peel.subgroupUid = g.uid;
     peel.title = "";
@@ -5560,9 +5322,9 @@
     state.routes.push(peel);
     state.legSeq.push([]);
 
-    // ONE ROUTES REQUEST AND ONE UNDO STEP. addPoint() would push a second,
-    // uncoalesced `beginEdit("add point")`, and a single undo has to give back the
-    // ride the planner was looking at rather than half of this.
+    // ONE ROUTES REQUEST AND ONE UNDO STEP: addPoint() would push a second,
+    // uncoalesced `beginEdit`, and a single undo has to give back the ride the
+    // planner was looking at.
     computeLeg(state.routes.length - 1, 0);
 
     renderRoutes();
@@ -5577,32 +5339,28 @@
   }
 
   /**
-    * Peel a group off: the rider half, which is what makes the split a fact.
-    *
-    * **A BRAND-NEW GROUP HAS NO SERVER ID UNTIL A SAVE, AND WRITING WITHOUT ONE
-    * FAILS SILENTLY.** `reconcileSubgroups` inside the ordinary save is the only
-    * thing that creates a subgroup, and `setRouteRiders` coerces an unrecognized
-    * group id to null rather than refusing — so an early write says the leavers ride
-    * as the main group and looks like it worked. Mutate, save, re-read, then write.
-    *
-    * **AN ENDPOINT THAT CREATES ONE GROUP WAS REJECTED**: `reconcileSubgroups`
-    * deletes stored subgroups whose uid is absent from the payload, so an autosave
-    * serialized before the group existed would delete the row it had just inserted.
-    *
-    * **THE PEEL-OFF ROUTE IS WRITTEN FIRST.** If the second write fails the leavers
-    * are named on both roads, which one press fixes; the other order makes them
-    * vanish from everything after the boundary.
-    */
+        * Peel a group off: the rider half, which is what makes the split a fact.
+        *
+        * **A BRAND-NEW GROUP HAS NO SERVER ID UNTIL A SAVE, AND WRITING WITHOUT ONE
+        * FAILS SILENTLY.** `reconcileSubgroups` inside the ordinary save is the only
+        * thing that creates a subgroup, and `setRouteRiders` coerces an unrecognized
+        * group id to null rather than refusing — so an early write says the leavers ride
+        * as the main group and looks like it worked. Mutate, save, re-read, then write.
+        *
+        * **AN ENDPOINT THAT CREATES ONE GROUP WAS REJECTED**: `reconcileSubgroups`
+        * deletes stored subgroups whose uid is absent from the payload, so an autosave
+        * serialized before the group existed would delete the row it had just inserted.
+        *
+        * **THE PEEL-OFF ROUTE IS WRITTEN FIRST.** If the second write fails the leavers
+        * are named on both roads, which one press fixes; the other order makes them
+        * vanish from everything after the boundary.
+        */
   async function writeSplitRiders(result, choice) {
     // SAVE FIRST, ALWAYS, AND NOT ONLY FOR A NEW GROUP. The split MINTS TWO ROUTE
-    // UIDS and `payloadFor` answers from the routes the DATABASE holds, so a PUT sent
-    // first is answered with a list that does not contain them and `applyRouteRiders`
-    // replaces the client's map with it. The rows land, and the panel draws no group
-    // and no riders on either new route until something re-reads. Seen live on ride
-    // 34.
-    //
-    // Gating this on a new group was the first version and made the failure depend on
-    // which group was chosen.
+        // UIDS and `payloadFor` answers from the routes the DATABASE holds, so a PUT sent
+        // first is answered with a list that does not contain them and `applyRouteRiders`
+        // replaces the client's map with it: the rows land, and the panel draws no group
+        // and no riders on either new route until something re-reads.
     const saved = await saveNow();
     if (!saved) return false;
     await loadRouteRiders();
@@ -5611,19 +5369,16 @@
     const staying = SPLIT.remainingRiders(choice.onRoute, choice.riderIds);
     const leaving = choice.riderIds.map((id) => ({ id: id, group: groupId }));
     // Riding as the MAIN group is null, not the main group's own id — see the
-    // route_riders column comment. Everybody carrying on together is the main
-    // group whatever they set off as.
+    // route_riders column comment.
     const carrying = staying.map((id) => ({ id: id, group: null }));
     const ok = await putRouteRiders(result.peelUid, leaving);
     if (!ok) return false;
     return await putRouteRiders(result.continueUid, carrying);
   }
 
-  // MOVING A GROUP IS THE ONLY WAY TO CHANGE WHICH IS MAIN. `subgroups[0]` is
-  // the main group by definition, so promotion and reordering are one operation
-  // rather than two that could disagree — and `primarySubgroup` is re-derived
-  // here rather than set anywhere else, which is what stops the column drifting
-  // away from the list a rider is looking at.
+  // MOVING A GROUP IS THE ONLY WAY TO CHANGE WHICH IS MAIN. `subgroups[0]` is the
+  // main group by definition, so promotion and reordering are one operation, and
+  // `primarySubgroup` is re-derived here rather than set anywhere else.
   function moveGroup(from, to) {
     const a = state.meta.subgroups;
     if (from === to || from < 0 || to < 0 || from >= a.length || to >= a.length) return;
@@ -5632,20 +5387,18 @@
     state.meta.primarySubgroup = a[0].uid;
     // renderRoutes() only — it cascades into renderSubgroups(), and calling both
     // would build the row list twice and re-init Sortable on a node it had just
-    // bound. The route pickers name groups in this order and the fairness note is
-    // about which group is main, so both are stale the moment the order changes.
+    // bound.
     renderRoutes();
     markDirty();
   }
 
-  // Rebound on every renderSubgroups() because that replaces the rows; the
-  // instance is stashed on the element and destroyed first, the same as the route
-  // list and the point lists.
+  // Rebound on every renderSubgroups() because that replaces the rows; the instance
+  // is stashed on the element and destroyed first, as the route and point lists do.
   function initGroupDrag(host) {
     if (!host) return;
     if (!window.Sortable) {
-      // Not a failure worth a toast: the grip is a real button with arrow keys,
-      // so reordering still works and the only thing lost is the gesture.
+      // Not a failure worth a toast: the grip is a real button with arrow keys, so the
+      // only thing lost is the gesture.
       console.warn("[builder] Sortable did not load—reorder groups with the grip and arrow keys");
       return;
     }
@@ -5655,18 +5408,15 @@
       handle: ".sg-drag",
       animation: 150,
       ghostClass: "is-dragging",
-      // Same reasoning as the route list: one code path on desktop and touch, a
-      // drag mirror that can be styled, and the only path a synthetic event can
-      // drive.
+      // Same reasoning as the route list: one code path on desktop and touch, a drag
+      // mirror that can be styled, and the only path a synthetic event can drive.
       forceFallback: true,
       fallbackClass: "route-drag-ghost",
       fallbackOnBody: true,
       onEnd: (evt) => {
-        // THE DRAGGABLE PAIR, NOT THE RAW ONE. #sg-list holds nothing but
-        // .sg-row today, so the two agree — and that is exactly the property
-        // #166 quietly lost when insert slots landed in the point list nine routes
-        // after the arithmetic. Reading the pair that stays correct costs
-        // nothing and does not depend on nobody ever adding a separator here.
+        // THE DRAGGABLE PAIR, NOT THE RAW ONE. #sg-list holds nothing but .sg-row
+        // today, so the two agree — and that is exactly the property #166 quietly
+        // lost when insert slots landed in the point list.
         const from = evt.oldDraggableIndex;
         const to = evt.newDraggableIndex;
         if (from == null || to == null || from === to) return;
@@ -5675,11 +5425,10 @@
     });
   }
 
-  // #67 IS EXPLICIT THAT THE DEFAULT PRIMARY MUST NOT BE THE PLANNER'S OWN
-  // GROUP: it is the one most likely to be nearest the meet, so that default
-  // reproduces the unfair-6am case every time and the planner does not notice,
-  // being the one who rode three miles. The suggestion here is the group with
-  // the most riding to do, and the note says what choosing wrong costs.
+  // #67 IS EXPLICIT THAT THE DEFAULT PRIMARY MUST NOT BE THE PLANNER'S OWN GROUP:
+  // it is the one most likely to be nearest the meet, so that default reproduces
+  // the unfair-6am case every time and the planner does not notice, being the one
+  // who rode three miles. The suggestion is the group with the most riding to do.
   function renderAnchorNote() {
     const el = $("sg-anchor-note");
     if (!el) return;
@@ -5688,9 +5437,8 @@
       el.textContent = longest ? "" : "Give each group at least one route to see the effect.";
       return;
     }
-    // NAMES THE GESTURE, because there is no longer a picker to point at: the
-    // main group is whichever is at the top of the list, so the fix for this
-    // warning is to drag one there.
+    // NAMES THE GESTURE, there being no picker to point at: the main group is
+    // whichever is at the top of the list, so the fix is to drag one there.
     el.textContent =
       esc(longest.name) +
       " has the farthest to ride. Pinning a closer group’s clock asks them to leave earlier—drag " +
@@ -5699,15 +5447,13 @@
   }
 
   /**
-    * Longest by planned riding time across the routes that group rides ALONE BEFORE
-    * THE FIRST SHARED ONE — the shared routes cancel out.
-    *
-    * **AN APPROACH IS WHAT YOU RIDE TO GET THERE, AND THE RIDE HOME IS NOT ONE.** It
-    * counted every route a group rode alone, which was the same thing until
-    * splitting tagged the main group's continuation — Main would then own the rest
-    * of the ride, win every time, and silence `renderAnchorNote()` on exactly the
-    * rides with the most groups on them.
-    */
+        * Longest by planned riding time across the routes that group rides ALONE BEFORE
+        * THE FIRST SHARED ONE — the shared routes cancel out.
+        *
+        * **AN APPROACH IS WHAT YOU RIDE TO GET THERE, AND THE RIDE HOME IS NOT ONE.**
+        * Counting every route a group rode alone lets a tagged Main own the rest of the
+        * ride, win every time, and silence `renderAnchorNote()`.
+        */
   function longestApproach() {
     const active = ALT.activeRoutes(state.routes);
     const met = active.findIndex((d) => !d.subgroupUid);
@@ -5726,10 +5472,9 @@
     return best;
   }
 
-  // Which sections are currently open, so a rebuild does not spring every twirl
-  // back to its default. Keyed by route index, which is the best available: a route
-  // has no id until it is saved, and a reorder is meant to carry the open state
-  // with the position rather than with the route.
+  // Which sections are open, so a rebuild does not spring every twirl back to its
+  // default. Keyed by route index, the best available: a route has no id until it
+  // is saved, and a reorder should carry the open state with the position.
   function openSections() {
     const open = new Set();
     document.querySelectorAll(".route-section").forEach((el) => {
@@ -5744,15 +5489,13 @@
     const shut = open && !open.has(r);
     const single = state.routes.length < 2;
     // ALTERNATES. `is-alt` is a losing one and `is-alt-active` the member that
-    // counts; both carry `in-alt-group` so the stylesheet can bracket the pair
-    // without caring which is which. A route with no group gets none of them, so
-    // a ride without alternates renders exactly as it did before.
+    // counts; both carry `in-alt-group` so the stylesheet can bracket the pair. A
+    // route with no group gets none of them.
     const grouped = route.altGroup != null;
     const ghost = grouped && !route.altActive;
     const altClass = !grouped ? "" : ghost ? " in-alt-group is-alt" : " in-alt-group is-alt-active";
-    // The badge says which of the two a section is, in the same words the
-    // viewer's legend uses. Same reasoning as there: badging only the loser
-    // leaves "an alternative to what?" unanswered.
+    // The badge says which of the two a section is, in the viewer legend's words:
+    // badging only the loser leaves "an alternative to what?" unanswered.
     const altBadge = !grouped
       ? ""
       : '<span class="route-alt' +
@@ -5769,9 +5512,8 @@
       (shut ? " is-shut" : "") +
       altClass +
       // Somebody else is working on this route. A class rather than a disabled
-      // control: the route stays fully editable, because a claim is advisory and
-      // the save path is what actually decides. This says "expect a clash", not
-      // "you may not".
+      // control: a claim is advisory and the save path is what decides, so this says
+      // "expect a clash", not "you may not".
       (LIVE.heldBy[route.uid] ? " is-held" : "") +
       '" data-route="' +
       r +
@@ -5781,9 +5523,8 @@
       esc(route.color) +
       '">' +
       '<div class="route-head">' +
-      // AFTER the grip, never before it: .route-drag's negative margins depend on
-      // being the first thing in the header, and anything ahead of it breaks the
-      // tab that reaches the section's padding edge.
+      // AFTER the grip, never before it: .route-drag's negative margins depend on being
+      // first in the header.
       (state.select?.scope === "route"
         ? '<input type="checkbox" class="route-pick" data-route="' +
           r +
@@ -5793,14 +5534,10 @@
           esc(routeLabel(r)) +
           '">'
         : "") +
-      // The route's own drag handle rather than dragging by the header: the header
-      // holds a color input, a text field and buttons, and every attempt to type in
-      // the name would start a drag.
-      //
-      // A BUTTON, not a span, which replaced the ↑ ↓ pair in .route-actions. A drag
-      // handle cannot be operated from a keyboard and does not exist at all if the
-      // SortableJS CDN fails; arrow keys on a focusable grip cover both without
-      // spending two more buttons of a 380px header.
+      // The route's own drag handle rather than dragging by the header, which holds a
+      // color input, a text field and buttons. A BUTTON, not a span: a drag handle
+      // cannot be operated from a keyboard and does not exist at all if the
+      // SortableJS CDN fails, and arrow keys on a grip cover both.
       '<button type="button" class="route-drag" data-tip="route-drag" title="Drag to reorder, or focus and use the arrow keys"' +
       ' aria-label="Reorder route ' +
       routeNumber(r) +
@@ -5808,8 +5545,8 @@
       '<button type="button" class="route-twirl" aria-expanded="' +
       (shut ? "false" : "true") +
       '" data-tip="route-twirl" title="Show or hide this route\'s stops"><span class="route-twirl-mark" aria-hidden="true"></span></button>' +
-      // The ordinal, rendered rather than stored. Reordering re-renders, so it is
-      // always the route's real position and there is nothing to keep in sync.
+      // The ordinal, rendered rather than stored: reordering re-renders, so it is
+      // always the route's real position.
       '<span class="route-num" aria-hidden="true">' +
       routeNumber(r) +
       "</span>" +
@@ -5818,18 +5555,12 @@
       '" data-tip="route-color" title="Route color" aria-label="Color for ' +
       esc(routeLabel(r)) +
       '">' +
-      // The placeholder no longer says "Route N", which made an empty field look like
-      // it already held the name.
-      //
-      // `data-1p-ignore` IS NOT A DUPLICATE OF `autocomplete="off"`. 1Password
-      // deliberately ignores autocomplete and classifies a field by the words around
-      // it, so "Name…" reads as a person's name and it offered a rider their own
-      // contact card on the route title. `autocomplete="off"` still earns its place:
-      // it stops the BROWSER offering the last ride's route names.
-      //
-      // Three fields carry it — this, .row-name and .sg-name — and any new free-text
-      // field wants it. It is 1Password's own attribute and does nothing in any other
-      // extension.
+      // `data-1p-ignore` IS NOT A DUPLICATE OF `autocomplete="off"`. 1Password ignores
+            // autocomplete and classifies a field by the words around it, so "Name…" reads
+            // as a person's name and it offered a rider their own contact card on the route
+            // title. `autocomplete="off"` still stops the BROWSER offering the last ride's
+            // route names. Three fields carry it — this, .row-name and .sg-name — and any
+            // new free-text field wants it.
       '<input class="route-title" type="text" maxlength="150" placeholder="Name this route (optional)"' +
       ' autocomplete="off" data-1p-ignore aria-label="Name for route ' +
       routeNumber(r) +
@@ -5840,19 +5571,16 @@
       routeSubgroupHtml(route, r) +
       routeRidersHtml(route, r) +
       '<span class="route-actions">' +
-      // Empty for the same reason .route-del is: icon-reverse.svg comes in through
-      // a CSS mask on ::before, so it takes the button's color and its disabled
-      // opacity. It was a bare ⇄ (U+21C4), which a screen reader announces as
-      // "rightwards arrow over leftwards arrow" — hence the aria-label.
+      // Empty for the reason .route-del is: the icon comes in through a CSS mask on
+      // ::before, so it takes the button's color and its disabled opacity. It was a
+      // bare ⇄, which a screen reader announces as "rightwards arrow over leftwards
+      // arrow" — hence the aria-label.
       '<button type="button" class="route-rev" data-tip="route-rev" title="Reverse this route—re-routes every leg" aria-label="Reverse ' +
       esc(routeLabel(r)) +
       '"></button>' +
-      // DELETE MOVED INTO THE MENU, and ⇄ did not. One re-routes every leg and the
-      // other throws a route away, both one mis-click from the title field. Reverse is
-      // the one a rider reaches for mid-edit, so it stays a button.
-      //
-      // U+22EE, the same glyph the row menu uses, so the two read as the same control
-      // at two levels.
+      // DELETE MOVED INTO THE MENU, and ⇄ did not: reverse is the one a rider reaches
+      // for mid-edit. U+22EE, the same glyph the row menu uses, so the two read as
+      // the same control at two levels.
       '<button type="button" class="route-menu-btn" data-tip="route-menu" title="More" aria-label="More actions for ' +
       esc(routeLabel(r)) +
       '" aria-haspopup="menu" aria-expanded="false">⋮</button>' +
@@ -5868,10 +5596,9 @@
       '<span class="route-times-note"></span>' +
       "</div>" +
       prefsHtml(r, route) +
-      // data-duration-format rides on each list, not only on #route-list: the rule
-      // in _builder.scss that widens .row-dur for the "1h 30m" format keys off
-      // the list itself, so putting it only on the ancestor silently stopped it
-      // matching and clipped the field.
+      // data-duration-format rides on each list, not only on #route-list: the rule in
+      // _builder.scss that widens .row-dur for "1h 30m" keys off the list itself, so
+      // putting it on the ancestor alone silently clipped the field.
       '<ol class="point-list" data-route="' +
       r +
       '" data-duration-format="' +
@@ -5882,10 +5609,9 @@
     );
   }
 
-  // WHAT A DAY ASKS OF THE ROUTER (#29) — the three things Routes API v2 can
-  // actually be told. There is no "prefer scenic" here because the router has no
-  // such notion: that is #28, and it works by scoring the alternates Routes
-  // returns rather than by asking for anything.
+  // WHAT A ROUTE ASKS OF THE ROUTER (#29) — the three things Routes API v2 can
+  // actually be told. There is no "prefer scenic" because the router has no such
+  // notion: that is #28, which scores the alternates Routes returns.
   const AVOID_PREFS = [
     {
       key: "avoidHighways",
@@ -5900,11 +5626,9 @@
     },
   ];
 
-  // #28. A SEPARATE GROUP BECAUSE IT IS A DIFFERENT VERB. Four toggles under one
-  // "Avoid" label would have read as "avoid twisty roads", which is the opposite
-  // of what it does — and the two are answered by different mechanisms anyway:
-  // the avoids are Google's routeModifiers, this is us scoring the alternates it
-  // returns and keeping the twistiest.
+  // #28. A SEPARATE GROUP BECAUSE IT IS A DIFFERENT VERB: four toggles under one
+  // "Avoid" label would read as "avoid twisty roads". The avoids are Google's
+  // routeModifiers; this is us scoring the alternates it returns.
   const PREFER_PREFS = [
     {
       key: "preferTwisty",
@@ -5916,13 +5640,11 @@
   const ROUTE_PREFS = AVOID_PREFS.concat(PREFER_PREFS);
 
   /**
-    * The set flags, or null when none are — the client half of normalizePrefs() in
-    * src/maps/route-prefs.ts.
-    *
-    * MIRRORED RATHER THAN SHARED, and deliberately not pinned by a test the way
-    * filename.js is: the server re-normalizes on every save and is the authority, so
-    * this only has to keep `{}` out of a request body and out of the dirty check.
-    */
+        * The set flags, or null when none are — the client half of normalizePrefs().
+        * MIRRORED RATHER THAN SHARED, and deliberately not pinned by a test the way
+        * filename.js is: the server re-normalizes on every save and is the authority,
+        * so this only has to keep `{}` out of a request body and the dirty check.
+        */
   function prefsBody(prefs) {
     if (!prefs) return null;
     const out = {};
@@ -5974,14 +5696,11 @@
   }
 
   /**
-   * What to say when a category search found nothing, naming the stretch that
-   * was actually searched.
-   *
-   * THREE CASES BECAUSE THERE ARE THREE SEARCHES, and telling a rider the wrong
-   * one sends them looking in the wrong place — which is the complaint #232 was
-   * filed about. Each line also names the way out, and the way out is always a
-   * control already on screen.
-   */
+      * What to say when a category search found nothing, naming the stretch that was
+      * actually searched. THREE CASES BECAUSE THERE ARE THREE SEARCHES, and naming the
+      * wrong one is the complaint #232 was filed about. Each line names the way out,
+      * and the way out is always a control already on screen.
+      */
   function emptyText(spec, isSlot) {
     const what = spec.label.toLowerCase();
     const width = Math.round(window.TBUnits.distanceFromMiles(CORRIDOR_MI, UNITS)) + " " + distUnit;
@@ -5993,9 +5712,8 @@
 
   const routeSection = (r) => document.querySelector('.route-section[data-route="' + r + '"]');
 
-  // The active route's own section carries the class; nothing else does. Separate
-  // from renderRoutes() because it runs on every click into a row and must not
-  // rebuild anything.
+  // The active route's own section carries the class. Separate from renderRoutes()
+  // because it runs on every click into a row and must not rebuild anything.
   function markActiveSection() {
     const a = activeIndex();
     document.querySelectorAll(".route-section").forEach((el) => {
@@ -6003,11 +5721,9 @@
     });
   }
 
-  // The rail's jump list: one dot per route, no "All" — there is no all-routes
-  // view to return to now that every route is on screen.
-  //
-  // Buttons rather than a slider: a 44px-wide slider is not a usable slider, and
-  // these are what a screen reader gets once the rail is the only thing on screen.
+  // The rail's jump list: one dot per route, no "All" — there is no all-routes view
+  // to return to now that every route is on screen. Buttons rather than a slider: a
+  // 44px slider is not a usable slider, and these are what a screen reader gets.
   function renderRailRoutes() {
     const wrap = $("rail-routes");
     if (!wrap) return;
@@ -6033,30 +5749,26 @@
 
   // --- Times ----------------------------------------------------------------
 
-  // A DAY'S CLOCK IS A WALL CLOCK AT THE DEPARTURE POINT and nothing converts
-  // it into the browser's zone — see the header of public/js/route-clock.js for
-  // the rule and for how the value is carried. These three are that file, kept
-  // here as thin names because the call sites read better for it.
+  // A ROUTE'S CLOCK IS A WALL CLOCK AT THE DEPARTURE POINT and nothing converts it
+  // into the browser's zone — see public/js/route-clock.js. These three are that
+  // file, kept here as thin names because the call sites read better for it.
   const isoToLocalInput = (iso) => window.TBRouteClock.isoToInput(iso);
   const localInputToIso = (value) => window.TBRouteClock.inputToIso(value);
 
-  // The hour a fresh route is assumed to start. Only ever a seed — the rider
-  // edits it, and nothing derives from it beyond the first suggestion.
+  // The hour a fresh route is assumed to start. Only ever a seed.
   const ROUTE_START_HOUR = 8;
 
   // Where a new route's start comes from: the first ROUTE_START_HOUR o'clock
-  // strictly after the previous route ends. For a route finishing in the evening
-  // that is simply the next morning.
+  // strictly after the previous route ends.
   const nextMorningAfter = (iso) => window.TBRouteClock.nextMorningAfter(iso, ROUTE_START_HOUR);
 
   const derivedEndIso = (route) =>
     route.startAt ? new Date(new Date(route.startAt).getTime() + routeElapsedS(route) * 1000).toISOString() : null;
 
-  // Whether the rider typed this end themselves, held as session state (not part
-  // of the save payload). Inferred once at load, then tracked directly — it has to
-  // be a flag rather than the same comparison re-run, because the moment a leg or
-  // stop changes an end that WAS automatic no longer matches the new derivation,
-  // and comparing would freeze it as though the rider had typed it.
+  // Whether the rider typed this end themselves, held as session state. Inferred
+  // once at load, then tracked directly — it has to be a flag rather than the
+  // comparison re-run, because the moment a leg or stop changes, an end that WAS
+  // automatic no longer matches the new derivation.
   function inferEndManual(route) {
     if (!route.startAt || !route.endAt) return false;
     const derived = derivedEndIso(route);
@@ -6064,42 +5776,34 @@
     return Math.abs(new Date(route.endAt).getTime() - new Date(derived).getTime()) > 60000;
   }
 
-  // Called wherever a route's shape changes. An end the rider typed is left
-  // alone; anything else is kept in step with the legs and stops.
+  // Called wherever a route's shape changes. An end the rider typed is left alone.
   function syncEnd(route) {
-    // With no start there is nothing to derive from. An end already on the
-    // route is left as it is rather than discarded — the columns are
-    // independently nullable, and silently dropping a stored time on load
-    // would lose it on the next save.
+    // With no start there is nothing to derive from. An end already on the route is
+    // left as it is: the columns are independently nullable, and silently dropping a
+    // stored time on load would lose it on the next save.
     if (!route.startAt || route.endManual) return;
     route.endAt = derivedEndIso(route);
   }
 
-  // Every figure the panel shows is derived from the legs and stops, so one
-  // call keeps them all honest. Ends sync across every route, not just the edited
-  // one — a marker on a dimmed route is still draggable, so any route's shape can
-  // change while another is in focus.
+  // Every figure the panel shows is derived from the legs and stops, so one call
+  // keeps them all honest. Ends sync across every route — a marker on a dimmed
+  // route is still draggable, so any route's shape can change while another is lit.
   function refreshDerived() {
     state.routes.forEach(syncEnd);
     renderTotals();
     renderTimes();
     renderTimeline();
-    // Where the rider will be at bedtime moves with every schedule change — a
-    // dragged stop, a new dwell, a changed departure — so it is recomputed and
-    // repainted from the one pass every such change already goes through.
+    // Where the rider will be at bedtime moves with every schedule change, so it is
+    // recomputed from the one pass every such change already goes through.
     stopByCache = null;
     paintStopBy();
-    // Last, and not optional: the leg highlight is derived from the moment and
-    // the legs, and the engine drops it on every track repath. Anything that
-    // changes a route has to put it back, which is exactly this pass.
+    // Last, and not optional: the leg highlight is derived from the moment and the
+    // legs, and the engine drops it on every track repath.
     applyFocus();
   }
 
   // --- Timeline -------------------------------------------------------------
 
-  // The live POI distances this used to compute are gone: a POI carried no stored
-  // distFromStartMi, so the time model projected each onto the track and the
-  // builder had to pass those distances in. Points sit on leg boundaries now.
   // What the timeline currently spans. Every caller goes through this rather than
   // choosing between routeSpan and rideSpan, so a third scope is one edit here.
   function timelineSpan() {
@@ -6109,17 +5813,14 @@
   }
 
   /**
-    * THE RIDE-SCOPE SLIDER TRAVELS RIDING HOURS, NOT WALL CLOCK, so the overnights
-    * between routes consume none of it.
-    *
-    * rideSpan() is first-departure to last-arrival, so on a nine-route ride the
-    * rider spent more of the drag in "between routes", with nothing on the map, than
-    * on the road. In ride scope the value is an OFFSET into the concatenated spans;
-    * in route scope there are no gaps and it stays the epoch second it always was.
-    *
-    * `state.moment` is an epoch second in BOTH scopes, so nothing downstream
-    * changes — the compression lives between the slider and that field.
-    */
+        * THE RIDE-SCOPE SLIDER TRAVELS RIDING HOURS, NOT WALL CLOCK, so the overnights
+        * between routes consume none of it — on a nine-route ride more of the drag was
+        * spent "between routes", with nothing on the map, than on the road.
+        *
+        * In ride scope the value is an OFFSET into the concatenated spans; in route
+        * scope it stays the epoch second it always was. `state.moment` is an epoch
+        * second in BOTH, so nothing downstream changes.
+        */
   const rideSegs = () => rideSegments(state.routes);
 
   function momentFromSlider(v) {
@@ -6128,15 +5829,11 @@
   }
 
   // Where the moment falls: which route, and which leg or point within it.
-  //
-  // IN ROUTE SCOPE THE ROUTE IS ALREADY KNOWN, so the moment resolves against it
-  // directly. That is not just cheaper — activeAtMoment SKIPS LOSING ALTERNATES,
-  // correctly, so a rider who clicked into an alternate to work on it would get
-  // back null (or the winning route's index) and watch the route they are editing
-  // dim itself.
-  //
-  // The clamp matters on one frame only: renderTimeline re-ranges the slider when
-  // the active route changes, and this can be read in between.
+    //
+    // IN ROUTE SCOPE THE ROUTE IS ALREADY KNOWN, so the moment resolves against it
+    // directly. Not just cheaper — activeAtMoment SKIPS LOSING ALTERNATES, so a
+    // rider who clicked into an alternate would get back null and watch the route
+    // they are editing dim itself.
   const activeNow = () => {
     if (state.moment == null) return null;
     if (state.timeScope === "ride") return activeAtMoment(state.routes, state.moment);
@@ -6157,29 +5854,21 @@
     renderRingToggle();
 
     // The slider's value is epoch seconds, which is what a screen reader would
-    // otherwise read out. aria-valuetext replaces that with the same sentence
-    // sighted users get.
+    // otherwise read out.
     const say = (text) => {
       readout.textContent = text;
       slider.setAttribute("aria-valuetext", text);
     };
 
-    // IT HIDES NOW RATHER THAN GOING INERT, the opposite of what it did in the panel
-    // and right for the same reason it was wrong there: inside the panel, vanishing
-    // reflowed every control under it the moment a date was typed. On the map's
-    // bottom edge there is nothing to reflow, and a dead slider lying across
-    // somebody's route is worse than no slider.
-    //
-    // The hint the disabled state carried moved to #route-times-note, beneath the
-    // Starts field that fixes it. This is the only branch that can leave the bar
-    // hidden, so the two have to stay in step.
-    //
-    // IN ROUTE SCOPE THAT MEANS THE ACTIVE ROUTE'S DATES, NOT THE RIDE'S, so the bar
-    // comes and goes as a rider clicks between a dated route and an undated one —
-    // the honest reading, since there is nothing to scrub on a route with no clock.
-    // The cost to state rather than treat as a bug: the scope button goes with the
-    // bar, so reaching ride scope from an undated route means clicking into a dated
-    // one first.
+    // IT HIDES NOW RATHER THAN GOING INERT, the opposite of what it did in the panel:
+        // there, vanishing reflowed every control under it, and on the map's bottom edge
+        // there is nothing to reflow and a dead slider lying across somebody's route is
+        // worse than no slider. The hint moved to #route-times-note, beneath the Starts
+        // field that fixes it.
+        //
+        // IN ROUTE SCOPE THAT MEANS THE ACTIVE ROUTE'S DATES, NOT THE RIDE'S, so the bar
+        // comes and goes as a rider clicks between a dated route and an undated one. The
+        // cost to state rather than treat as a bug: the scope button goes with the bar.
     wrap.hidden = !span;
     slider.disabled = !span;
     if (!span) {
@@ -6191,8 +5880,8 @@
     }
 
     if (state.timeScope === "ride") {
-      // Zero to total riding seconds. The overnights are not on the track at
-      // all, so there is no position on it that means "between routes".
+      // Zero to total riding seconds. The overnights are not on the track at all, so
+      // there is no position on it that means "between routes".
       const segs = rideSegs();
       slider.min = "0";
       slider.max = String(segmentsTotalS(segs));
@@ -6208,13 +5897,9 @@
       return;
     }
     // activeNow(), not activeAtMoment(), because in route scope the moment resolves
-    // against the active route rather than being searched for — see the
-    // losing-alternate hole in that header.
-    //
-    // THIS CAPTIONS THE SLIDER, NOT THE MAP, and in ride scope those are two
-    // questions with two right answers: the thumb is where the rider left it, the lit
-    // route is the one they are editing. Scrub to Route 1, click into Route 3, and
-    // the line still says Route 1 — correctly.
+    // against the active route. THIS CAPTIONS THE SLIDER, NOT THE MAP: in ride scope
+    // the thumb is where the rider left it and the lit route is the one they are
+    // editing, so a line saying Route 1 while Route 3 is lit is correct.
     const a = activeNow();
     if (!a) {
       say(fmtMoment(state.moment));
@@ -6227,10 +5912,9 @@
       what =
         routeLabel(a.routeIndex) + SEP + "leg " + (a.legIndex + 1) + " of " + state.routes[a.routeIndex].legs.length;
     } else {
-      // ONE INDEX, into the route's own points array — no filtering, so no chance
-      // of reading the wrong element. A point with no name falls back to its
-      // position in the route rather than a stop number, because the number a row
-      // shows counts stops only and a POI has none.
+      // ONE INDEX, into the route's own points array — no filtering, so no chance of
+      // reading the wrong element. A point with no name falls back to its position
+      // rather than a stop number, which counts stops only.
       const pt = a.pointIndex == null ? null : state.routes[a.routeIndex].points[a.pointIndex];
       const fallback = pt && pt.kind === "poi" ? "a point of interest" : "point " + ((a.pointIndex || 0) + 1);
       what = routeLabel(a.routeIndex) + SEP + "at " + ((pt && pt.name) || fallback);
@@ -6238,31 +5922,27 @@
     say(fmtMoment(state.moment) + SEP + what);
   }
 
-  // Moving the timeline is the primary gesture; the route slider follows it so
-  // the two controls can never show different routes.
+  // Moving the timeline is the primary gesture; the route slider follows it so the
+  // two controls can never show different routes.
   function setMoment(momentS) {
     state.moment = momentS;
     // Only in ride scope. In route scope the slider cannot leave the active route —
-    // that IS its range — so there is never another route to move to, and asking
-    // activeAtMoment would reintroduce the losing-alternate hole activeNow()
-    // exists to close.
+    // that IS its range — and asking activeAtMoment would reintroduce the
+    // losing-alternate hole activeNow() closes.
     if (state.timeScope === "ride") {
       const a = activeAtMoment(state.routes, momentS);
-      // A moment between routes leaves the active route where it was — there is no
-      // route to move it to, and snapping it somewhere arbitrary would be a lie.
+      // A moment between routes leaves the active route where it was: there is none to
+      // move it to, and snapping somewhere arbitrary would be a lie.
       if (a.routeIndex != null) setActive(a.routeIndex);
     }
     applyFocus();
     refreshDerived();
   }
 
-  // Flips between scrubbing the active route and scrubbing the whole ride.
-  //
-  // The moment is carried across rather than reset. Going route → ride it is
-  // already a real instant inside the ride, so it simply stops being clamped;
-  // going ride → route it may be in an overnight gap or on another route, and
-  // setActive's clamp cannot help because the active route is not changing — so
-  // this does the clamping itself, to the same rule.
+  // Flips between scrubbing the active route and scrubbing the whole ride. The
+    // moment is carried across rather than reset: route → ride it simply stops being
+    // clamped, and ride → route it may be in an overnight gap or on another route,
+    // where setActive's clamp cannot help because the active route is not changing.
   function setTimeScope(scope) {
     if (state.timeScope === scope) return;
     state.timeScope = scope;
@@ -6277,22 +5957,19 @@
   }
 
   // The bar's own scope control: two segments of one pill, Route and Ride.
-  //
-  // BOTH LABELS ARE ON SCREEN, WHICH IS THE THIRD SHAPE THIS HAS TAKEN. It was
-  // one button reading "Whole ride" — the ACTION — and a rider glancing at it
-  // saw the word "ride" and believed that was their scope. It became one button
-  // reading its own STATE, which fixed that and left the other half of the
-  // choice invisible. A pill says both and fills the one you are on. Ziad's
-  // call, 2026-09-07.
+    //
+    // BOTH LABELS ARE ON SCREEN, WHICH IS THE THIRD SHAPE THIS HAS TAKEN. One button
+    // reading "Whole ride" — the ACTION — had riders believing that was their scope;
+    // one reading its own STATE left the other half of the choice invisible.
   function renderTimeScope() {
     const set = $("time-scope");
     if (!set) return;
     const onRoute = state.timeScope === "route";
     set.querySelectorAll(".time-seg").forEach((seg) => {
       const on = (seg.dataset.scope === "route") === onRoute;
-      // aria-pressed on each segment rather than aria-checked on a radiogroup:
-      // these are two toggles, and a radiogroup promises arrow-key roving this
-      // bar does not implement.
+      // aria-pressed on each segment rather than aria-checked on a radiogroup: these
+      // are two toggles, and a radiogroup promises arrow-key roving this bar does not
+      // implement.
       seg.setAttribute("aria-pressed", String(on));
       seg.classList.toggle("is-on", on);
       seg.title =
@@ -6300,18 +5977,13 @@
           ? "The slider covers the " + W("route") + " you are editing"
           : "The slider covers the whole " + W("journey");
     });
-    // Nothing to widen to on a single-route ride, and a control that returns the
-    // same slider does nothing. Hidden rather than disabled: it is in a one-line
-    // bar where a dead control is pure noise.
+    // Nothing to widen to on a single-route ride. Hidden rather than disabled: in a
+    // one-line bar a dead control is pure noise.
     set.hidden = state.routes.length < 2;
   }
 
-  // #229's fuel ring toggle. Mirrored by the same function in viewer.js; the two
-  // surfaces hold the flag in their own state and there is nothing to share but
-  // four lines of labeling.
-  //
-  // HIDDEN WHEN THERE IS NO RING TO TALK ABOUT: a rider with no bike on file has
-  // no range, and a control that does nothing is worse than no control.
+  // #229's fuel ring toggle, mirrored by the same function in viewer.js. HIDDEN
+  // WHEN THERE IS NO RING TO TALK ABOUT: a rider with no bike on file has no range.
   function renderRingToggle() {
     const btn = $("range-ring");
     if (!btn) return;
@@ -6323,8 +5995,7 @@
     btn.setAttribute("aria-pressed", String(state.ringOn));
   }
 
-  // Every route's times, because every route's fields are on screen. It was one set
-  // of ids reading whichever route the slider had selected.
+  // Every route's times, because every route's fields are on screen.
   function renderTimes() {
     state.routes.forEach((_, r) => renderRouteTimes(r));
   }
@@ -6337,23 +6008,20 @@
     const end = sec.querySelector(".route-end");
     const note = sec.querySelector(".route-times-note");
     if (!start || !end || !note) return;
-    // Never fight the rider for a field they are in. refreshDerived() runs on
-    // every keystroke elsewhere in the panel, and rewriting a datetime input
-    // mid-edit resets the caret to the month segment.
+    // Never fight the rider for a field they are in: refreshDerived() runs on every
+    // keystroke elsewhere in the panel, and rewriting a datetime input mid-edit
+    // resets the caret to the month segment.
     if (document.activeElement === start || document.activeElement === end) return;
 
     start.value = isoToLocalInput(route.startAt);
     end.value = isoToLocalInput(route.endAt);
-    // Without a start there is nothing to derive an end from, and a lone end
-    // would be a time the timeline cannot place.
+    // Without a start there is nothing to derive an end from, and a lone end would be
+    // a time the timeline cannot place.
     end.disabled = !route.startAt;
 
     if (!route.startAt) {
-      // The second half of this used to live in the timeline's readout, back when
-      // the timeline sat in the panel and stayed visible-but-disabled without
-      // dates. The bar hides itself now, so the hint has to be somewhere a rider
-      // will see it — and beside the field that fixes it is a better place than
-      // under a slider that has gone gray.
+      // The bar hides itself now, so the hint has to be somewhere a rider will see it —
+      // and beside the field that fixes it beats under a slider that has gone gray.
       note.textContent = route.endAt ? "add a start time to work the end out" : "add a start time to scrub the ride";
       return;
     }
@@ -6369,14 +6037,10 @@
   // --- Panel: list + totals -------------------------------------------------
 
   // ONE ICON'S FOOTPRINT, WHATEVER THE ROLE COUNT. It used to join one 16px chip
-  // per role, so the control was roughly 18n + 10 wide — about 316px of a 320px row
-  // at all seventeen, with the name field paying for it.
-  //
-  // The shape is the first role's icon at full size plus a count; roles are capped
-  // at 4, so the badge never exceeds "+3". Stacking and a quarter-scale 2x2 grid
-  // both lose legibility at 16px, which is the size that matters.
-  //
-  // Every role's name still reaches the rider through the button's title.
+    // per role, about 316px of a 320px row at all seventeen, with the name field
+    // paying for it. The shape is the first role's icon at full size plus a count;
+    // roles are capped at 4, so the badge never exceeds "+3". Every role's name still
+    // reaches the rider through the button's title.
   function roleIconsHtml(point) {
     const roles = (point.roles || []).filter((r) => window.TB.roles[r]);
     if (!roles.length) return "";
@@ -6390,21 +6054,15 @@
     );
   }
 
-  // Every role a point carries, in words, for the icon button's tooltip. The
-  // button shows one icon and a count; this is where the rest of the answer
-  // lives without costing any width.
+  // Every role a point carries, in words, for the icon button's tooltip.
   function roleTitle(point) {
     const names = (point.roles || []).map((r) => window.TB.roles[r] && window.TB.roles[r].title).filter(Boolean);
     return names.length ? names.join(", ") : "Categories";
   }
 
   // Mirrors faqLink() in src/views/layout.ts, for the panel markup this file builds
-  // itself.
-  //
-  // Used once, on the twistiness label. It was briefly on the role picker and came
-  // straight back out: .row-roles renders for every point row, so one link there is
-  // two hundred identical links on a long ride, explaining a picker that already
-  // labels all seventeen options in words.
+  // itself. Used once, on the twistiness label: .row-roles renders for every point
+  // row, so one link there is two hundred identical links on a long ride.
   const faqLink = (anchor, what) =>
     '<a class="faq-link" href="/faq#' +
     anchor +
@@ -6449,45 +6107,34 @@
   }
 
   // SIX BUTTONS BECAME TWO: the row carried up, down, notes and delete beside the
-  // role button and now carries a grip and one menu. `.row-actions` was 80px of a
-  // 320px row, and most of it goes back to the name field.
-  //
-  // BOTH KINDS DRAG, and they mean different things by it — a stop reorders the
-  // route, a POI moves its pin onto the road between the rows it was dropped
-  // between. Same affordance, because from the rider's side it is the same intent.
-  // data-route is what makes every handler below route-agnostic.
+    // role button and now carries a grip and one menu. `.row-actions` was 80px of a
+    // 320px row.
+    //
+    // BOTH KINDS DRAG, and they mean different things by it — a stop reorders the
+    // route, a POI moves its pin onto the road between the rows it was dropped
+    // between. data-route is what makes every handler below route-agnostic.
   /**
-    * "End the route here?" on a mid-route point tagged as somewhere you sleep.
-    *
-    * #54 asks for the route to end there outright. It OFFERS instead, Ziad's call
-    * 2026-08-31, because the tag cannot tell the two cases apart: a hotel you sleep
-    * at and one you ride past are the same `hotel` role. The cost of offering is one
-    * dismissed prompt; the cost of not offering is a ride reorganized behind
-    * somebody's back.
-    *
-    * NOT SHOWN ON THE LAST POINT OF A ROUTE, where lodging normally goes — which is
-    * also what stops this appearing on every route of a well-planned ride.
-    *
-    * A button rather than a toast: a toast disappears, and this should wait until
-    * the rider has decided.
-    */
+        * "End the route here?" on a mid-route point tagged as somewhere you sleep.
+        *
+        * #54 asks for the route to end there outright. It OFFERS instead, because the
+        * tag cannot tell the two cases apart: a hotel you sleep at and one you ride past
+        * are the same `hotel` role. The cost of offering is one dismissed prompt; the
+        * cost of not offering is a ride reorganized behind somebody's back.
+        *
+        * NOT SHOWN ON THE LAST POINT OF A ROUTE, where lodging normally goes, which is
+        * what stops this appearing on every route of a well-planned ride.
+        */
   /**
-    * The band that says the riding route should end about here.
-    *
-    * A BANNER ACROSS THE LIST, NOT A BUTTON ON A ROW. Ziad's call, 2026-09-03: a
-    * small control tucked under one row is a decoration, and this has to be an
-    * interruption — the point where the route stops being a good idea. It carries
-    * the hour, how far in that is, and what to do about it.
-    *
-    * INSIDE THE ROW ELEMENT rather than as a sibling `<li>`: the point list is a
-    * Sortable container and every non-draggable child has to be accounted for
-    * (#166). The handler reads the DRAGGABLE pair so it would survive, but a band
-    * that cannot be a sibling cannot be miscounted at all.
-    *
-    * ON THE ROW BEFORE THE MOMENT: the useful place to be told is the last point
-    * you pass BEFORE the hour comes up. ONE PER ROUTE, because the moment is one
-    * moment.
-    */
+        * The band that says the riding route should end about here.
+        *
+        * A BANNER ACROSS THE LIST, NOT A BUTTON ON A ROW: a small control tucked under
+        * one row is a decoration, and this has to be an interruption. It carries the
+        * hour, how far in that is, and what to do about it.
+        *
+        * INSIDE THE ROW ELEMENT rather than as a sibling `<li>`: the point list is a
+        * Sortable container and every non-draggable child has to be accounted for
+        * (#166). ON THE ROW BEFORE THE MOMENT, one per route.
+        */
   function bedtimeOfferHtml(i, routeIndex) {
     const entry = stopByPoints().find((e) => e.routeIndex === routeIndex);
     if (!entry || entry.atPoint !== i) return "";
@@ -6500,9 +6147,9 @@
       SEP +
       esc(fmtDist(entry.distM)) +
       " in" +
-      // WHAT IS LEFT AFTER IT, which is the number that says whether this is a
-      // gentle nudge or a route that badly overruns. Omitted when the route ends
-      // within the hour anyway, where "0h 12m still to ride" is noise.
+      // WHAT IS LEFT AFTER IT, the number that says whether this is a gentle nudge or a
+      // route that badly overruns. Omitted when the route ends within the hour, where
+      // "0h 12m still to ride" is noise.
       (over > 3600 ? SEP + esc(hm(over)) + " still to go" : "") +
       "</span>" +
       '<button type="button" class="row-bedtime-btn" data-route="' +
@@ -6530,21 +6177,14 @@
   }
 
   /**
-    * How far into the route this point is, and how far it is on the current tank.
-    *
-    * #220, in the planner's words: "to know when to add fuel stops I need to know
-    * how many miles since the start, and how many since the last fuel stop."
-    *
-    * NOTHING ON THE FIRST POINT — zero miles into a route it has not started is a
-    * row of noise on every route in the ride.
-    *
-    * THE SINCE-FUEL FIGURE IS SHOWN ONLY WHEN IT DIFFERS from the distance into the
-    * route: before the first fuel stop the two are the same number and printing it
-    * twice reads as a rendering fault.
-    *
-    * The dry marker is absent entirely when no range is on file — never a zero,
-    * never a guess.
-    */
+        * How far into the route this point is, and how far it is on the current tank.
+        * #220, in the planner's words: "to know when to add fuel stops I need to know
+        * how many miles since the start, and how many since the last fuel stop."
+        *
+        * NOTHING ON THE FIRST POINT. THE SINCE-FUEL FIGURE IS SHOWN ONLY WHEN IT
+        * DIFFERS from the distance into the route, or the same number is printed twice.
+        * The dry marker is absent entirely when no range is on file — never a guess.
+        */
   function distReadoutHtml(point, i, dist) {
     if (!dist || i <= 0) return "";
     const into = dist.cum[i];
@@ -6553,20 +6193,16 @@
     const dry = dist.dryAt === i;
     const range = window.TB.range || {};
     const parts = ['<span class="row-dist-into">' + esc(fmtDist(into)) + " in</span>"];
-    // Rounded before comparing, or two figures a mile apart print identically
-    // and the row looks like it is repeating itself.
-    //
-    // AND NEVER ZERO. At a fuel stop `since` resets to 0 by design — the tank is
-    // full and the row is answering how far the NEXT one is — so the pair here
-    // differs and would print "0 mi on this tank" under every fuel stop in the
-    // ride. True, and noise.
+    // Rounded before comparing, or two figures a mile apart print identically. AND
+    // NEVER ZERO: at a fuel stop `since` resets to 0 by design, so the pair differs
+    // and would print "0 mi on this tank" under every fuel stop in the ride.
     if (Math.round(since) > 0 && Math.round(since) !== Math.round(into)) {
       parts.push('<span class="row-dist-fuel">' + esc(fmtDist(since)) + " on this " + esc(W("tank")) + "</span>");
     }
     if (dry) {
-      // Names WHOSE tank, because on a group ride the binding range belongs to
-      // somebody in particular and "you will run out" is the wrong sentence to
-      // show the rider with the big tank. See groupRange().
+      // Names WHOSE tank: on a group ride the binding range belongs to somebody in
+      // particular, and "you will run out" is the wrong sentence for the rider with
+      // the big tank.
       const whose = range.riderName
         ? esc(range.riderName) + "\u2019s " + esc(range.bikeLabel || W("vehicle"))
         : "the smallest " + esc(W("tank"));
@@ -6584,45 +6220,35 @@
   }
 
   /**
-    * "VMCSC split off here → Santa Cruz", on the row of the stop they left at.
-    *
-    * THE PEEL-OFF ROUTE IS AT THE BOTTOM OF THE LIST AND THIS IS WHAT MAKES THAT
-    * READABLE. Its position is a correctness constraint rather than a choice —
-    * `resolveRouteRiders` is a linear walk, so a route spliced in beside the cut
-    * poisons everything after it — which leaves the group's road a long way from
-    * the stop they left at.
-    *
-    * **A SPLIT IS RIDERS LEAVING, AND GEOMETRY CANNOT TELL IT FROM A MEET.** This
-    * gated on shape alone — a tagged non-main route whose first point is this one —
-    * which is ALSO what `cutJoiningTails()` leaves at a MEETING point. A ride where
-    * three groups converged and nobody split read "VMCSC splits off here" at its
-    * two JOIN points. Reported on stage 2026-09-07.
-    *
-    * The gate is `riderJunctions()` instead: who is on this road and not on the one
-    * that follows it. Geometry still NAMES the group, matched on coordinates —
-    * `splitRouteAt` mints a fresh uid and records no link back, so this can name the
-    * wrong group at a duplicated stop, which is the cheap end of getting it wrong.
-    *
-    * **ON THE LAST POINT OF A ROUTE AND NOWHERE ELSE**, which keeps it to one line
-    * per split: the stop exists on three routes afterwards, and rendering wherever
-    * the coordinates matched turned three splits into eight lines on ride 34.
-    *
-    * The consequence to state rather than treat as a bug: a split at the ride's very
-    * first point has no route ending there, so it gets no line.
-    */
+        * "VMCSC split off here → Santa Cruz", on the row of the stop they left at.
+        *
+        * THE PEEL-OFF ROUTE IS AT THE BOTTOM OF THE LIST AND THIS IS WHAT MAKES THAT
+        * READABLE. Its position is a correctness constraint — `resolveRouteRiders` is a
+        * linear walk, so a route spliced in beside the cut poisons everything after it.
+        *
+        * **A SPLIT IS RIDERS LEAVING, AND GEOMETRY CANNOT TELL IT FROM A MEET.** Gating
+        * on shape alone — a tagged non-main route whose first point is this one — is
+        * ALSO what `cutJoiningTails()` leaves at a MEETING point, so a ride where three
+        * groups converged read "VMCSC splits off here" at its two JOIN points. The gate
+        * is `riderJunctions()`: who is on this road and not on the one that follows it.
+        * Geometry still NAMES the group, matched on coordinates.
+        *
+        * **ON THE LAST POINT OF A ROUTE AND NOWHERE ELSE**, which keeps it to one line
+        * per split: the stop exists on three routes afterwards.
+        */
   function splitOffHtml(point, i, routeIndex) {
     const route = state.routes[routeIndex];
     if (!route || i !== route.points.length - 1) return "";
     const rr = state.routeRiders;
     const mine = rr && route.uid && rr.byUid[route.uid];
-    // Null until the resolution loads, and null for a route the server has not
-    // seen yet — a split's own two routes, until its save lands. Drawing nothing
-    // is the honest state: whether anybody left is exactly what is not known.
+    // Null until the resolution loads, and null for a route the server has not seen —
+    // a split's own two routes, until its save lands. Drawing nothing is honest:
+    // whether anybody left is exactly what is not known.
     if (!mine) return "";
     // WHO IS ON THIS ROAD AND NOT ON THE ONE THAT FOLLOWS IT. The junction is
-    // reported AT the following route, so it is read at this route's position
-    // plus one — server positions, not indexes into state.routes, because an
-    // inactive alternate sits in the array and not in the numbering.
+    // reported AT the following route, so it is read at this route's position plus
+    // one — server positions, not indexes into state.routes, because an inactive
+    // alternate sits in the array and not in the numbering.
     const junction = (rr.junctions || []).find((j) => j.position === mine.position + 1);
     const leavers = new Set((junction && junction.left) || []);
     if (!leavers.size) return "";
@@ -6633,18 +6259,15 @@
     };
     const left = ALT.activeRoutes(state.routes).filter((d) => {
       if (!d.subgroupUid || d.subgroupUid === mainUid || d === route || !here(d)) return false;
-      // And it has to be a road one of the LEAVERS actually took. Without this a
-      // meet's leftover tail — tagged, starting here, riders unchanged — is named
-      // as the group that left, which is the bug this whole gate exists for.
+      // And it has to be a road one of the LEAVERS actually took, or a meet's leftover
+      // tail is named as the group that left.
       const on = rr.byUid[d.uid];
       return !!on && on.riderIds.some((id) => leavers.has(id));
     });
     if (!left.length) return "";
-    // A REAL BUTTON THAT GOES THERE, not a colored sentence. The peel-off route
-    // is at the bottom of the list by construction, which is the whole reason
-    // this line exists — so the line has to be the way to it, and $signal text
-    // that cannot be pressed is the exact thing #232 established a map dot must
-    // not be. Keyed by uid because the index changes on every later split.
+    // A REAL BUTTON THAT GOES THERE, not a colored sentence: the peel-off route is at
+    // the bottom of the list by construction, so the line has to be the way to it.
+    // Keyed by uid because the index changes on every later split.
     return left
       .map((d) => {
         const g = subgroupByUid(d.subgroupUid);
@@ -6679,22 +6302,16 @@
       esc(point.uid || "") +
       '">' +
       '<div class="row-main">' +
-      // Both kinds reorder now — a POI has a place in the list of its own, so there is
-      // one gesture with one meaning.
-      //
-      // A REAL <button> WITH ARROW KEYS, which carries the two properties Move up /
-      // Move down used to: a keyboard path, and reordering that still works when the
-      // SortableJS CDN does not. `.route-drag` and `.sg-drag` are already this, which
-      // is why neither of their menus carries move items either.
+      // Both kinds reorder: a POI has a place in the list of its own. A REAL <button>
+      // WITH ARROW KEYS, which carries the two properties Move up / Move down used
+      // to — a keyboard path, and reordering that still works when the SortableJS
+      // CDN does not.
       '<button type="button" class="row-drag" data-tip="row-drag" title="Drag to reorder, or focus and use the arrow keys"' +
       ' aria-label="Reorder ' +
       esc(point.name || "this point") +
       '"></button>' +
-      // THE CHECKBOX REPLACES THE NUMBER rather than joining it. A 380px row has
-      // no spare width and .row-name is already the thing that shrinks; the stop
-      // number is the one element that is redundant while you are ticking boxes,
-      // because ticking is what you are doing rather than reading an order. It
-      // comes straight back when select mode ends.
+      // THE CHECKBOX REPLACES THE NUMBER rather than joining it: a 380px row has no
+      // spare width, and the stop number is redundant while you are ticking boxes.
       (state.select?.scope === "point"
         ? '<input type="checkbox" class="row-pick" data-route="' +
           routeIndex +
@@ -6714,22 +6331,18 @@
       kind +
       "-name-" +
       i +
-      // data-1p-ignore for the reason spelled out on .route-title in
-      // routeSectionHtml, and this is the strongest case of the three: the field
-      // is called `stop-name-0`, so a password manager has both a label and a
-      // name attribute telling it this is somebody's name.
+      // data-1p-ignore for the reason on .route-title, and this is the strongest case
+      // of the three: the field is called `stop-name-0`, so a password manager has
+      // both a label and a name attribute telling it this is somebody's name.
       '" type="text" maxlength="255" autocomplete="off" data-1p-ignore placeholder="' +
       (isStop ? "Stop name" : "POI name") +
       '" value="' +
       esc(point.name) +
       '">' +
-      // POIs get the same dwell field. Blank means "rode past without stopping", which
-      // is why it stays a placeholder rather than a zero.
-      //
-      // TYPE="TEXT", not "number", which is the price of the format being a
-      // preference: "1h 30m" is not a number, and switching the input's type per format
-      // would be three code paths through every read and write. `inputmode` gets the
-      // phone keyboard right instead. The stored value is still an integer of minutes.
+      // POIs get the same dwell field; blank means "rode past without stopping", which
+      // is why it stays a placeholder rather than a zero. TYPE="TEXT", not "number",
+      // which is the price of the format being a preference: "1h 30m" is not a
+      // number. The stored value is still an integer of minutes.
       '<input class="row-dur" name="' +
       kind +
       "-duration-" +
@@ -6748,19 +6361,16 @@
       '<button type="button" class="row-roles-btn" data-tip="row-roles" title="' +
       esc(roleTitle(point)) +
       '" aria-label="Categories">' +
-      // Empty rather than a "+" glyph: the dot IS the affordance and it is drawn
-      // in CSS, so there is nothing to read here. aria-hidden because the button
-      // already carries its own label.
+      // Empty rather than a "+" glyph: the dot IS the affordance and it is drawn in
+      // CSS. aria-hidden because the button already carries its own label.
       (roleIconsHtml(point) || '<span class="role-add" aria-hidden="true"></span>') +
       "</button>" +
       '<span class="row-actions">' +
-      // U+22EE, the VERTICAL ellipsis, not U+22EF. It is the same control and
-      // roughly a third of the width, which on a 320px row is width the name
-      // field gets instead.
-      // Shown only when something is filled in, so a rider can see at a glance
-      // which stops carry a reservation without opening every row. Not a button:
-      // the row menu is how the panel opens, and a second affordance for the same
-      // thing on a 320px row costs width the name field needs.
+      // U+22EE, the VERTICAL ellipsis, not U+22EF: the same control at roughly a third
+      // of the width.
+      // Shown only when something is filled in, so a rider can see which stops carry
+      // a reservation without opening every row. Not a button: a second affordance
+      // for the same thing costs width the name field needs.
       (hasDetails(point.details)
         ? '<span class="row-detail-flag" data-tip="row-detail-flag" title="Has reservation details" aria-label="Has reservation details">\u2731</span>'
         : "") +
@@ -6777,26 +6387,20 @@
       rolePickerHtml(point) +
       "</div>" +
       splitOffHtml(point, i, routeIndex) +
-      // A note that has been written stays visible on the row. The textarea moved
-      // into the details panel, so without this a rider's own note would be
-      // behind a menu item and two clicks away — and a note is the kind of thing
-      // you write in order to see it while planning. Read-only, one line,
-      // ellipsised: pressing it is what the panel is for.
+      // A note that has been written stays visible on the row. The textarea moved into
+      // the details panel, so without this a rider's own note would be two clicks
+      // away — and a note is the kind of thing you write in order to see it while
+      // planning. Read-only, one line, ellipsised.
       (point.description
         ? '<p class="row-note" title="' + esc(point.description) + '">' + esc(point.description) + "</p>"
         : "") +
       // TWO NOTES BOXES, ONE PANEL, AND THE SPLIT INSIDE IT IS LOAD-BEARING.
-      // `.row-desc` writes `point.description`, which is PUBLIC — payload, ride.json,
-      // every export. `.detail-body` holds the owner-only box writing
-      // `point_details.notes`.
-      //
-      // The public one is OUTSIDE `.detail-body` because that body is re-rendered on
-      // its own whenever a link is added or removed, and it used to be the WHOLE panel
-      // — so a rider typing a note who pressed Add link lost it. #188 from inside the
-      // details panel.
-      //
-      // A role change goes through renderRouteList(), which rebuilds the row and closes
-      // the panel; nothing is lost there because `input` has already written the note.
+            // `.row-desc` writes `point.description`, which is PUBLIC — payload, ride.json,
+            // every export. `.detail-body` holds the owner-only box.
+            //
+            // The public one is OUTSIDE `.detail-body` because that body is re-rendered on
+            // its own whenever a link is added or removed, and it used to be the WHOLE
+            // panel — so a rider typing a note who pressed Add link lost it (#188).
       '<div class="row-details" hidden>' +
       '<label class="detail-field detail-desc"><span>Notes everyone on the ride can see</span>' +
       '<textarea class="row-desc" name="' +
@@ -6815,13 +6419,9 @@
   }
 
   // The private half of a stop: reservations, codes, check-in, links, notes.
-  //
-  // Fields are chosen by role, so a gas stop does not present a check-out time. The
-  // block is `hidden` until opened from the row menu — a panel of empty inputs
-  // under every row would bury the ride.
-  //
-  // Every input carries `data-field` and one delegated handler writes whichever
-  // changed, rather than a handler per field.
+    // Fields are chosen by role, so a gas stop does not present a check-out time,
+    // and the block is `hidden` until opened from the row menu. Every input carries
+    // `data-field` and one delegated handler writes whichever changed.
   const DETAIL_LABELS = {
     confirmation: "Confirmation number",
     checkInAt: "Check in",
@@ -6831,12 +6431,11 @@
   };
 
   // datetime-local wants "YYYY-MM-DDTHH:MM" and the value is stored as an ISO
-  // string with an offset. Sliced rather than round-tripped through a Date, which
-  // would re-interpret it in the browser's zone and shift it.
-  // A check-in is a wall clock in a place, exactly like a route's start — see
-  // route-clock.js. This used to slice while the WRITE path attached the browser's
-  // offset, so a 3pm check-in typed in California was stored as 22:00 and read back
-  // as 10pm. Both ends go through the same module now.
+    // string with an offset. Sliced rather than round-tripped through a Date, which
+    // would re-interpret it in the browser's zone and shift it.
+    // A check-in is a wall clock in a place, exactly like a route's start. This used
+    // to slice while the WRITE path attached the browser's offset, so a 3pm check-in
+    // typed in California was stored as 22:00. Both ends go through one module now.
   const toLocalInput = (iso) => window.TBRouteClock.isoToInput(iso);
 
   function detailsHtml(point, kind, i) {
@@ -6891,28 +6490,23 @@
       ">Add link</button></div>";
 
     out +=
-      // "Only you" rather than "Private", because the box above it in this same
-      // panel is also a notes box and the whole difference between them is who
-      // reads it. A label that names the audience answers that where one naming
-      // the sensitivity leaves the rider to infer it.
+      // "Only you" rather than "Private", because the box above it is also a notes box
+      // and the whole difference is who reads it.
       '<label class="detail-field detail-notes"><span>Notes only you can see</span>' +
       '<textarea data-field="notes" maxlength="2000" placeholder="Gate code, confirmation number, who to ask for">' +
       esc(d.notes || "") +
       "</textarea></label>";
 
-    // Stated on the surface rather than only in the code, because a rider
-    // deciding whether to type a door code into a web app is entitled to know
-    // where it goes. It is also true — see canSeeDetails in
-    // src/maps/point-details.ts.
+    // Stated on the surface rather than only in the code: a rider deciding whether to
+    // type a door code into a web app is entitled to know where it goes.
     out +=
       '<p class="detail-privacy">Only you can see this. It stays out of shared links and every export except your own backup.</p>';
     return out;
   }
 
-  // Reads the row's OWN route, not the active one. Those are the same thing by the
-  // time a handler runs — every listener calls setActiveFromEl first — but
-  // relying on that ordering would make this quietly wrong the first time
-  // something read a row without having clicked it.
+  // Reads the row's OWN route, not the active one. Those are the same by the time a
+  // handler runs, but relying on that ordering would make this quietly wrong the
+  // first time something read a row without having clicked it.
   function pointOf(row) {
     const i = Number(row.dataset.i);
     const route = state.routes[Number(row.dataset.route)];
@@ -6921,15 +6515,13 @@
   }
 
   // Stops and POIs in the order you would meet them.
-  //
-  // ONE INDEX SPACE: a row's `data-i` indexes route.points whatever its kind, so
-  // pointOf(), movePoint() and deletePoint() all take the same number.
-  // THE ARRAY IS THE ORDER. This used to interleave two arrays by projecting the
-  // POIs onto the track and sorting — which had no answer at all before a route
-  // existed, so every POI on a fresh route reported distance 0.
-  //
-  // `n` is the stop number a row displays, or null for a POI. It counts stops only,
-  // so promoting renumbers everything after it with no logic of its own.
+    //
+    // ONE INDEX SPACE: a row's `data-i` indexes route.points whatever its kind, so
+    // pointOf(), movePoint() and deletePoint() all take the same number. THE ARRAY IS
+    // THE ORDER — this used to interleave two arrays by projecting the POIs onto the
+    // track, which had no answer at all before a route existed.
+    //
+    // `n` is the stop number a row displays, or null for a POI.
   function orderedRows(route) {
     let stopN = 0;
     return route.points.map((point, i) => ({
@@ -6940,27 +6532,25 @@
     }));
   }
 
-  // WHICH CATEGORY PUTS FUEL BACK IN, from the bike the plan is built around.
-  // `gas` when nothing is known, because it is what all but a handful of bikes
-  // take and the alternative is showing no fuel figures at all to every rider
-  // who has not filled in a paddock.
+  // WHICH CATEGORY PUTS FUEL BACK IN, from the bike the plan is built around. `gas`
+  // when nothing is known, because it is what all but a handful of bikes take and
+  // the alternative is showing no fuel figures at all.
   const fuelRole = () => (window.TB.range && window.TB.range.fuelType === "electric" ? "charge" : "gas");
 
-  // The group's binding range in meters, or null when nobody on the ride has one
-  // on file. NULL MUST STAY NULL all the way to the renderer — a fuel warning
-  // built on an invented number is worse than none because it looks like one.
+  // The group's binding range in meters, or null when nobody on the ride has one on
+  // file. NULL MUST STAY NULL all the way to the renderer — a fuel warning built on
+  // an invented number is worse than none because it looks like one.
   function rangeM() {
     const mi = window.TB.range && window.TB.range.miles;
-    // window.TB.range.miles is always MILES, whatever the rider's preference —
-    // it comes off usable_range_m through metersToMiles server-side. Converting
-    // it with the display unit here would read a metric rider's 300 km tank as
-    // 300 miles.
+    // window.TB.range.miles is always MILES, whatever the rider's preference:
+    // converting it with the display unit here would read a metric rider's 300 km
+    // tank as 300 miles.
     return typeof mi === "number" && mi > 0 ? mi * window.TBUnits.METERS_PER_MILE : null;
   }
 
-  // Everything the rows of one route need to say how far in they are. Computed
-  // once per render rather than per row: each of these walks the whole route, so
-  // doing it inside pointRowHtml would make a 400-point route quadratic.
+  // Everything the rows of one route need to say how far in they are. Computed once
+  // per render: each of these walks the whole route, so doing it inside
+  // pointRowHtml would make a 400-point route quadratic.
   function routeDistances(route) {
     const role = fuelRole();
     return {
@@ -6971,7 +6561,7 @@
   }
 
   // One route's rows. Takes the route index rather than reading the active one,
-  // because every route's list is on screen and any of them can need redrawing.
+  // because every route's list is on screen.
   function renderRouteList(r) {
     const list = document.querySelector('.point-list[data-route="' + r + '"]');
     if (!list) return;
@@ -6982,10 +6572,9 @@
       orderedRows(route)
         .map(
           (row) =>
-            // The gap ABOVE each row, so slot `i` means "before points[i]" and
-            // the indices read the same way addPoint's `at` does. The gap below
-            // the last row is the bottom add-row, which is always present, so no
-            // slot is rendered for it.
+            // The gap ABOVE each row, so slot `i` means "before points[i]" and the
+            // indices read the same way addPoint's `at` does. The gap below the last
+            // row is the bottom add-row, so no slot is rendered for it.
             slotHtml(r, route, row.i, null) +
             pointRowHtml(row.kind, row.point, row.i, r, row.n, dist) +
             viaRowsHtml(r, route, row.i),
@@ -6994,24 +6583,20 @@
     hydrateIcons(list);
   }
 
-  // THE LAST ROW OF EVERY ROUTE IS A SEARCH FIELD, replacing a single box above
-  // the whole list that had to guess which route you meant — and guessed the last
-  // one you touched. Invisible until it is wrong: type an address on route 4 and it
-  // lands on route 2. The row knows its own `data-route`.
-  //
-  // Rendered on every route whether or not it has points, so it is also the empty
-  // state.
-  //
-  // NOT a .point-row: it has no point behind it, and wireList()'s handlers all
-  // resolve a row to `state.routes[route].points[i]`. SortableJS is told to leave
-  // it alone.
-  // A hairline with a + in it, between two rows — Excel's "insert row here".
-  // Rendered for every gap rather than on hover, because a control that only exists
-  // under the pointer does not exist on a touch screen. Quiet enough at rest that
-  // 30 of them read as row separators.
-  // `via` names WHICH slot this is when several share an `at`: every slot in a
-  // leg's stack inserts at the same index, so without a second key `state.insertAt`
-  // could not tell them apart and one + opened a field in every gap on the leg.
+  // THE LAST ROW OF EVERY ROUTE IS A SEARCH FIELD, replacing a single box above the
+    // whole list that had to guess which route you meant — type an address on route 4
+    // and it lands on route 2. Rendered on every route whether or not it has points,
+    // so it is also the empty state.
+    //
+    // NOT a .point-row: it has no point behind it, and wireList()'s handlers all
+    // resolve a row to `state.routes[route].points[i]`. SortableJS is told to leave
+    // it alone.
+    // A hairline with a + in it, between two rows. Rendered for every gap rather than
+    // on hover, because a control that only exists under the pointer does not exist
+    // on a touch screen.
+    // `via` names WHICH slot this is when several share an `at`: every slot in a
+    // leg's stack inserts at the same index, so without a second key one + opened a
+    // field in every gap on the leg.
   function insertSlotHtml(r, at, via) {
     const viaAttr = via == null ? "" : '" data-via="' + via;
     return (
@@ -7035,8 +6620,8 @@
   }
 
   // One gap: the hairline, or the search field when this is the gap the rider
-  // opened. Every gap in a route goes through it so the two states cannot be
-  // rendered by two different pieces of arithmetic.
+  // opened. Every gap goes through it so the two states cannot be rendered by two
+  // different pieces of arithmetic.
   function slotHtml(r, route, at, via) {
     const open = state.insertAt;
     const isOpen = open && open.route === r && open.at === at && (open.via == null ? via == null : open.via === via);
@@ -7044,34 +6629,31 @@
   }
 
   /**
-    * The shaping points on one leg, as their own rows under the point they follow.
-    *
-    * A SHAPING POINT IS NOT A POINT, and these rows exist because it is also not
-    * invisible. A via stays out of `route.points`, out of the numbering and out of
-    * every arithmetic that walks the route. What it gained on 2026-09-04 is a row,
-    * because "I dragged the route onto 25 and nothing appeared in the pane" is what
-    * a feature whose only surface is a map dot costs.
-    *
-    * NOT A `.point-row`, AND THAT IS LOAD-BEARING IN THREE PLACES: wireList()'s
-    * handlers resolve a row to `state.routes[route].points[i]`; SortableJS is told
-    * to leave it alone; and #166 — the list's raw child indices already run at 2n+1,
-    * so these add children the drag arithmetic cannot see.
-    *
-    * `legs[i]` joins `points[i]` to `points[i+1]`, so a leg's vias render below the
-    * point they leave.
-    */
+        * The shaping points on one leg, as their own rows under the point they follow.
+        *
+        * A SHAPING POINT IS NOT A POINT, and these rows exist because it is also not
+        * invisible. A via stays out of `route.points`, out of the numbering and out of
+        * every arithmetic that walks the route; what it gained is a row, because "I
+        * dragged the route onto 25 and nothing appeared in the pane" is what a feature
+        * whose only surface is a map dot costs.
+        *
+        * NOT A `.point-row`, AND THAT IS LOAD-BEARING IN THREE PLACES: wireList()'s
+        * handlers resolve a row to `state.routes[route].points[i]`; SortableJS is told
+        * to leave it alone; and #166 — the list's raw child indices already run at 2n+1.
+        *
+        * `legs[i]` joins `points[i]` to `points[i+1]`, so a leg's vias render below the
+        * point they leave.
+        */
   function viaRowsHtml(r, route, i) {
     const vias = (route.legs[i] && route.legs[i].viaPoints) || [];
     if (!vias.length) return "";
     return vias
       .map(
         (v, vi) =>
-          // THE SAME GAP THE POINT ROWS GET, above each one. Ziad's call,
-          // 2026-09-04: the stack reads as one list or it reads as two, and a
-          // shaping point is a place on the road like any other row here. Every
-          // one of these inserts at `i + 1` — the point after the leg — because
-          // a stop dropped anywhere along that leg goes in at the same index;
-          // `vi` is what tells the slots apart in state.insertAt.
+          // THE SAME GAP THE POINT ROWS GET, above each one: the stack reads as one
+          // list or it reads as two. Every one of these inserts at `i + 1`, because a
+          // stop dropped anywhere along that leg goes in at the same index; `vi` is
+          // what tells the slots apart in state.insertAt.
           slotHtml(r, route, i + 1, vi) +
           '<li class="via-row" data-route="' +
           r +
@@ -7081,9 +6663,9 @@
           vi +
           '">' +
           '<span class="via-mark" aria-hidden="true"></span>' +
-          // NO NAME AND NO NUMBER, because it has neither. What it can honestly
-          // say is which of a leg's shaping points it is, and only when there is
-          // more than one to tell apart.
+          // NO NAME AND NO NUMBER, because it has neither. What it can honestly say is
+          // which of a leg's shaping points it is, and only when there is more than
+          // one to tell apart.
           '<span class="via-name">Shaping point' +
           (vias.length > 1 ? " " + (vi + 1) : "") +
           "</span>" +
@@ -7104,10 +6686,9 @@
       .join("");
   }
 
-  // `at` is the slot this row inserts into, or undefined for the route's own
-  // bottom row, which appends. It rides on the element as data-at so every
-  // handler below — search, chips, arm-a-map-click — reads it from one place
-  // rather than each keeping its own copy of where the rider was.
+  // `at` is the slot this row inserts into, or undefined for the route's own bottom
+  // row, which appends. It rides on the element as data-at so every handler below
+  // reads it from one place rather than keeping its own copy.
   function addRowHtml(r, route, at) {
     const full = route.points.length >= MAX_POINTS;
     const slot = at == null ? "" : ' data-at="' + at + '"';
@@ -7128,10 +6709,9 @@
       ' aria-label="Add a place to ' +
       esc(routeLabel(r)) +
       '">' +
-      // Arms the next map click for THIS route — see armPlace(). The armed state
-      // is derived from state.arm rather than left on the element, because this
-      // row is rebuilt on every structural change and a class living only in the
-      // DOM would be lost by the next render.
+      // Arms the next map click for THIS route. The armed state is derived from
+      // state.arm rather than left on the element, because this row is rebuilt on
+      // every structural change.
       '<button type="button" class="add-place-btn' +
       (isArmed(r, at) ? " is-armed" : "") +
       '"' +
@@ -7152,15 +6732,10 @@
     );
   }
 
-  // The categories worth one tap, and nothing more.
-  //
-  // Four, not seventeen: fuel, a meal, a bed, coffee. A row of seventeen chips
-  // would be a worse version of typing the word, and everything else reaches the
-  // same search through the box.
-  //
-  // Each chip carries the ROLE, so a picked result arrives already tagged — the
-  // alternative is finding the station and then opening the row menu to say it is
-  // a gas station.
+  // The categories worth one tap, and nothing more: fuel, a meal, a bed, coffee.
+    // A row of seventeen chips would be a worse version of typing the word.
+    //
+    // Each chip carries the ROLE, so a picked result arrives already tagged.
   const CHIPS = [
     { role: "gas", label: Wc("fuel"), query: "gas station" },
     { role: "food", label: "Food", query: "restaurant" },
@@ -7169,36 +6744,32 @@
   ];
 
   // HOW FAR OFF THE ROUTE IS WORTH IT, in MILES — always miles, whatever unit the
-  // rider reads, because the value is compared against meters through one
-  // conversion.
-  //
-  // A CONSTANT AND NOT A CONTROL, as of 2026-08-31. It shipped as a slider beside
-  // the toggle and was rejected on sight: the corridor width is a preference, not a
-  // per-search decision, and asking every time put two controls in front of a
-  // question the rider had answered by tapping a chip. Fifteen miles is about
-  // twenty minutes there and back. If it ever moves it belongs in ride preferences.
+    // rider reads, because the value is compared against meters through one
+    // conversion.
+    //
+    // A CONSTANT AND NOT A CONTROL: the corridor width is a preference, not a
+    // per-search decision, and asking every time put two controls in front of a
+    // question the rider had answered by tapping a chip. If it ever moves it belongs
+    // in ride preferences.
   const CORRIDOR_MI = 15;
 
   // Whether the last corridor search covered the whole route or left gaps between
-  // its circles. Read by nearbyResultsHtml() — see MAX_CORRIDOR_SAMPLES for why
-  // a long enough route still cannot be covered in one press.
+  // its circles — see MAX_CORRIDOR_SAMPLES for why a long enough route still cannot
+  // be covered in one press.
   let corridorPartial = false;
 
   // The ceiling on how many Places calls one chip tap may spend. Text Search is
-  // billed per request, so this is a money number.
-  //
-  // TWELVE, NOT SIX, since 2026-09-03, and the count is DERIVED from it rather than
-  // always spent — so short routes got CHEAPER: a 40-mile route spends two searches
-  // where it used to spend six.
-  //
-  // Six was chosen when the radius was believed to grow with the route. It does not
-  // — the proxy caps it at 50 km — so six left 37-mile holes in a 593-mile route and
-  // answered "no gas between Burbank and Anaheim". Twelve covers about 745 miles;
-  // past that samplesCoverAll() reports false and the panel says so.
+    // billed per request, so this is a money number.
+    //
+    // TWELVE, NOT SIX, and the count is DERIVED from it rather than always spent — so
+    // short routes got CHEAPER. Six was chosen when the radius was believed to grow
+    // with the route; it does not, the proxy caps it at 50 km, so six left 37-mile
+    // holes in a 593-mile route. Twelve covers about 745 miles; past that
+    // samplesCoverAll() reports false and the panel says so.
   const MAX_CORRIDOR_SAMPLES = 12;
 
   /** What a chip promises. A slot chip searches its own leg whichever scope is
-   *  selected, so it names that rather than the scope — see the chip handler. */
+   *  selected, so it names that rather than the scope. */
   function chipTitle(c, isSlot) {
     const what = c.label.toLowerCase();
     if (isSlot) return "Find " + what + " along this leg";
@@ -7225,27 +6796,22 @@
           "</button>",
       ).join("") +
       "</div>" +
-      // ONCE PER DAY, ON THE DAY'S OWN BOTTOM ROW — never on an insert slot.
-      // The scope is one session-wide flag, so a copy in every add-row meant a
-      // six-point route drawing seven of them and a handler hand-syncing the lot
-      // on every change. One control cannot disagree with itself.
+      // ONCE PER ROUTE, ON THE ROUTE'S OWN BOTTOM ROW — never on an insert slot. The
+      // scope is one session-wide flag, so a copy in every add-row meant a six-point
+      // route drawing seven of them. One control cannot disagree with itself.
       (at == null ? corridorHtml(r) : "")
     );
   }
 
   /**
-    * #50's search scope: near the last point, or along the whole route.
-    *
-    * TWO NAMED STATES, NOT A CHECKBOX AND A SLIDER. Both are always on screen, so
-    * the control says what it does rather than what it is not doing — a checkbox
-    * labeled "Along the route" never says what unchecking it means.
-    *
-    * NEAR HERE IS THE DEFAULT, so the chips keep answering what is near where I have
-    * got to. The other scope is a different question rather than a wider version of
-    * the same one.
-    *
-    * The width it searches is CORRIDOR_MI and there is no control for it.
-    */
+        * #50's search scope: near the last point, or along the whole route.
+        *
+        * TWO NAMED STATES, NOT A CHECKBOX AND A SLIDER — both are always on screen, so
+        * the control says what it does rather than what it is not doing.
+        *
+        * NEAR HERE IS THE DEFAULT. The width it searches is CORRIDOR_MI and there is no
+        * control for it.
+        */
   function corridorHtml(r) {
     const on = state.corridorOn;
     const opt = (along, label, title) =>
@@ -7282,8 +6848,7 @@
   }
 
   // The route index is required now: every route's rows are on the page, so
-  // [data-kind][data-i] alone matches one row per route and would scroll to
-  // whichever came first.
+  // [data-kind][data-i] alone matches one row per route.
   function focusRow(kind, i, routeIndex) {
     const r = routeIndex == null ? activeIndex() : routeIndex;
     const row = document.querySelector(
@@ -7312,34 +6877,28 @@
     return {
       meters: route.legs.reduce((n, l) => n + l.distanceM, 0),
       riding: route.legs.reduce((n, l) => n + legDurationS(l), 0),
-      // Still computed although it is no longer displayed: routeElapsedS is
-      // riding plus stopped, and every derived end time and the whole timeline
-      // slider are built on it.
+      // Still computed although it is no longer displayed: routeElapsedS is riding plus
+      // stopped, and every derived end time and the timeline slider are built on it.
       stopped: routeStoppedS(route),
       estimated: routeIsEstimated(route),
-      // Live rather than the value stored at last save, which would be stale the
-      // moment a stop moves. window.TBTwist caches on the legs array, so this is
-      // free until the router answers again.
+      // Live rather than the value stored at last save, which would be stale the moment
+      // a stop moves. window.TBTwist caches on the legs array.
       twist: routeTwistiness(route),
     };
   }
 
   function renderTotals() {
     const totalsEl = $("totals");
-    // ANY POINT, not any stop. A route of POIs draws a road and has a mileage now,
-    // so a ride made of them has totals worth printing.
+    // ANY POINT, not any stop: a route of POIs draws a road and has a mileage.
     const anyPoints = state.routes.some((r) => r.points.length > 0);
     if (!anyPoints) {
       totalsEl.textContent = "";
       return;
     }
     // "~" marks a riding figure that includes an estimated leg, so a number the
-    // router never produced is never shown as though it had.
-    //
-    // Time stopped used to sit at the end of this line and no longer does: it is
-    // a number nobody plans around, where what the road is actually like is. The
-    // dwell figures still drive the end times and the timeline, they are just not
-    // worth a slot in a 380px panel.
+    // router never produced is never shown as though it had. Time stopped used to
+    // sit at the end of this line: it is a number nobody plans around, where what
+    // the road is actually like is.
     const line = (t, withLink) =>
       window.TBUnits.distanceFrom(t.meters, UNITS).toFixed(1) +
       " " +
@@ -7355,21 +6914,19 @@
           (withLink ? faqLink("twistiness", "twistiness") : "")
         : "");
 
-    // The band's line and word on the readout; the numbers behind them on
-    // hover. "252°/mi" means nothing to a rider, but it is the thing to check
-    // when the rating looks wrong, so it should be reachable without being in
-    // the way. Hoisted: `line` above reads it.
+    // The band's line and word on the readout; the numbers behind them on hover.
+    // "252°/mi" means nothing to a rider, but it is the thing to check when the
+    // rating looks wrong. Hoisted: `line` above reads it.
     function twistTitle(t) {
       if (!t.twist) return "";
-      // CONVERTED FOR DISPLAY, LABELED FROM THE MILE FIGURE. The band the label
-      // comes from is a threshold in degrees per MILE, so only the number moves —
-      // see rollUpTwist() in src/stats/shape.ts.
+      // CONVERTED FOR DISPLAY, LABELED FROM THE MILE FIGURE: the band is a threshold
+      // in degrees per MILE, so only the number moves.
       let s =
         Math.round(window.TBUnits.twistFrom(t.twist.dpm, UNITS)) +
         window.TBUnits.twistUnit(UNITS) +
         " of heading change";
-      // Only worth saying when the best stretch is meaningfully better than the
-      // route as a whole. On a uniformly twisty route it is the same number twice.
+      // Only worth saying when the best stretch is meaningfully better than the route
+      // as a whole; on a uniformly twisty route it is the same number twice.
       if (t.twist.bestDpm && t.twist.bestDpm > t.twist.dpm * 1.25) {
         s +=
           ", best " +
@@ -7383,39 +6940,29 @@
     }
 
     // The routes that COUNT, everywhere below. A ride carrying two ways to do
-    // Thursday is not twice as long, and this readout is the number a rider
-    // watches change while they edit — it has to agree with what the server
-    // stores on the next save, which is rideTotals() over the same filter.
+    // Thursday is not twice as long, and this readout has to agree with what the
+    // server stores on the next save.
     const counted = ALT.activeRoutes(state.routes);
 
     if (counted.length === 1) {
       const t = routeTotals(counted[0]);
-      // innerHTML, not textContent: line() now carries the twistiness "?" link.
-      // Nothing user-supplied reaches it — the mileage and the label are both
-      // computed here — so there is no injection surface.
+      // innerHTML, not textContent: line() carries the twistiness "?" link. Nothing
+      // user-supplied reaches it, so there is no injection surface.
       totalsEl.innerHTML = line(t, true);
       totalsEl.title = twistTitle(t);
-      // The tip key rides on the element that carries the title, which is the
-      // readout itself here and the `.totals-ride` span below. The tour's
-      // "that is a route" step anchors on this key, so it has to exist on a
-      // one-route ride — which is every ride the tour is taken on.
+      // The tip key rides on the element that carries the title. The tour's "that is a
+      // route" step anchors on this key, so it has to exist on a one-route ride.
       totalsEl.setAttribute("data-tip", "totals-ride");
       return;
     }
     totalsEl.removeAttribute("data-tip");
 
-    // With several routes the ride total is the number that matters; the focused
-    // route's own figures sit under it.
-    //
-    // The fold moved to TBAlt.rideRollup, which is the same file the server's
-    // rule lives beside and, unlike an inline reduce, has tests — including the
-    // one that pins the distance-weighted twistiness mean. Read it there for
-    // why twistiness is weighted and why the best stretch is a max rather than
-    // a sum.
+    // With several routes the ride total is the number that matters. The fold lives
+    // in TBAlt.rideRollup, beside the server's own rule and with tests — including
+    // the one pinning the distance-weighted twistiness mean.
     const ride = ALT.rideRollup(counted.map(routeTotals));
     // The per-route figures only exist when a route is selected. On "All" the ride
-    // figures stand alone, which is exactly what "All" means — but the line that
-    // would hold them is still emitted, empty. See below.
+    // figures stand alone, but the line that would hold them is still emitted, empty.
     const r = editIndex();
     const routeT = r == null ? null : routeTotals(state.routes[r]);
     totalsEl.title = "";
@@ -7423,8 +6970,7 @@
       '<span class="totals-ride" data-tip="totals-ride" title="' +
       esc(twistTitle(ride)) +
       '">' +
-      // The count of routes that COUNT, not of sections on screen. A ride with
-      // three routes and two alternates is a three-route ride, and saying "5 routes"
+      // The count of routes that COUNT, not of sections on screen: saying "5 routes"
       // beside a mileage that only covers three would make both look wrong.
       counted.length +
       " " +
@@ -7432,12 +6978,9 @@
       SEP +
       line(ride, true) +
       "</span>" +
-      // THE ROUTE LINE IS EMITTED EITHER WAY, empty on "All": it reserves its own line,
-      // so the block is the same height whichever way the scrubber is set. Dropping the
-      // span used to shift the panel on every scrub.
-      //
-      // Two spans rather than one string, so the stylesheet can shrink the name and
-      // never the figures — a route title runs to 150 characters.
+      // THE ROUTE LINE IS EMITTED EITHER WAY, empty on "All", so the block is the same
+      // height whichever way the scrubber is set. Two spans rather than one string, so
+      // the stylesheet can shrink the name and never the figures.
       '<span class="totals-route"' +
       (routeT ? ' title="' + esc(twistTitle(routeT)) + '"' : "") +
       ">" +
@@ -7453,15 +6996,13 @@
   }
 
   /**
-    * Keep the row's read-only note line in step with the box being typed into.
-    *
-    * Both render from `point.description` but at different times, and a re-render
-    * would reconcile them — which is exactly what must not happen here, because the
-    * caret is in the textarea.
-    *
-    * Creates and removes the element rather than hiding it: an empty `<p>` would
-    * take its own margin and put a gap under every row nobody has written on.
-    */
+        * Keep the row's read-only note line in step with the box being typed into.
+        * Both render from `point.description` at different times, and a re-render would
+        * reconcile them — which must not happen, the caret being in the textarea.
+        *
+        * Creates and removes the element rather than hiding it: an empty `<p>` would
+        * put its margin under every row nobody has written on.
+        */
   function syncRowNote(row, point) {
     const text = point.description || "";
     let el = row.querySelector(".row-note");
@@ -7475,10 +7016,9 @@
     el.title = text;
   }
 
-  // The undo-coalesce key for one field on one row. Shared with replacePoint(),
-  // which folds a pick into the typing that found it. It read `row.dataset.index`
-  // until 2026-09-15 — an attribute no row carries — so every row's name field
-  // coalesced into one step and renaming two stops was one undo.
+  // The undo-coalesce key for one field on one row, shared with replacePoint(). It
+  // read `row.dataset.index` — an attribute no row carries — so every row's name
+  // field coalesced into one step and renaming two stops was one undo.
   const rowEditKey = (kind, i, field) => "row:" + (kind || "") + ":" + i + ":" + field;
 
   // Delegated events for both lists.
@@ -7488,26 +7028,20 @@
       if (!row) return;
       const point = pointOf(row);
       if (!point) return;
-      // Keyed by the row and the field, so a run of keystrokes folds into one
-      // step and moving to another field starts a new one.
+      // Keyed by the row and the field, so a run of keystrokes folds into one step.
       beginEdit("edit stop", rowEditKey(row.dataset.kind, row.dataset.i, e.target.className));
       if (e.target.classList.contains("row-name")) point.name = e.target.value;
       if (e.target.classList.contains("row-desc")) {
         point.description = e.target.value;
-        // PATCHED IN PLACE, NEVER RE-RENDERED. The preview line on the row is
-        // built from the same value, so without this it holds whatever the note
-        // said when the row was last drawn — and this handler cannot call
-        // renderRouteList(), which would destroy the textarea being typed in and
-        // drop focus to <body>. #188, and the same treatment togglePref uses.
+        // PATCHED IN PLACE, NEVER RE-RENDERED: the preview line on the row is built from
+        // the same value, and this handler cannot call renderRouteList(), which would
+        // destroy the textarea being typed in. #188.
         syncRowNote(row, point);
       }
-      // The detail fields, all of them, through one branch. `data-field` is what
-      // makes that possible — adding a field to detailsHtml needs nothing here.
-      //
-      // `details` is created lazily on the first keystroke rather than at row
-      // build time: a stop nobody has typed into keeps `details: null`, which is
-      // what the server reconciles as "no row", and what stops every stop in the
-      // ride growing a detail row it does not need.
+      // The detail fields, all of them, through one branch; `data-field` is what makes
+      // that possible. `details` is created lazily on the first keystroke, so a stop
+      // nobody has typed into keeps `details: null`, which the server reconciles as
+      // "no row".
       const field = e.target.dataset && e.target.dataset.field;
       if (field) {
         if (!point.details) point.details = blankDetails();
@@ -7516,9 +7050,8 @@
           const link = point.details.links[n];
           if (link) link[field === "linkLabel" ? "label" : "url"] = e.target.value;
         } else if (field === "checkInAt" || field === "checkOutAt") {
-          // The digits the rider typed, carried as UTC. Attaching the BROWSER's
-          // offset here is what the old version did, and it is the thing that
-          // moved a 3pm check-in by seven hours.
+          // The digits the rider typed, carried as UTC. Attaching the BROWSER's offset
+          // here is what moved a 3pm check-in by seven hours.
           point.details[field] = window.TBRouteClock.inputToIso(e.target.value);
         } else {
           point.details[field] = e.target.value;
@@ -7527,27 +7060,20 @@
         return;
       }
       if (e.target.classList.contains("row-dur")) {
-        // Parsed on every keystroke, reformatted on none of them. Rewriting the field as
-        // it is typed is hostile in every format and breaks two: "1." becomes "1.0" with
-        // the caret stranded, "1h " becomes "1h 0m" before the minutes are typed.
-        // Tidying is the blur handler's job.
-        //
-        // An unparseable value stores null rather than the last good number, so "abc" and
-        // an empty field mean the same thing.
+        // Parsed on every keystroke, reformatted on none of them: rewriting the field as
+        // it is typed strands the caret ("1." becomes "1.0") and breaks "1h " before
+        // the minutes are typed. An unparseable value stores null rather than the last
+        // good number.
         point.durationMin = DUR.parse(e.target.value, durFormat);
         refreshDerived();
       }
       markDirty();
     });
 
-    // Tidy the duration on the way out: whatever was typed is rewritten in the
-    // rider's format, so "90m" in hours mode settles to "1.5" and a typo settles
-    // to blank rather than sitting there looking stored.
-    //
-    // focusout, not blur, because blur does not bubble and this listener is
-    // delegated on the list. It writes the field only — the value was already
-    // parsed into state on input, so there is nothing to mark dirty here and
-    // nothing to save.
+    // Tidy the duration on the way out, so "90m" in hours mode settles to "1.5" and a
+    // typo settles to blank rather than sitting there looking stored. focusout, not
+    // blur, because blur does not bubble and this listener is delegated. It writes
+    // the field only — the value was parsed into state on input.
     listEl.addEventListener("focusout", (e) => {
       if (!e.target.classList || !e.target.classList.contains("row-dur")) return;
       const row = e.target.closest(".point-row");
@@ -7557,11 +7083,8 @@
     });
 
     // THE KEYBOARD HALF OF THE DRAG HANDLE, and the reason Move up / Move down could
-    // come off the row menu at all: those two were the point list's only keyboard
-    // reorder and its only path when the SortableJS CDN fails.
-    //
-    // preventDefault because the drawer scrolls, and an arrow key that both moves the
-    // point and scrolls the panel loses the row off the screen.
+    // come off the row menu at all. preventDefault because the drawer scrolls, and an
+    // arrow key that both moves the point and scrolls the panel loses the row.
     listEl.addEventListener("keydown", (e) => {
       const grip = e.target.closest(".row-drag");
       if (!grip) return;
@@ -7570,23 +7093,20 @@
       e.preventDefault();
       const row = grip.closest(".point-row");
       if (!row) return;
-      // movePoint() works on the ACTIVE route and a row can belong to one that is
-      // not it, the same reason every other handler here calls setActive first.
+      // movePoint() works on the ACTIVE route and a row can belong to one that is not
+      // it, the reason every handler here calls setActive first.
       setActive(Number(row.dataset.route));
       const uid = row.dataset.uid;
       movePoint(Number(row.dataset.i), dir);
-      // renderList() has replaced the button that was focused, so focus goes back
-      // on the same POINT's grip at its new index — BY UID, because the index is
-      // precisely the thing that just changed. Same rule as the route grip and
-      // `.sg-drag`.
+      // renderList() has replaced the focused button, so focus goes back on the same
+      // POINT's grip BY UID — the index is precisely what just changed.
       const moved = uid && listEl.querySelector('.point-row[data-uid="' + CSS.escape(uid) + '"] .row-drag');
       if (moved) moved.focus();
     });
 
     listEl.addEventListener("click", (e) => {
-      // BEFORE THE .point-row LOOKUP, because a via row is not one — every
-      // handler below resolves a row to state.routes[route].points[i], and there is
-      // no point behind this one.
+      // BEFORE THE .point-row LOOKUP, because a via row is not one: every handler below
+      // resolves a row to state.routes[route].points[i].
       const viaDel = e.target.closest(".via-del");
       if (viaDel) {
         return removeVia(Number(viaDel.dataset.route), Number(viaDel.dataset.leg), Number(viaDel.dataset.via));
@@ -7604,9 +7124,8 @@
         closeRowMenu();
         if (act === "details") {
           const box = row.querySelector(".row-details");
-          // Re-rendered on open rather than only at row build time, because the
-          // rider may have changed the stop's roles since — and roles are what
-          // decide which fields show. ONLY `.detail-body` is rewritten: the
+          // Re-rendered on open rather than at row build time, the rider may have
+          // changed the stop's roles since. ONLY `.detail-body` is rewritten: the
           // rider-visible note sits outside it precisely so a role change cannot
           // destroy what is being typed into it.
           box.querySelector(".detail-body").innerHTML = detailsHtml(point, row.dataset.kind, i);
@@ -7646,8 +7165,8 @@
         return;
       }
       if (btn.classList.contains("row-splitoff")) {
-        // BY uid, never by the index this row was rendered with: a later split
-        // pushes routes onto the end and every index after it moves.
+        // BY uid, never by the index this row was rendered with: a later split pushes
+        // routes onto the end and every index after it moves.
         const to = state.routes.findIndex((d) => d.uid === btn.dataset.splitoff);
         if (to >= 0) goToRoute(to);
         return;
@@ -7659,19 +7178,15 @@
         closeRowMenu();
         const r = Number(row.dataset.route);
         const i = Number(row.dataset.i);
-        // Toggled in state, not on the element — see state.rolesOpen. Only one
-        // picker is open at a time, which is what the old DOM toggle gave by
-        // accident (each row had its own) and is now deliberate: two open grids
-        // in a 380px drawer is most of the panel.
+        // Toggled in state, not on the element. Only one picker is open at a time, which
+        // is deliberate: two open grids in a 380px drawer is most of the panel.
         state.rolesOpen = rolesAreOpen(r, i) ? null : { route: r, i: i };
         renderRouteList(r);
         return;
       }
       // A CATEGORY IS A REASON TO STOP, so choosing one promotes the point and clearing
-      // the last one demotes it. Ziad's call, 2026-08-24. The old flow was two actions
-      // for one intention: pick "Gas", then open the menu and say "make this a stop".
-      //
-      // "Make this a stop" survives for the case categories cannot express — a stop
+      // the last one demotes it — the old flow was two actions for one intention.
+      // "Make this a stop" survives for the case categories cannot express: a stop
       // with no reason given, which imports and the first-point rule both produce.
       if (btn.classList.contains("role-opt")) {
         const role = btn.dataset.role;
@@ -7682,10 +7197,8 @@
         const removing = had >= 0;
         const last = removing && point.roles.length === 1;
 
-        // REFUSED BEFORE beginEdit, so a rejected untag pushes no undo step. The
-        // route would otherwise be left with no stop at all, which the API refuses
-        // and payload() drops the whole route for. Same guard setPointKind applies
-        // to an explicit demote, reached from a different direction.
+        // REFUSED BEFORE beginEdit, so a rejected untag pushes no undo step. The route
+        // would otherwise be left with no stop at all, which the API refuses.
         if (last && point.kind === "stop" && stopsOf(route).length <= 1) {
           return toast("A route needs at least one stop—give this one a category or make another a stop", true);
         }
@@ -7695,17 +7208,13 @@
         if (removing) point.roles.splice(had, 1);
         else point.roles.push(role);
 
-        // The kind follows the categories. Note this is an INTERACTION rule, not a
-        // schema one: points.kind stays its own column, because an untagged stop
-        // is a real shape the importer and the first-point rule both create.
+        // The kind follows the categories. An INTERACTION rule, not a schema one:
+        // points.kind stays its own column, an untagged stop being a real shape.
         point.kind = point.roles.length ? "stop" : "poi";
 
         // ONE PICK CLOSES IT. It used to stay open, on the reasoning that a point may
-        // carry four categories — reported as #213: every rider read the grid staying put
-        // as the click not registering. A second category is one more click on an icon
-        // still right there; a control that will not close is a fault.
-        //
-        // Cleared BEFORE the render, so the row is built once in its final state.
+        // carry four categories — reported as #213: every rider read the grid staying
+        // put as the click not registering. Cleared BEFORE the render.
         state.rolesOpen = null;
         renderRouteList(r);
         renderMarkers();
@@ -7716,70 +7225,53 @@
   }
 
   // --- Overflow menus -------------------------------------------------------
-  //
-  // ONE MENU, TWO OWNERS. Point rows and route headers share this; the differences
-  // are entirely in the item list and the dispatch.
-  //
-  // BUILT ON OPEN, NEVER PER HOST, and that is a constraint rather than a
-  // preference: the role picker already renders 17 buttons per point — 340 nodes at
-  // twenty stops — and an eager menu per row would repeat that mistake.
-  //
-  // Absolutely positioned inside its host, so opening it moves nothing; both hosts
-  // therefore need `position: relative`.
-  //
-  // NEITHER MENU CARRIES MOVE UP / MOVE DOWN ANY MORE. They existed because
-  // `.row-drag` was a `<span aria-hidden>`, so they were its only keyboard reorder
-  // and its only path with no CDN. The grip is a real <button> with arrow keys now.
-  // Do not re-add the items without first making the grip a span again.
+    //
+    // ONE MENU, TWO OWNERS. Point rows and route headers share this; the differences
+    // are entirely in the item list and the dispatch.
+    //
+    // BUILT ON OPEN, NEVER PER HOST, which is a constraint rather than a preference:
+    // the role picker already renders 17 buttons per point.
+    //
+    // Absolutely positioned inside its host, so both hosts need `position: relative`.
+    //
+    // NEITHER MENU CARRIES MOVE UP / MOVE DOWN ANY MORE. They existed because
+    // `.row-drag` was a `<span aria-hidden>`; the grip is a real <button> with arrow
+    // keys now. Do not re-add the items without first making the grip a span again.
   const MENU_ITEMS = [
-    // ONE DOOR TO BOTH NOTES. "Edit notes" opened `.row-desc` and this opened a
-    // panel with a "Private notes" box in it, so a rider had two items leading to
-    // two boxes with nothing saying which was which — and the difference is the
-    // one thing about them worth knowing. Both live in the panel now, labeled.
+    // ONE DOOR TO BOTH NOTES. "Edit notes" opened `.row-desc` and this opened a panel
+    // with a "Private notes" box in it, so a rider had two items leading to two boxes
+    // with nothing saying which was which.
     { act: "details", label: "Notes, reservations & details" },
     { act: "save-place", label: "Save to my places" },
     { act: "duplicate", label: "Duplicate" },
     { act: "select", label: "Select points…" },
-    // ONE ITEM, NOT TWO, AND IT IS ABSENT ON A TAGGED STOP. Picking a category
-    // promotes a point on its own and clearing the last one demotes it, so on a point
-    // carrying categories this would be a second way to say what the chips say.
-    //
-    // What a category cannot say is a stop with no reason given, which imports and
-    // the first-point rule both produce — so the item survives for exactly that.
-    //
-    // Kept reversible, because a mis-promotion would otherwise cost a delete and a
-    // re-add and take the point's notes and details with it.
+    // ONE ITEM, NOT TWO, AND IT IS ABSENT ON A TAGGED STOP: picking a category
+    // promotes a point on its own. What a category cannot say is a stop with no
+    // reason given, which imports and the first-point rule both produce. Kept
+    // reversible, or a mis-promotion costs the point's notes and details.
     {
       act: "kind",
       label: (pt) => (pt.kind === "stop" ? "Make this a POI" : "Make this a stop"),
       when: (pt) => pt.kind !== "stop" || !(pt.roles || []).length,
     },
-    // No longer stopOnly: a POI has a place in the list of its own now.
-    // ANCHORED BY UID, which is the point's identity across a save — its id
-    // churns on every PUT and cannot be referenced. The comment survives the
-    // point being deleted, demoting to ride level rather than going with it.
+    // ANCHORED BY UID, which is the point's identity across a save — its id churns on
+    // every PUT. The comment survives the point being deleted, demoting to ride level.
     { act: "comment", label: "Comment on this stop" },
-    // #49. Shown on every interior point and DISABLED on the two ends rather
-    // than hidden, because "why can I not split here" is worth answering in
-    // place — splitting at the first or last point would leave a route with one
-    // point and no legs, which the API refuses and payload() drops whole.
+    // #49. Shown on every interior point and DISABLED on the two ends rather than
+    // hidden, because "why can I not split here" is worth answering in place:
+    // splitting at an end leaves a route with one point and no legs.
     { act: "split", label: "End the route here" },
-    // #67's diverge half. Shown and DISABLED rather than hidden, the same as the
-    // cut above and for the same reason: "why can I not split a group off here"
-    // is worth answering in place. It has three refusals — a ride of one rider,
-    // a route that already ends at this stop, and a ride with no groups to peel
-    // off — and toggleRowMenu picks the one that applies.
+    // #67's diverge half. Shown and DISABLED rather than hidden, as the cut above is.
+    // It has three refusals — a ride of one rider, a route that already ends at this
+    // stop, and a ride with no groups — and toggleRowMenu picks the one that applies.
     { act: "split-group", label: "Split a group off here" },
     { act: "delete", label: "Delete", danger: true },
   ];
 
-  // The route menu. `when` decides whether an item appears at all — the two
-  // alternate actions are meaningless on a route that is not in a group, and a
-  // menu full of disabled items nobody can explain is worse than a short one.
-  //
-  // "Make this the active alternate" and "Ungroup alternates" are not optional
-  // extras: without them a rider can put routes into a group and has no way back
-  // out, and no way to change their mind about which one they are riding.
+  // The route menu. `when` decides whether an item appears at all: the two alternate
+  // actions are meaningless on a route that is not in a group, and they are not
+  // optional extras — without them a rider can put routes into a group and has no
+  // way back out.
   const ROUTE_MENU_ITEMS = [
     { act: "route-duplicate", label: "Duplicate route" },
     { act: "route-select", label: "Select routes…" },
@@ -7788,9 +7280,9 @@
     { act: "route-delete", label: "Delete route", danger: true },
   ];
 
-  // Which button opened the menu that is currently up, so Escape can put focus
-  // back on it. It used to be found with `.closest('.point-row')`, which does
-  // not generalize to a second host.
+  // Which button opened the menu that is up, so Escape can put focus back on it. It
+  // used to be found with `.closest('.point-row')`, which does not generalize to a
+  // second host.
   let menuOpener = null;
 
   function closeMenu() {
@@ -7801,8 +7293,7 @@
     open.remove();
   }
 
-  // Kept under the old name for the handful of callers that mean "the row menu";
-  // there is only one menu and closing it is closing it.
+  // Kept under the old name for callers that mean "the row menu"; there is only one.
   const closeRowMenu = closeMenu;
 
   function openMenu(host, btn, items) {
@@ -7822,9 +7313,8 @@
           ' data-act="' +
           m.act +
           '"' +
-          // WHY it is disabled, on the item itself. A disabled control with no
-          // reason is what the split item was written not to be, and a `title` is
-          // the only place a reason fits inside a 380px menu.
+          // WHY it is disabled, on the item itself. A `title` is the only place a reason
+          // fits inside a 380px menu.
           (m.title ? ' title="' + esc(m.title) + '"' : "") +
           (m.off ? " disabled" : "") +
           ">" +
@@ -7840,13 +7330,10 @@
   }
 
   /**
-   * Why a group cannot be peeled off here, or null when it can be.
-   *
-   * A SENTENCE RATHER THAN A BOOLEAN, because the item is shown disabled and a
-   * greyed control with no reason is the thing #49's split item exists not to be.
-   * The order is the order a planner meets them: no groups to peel off at all,
-   * then nobody to peel off, then this particular stop.
-   */
+      * Why a group cannot be peeled off here, or null when it can be. A SENTENCE
+      * RATHER THAN A BOOLEAN, because the item is shown disabled. The order is the one
+      * a planner meets them in: no groups to peel off, then nobody, then this stop.
+      */
   function splitGroupRefusal(route, i) {
     const roster = (state.routeRiders && state.routeRiders.riders) || [];
     if (!state.rideId) return "Save the " + W("journey") + " first—a split is a change to who is on which road.";
@@ -7867,15 +7354,10 @@
     const route = editRoute();
     const point = route && route.points[i];
     if (!point) return;
-    // The kind item is ABSENT rather than disabled on a tagged stop — unlike the
-    // split below — because the categories are the control there and a greyed
-    // duplicate says nothing a rider can act on.
-    //
-    // Demoting the route's last stop IS shown and disabled: a real action unavailable
-    // for a reason worth stating, and setPointKind says which.
-    //
-    // `label` may be a function of the point, because the kind item is one item
-    // saying two things.
+    // The kind item is ABSENT rather than disabled on a tagged stop — unlike the split
+    // below — because the categories are the control there. Demoting the route's last
+    // stop IS shown and disabled: a real action unavailable for a reason worth
+    // stating. `label` may be a function of the point, one item saying two things.
     const items = MENU_ITEMS.filter((m) => !m.when || m.when(point)).map((m) => ({
       ...m,
       label: typeof m.label === "function" ? m.label(point) : m.label,
@@ -7893,20 +7375,20 @@
     if (!route) return;
     const items = ROUTE_MENU_ITEMS.filter((m) => !m.when || m.when(route)).map((m) => ({
       ...m,
-      // A ride needs at least one route, and the reason has to be visible before
-      // the click rather than as a toast after it.
+      // A ride needs at least one route, and the reason has to be visible before the
+      // click rather than as a toast after it.
       off: m.act === "route-delete" && state.routes.length <= 1,
     }));
     openMenu(head, btn, items);
   }
 
-  // Anywhere else, or Escape. Registered once rather than per menu, so an open
-  // menu never outlives the render that replaced its host.
+  // Anywhere else, or Escape. Registered once rather than per menu, so an open menu
+  // never outlives the render that replaced its host.
   function wireMenuDismiss() {
     document.addEventListener("pointerdown", (e) => {
-      // A press on a tour card is not "anywhere else": the tour opens a menu
-      // to show it, and closing it under the card's own Next moved the card
-      // out from under the pointer before the click could land.
+      // A press on a tour card is not "anywhere else": the tour opens a menu to show
+      // it, and closing it under the card's own Next moved the card out from under
+      // the pointer before the click could land.
       if (
         !e.target.closest(".row-menu") &&
         !e.target.closest(".row-menu-btn") &&
@@ -7916,12 +7398,10 @@
         closeMenu();
       }
     });
-    // Escape is CHAINED: a menu first, then select mode. Two things can be open
-    // at once and the rider means the innermost one — closing select mode while
-    // a menu is up would throw away a selection they had not finished with.
-    //
-    // Select mode is deliberately NOT dismissed by an outside click. A selection
-    // takes work to build and a stray click on the map must not discard it.
+    // Escape is CHAINED: a menu first, then select mode — two things can be open at
+    // once and the rider means the innermost. Select mode is deliberately NOT
+    // dismissed by an outside click: a selection takes work to build and a stray
+    // click on the map must not discard it.
     document.addEventListener("keydown", (e) => {
       if (e.key !== "Escape") return;
       if (document.querySelector(".row-menu")) {
@@ -7930,108 +7410,88 @@
         if (btn) btn.focus();
         return;
       }
-      // Before select mode and after a menu: arming is the shallower of the two
-      // and costs nothing to redo, where a selection took work to build.
+      // Before select mode and after a menu: arming is the shallower of the two and
+      // costs nothing to redo.
       if (disarmPlace()) return;
       if (state.select) endSelect();
     });
   }
 
   // --- Drag to reorder ------------------------------------------------------
-  //
-  // THE INDEX MAPPING IS THE WHOLE JOB, and it is not what it looks like.
-  // orderedRows() interleaves stops and POIs sorted by distance, while each row's
-  // data-i indexes its OWN array — so Sortable's oldIndex/newIndex, which count
-  // all children, mean nothing here.
-  //
-  // Reading the resulting DOM order of the stop rows sidesteps the interleaving:
-  // their data-i values in document order ARE the new ordering, however many POIs
-  // sat between them.
-  //
-  // Degrades to nothing if the CDN did not deliver; the grips carry arrow keys.
+    //
+    // THE INDEX MAPPING IS THE WHOLE JOB, and it is not what it looks like.
+    // orderedRows() interleaves stops and POIs, while each row's data-i indexes its
+    // OWN array — so Sortable's oldIndex/newIndex, which count all children, mean
+    // nothing here.
+    //
+    // Reading the resulting DOM order of the stop rows sidesteps that: their data-i
+    // values in document order ARE the new ordering.
+    //
+    // Degrades to nothing if the CDN did not deliver; the grips carry arrow keys.
   function initDragToReorder(listEl) {
     if (!window.Sortable) {
       console.warn("[builder] Sortable did not load—reorder by the row menu");
       return;
     }
-    // Guard against double-binding: renderRoutes() rebuilds every list and calls
-    // this for each, and Sortable leaves its own instance on the element.
+    // Guard against double-binding: renderRoutes() rebuilds every list and calls this
+    // for each, and Sortable leaves its own instance on the element.
     if (listEl._sortable) listEl._sortable.destroy();
     listEl._sortable = window.Sortable.create(listEl, {
-      // `draggable` already excludes the trailing .add-row, but `filter` is what stops
-      // a drag STARTING on it — without it a drop can be placed after it, putting a
-      // real row below the search field.
-      //
-      // .insert-slot is filtered for that and one more reason: there is one between
-      // every pair of rows, so an unfiltered drag on a hairline would be the easiest
-      // drag in the list to begin by accident.
+      // `draggable` already excludes the trailing .add-row, but `filter` is what stops a
+      // drag STARTING on it — without it a drop can be placed after it, putting a real
+      // row below the search field. .insert-slot is filtered for that and because
+      // there is one between every pair of rows.
       draggable: ".point-row",
       filter: ".add-row, .insert-slot, .via-row",
       // WITHOUT THIS THE SEARCH FIELD CANNOT BE CLICKED INTO. `preventOnFilter`
-      // defaults to TRUE, so Sortable calls preventDefault() on any pointerdown inside
-      // a filtered element — and the default action being prevented is the one that
-      // moves focus. Every route's add row was inert to the mouse: tabbable and
-      // typable, but a click left focus on <body>. Observed on /builder/9.
-      //
-      // `filter` still does its real job either way: it stops a DRAG starting on the
-      // add row, which is a Sortable-internal check that does not need the event
-      // canceled.
+            // defaults to TRUE, so Sortable calls preventDefault() on any pointerdown inside
+            // a filtered element — and the default action being prevented is the one that
+            // moves focus. Every route's add row was tabbable and typable, but a click left
+            // focus on <body>. `filter` still stops a DRAG starting there either way.
       preventOnFilter: false,
       handle: ".row-drag",
       animation: 150,
       ghostClass: "is-dragging",
-      // ONE GROUP ACROSS EVERY DAY, so a stop can be dragged out of one route and
-      // into another. That is a new capability, not a side effect: before every
-      // route was on screen at once there was only ever one list, and moving a stop
-      // between routes was impossible by any route.
+      // ONE GROUP ACROSS EVERY ROUTE, so a stop can be dragged out of one route and into
+      // another. A new capability, not a side effect: before every route was on screen
+      // there was only ever one list.
       group: "ride-points",
-      // Sortable defaults to native HTML5 drag-and-drop on a desktop pointer and
-      // to its own implementation on touch, which means two code paths, two sets
-      // of quirks and a drag image the browser draws and we cannot style. The
-      // fallback path is used for both here so a drag behaves and looks the same
-      // on a phone and a laptop. It is also the only path a synthetic event can
-      // drive, which is what makes this testable at all.
+      // Sortable defaults to native HTML5 drag-and-drop on a desktop pointer and to its
+      // own on touch — two code paths, two sets of quirks and a drag image we cannot
+      // style. The fallback path is used for both, and it is also the only path a
+      // synthetic event can drive, which is what makes this testable at all.
       forceFallback: true,
       fallbackClass: "row-drag-ghost",
       fallbackOnBody: true,
-      // Touch needs a moment of hold to tell a drag from a scroll; a mouse does
-      // not and 0 keeps it feeling immediate.
+      // Touch needs a moment of hold to tell a drag from a scroll; a mouse does not.
       delay: 200,
       delayOnTouchOnly: true,
-      // DRAGGING IS OFF WHILE SELECTING. A drag started with four rows ticked
-      // reads as "move all four" and does not do that, and there is no reading
-      // of it that is obviously right — so the gesture is taken away rather than
-      // given an ambiguous meaning.
+      // DRAGGING IS OFF WHILE SELECTING: a drag started with four rows ticked reads as
+      // "move all four" and does not do that, and no reading of it is obviously right.
       disabled: !!state.select,
       onEnd: (evt) => {
-        // CROSS-DAY FIRST, and it is a different operation rather than a special
-        // case of reordering: the point leaves one route's array and joins
-        // another's, and BOTH routes' legs are wrong afterwards. A same-route drop
-        // falls through to the index arithmetic below.
+        // CROSS-ROUTE FIRST, and it is a different operation rather than a special case
+        // of reordering: the point leaves one route's array and joins another's, and
+        // BOTH routes' legs are wrong afterwards.
         if (evt.from !== evt.to) return movePointAcrossRoutes(evt);
 
         const route = state.routes[Number(evt.from.dataset.route)];
         if (!route) return;
 
         // ONE OPERATION FOR BOTH KINDS, and Sortable's own indices finally mean
-        // something: every row is a point in route.points and the list on screen is that
-        // array in order.
-        //
-        // **`newDraggableIndex`, NEVER `newIndex`, AND THE DIFFERENCE IS NOT COSMETIC.**
-        // `oldIndex`/`newIndex` count EVERY child; the draggable pair counts only
-        // `.point-row`s. This list renders an `.insert-slot` ABOVE every row plus a
-        // trailing `.add-row`, so it holds 2n+1 children and the raw index runs at
-        // roughly double.
-        //
-        // Live from 2026-08-24 to 2026-08-27, failing two ways at once — measured on
-        // /builder/8. Dragging point 7 of 8 up one reported `newIndex: 13`, which clamped
-        // to 7 and equalled `from`, so nothing moved and nothing was marked dirty;
-        // dragging point 0 down one reported 3 and moved it three places, which DID save.
-        // Reported as #166.
-        //
-        // The clamping and the did-it-move question are TBDragIndex.dropTarget, so
-        // test/drag-index.test.ts can hold the arithmetic: nothing in this closure is
-        // reachable from a test. A null answer means the drop was not an edit.
+                // something: every row is a point in route.points.
+                //
+                // **`newDraggableIndex`, NEVER `newIndex`, AND THE DIFFERENCE IS NOT COSMETIC.**
+                // `oldIndex`/`newIndex` count EVERY child; the draggable pair counts only
+                // `.point-row`s. This list renders an `.insert-slot` ABOVE every row plus a
+                // trailing `.add-row`, so it holds 2n+1 children and the raw index runs at
+                // roughly double. Live for three days and failing two ways at once: a drag
+                // whose doubled index clamped back onto itself did nothing and marked nothing
+                // dirty, and every other drag overshot by about double and saved that (#166).
+                //
+                // The clamping and the did-it-move question are TBDragIndex.dropTarget, so
+                // test/drag-index.test.ts can hold the arithmetic: nothing in this closure is
+                // reachable from a test. A null answer means the drop was not an edit.
         const i = Number(evt.item.dataset.i);
         const to = DRAG.dropTarget(i, evt.newDraggableIndex, route.points.length);
         if (to == null) return;
@@ -8041,14 +7501,12 @@
   }
 
   // DRAG TO REORDER ROUTES. The use case is a base camp: rent a house, ride a loop
-  // each day, and the routes are interchangeable in a way a linear tour's are not.
-  //
-  // Cheaper than reordering stops, because a route owns its own legs: moving route
-  // 3 above route 1 changes no leg's endpoints and needs no routing call. Only the
-  // position changes, plus the parallel legSeq array — leaving that behind would
-  // let a stale response land on whichever route took the old index.
-  //
-  // Rebound on every renderRoutes(), which replaces the sections.
+    // each day, and the routes are interchangeable in a way a linear tour's are not.
+    //
+    // Cheaper than reordering stops, because a route owns its own legs: moving route
+    // 3 above route 1 changes no leg's endpoints and needs no routing call. Only the
+    // position changes, plus the parallel legSeq array — leaving that behind would let
+    // a stale response land on whichever route took the old index.
   function initRouteDrag(host) {
     if (!window.Sortable) return;
     if (host._sortable) host._sortable.destroy();
@@ -8057,25 +7515,21 @@
       handle: ".route-drag",
       animation: 150,
       ghostClass: "is-dragging",
-      // Same reasoning as the stop list: one code path on desktop and touch, a
-      // drag mirror we can style, and the only path a synthetic event can drive.
+      // Same reasoning as the stop list: one code path on desktop and touch, a drag
+      // mirror we can style, and the only path a synthetic event can drive.
       forceFallback: true,
       fallbackClass: "route-drag-ghost",
       fallbackOnBody: true,
       delay: 200,
       delayOnTouchOnly: true,
-      // DRAGGING IS OFF WHILE SELECTING. A drag started with four rows ticked
-      // reads as "move all four" and does not do that, and there is no reading
-      // of it that is obviously right — so the gesture is taken away rather than
-      // given an ambiguous meaning.
+      // DRAGGING IS OFF WHILE SELECTING: "move all four" is not what it does, and no
+      // reading of it is obviously right.
       disabled: !!state.select,
       onEnd: (evt) => {
-        // The RAW indices are safe here and only because #route-list holds nothing
-        // but .route-section children, so they agree with the draggable ones. The
-        // point list does not have that property and #166 is what it cost: adding
-        // any sibling between the sections — a separator, a drop hint — silently
-        // makes these read about double. Use the draggable pair if that ever
-        // changes.
+        // The RAW indices are safe here and only because #route-list holds nothing but
+        // .route-section children. The point list does not have that property and #166
+        // is what it cost: adding any sibling between the sections silently makes
+        // these read about double.
         const from = evt.oldIndex;
         const to = evt.newIndex;
         if (from === to || from == null || to == null) return;
@@ -8088,8 +7542,7 @@
         state.active = to;
         renderRoutes();
         // Layers are keyed by route index, so every one from the lower of the two
-        // positions onward is now drawing the wrong route. Rebuilding is the whole
-        // fix and costs no routing.
+        // positions onward is drawing the wrong route. Rebuilding costs no routing.
         rebuildLayers();
         renderMarkers();
         refreshDerived();
@@ -8098,17 +7551,13 @@
     });
   }
 
-  // A POINT DRAGGED OUT OF ONE ROUTE AND INTO ANOTHER.
-  //
-  // New with the all-routes panel. It is a move between two arrays rather than a
-  // reorder within one, and the consequence that matters is that BOTH routes' legs
-  // are wrong afterwards — the N points, N−1 legs invariant breaks at both ends.
-  //
-  // Legs are PATCHED on both sides rather than dropped wholesale. Dropping them
-  // cost the rider every hand-drawn shaping point on both routes plus a routing
-  // request for each road that had not changed. The source is a removal
-  // (rejoinRouteLegs); the destination is an insertion, which is what addPoint
-  // does.
+  // A POINT DRAGGED OUT OF ONE ROUTE AND INTO ANOTHER. A move between two arrays
+    // rather than a reorder within one, and the consequence that matters is that BOTH
+    // routes' legs are wrong afterwards.
+    //
+    // Legs are PATCHED on both sides rather than dropped wholesale: dropping them cost
+    // the rider every hand-drawn shaping point on both routes plus a routing request
+    // for each road that had not changed.
   function movePointAcrossRoutes(evt) {
     const fromRoute = Number(evt.from.dataset.route);
     const toRoute = Number(evt.to.dataset.route);
@@ -8127,42 +7576,35 @@
     const srcPoints = src.points.length;
     const [pt] = src.points.splice(i, 1);
     // Where it landed in the DESTINATION's list, clamped because .add-row is a child
-    // too and always last.
-    //
-    // `newDraggableIndex`, never `newIndex`: the destination list interleaves an
-    // .insert-slot above every row, so the raw child index runs at about double. Same
-    // bug as the same-route path, and it landed here as an append to the bottom of
-    // the target route rather than a drop where the rider aimed. See #166.
-    //
-    // insertTarget rather than dropTarget: the point is not in this array yet, so one
-    // past the last element is an append and a legitimate answer.
+        // too and always last. `newDraggableIndex`, never `newIndex`: the destination list
+        // interleaves an .insert-slot above every row, so the raw index runs at about
+        // double and the drop landed as an append rather than where the rider aimed
+        // (#166). insertTarget rather than dropTarget: the point is not in this array yet,
+        // so one past the last element is an append and a legitimate answer.
     const at = DRAG.insertTarget(evt.newDraggableIndex, dst.points.length);
-    // A POI's distance along the track belongs to the route it was measured on and
-    // means nothing on another one. Null is honest — "near this route's route,
-    // position not measured" — and is exactly what an import with no track
-    // stores. See the null-is-not-zero note in AGENTS.md.
+    // A POI's distance along the track belongs to the route it was measured on. Null
+    // is honest — "on this route, position not measured" — and is what an import with
+    // no track stores.
     pt.distFromStartMi = null;
     dst.points.splice(at, 0, pt);
 
-    // A DAY MUST KEEP A STOP — see ensureRouteHasStop(). Dragging the last one out
+    // A ROUTE MUST KEEP A STOP — see ensureRouteHasStop(). Dragging the last one out
     // would leave a route the save refuses and payload() drops whole.
     ensureRouteHasStop(src);
 
     const srcOut = rejoinRouteLegs(src, srcLegs, srcPoints, [i]);
     state.legSeq[fromRoute] = [];
 
-    // The destination gains a point at `at`: splicing a placeholder in at `at`
-    // leaves the two legs needing the router at `at - 1` and `at`, and every
-    // other leg still joins the pair of points it always joined.
+    // The destination gains a point at `at`: splicing a placeholder in leaves the two
+    // legs needing the router at `at - 1` and `at`.
     if (dst.points.length > 1) {
       dst.legs.splice(Math.min(at, dst.legs.length), 0, straightLeg([pt.lng, pt.lat], [pt.lng, pt.lat]));
     }
     fillMissingLegs(dst);
     state.legSeq[toRoute] = [];
 
-    // The two route LISTS are rebuilt rather than patched: both have shifted
-    // indices, and every row's data-i has to agree with the arrays again before
-    // any later handler reads one.
+    // The two route LISTS are rebuilt rather than patched: both have shifted indices,
+    // and every row's data-i has to agree with the arrays again.
     renderRoutes();
     rebuildLayers();
     renderMarkers();
@@ -8185,18 +7627,17 @@
   let searchTimer = null;
   let searchSeq = 0;
 
-  // #search-results is `position: fixed` so it can escape the panel's scroll
-  // box, which means its coordinates are this function's job rather than the
-  // stylesheet's. Sized to the field, opening downward unless the bottom of the
-  // viewport is closer than the list is tall, in which case it flips above.
+  // #search-results is `position: fixed` so it can escape the panel's scroll box,
+  // which makes its coordinates this function's job. Sized to the field, opening
+  // downward unless the bottom of the viewport is closer than the list is tall.
   function placeResults(input, results) {
     const f = input.getBoundingClientRect();
     const GAP = 2;
     results.style.left = f.left + "px";
     results.style.width = f.width + "px";
 
-    // Measure the list where it will actually sit, so a flip decision is made
-    // against its real height rather than its max-height.
+    // Measure the list where it will sit, so a flip decision is made against its real
+    // height rather than its max-height.
     results.style.top = f.bottom + GAP + "px";
     results.style.bottom = "auto";
     const h = results.getBoundingClientRect().height;
@@ -8209,10 +7650,8 @@
 
   // ONE DROPDOWN FOR EVERY ROW. There can be 31 search fields on screen and only
   // one open list, so the results element is owned by the document and moved to
-  // whichever field is asking. A <ul> per row would put 31 empty dropdowns in
-  // the DOM for nothing — the same argument the row ⋮ menu makes for building
-  // on open. `results.dataset.route` remembers which route the open list is for, so
-  // a pick lands correctly even if the rows have been re-rendered since.
+  // whichever field is asking. `results.dataset.route` remembers which route it is
+  // for, so a pick lands correctly even if the rows have been re-rendered.
   let resultsEl = null;
   function searchResultsEl() {
     if (resultsEl) return resultsEl;
@@ -8225,14 +7664,10 @@
 
   function hideSearchResults() {
     if (resultsEl && !resultsEl.hidden) resultsEl.hidden = true;
-    // THE DOTS LIVE EXACTLY AS LONG AS THE DROPDOWN. Every path that closes it comes
-    // through here, so there is no way to leave a dozen candidates painted over a
-    // route the rider has moved on from.
-    //
-    // ONLY WHEN THE SEARCH IS WHAT PUT THEM THERE. `setSearchPreview` is one slot
-    // with two consumers — a place search and a meeting-point proposal — and without
-    // this, opening and closing a search would wipe the candidates the rider is
-    // choosing between.
+    // THE DOTS LIVE EXACTLY AS LONG AS THE DROPDOWN, and every path that closes it
+    // comes through here. ONLY WHEN THE SEARCH IS WHAT PUT THEM THERE:
+    // `setSearchPreview` is one slot with two consumers, and without this, opening
+    // and closing a search would wipe the candidates the rider is choosing between.
     if (state.map && state.previewOwner === "search") {
       setSearchPreview(state.map, []);
       state.previewOwner = null;
@@ -8243,20 +7678,18 @@
     const host = $("route-list");
     const results = searchResultsEl();
 
-    // A fixed dropdown does not travel with the field, so anything that moves
-    // the field dismisses it rather than leaving it stranded. That matters more
-    // now than it did: the field is inside the panel's scroller rather than
-    // pinned above it.
+    // A fixed dropdown does not travel with the field, so anything that moves the
+    // field dismisses it rather than leaving it stranded.
     const wrapper = document.querySelector(".panel-contents-wrapper");
     if (wrapper) wrapper.addEventListener("scroll", hideSearchResults, { passive: true });
     window.addEventListener("resize", hideSearchResults);
 
-    // A saved place looks different from a Google prediction on purpose: it is
-    // the rider's own, it costs nothing to pick, and it arrives with roles and
-    // contact details attached. The badge is what says so.
-    // The slot a row inserts into, or null for the route's bottom row. One reader,
-    // so the search, the chips and the arm button cannot disagree about where the
-    // point is going.
+    // A saved place looks different from a Google prediction on purpose: it is the
+        // rider's own, it costs nothing to pick, and it arrives with roles and contact
+        // details attached.
+        // The slot a row inserts into, or null for the route's bottom row. One reader, so
+        // the search, the chips and the arm button cannot disagree about where the point
+        // is going.
     const slotOf = (el) => {
       const row = el && el.closest ? el.closest(".add-row") : null;
       const raw = row && row.dataset.at;
@@ -8265,42 +7698,33 @@
 
     // --- Category search ----------------------------------------------------
 
-    // Where a category search with no place in its text should look.
-    //
-    // The route's LAST point, because that is where the rider has got to. Falls back
-    // to the map viewport on a route with no points, and to nothing at all before the
-    // map has settled, where Text Search answers unbiased rather than not at all.
-    //
-    // A typed query naming a place ("gas station in oakdale ca") does not come
-    // through here: Text Search reads the place out of the text, so an anchor would
-    // fight it.
+    // Where a category search with no place in its text should look: the route's LAST
+        // point, because that is where the rider has got to. Falls back to the map
+        // viewport on a route with no points, and to nothing before the map has settled.
+        //
+        // A typed query naming a place does not come through here: Text Search reads the
+        // place out of the text, so an anchor would fight it.
     /**
-      * Where a "near" search looks: WHAT IS ON SCREEN.
-      *
-      * It anchored on the route's LAST POINT until 2026-08-31, so panning changed
-      * nothing and a rider looking at Redding who tapped Coffee got results around a
-      * hotel three hundred miles down the route. The last point is a place they can
-      * neither see nor move; the viewport is the one anchor they control.
-      *
-      * Null before the map has settled, and the proxy is happy with no anchor — Text
-      * Search falls back to its own global ranking.
-      */
+            * Where a "near" search looks: WHAT IS ON SCREEN.
+            *
+            * It anchored on the route's LAST POINT until 2026-08-31, so panning changed
+            * nothing and a rider looking at Redding who tapped Coffee got results around a
+            * hotel three hundred miles down the route. The viewport is the one anchor they
+            * control. Null before the map has settled, and the proxy is happy with none.
+            */
     function viewportAnchor() {
       return viewportCircle(state.map);
     }
 
     /**
-      * The track of the leg an insert slot sits in, and where to anchor a search on
-      * it. Null when there is no leg to speak of.
-      *
-      * `at` is an INSERTION INDEX, so the new point lands between points[at-1] and
-      * points[at] and the leg being split is legs[at-1]. Inserting at 0 anchors on the
-      * first point itself.
-      *
-      * PREFERS THE ROUTED GEOMETRY AND FALLS BACK TO THE STRAIGHT PAIR: a leg that has
-      * not come back from the router is still a stretch of map the rider is pointing
-      * at, and the straight line between its ends beats searching the whole ride.
-      */
+            * The track of the leg an insert slot sits in, and where to anchor a search on
+            * it. `at` is an INSERTION INDEX, so the leg being split is legs[at-1] and
+            * inserting at 0 anchors on the first point itself.
+            *
+            * PREFERS THE ROUTED GEOMETRY AND FALLS BACK TO THE STRAIGHT PAIR: a leg that
+            * has not come back from the router is still a stretch of map the rider is
+            * pointing at.
+            */
     function legAnchor(route, at) {
       const pts = route.points;
       if (!pts.length) return null;
@@ -8325,14 +7749,13 @@
     }
 
     /**
-      * The anchor for a search from the route's own bottom add-row.
-      *
-      * ON SCREEN FALLS BACK TO THE ROUTE WHEN THE SCREEN IS TOO BIG TO SEARCH.
-      * viewportCircle() clamps its radius to the 50km the proxy accepts, so on a ride
-      * fitted from Oakland to Vancouver the anchor was a 50km bubble near Roseburg
-      * holding none of the road, and every suggestion came back from central Oregon.
-      * Reported on ride 32, 2026-09-02.
-      */
+            * The anchor for a search from the route's own bottom add-row.
+            *
+            * ON SCREEN FALLS BACK TO THE ROUTE WHEN THE SCREEN IS TOO BIG TO SEARCH:
+            * viewportCircle() clamps its radius to the 50km the proxy accepts, so on a ride
+            * fitted from Oakland to Vancouver the anchor was a 50km bubble near Roseburg
+            * holding none of the road.
+            */
     function screenAnchor(r) {
       const view = viewportAnchor();
       if (view && view.spanM <= view.radiusM) return view;
@@ -8351,62 +7774,53 @@
     }
 
     /**
-      * ONE TEXT SEARCH FOR THE WHOLE ROUTE, biased at its midpoint, then filtered to
-      * the corridor here in the browser. Ziad's call, 2026-08-31, and a cost decision
-      * rather than a technical one: searching every ten miles is the accurate version
-      * and costs about thirty billed calls per slider move on a 300-mile route.
-      *
-      * WHAT THAT BUYS AND COSTS: one cached call for any route of any length, against
-      * a result set Google biases toward one point, so a long route gets a set thinned
-      * toward its middle. `wide` asks for the API's twenty rather than the dropdown's
-      * eight — same call, same money, and most of what makes this usable.
-      *
-      * The bias radius covers half the route, clamped to 50 km. A bias is not a filter,
-      * so the corridor test below is what actually decides.
-      */
+            * ONE TEXT SEARCH FOR THE WHOLE ROUTE, biased at its midpoint, then filtered to
+            * the corridor here in the browser. A cost decision rather than a technical one:
+            * searching every ten miles is the accurate version and costs about thirty
+            * billed calls per slider move on a 300-mile route.
+            *
+            * WHAT THAT COSTS: Google biases the result set toward one point, so a long
+            * route gets a set thinned toward its middle. `wide` asks for the API's twenty
+            * rather than the dropdown's eight — same call, same money.
+            *
+            * A bias is not a filter, so the corridor test below is what decides.
+            */
     function corridorSearchArgs(r) {
       const route = state.routes[r];
-      // BOTH HALVES OF ONE WALK. fullTrack() is trackAndSpans().track, and #266
-      // needs the spans as well to put a hit back on a row, so taking them
-      // together is one pass rather than two that could disagree.
+      // BOTH HALVES OF ONE WALK. fullTrack() is trackAndSpans().track, and #266 needs
+      // the spans as well to put a hit back on a row.
       const built = route ? trackAndSpans(r) : { track: [], spans: [] };
       const track = built.track;
       const spans = built.spans;
       const totalM = route ? DIST.totalM(route) : 0;
       // The viewport only when the route has no line yet — this is the ALONG THE ROUTE
       // scope, so the route is the subject and the screen is the fallback.
-      // A route with no line has no corridor, and withinCorridor() lets everything
-      // through on an empty track by design: a rider who just dropped their first point
-      // should get Google's answer rather than an empty list reading as "there is none
-      // here".
+      // withinCorridor() lets everything through on an empty track by design: a rider
+      // who just dropped their first point should get Google's answer.
       const view = viewportAnchor();
       if (!track.length || !totalM) {
         return { track: track, spans: spans, totalM: 0, near: view && view.near };
       }
 
-      // The sampling itself is corridorRun(), which the insert-slot path shares
-      // — the route and one leg are the same question at two scales.
+      // The sampling is corridorRun(), which the insert-slot path shares — the route
+      // and one leg are the same question at two scales.
       return { track: track, spans: spans, totalM: totalM, near: pointAtDistance(track, totalM / 2) };
     }
 
     /**
-      * Put each hit back on the row it belongs between. #266.
-      *
-      * A CORRIDOR HIT IS A DISTANCE ALONG A ROAD THAT ALREADY EXISTS — the same shape
-      * of fact the meeting point turned out to be, and its fix is the precedent. Here
-      * the projection was already being run and its answer thrown away, so every Along
-      * the route hit fell through to addPoint()'s append and a coffee stop found at
-      * mile 40 landed after the hotel at mile 300.
-      *
-      * `legs[i]` JOINS `points[i]` TO `points[i + 1]`, so a place projecting onto leg i
-      * belongs at row i + 1. No distance is compared against anything.
-      *
-      * `edgeForward` IS TRUE BECAUSE A BOUNDARY VERTEX IS THE START OF THE SEGMENT
-      * THAT WON: taking the arriving leg would put the hit one row early at every
-      * joint.
-      *
-      * A hit that cannot be placed is left alone rather than given a guess.
-      */
+            * Put each hit back on the row it belongs between (#266).
+            *
+            * A CORRIDOR HIT IS A DISTANCE ALONG A ROAD THAT ALREADY EXISTS. The projection
+            * was already being run and its answer thrown away, so every Along the route hit
+            * fell through to addPoint()'s append and a coffee stop found at mile 40 landed
+            * after the hotel at mile 300.
+            *
+            * `legs[i]` JOINS `points[i]` TO `points[i + 1]`, so a place projecting onto leg
+            * i belongs at row i + 1. No distance is compared against anything.
+            *
+            * `edgeForward` IS TRUE BECAUSE A BOUNDARY VERTEX IS THE START OF THE SEGMENT
+            * THAT WON. A hit that cannot be placed is left alone rather than given a guess.
+            */
     function placeAlongRoute(hits, spans) {
       if (!spans || !spans.length) return;
       hits.forEach((h) => {
@@ -8417,49 +7831,42 @@
     }
 
     /**
-      * Every place any sample returned, each one once.
-      *
-      * PARTIAL RESULTS BEAT NO RESULTS: one sample failing must not throw away the
-      * five that answered, so failures are counted and only a total wipeout is an
-      * error.
-      *
-      * DEDUPED ON POSITION AND NAME, because the samples overlap by design. There is
-      * no place id in the proxy's shape to key on, and the coordinates are rounded to
-      * six places server-side, so the pair compares exactly.
-      */
+            * Every place any sample returned, each one once.
+            *
+            * PARTIAL RESULTS BEAT NO RESULTS, so failures are counted and only a total
+            * wipeout is an error. DEDUPED ON POSITION AND NAME, because the samples overlap
+            * by design: there is no place id in the proxy's shape to key on.
+            */
     /**
-     * A corridor search over one track: sample it, union the answers, keep what
-     * is within CORRIDOR_MI of it.
-     *
-     * TAKES A TRACK RATHER THAN A DAY, which is what lets an insert slot reuse
-     * every rule here for the single leg it sits in. The route and the leg are the
-     * same question asked at two scales.
-     */
+          * A corridor search over one track: sample it, union the answers, keep what is
+          * within CORRIDOR_MI of it.
+          *
+          * TAKES A TRACK RATHER THAN A ROUTE, which is what lets an insert slot reuse
+          * every rule here for the single leg it sits in.
+          */
     async function corridorRun(query, track, totalM, fallbackNear) {
       const corridorM = CORRIDOR_MI * window.TBUnits.METERS_PER_MILE;
       const samples = [];
       const spans = CORRIDOR.corridorSamples(totalM, corridorM, MAX_CORRIDOR_SAMPLES);
-      // WHETHER THE DAY WAS FULLY SEARCHED, carried out with the results. A
-      // partly searched route that finds nothing is indistinguishable from a road
-      // with no fuel on it, and the rider is entitled to know which they have.
+      // WHETHER THE ROUTE WAS FULLY SEARCHED, carried out with the results: a partly
+      // searched route that finds nothing is indistinguishable from a road with no
+      // fuel on it.
       corridorPartial = !CORRIDOR.samplesCoverAll(spans, totalM);
       spans.forEach((sp) => {
         const at = pointAtDistance(track, sp.atM);
         if (at) samples.push({ near: at, radiusM: sp.radiusM });
       });
-      // A ZERO-LENGTH STRETCH IS STILL A PLACE. Inserting above the first point
-      // of a route, or between two points sitting on top of each other, gives a
-      // track with no length for corridorSamples() to divide — and answering
-      // nothing there would be worse than answering about the one point we have.
+      // A ZERO-LENGTH STRETCH IS STILL A PLACE. Inserting above the first point of a
+      // route gives a track with no length for corridorSamples() to divide, and
+      // answering nothing there is worse than answering about the one point we have.
       if (!samples.length && fallbackNear) {
         samples.push({ near: fallbackNear, radiusM: Math.max(500, Math.min(50000, Math.round(corridorM))) });
       }
       const raw = await corridorPlaces(query, samples);
-      // `atIndex` IS A VERTEX OF THE TRACK THAT WAS PASSED IN, so it is carried
-      // rather than resolved here: this function takes a track and does not know
-      // whether it is a whole route, one leg, or an explicit stretch. Only the
-      // route case can turn it into a row, and placeAlongRoute() is where that
-      // happens because that is where the spans are.
+      // `atIndex` IS A VERTEX OF THE TRACK THAT WAS PASSED IN, so it is carried rather
+      // than resolved here: this function does not know whether the track is a whole
+      // route, one leg, or an explicit stretch. Only the route case can turn it into
+      // a row, and placeAlongRoute() is where the spans are.
       return CORRIDOR.withinCorridor(raw, track, corridorM).map((hit) =>
         Object.assign({}, hit.place, { offRouteM: hit.offRouteM, atIndex: hit.atIndex }),
       );
@@ -8489,18 +7896,15 @@
     }
 
     /**
-     * The anchor arguments for a typed category query, spread into
-     * nearbySearch.
-     *
-     * NO ANCHOR WHEN THE TEXT NAMES A PLACE. Text Search reads "gas station in
-     * oakdale ca" itself, and biasing to the viewport as well would pull the
-     * answer back to wherever the rider happens to be looking — which is the
-     * one case where the screen is NOT what they meant.
-     */
-    // "gas station in bakersfield" carries its own where. Text Search reads the
-    // place out of the query, so ANY anchor we add — the viewport, or the route's
-    // own corridor — drags the answer back to wherever the rider happens to be.
-    // Factored out because the corridor path has to make the same exception.
+          * The anchor arguments for a typed category query, spread into nearbySearch.
+          *
+          * NO ANCHOR WHEN THE TEXT NAMES A PLACE: Text Search reads "gas station in
+          * oakdale ca" itself, and biasing to the viewport would pull the answer back to
+          * wherever the rider happens to be looking.
+          */
+    // "gas station in bakersfield" carries its own where, so ANY anchor we add drags
+    // the answer back. Factored out because the corridor path makes the same
+    // exception.
     const namesAPlace = (q) => /\b(in|near|around|close to|by)\b/.test(q);
 
     function namedOrViewport(q) {
@@ -8510,25 +7914,20 @@
     }
 
     /**
-      * The category half of a TYPED query, searched over the same stretch a chip would
-      * search.
-      *
-      * #266's other half. The scope control governed the chips and nothing else, so
-      * with Along the route selected, tapping Gas searched the route and typing "gas"
-      * searched the screen — two answers to one question, from one control.
-      *
-      * ONLY THE CATEGORY HALF. The name half is Autocomplete and stays restricted to
-      * the visible map: a prediction carries no coordinates to filter on until it is
-      * resolved, and Place Details bills per call.
-      *
-      * The precedence is `categorySearch()`'s — a slot is the rider pointing at a
-      * stretch of road, and it outranks the scope.
-      */
+            * The category half of a TYPED query, over the same stretch a chip would search.
+            *
+            * #266's other half: the scope control governed the chips and nothing else, so
+            * with Along the route selected, tapping Gas searched the route and typing "gas"
+            * searched the screen.
+            *
+            * ONLY THE CATEGORY HALF. The name half is Autocomplete and stays restricted to
+            * the visible map: a prediction carries no coordinates to filter on until it is
+            * resolved, and Place Details bills per call.
+            */
     async function typedCategoryHits(cat, q, r, at, rep) {
       if (namesAPlace(q)) return nearbySearch(cat.text, null);
-      // A REPLACE SEARCHES AROUND THE POINT BEING REPLACED. It is the one
-      // anchor the rider has unambiguously pointed at — the row they are typing
-      // in — and it outranks the scope for the reason a slot does.
+      // A REPLACE SEARCHES AROUND THE POINT BEING REPLACED: the one anchor the rider
+      // has unambiguously pointed at, and it outranks the scope as a slot does.
       const old = rep == null ? null : state.routes[r] && state.routes[r].points[rep];
       if (old) return nearbySearch(cat.text, [old.lng, old.lat]);
       const leg = at == null ? null : legAnchor(state.routes[r], at);
@@ -8543,13 +7942,10 @@
     }
 
     /**
-      * What to say when a typed query found nothing, naming what was actually covered.
-      *
-      * TWO HALVES SEARCHING TWO AREAS is what makes this its own function: the
-      * category half follows the scope and the name half is always the viewport, so
-      * "on screen" describes only half of what was asked. Telling a rider the wrong
-      * area is the complaint #232 was filed about.
-      */
+            * What to say when a typed query found nothing, naming what was actually
+            * covered. TWO HALVES SEARCHING TWO AREAS is what makes this its own function:
+            * the category half follows the scope and the name half is always the viewport.
+            */
     function typedEmptyText(q, cat, at, rep) {
       const named = "“" + q + "”";
       if (cat && rep != null)
@@ -8563,9 +7959,8 @@
 
     async function nearbySearch(query, near, opts) {
       const body = near ? { query: query, near: near } : { query: query };
-      // A corridor search asks for the wider result set and a bias radius that
-      // covers the route rather than the default town-sized one. Both are the same
-      // single billed call — see MAX_CORRIDOR_RESULTS in src/routes/routing.ts.
+      // A corridor search asks for the wider result set and a bias radius that covers
+      // the route. Both are the same single billed call.
       if (opts && opts.wide) body.wide = true;
       if (opts && opts.radiusM) body.radiusM = opts.radiusM;
       const res = await fetch("/api/places/search", {
@@ -8582,19 +7977,16 @@
       return (data && data.places) || [];
     }
 
-    // A heading above the nearby block, because two kinds of answer in one list
-    // with nothing between them reads as one ranked list where the good matches
-    // happen to be at the top. They are not the same question: above are places
-    // matching what you typed, below are places OF the kind you asked for.
+    // A heading above the nearby block: two kinds of answer in one list with nothing
+    // between them reads as one ranked list. Above are places matching what you
+    // typed, below are places OF the kind you asked for.
     function nearbyResultsHtml(hits) {
       if (!hits.length && !corridorPartial) return "";
       return (
         '<li class="hit-head" aria-hidden="true">Nearby' +
-        // SAYS THE DAY WAS ONLY PARTLY SEARCHED, because the alternative is a
-        // short list — or none — that reads as a road with no fuel on it. Past
-        // about 745 miles the samples stop touching even at the raised cap, and
-        // the honest thing is to name the gap rather than let the rider draw the
-        // wrong conclusion from it. See MAX_CORRIDOR_SAMPLES.
+        // SAYS THE ROUTE WAS ONLY PARTLY SEARCHED, because the alternative is a short
+        // list that reads as a road with no fuel on it. Past about 745 miles the
+        // samples stop touching even at the raised cap.
         (corridorPartial ? ' <span class="hit-partial">part of this route only—zoom in and use On screen</span>' : "") +
         "</li>" +
         hits
@@ -8605,9 +7997,9 @@
               '"><strong>' +
               esc(h.name) +
               "</strong> " +
-              // THE NUMBER THE RIDER IS DECIDING ON, when there is one. A
-              // corridor search annotates each hit with its detour; a plain
-              // near-a-point search has nothing to say here and renders none.
+              // THE NUMBER THE RIDER IS DECIDING ON, when there is one: a corridor
+              // search annotates each hit with its detour, a near-a-point search has
+              // nothing to say here.
               (typeof h.offRouteM === "number"
                 ? '<span class="hit-off">' + esc(fmtDist(h.offRouteM)) + " off</span> "
                 : "") +
@@ -8619,43 +8011,39 @@
       );
     }
 
-    // `role` is the chip's role, or the one parse() read out of the query. It
-    // wins over the place's own type — the rider said "gas", so a convenience
-    // store that came back among the stations is still the answer to a question
-    // about fuel. roleForType() fills in only when nothing was asked for.
+    // `role` is the chip's role, or the one parse() read out of the query, and it
+    // wins over the place's own type — the rider said "gas", so a convenience store
+    // among the stations is still the answer. roleForType() fills in only when
+    // nothing was asked for.
     /**
-      * Paint one numbered dot per result and couple it to its row, both ways.
-      *
-      * A NUMBER RATHER THAN A NAME ON THE MAP, with the name on hover: twelve labels
-      * overlapping each other is what would be unreadable.
-      *
-      * The row highlight is a class rather than a scroll — a list that jumps under the
-      * pointer while the pointer is driving it fights the rider.
-      */
+            * Paint one numbered dot per result and couple it to its row, both ways.
+            *
+            * A NUMBER RATHER THAN A NAME ON THE MAP, with the name on hover: twelve labels
+            * overlapping each other is what would be unreadable. The row highlight is a
+            * class rather than a scroll — a list that jumps under the pointer fights the
+            * rider.
+            */
     function showPreview(host, hits) {
       if (!state.map) return;
-      // The search takes the slot, which also clears any meeting-point dots —
-      // correct, because the rider has moved on to adding a place, and two sets
-      // of numbered dots on one map would be unreadable.
+      // The search takes the slot, which also clears any meeting-point dots: the rider
+      // has moved on to adding a place, and two sets of numbered dots on one map
+      // would be unreadable.
       state.previewOwner = "search";
       setMeetApproaches(state.map, []);
       const rows = Array.from(host.querySelectorAll("li.hit-nearby"));
       setSearchPreview(
         state.map,
-        // THE SAME TWO FACTS THE ROW SHOWS, in the same words: the name, and the
-        // detour when the search was a corridor one. Built here rather than in
-        // map-common.js so that file stays out of miles-versus-kilometers —
-        // fmtDist() is already the one place that decision is made.
+        // THE SAME TWO FACTS THE ROW SHOWS, in the same words. Built here rather than in
+        // map-common.js so that file stays out of miles-versus-kilometers.
         hits.map((h) => ({
           lngLat: h.lngLat,
           name: h.name,
           tip: typeof h.offRouteM === "number" ? h.name + " · " + fmtDist(h.offRouteM) + " off" : h.name,
         })),
         (i) => rows.forEach((li, j) => li.classList.toggle("is-lit", j === i)),
-        // PRESSING THE DOT PRESSES THE ROW, rather than repeating what the row's
-        // handler does. That handler mints the point with its category role,
-        // reads the open insert slot, pans and moves focus — four things a
-        // second copy would drift from the first time any of them changed.
+        // PRESSING THE DOT PRESSES THE ROW, rather than repeating what the row's handler
+        // does: that mints the point with its category role, reads the open insert
+        // slot, pans and moves focus — four things a second copy would drift from.
         (i) => rows[i] && rows[i].click(),
       );
       rows.forEach((li, j) => {
@@ -8672,17 +8060,15 @@
           const r = Number(host.dataset.route);
           hideSearchResults();
           setActive(r);
-          // Built here rather than letting addPoint mint a bare one, for the same
-          // reason a saved place is: the role is the point of having searched by
-          // category, and addPoint's auto-promotion leaves a supplied role alone.
+          // Built here rather than letting addPoint mint a bare one, as a saved place
+          // is: the role is the point of having searched by category, and addPoint's
+          // auto-promotion leaves a supplied role alone.
           const pt = newPoint(h.lngLat[0], h.lngLat[1], h.name, h.address);
           const tag = role || QUERY.roleForType(h.type);
           if (tag) pt.roles = [tag];
-          // AN OPEN `+` SLOT STILL WINS, which is #232's call intact: the
-          // rider pressed the hairline between two points and said which
-          // stretch they meant. Projection is the answer only when nothing was
-          // pointed at — and when neither has one, addPoint() appends exactly as
-          // it always did, which is right for On screen.
+          // AN OPEN `+` SLOT STILL WINS, which is #232's call intact: the rider pressed
+          // the hairline and said which stretch they meant. Projection answers only
+          // when nothing was pointed at.
           const slot = openSlot(host);
           const at = slot != null ? slot : typeof h.insertAt === "number" ? h.insertAt : null;
           landPick(host, h.lngLat[0], h.lngLat[1], h.name, pt, at);
@@ -8691,13 +8077,10 @@
       });
     }
 
-    // One line, shown IN the dropdown rather than as a toast.
-    //
-    // Both of the states this covers used to be invisible. A search that threw
-    // was a console.warn and nothing else; a search that matched nothing set
-    // `hidden = true`, so "no results" and "the search is broken" were the same
-    // empty box. That is how a server key missing the Places API would present:
-    // type a query, get nothing, learn nothing.
+    // One line, shown IN the dropdown rather than as a toast. Both states this covers
+    // used to be invisible: a search that threw was a console.warn, and one that
+    // matched nothing set `hidden = true`, so "no results" and "the search is broken"
+    // were the same empty box.
     function noticeHtml(text) {
       return '<li class="hit-note">' + esc(text) + "</li>";
     }
@@ -8727,13 +8110,12 @@
         .join("");
     }
 
-    // Rewired on every render because the list is rebuilt wholesale — the same
-    // reason the search field itself is delegated rather than bound per input.
+    // Rewired on every render because the list is rebuilt wholesale.
     const openSlot = (host) => (host.dataset.at === "" || host.dataset.at == null ? null : Number(host.dataset.at));
 
-    // Which field the open list is answering: a route's add-row (`at` is the
-    // insert slot, or null for the bottom row) or an existing row's name field
-    // (`rep` is that point's index). One writer, so the stamps cannot disagree.
+    // Which field the open list is answering: a route's add-row (`at` is the insert
+    // slot, or null for the bottom row) or an existing row's name field (`rep` is
+    // that point's index). One writer, so the stamps cannot disagree.
     function aimResults(results, route, at, rep) {
       results.dataset.route = String(route);
       results.dataset.at = at == null ? "" : String(at);
@@ -8743,9 +8125,8 @@
       results.dataset.replace === "" || results.dataset.replace == null ? null : Number(results.dataset.replace);
 
     // Where a pick lands: a NEW point, or the place under an existing one. The
-    // dropdown is one element serving every add-row and every row's name field,
-    // so it carries which it was opened for, and the three pick handlers ask
-    // here rather than each deciding. `at` overrides the open slot for the one
+    // dropdown is one element serving every add-row and every row's name field, so
+    // it carries which it was opened for. `at` overrides the open slot for the one
     // caller that projects a corridor hit onto the route.
     function landPick(results, lng, lat, name, pt, at) {
       const r = Number(results.dataset.route);
@@ -8759,9 +8140,8 @@
         return;
       }
       addPoint(lng, lat, name, r, pt, at === undefined ? openSlot(results) : at);
-      // The add above re-rendered the list, so the row is a new element. Put the
-      // cursor in its replacement: adding several stops in a row is the common
-      // case and should not need a click between each one.
+      // The add re-rendered the list, so the row is a new element. Put the cursor in
+      // its replacement: adding several stops in a row is the common case.
       const next = document.querySelector('.add-row[data-route="' + r + '"] .add-search');
       if (next) next.focus();
     }
@@ -8774,9 +8154,9 @@
           const r = Number(host.dataset.route);
           hideSearchResults();
           setActive(r);
-          // Built here and handed in, rather than letting addPoint mint a bare
-          // point: the roles and the durable details are the reason a saved
-          // place is worth having.
+          // Built here and handed in rather than letting addPoint mint a bare point:
+          // the roles and the durable details are the reason a saved place is worth
+          // having.
           const pt = stopFromPlace(pl);
           landPick(host, pl.lng, pl.lat, pl.name, pt);
           panTo(state.map, [pl.lng, pl.lat], 11);
@@ -8785,13 +8165,11 @@
     }
 
     // Delegated on #route-list, because renderRoutes() replaces every one of these
-    // fields on any structural change. Binding per input would either be lost
-    // on the next render or leak a listener per render.
+    // fields on any structural change.
     host.addEventListener("input", (e) => {
-      // A ROW'S NAME FIELD IS THE SAME SEARCH. Typing renames — wireList()'s
-      // handler already wrote the keystroke into point.name — and a pick from
-      // the list that opens under it REPLACES the place through replacePoint().
-      // The row knows its point, so `rep` is its index and there is no slot.
+      // A ROW'S NAME FIELD IS THE SAME SEARCH. Typing renames — wireList()'s handler
+      // already wrote the keystroke into point.name — and a pick REPLACES the place
+      // through replacePoint(). The row knows its point, so `rep` is its index.
       const input = e.target.closest(".add-search, .row-name");
       if (!input) return;
       const isRow = input.classList.contains("row-name");
@@ -8801,11 +8179,10 @@
       clearTimeout(searchTimer);
       const q = input.value.trim();
 
-      // Saved places first, and they are drawn IMMEDIATELY — no debounce, no
-      // network, no minimum length beyond one character. Typing "bob" surfaces
-      // your own "Bob's Gas" before Google has been asked anything, which is the
-      // whole reason to have a library. The predictions land underneath 300ms
-      // later and are appended rather than replacing these.
+      // Saved places first, drawn IMMEDIATELY — no debounce, no network, no minimum
+      // length beyond one character. Typing "bob" surfaces your own "Bob's Gas" before
+      // Google has been asked anything. The predictions land 300ms later and are
+      // appended rather than replacing these.
       const saved = matchSavedPlaces(q);
       if (saved.length) {
         aimResults(results, route, at, rep);
@@ -8819,52 +8196,43 @@
 
       if (q.length < 3) return;
       searchTimer = setTimeout(async () => {
-        // Predictions come back out of order often enough to matter; a slow
-        // early keystroke must not overwrite a fast later one.
+        // Predictions come back out of order often enough to matter.
         const mine = ++searchSeq;
         // A CATEGORY QUERY RUNS BOTH SEARCHES. Autocomplete still answers, because
-        // "coffee" might be the name of the place the rider means; the category
-        // results are appended under a heading. parse() returns null for anything
-        // that reads as a name, and that is the common case — a Text Search call
-        // is the expensive one and it only fires when the query genuinely asks
-        // for a kind of place.
+        // "coffee" might be the name of the place the rider means. parse() returns null
+        // for anything that reads as a name, which is the common case — a Text Search
+        // call is the expensive one.
         const cat = QUERY.parse(q);
-        // CLEARED BEFORE EVERY SEARCH, the same reason categorySearch() clears
-        // it: a typed query can now run the corridor, so it can also raise the
-        // partial-coverage note — and leaving one standing would hang it above
-        // an answer that searched exactly what it said it did.
+        // CLEARED BEFORE EVERY SEARCH, the reason categorySearch() clears it: a typed
+        // query can run the corridor, so it can raise the partial-coverage note, and
+        // leaving one standing would hang it above an answer that searched exactly
+        // what it said.
         corridorPartial = false;
         try {
-          // allSettled, NOT all. These are two independent services and either
-          // can fail on its own — the category search in particular fails
-          // wholesale when the server key has no Places API on it. With
-          // Promise.all one rejection took the other answer down with it, so a
-          // misconfigured category search would have broken name search too,
-          // which is a strictly worse bug than the one being fixed.
+          // allSettled, NOT all. These are two independent services and either can fail
+          // on its own — the category search fails wholesale when the server key has
+          // no Places API on it — and with Promise.all one rejection took the other
+          // answer down with it.
           const [nameRes, nearRes] = await Promise.allSettled([
             searchPlaces(state.map, q),
-            // No anchor when the text names a place: Text Search reads it out of
-            // the query, and biasing to the rider's current position as well
-            // would pull the answer back home.
+            // No anchor when the text names a place: Text Search reads it out of the
+            // query, and biasing as well would pull the answer back home.
             cat ? typedCategoryHits(cat, q, route, at, rep) : [],
           ]);
           if (mine !== searchSeq) return;
           const hits = nameRes.status === "fulfilled" ? nameRes.value : [];
           const nearby = nearRes.status === "fulfilled" ? nearRes.value : [];
-          // Whichever half failed, named. Both failing is the interesting case
-          // and it falls through to the catch below via this throw.
+          // Whichever half failed, named. Both failing falls through to the catch.
           const failed = [nameRes, nearRes].filter((x) => x.status === "rejected");
           if (failed.length === 2) throw failed[0].reason;
           if (nearRes.status === "rejected") console.warn("[builder] category search:", nearRes.reason.message);
           if (nameRes.status === "rejected") console.warn("[builder] name search:", nameRes.reason.message);
-          // The rows may have been rebuilt out from under this response, in
-          // which case the field it was for no longer exists.
+          // The rows may have been rebuilt out from under this response.
           if (!input.isConnected) return;
           aimResults(results, route, at, rep);
-          // Saved matches keep their place at the top; the predictions are
-          // appended under them. Re-derived rather than read off the DOM so a
-          // response that arrives after the query changed cannot pair the new
-          // predictions with the old library rows.
+          // Saved matches keep their place at the top. Re-derived rather than read off
+          // the DOM, so a response arriving after the query changed cannot pair the
+          // new predictions with the old library rows.
           const savedNow = matchSavedPlaces(input.value.trim());
           const nothing = hits.length === 0 && savedNow.length === 0 && nearby.length === 0;
           results.innerHTML =
@@ -8883,48 +8251,38 @@
               )
               .join("") +
             nearbyResultsHtml(nearby) +
-            // SAID OUT LOUD, not left as an empty box. "Nothing matched" and
-            // "the search broke" were pixel-identical before this.
-            // NAMES THE VIEWPORT, because the search is restricted to it and a
-            // rider who is told only "no matches" has no reason to think
-            // zooming out would help. See searchPlaces() in map-common.js for
-            // why there is no automatic fallback to widen it for them.
+            // SAID OUT LOUD, not left as an empty box: "nothing matched" and "the
+            // search broke" were pixel-identical before this. NAMES THE VIEWPORT,
+            // because the search is restricted to it and a rider told only "no
+            // matches" has no reason to think zooming out would help.
             (nothing ? noticeHtml(typedEmptyText(q, cat, at, rep)) : "") +
-            // One half down while the other answered: the results still show,
-            // with a line saying what is missing. Silently returning half an
-            // answer is how a broken category search would go unnoticed for a
-            // week.
+            // One half down while the other answered: the results still show, with a
+            // line saying what is missing.
             (nearRes.status === "rejected" ? noticeHtml(searchErrorText(nearRes.reason)) : "") +
             (nameRes.status === "rejected" && nearby.length ? noticeHtml("Name search is unavailable") : "");
           results.hidden = false;
           placeResults(input, results);
           wireSavedResults(results, savedNow);
           wireNearbyResults(results, nearby, cat && cat.role);
-          // ONLY THE CATEGORY BLOCK GETS DOTS HERE, and that is a limit rather
-          // than an oversight: a `hit-google` name match carries no coordinates
-          // until it is picked, because Place Details bills per call and
-          // resolving five to draw five dots would cost five times as much for a
-          // rider who is going to choose one. The numbering follows the nearby
-          // rows, which sit under their own heading.
+          // ONLY THE CATEGORY BLOCK GETS DOTS HERE, a limit rather than an oversight: a
+          // name match carries no coordinates until it is picked, because Place
+          // Details bills per call.
           showPreview(results, nearby);
           results.querySelectorAll("li.hit-google").forEach((li) => {
             li.addEventListener("click", async () => {
-              // Coordinates are fetched only for the pick — Place Details bills
-              // per call, so resolving all five would cost five times as much.
+              // Coordinates are fetched only for the pick — Place Details bills per call.
               const picked = await hits[Number(li.dataset.i)].resolve().catch(() => null);
               if (!picked) return toast("Could not locate that place", true);
               const [lng, lat] = picked.lngLat;
-              // Read the route off the open list rather than the closure: it is
-              // the same value, and taking it from one place means a stale
+              // Read the route off the open list rather than the closure, so a stale
               // closure can never put a stop on the wrong route.
               const r = Number(results.dataset.route);
               hideSearchResults();
-              // The route whose row was used becomes the active one, so a map
-              // click afterwards continues where the rider is working rather
-              // than wherever they last clicked.
+              // The route whose row was used becomes the active one, so a map click
+              // afterwards continues where the rider is working.
               setActive(r);
-              // A point rather than a bare add, only so the address travels: it
-              // is the one thing addPoint() cannot re-derive from coordinates.
+              // A point rather than a bare add, only so the address travels: it is the
+              // one thing addPoint() cannot re-derive from coordinates.
               landPick(results, lng, lat, picked.name, newPoint(lng, lat, picked.name, picked.address));
               panTo(state.map, picked.lngLat, 11);
             });
@@ -8933,8 +8291,8 @@
           console.warn("[builder] search:", e.status || "", e.message);
           if (mine !== searchSeq || !input.isConnected) return;
           // The failure REACHES THE RIDER. This was a bare console.warn, so a
-          // referrer-restricted key, a pending account or a Places API that was
-          // never enabled all presented as an empty dropdown and no explanation.
+          // referrer-restricted key, a pending account or a Places API that was never
+          // enabled all presented as an empty dropdown and no explanation.
           aimResults(results, route, at, rep);
           results.innerHTML = noticeHtml(searchErrorText(e));
           results.hidden = false;
@@ -8949,26 +8307,22 @@
       armPlace(Number(btn.dataset.route), slotOf(btn));
     });
 
-    // Opening a gap. Re-rendered rather than patched in place: the row that replaces
-    // the hairline is a real .add-row whose handlers are all delegated on #route-list
-    // and resolve from data attributes, so building it through the normal render is
-    // what makes an inserted point behave identically to an appended one.
-    //
-    // NOT an edit. No beginEdit, no markDirty — opening a field changes nothing about
-    // the ride, and putting it on the undo stack would make Ctrl-Z close a text box.
+    // Opening a gap. Re-rendered rather than patched: the row that replaces the
+    // hairline is a real .add-row whose handlers are delegated on #route-list, so
+    // building it through the normal render is what makes an inserted point behave
+    // identically to an appended one. NOT an edit — no beginEdit, no markDirty.
     host.addEventListener("click", (e) => {
-      // The whole strip, not only the glyph — an 18px full-width row is something
-      // a thumb can hit, an 18px square is not. .insert-btn is still inside it and
-      // carries the accessible label, so the keyboard path is unchanged.
+      // The whole strip, not only the glyph — an 18px full-width row is something a
+      // thumb can hit, an 18px square is not. .insert-btn is still inside it and
+      // carries the accessible label.
       const btn = e.target.closest(".insert-slot");
       if (!btn) return;
       const r = Number(btn.dataset.route);
       const at = Number(btn.dataset.at);
-      // undefined rather than null when the attribute is absent, so a point
-      // slot and a shaping point's slot at the same index stay distinguishable.
+      // undefined rather than null when the attribute is absent, so a point slot and a
+      // shaping point's slot at the same index stay distinguishable.
       const via = btn.dataset.via == null ? null : Number(btn.dataset.via);
-      // A second press on the same gap closes it, matching how the arm button
-      // toggles rather than needing a separate dismiss.
+      // A second press on the same gap closes it, matching how the arm button toggles.
       const open = state.insertAt;
       const same = open && open.route === r && open.at === at && open.via === via;
       state.insertAt = same ? null : { route: r, at: at, via: via };
@@ -8983,16 +8337,12 @@
     });
 
     // A CHIP IS A SEARCH, not a mode: one tap runs the category search and opens the
-    // same dropdown a typed query would, so a chip cannot behave differently from
-    // typing the same words. The field is left empty on purpose — filling it would
-    // look typed and be re-searched on the next keystroke.
-    // The search scope. PATCHED IN PLACE, NEVER RE-RENDERED: rebuilding the route
-    // list would destroy whatever is in the add-row's field and drop focus to <body>
-    // (#188). It also does not mark the ride dirty — how a rider is searching is not
-    // a change to the ride.
-    //
-    // The flag is session-wide, so every route's control is repainted: a rider who
-    // switched at route 3 must not find Near here lit at route 1.
+        // same dropdown a typed query would. The field is left empty on purpose — filling
+        // it would look typed and be re-searched on the next keystroke.
+        // The search scope. PATCHED IN PLACE, NEVER RE-RENDERED: rebuilding the route
+        // list would destroy whatever is in the add-row's field (#188). It also does not
+        // mark the ride dirty. The flag is session-wide, so every route's control is
+        // repainted: a rider who switched at route 3 must not find Near here lit at 1.
     host.addEventListener("click", (e) => {
       const btn = e.target.closest(".scope-btn");
       if (!btn) return;
@@ -9002,10 +8352,8 @@
         el.classList.toggle("is-on", on);
         el.setAttribute("aria-pressed", on ? "true" : "false");
       });
-      // The chips' tooltips name the scope, so they go stale otherwise — but a
-      // SLOT chip's does not, because a slot searches its own leg whichever
-      // scope is selected. Retitling those would have the tooltip promise
-      // something the search does not do.
+      // The chips' tooltips name the scope, so they go stale otherwise — but a SLOT
+      // chip's does not, because a slot searches its own leg whichever scope is set.
       document.querySelectorAll(".add-chips .chip").forEach((el) => {
         const spec = CHIPS.find((c) => c.role === el.dataset.chip);
         if (!spec || el.dataset.at != null) return;
@@ -9014,11 +8362,10 @@
     });
 
     host.addEventListener("click", async (e) => {
-      // "Find somewhere to stay" runs the SAME search a Lodging chip does, over
-      // the stretch of road around the rider's bedtime instead of the whole route.
-      // It is routed through categorySearch() rather than repeating the render,
-      // the preview, the error text and the sequence guard — five things a
-      // second copy would drift from the first time any of them changed.
+      // "Find somewhere to stay" runs the SAME search a Lodging chip does, over the
+      // stretch of road around the rider's bedtime instead of the whole route. Routed
+      // through categorySearch() rather than repeating the render, the preview, the
+      // error text and the sequence guard.
       const bed = e.target.closest(".row-bedtime-btn");
       if (bed) {
         const r = Number(bed.dataset.route);
@@ -9047,34 +8394,30 @@
     });
 
     /**
-     * One category search, however it was asked for.
-     *
-     * `track` and `near` are the bedtime button's: an explicit stretch of road to
-     * search instead of the route or the screen. Without them this behaves exactly
-     * as the chips always did.
-     */
+          * One category search, however it was asked for. `track` and `near` are the
+          * bedtime button's: an explicit stretch of road to search instead of the route
+          * or the screen.
+          */
     async function categorySearch({ r, at, spec, input, track, near }) {
       if (!spec || !state.routes[r]) return;
       const results = searchResultsEl();
       aimResults(results, r, at, null);
       const mine = ++searchSeq;
-      // Something in the box immediately: a billed round trip with no feedback
-      // reads as a dead button, and this one is a button.
+      // Something in the box immediately: a billed round trip with no feedback reads as
+      // a dead button, and this one is a button.
       results.innerHTML = noticeHtml("Finding " + spec.label.toLowerCase() + "…");
       results.hidden = false;
       if (input) placeResults(input, results);
       try {
         let nearby;
-        // CLEARED BEFORE EVERY SEARCH, so the partial-coverage note belongs to
-        // THIS answer. Left standing, a corridor search on a very long route would
-        // put its warning above the next On screen search, which searched
-        // exactly what it said it did.
+        // CLEARED BEFORE EVERY SEARCH, so the partial-coverage note belongs to THIS
+        // answer rather than hanging above the next one.
         corridorPartial = false;
-        // A SLOT OUTRANKS THE SCOPE, AND THAT IS THE WHOLE OF #232's SECOND HALF.
-        // Pressing the + between Oakland and Benbow is the rider pointing at that stretch
-        // of road, so a slot search is always the leg's corridor and the Route / On
-        // screen control governs only the bottom add-row. Ziad's call, 2026-09-02.
-        // AN EXPLICIT STRETCH OUTRANKS EVERYTHING, for the same reason.
+        // A SLOT OUTRANKS THE SCOPE, AND THAT IS THE WHOLE OF #232's SECOND HALF:
+        // pressing the + between two points is the rider pointing at that stretch of
+        // road, so a slot search is always the leg's corridor and the Route / On screen
+        // control governs only the bottom add-row. AN EXPLICIT STRETCH OUTRANKS
+        // EVERYTHING, for the same reason.
         if (track) {
           nearby = await corridorRun(spec.query, track, trackLengthM(track), near);
         } else {
@@ -9084,10 +8427,8 @@
           } else if (state.corridorOn) {
             const args = corridorSearchArgs(r);
             nearby = await corridorRun(spec.query, args.track, args.totalM, args.near);
-            // ONLY THIS BRANCH. The two above searched a stretch the rider
-            // pointed at — a slot's own leg, or the band's explicit track — and
-            // their hits are placed by that, so their atIndex indexes a track
-            // that is not the route and must not be read as one.
+            // ONLY THIS BRANCH. The two above searched a stretch the rider pointed at, so
+            // their atIndex indexes a track that is not the route.
             placeAlongRoute(nearby, args.spans);
           } else {
             const view = screenAnchor(r);
@@ -9098,12 +8439,9 @@
         results.innerHTML =
           nearbyResultsHtml(nearby) ||
           noticeHtml(
-            // "within 15 mi of this route" named a distance from a DAY, which is
-            // not a thing a rider can picture — reported as unreadable in #232.
-            // It is a stretch of ROUTE the corridor is measured from, and each
-            // line names the stretch it actually searched, because the three
-            // cases are three different questions and a rider who is told the
-            // wrong one goes looking in the wrong place.
+            // "within 15 mi of this route" named a distance from a ROUTE, which is not a
+            // thing a rider can picture (#232). Each line names the stretch it actually
+            // searched, because the three cases are three different questions.
             emptyText(spec, at != null),
           );
         results.hidden = false;
@@ -9119,13 +8457,11 @@
       }
     }
 
-    // Escape dismisses the suggestions without clearing the query — the rider
-    // may have meant to close the list, not to start over.
+    // Escape dismisses the suggestions without clearing the query.
     host.addEventListener("keydown", (e) => {
       if (e.key !== "Escape" || !e.target.closest(".add-search, .row-name")) return;
-      // The dropdown first, then the row. Two presses to back all the way out of
-      // an insert, which is the same shape as closing a menu inside a dialog —
-      // one Escape should not dismiss two things.
+      // The dropdown first, then the row: two presses to back all the way out of an
+      // insert, the same shape as closing a menu inside a dialog.
       if (resultsEl && !resultsEl.hidden) {
         e.stopPropagation();
         hideSearchResults();
@@ -9143,21 +8479,18 @@
       if (e.target.closest(".add-row") || e.target.closest(".row-name") || e.target.closest("#search-results")) return;
       hideSearchResults();
 
-      // THE + THAT OPENS A SLOT IS AN OUTSIDE CLICK BY THIS TEST. Both handlers
-      // see the same event — the delegated one on #route-list opens the row, then
-      // this one bubbles and would close it again, so clicking + did nothing at
-      // all. Observed, not theorized.
+      // THE + THAT OPENS A SLOT IS AN OUTSIDE CLICK BY THIS TEST. Both handlers see the
+      // same event — the delegated one on #route-list opens the row, then this one
+      // bubbles and would close it again, so clicking + did nothing at all.
       if (e.target.closest(".insert-slot")) return;
 
-      // AN UNUSED INSERT ROW CLOSES ITSELF. It is an affordance, not a form: leaving it
-      // open puts a stray search box in the middle of a route that nothing will clear.
-      // The bottom add-row is untouched — that one belongs to the route.
-      //
-      // NOT WHEN SOMETHING IS ARMED, and this is the case that makes the guard
-      // necessary: arming "+ Point" and clicking the map is the whole point of the
-      // button, and that map click is an outside click. The insert clears
-      // state.insertAt when it completes, so the row still goes away — after doing its
-      // job rather than instead of it.
+      // AN UNUSED INSERT ROW CLOSES ITSELF: it is an affordance, not a form, and
+            // leaving it open puts a stray search box mid-route that nothing will clear. The
+            // bottom add-row is untouched.
+            //
+            // NOT WHEN SOMETHING IS ARMED, which is the case that makes the guard necessary:
+            // arming "+ Point" and clicking the map is the whole point of the button, and
+            // that map click is an outside click.
       if (state.insertAt && state.arm == null) {
         const r = state.insertAt.route;
         state.insertAt = null;
@@ -9188,8 +8521,7 @@
         else sel.points.delete(key);
         return renderSelectBar();
       }
-      // The move-to picker fires `change` rather than `click`, so it is handled
-      // here rather than below with the buttons.
+      // The move-to picker fires `change` rather than `click`.
       if (el.dataset.sel === "move-to" && el.value !== "") {
         const to = Number(el.value);
         el.value = "";
@@ -9230,14 +8562,13 @@
 
   function payload() {
     return {
-      // The revision this edit is based on. Read at serialize time, like every
-      // other field here — see the editSeq comment for why that instant matters.
+      // The revision this edit is based on. Read at serialize time, like every other
+      // field here — see the editSeq comment for why that instant matters.
       rev: state.rev,
       routeBase: state.routeBase,
-      // FALLS BACK HERE TOO, not only in the field's blur handler. A draft
-      // restored from before the default existed carries an empty title, and
-      // fields.title is min(1) server-side — so an empty string 400s the whole
-      // save and the rider is told nothing useful about why.
+      // FALLS BACK HERE TOO, not only in the field's blur handler: a draft restored
+      // from before the default existed carries an empty title, and fields.title is
+      // min(1) server-side, so an empty string 400s the whole save.
       title: state.meta.title.trim() || UNTITLED,
       description: state.meta.description,
       visibility: state.meta.visibility,
@@ -9249,9 +8580,9 @@
       stopByMin: state.meta.stopByMin,
       vehicle: state.meta.vehicle,
       power: state.meta.power,
-      // The API requires at least one stop per route, so a route you added but
-      // never filled in would fail validation for the whole ride. Dropping it
-      // is what the rider means; save() warns when it happens.
+      // The API requires at least one stop per route, so a route added and never filled
+      // in would fail validation for the whole ride. Dropping it is what the rider
+      // means; save() warns when it happens.
       routes: state.routes
         .filter((r) => r.points.length > 0)
         .map((r) => ({
@@ -9261,11 +8592,9 @@
           color: r.color,
           startAt: r.startAt,
           endAt: r.endAt,
-          // The server re-resolves these on every save — dissolving a group of
-          // one, electing an active member, renumbering densely — so what comes
-          // back may not be what went out. That is the contract, not a bug: see
-          // resolveAltGroups. Note a route dropped by the filter above can leave a
-          // group with one member, which is exactly the case that dissolves.
+          // The server re-resolves these on every save — dissolving a group of one,
+          // electing an active member, renumbering densely — so what comes back may not
+          // be what went out. That is the contract, not a bug.
           altGroup: r.altGroup,
           altActive: r.altActive,
           routePrefs: r.routePrefs ?? null,
@@ -9275,28 +8604,24 @@
     };
   }
 
-  // Warned once per episode rather than on every flush. Autosave calls save()
-  // several times a minute, and a rider who has added a route and not yet given it
-  // a stop would otherwise be told about it continuously for as long as it takes
-  // them to add one. Reset when nothing is being dropped, so the next episode
-  // warns again.
+  // Warned once per episode rather than on every flush: autosave calls save()
+  // several times a minute, and a rider who has added a route and not yet given it a
+  // stop would be told continuously. Reset when nothing is being dropped.
   let warnedDropped = false;
 
   /**
-    * Save and actually wait for it to have landed.
-    *
-    * **`save()` CANNOT BE AWAITED, AND THAT IS A LATENT BUG EVERYWHERE IT IS.** It
-    * opens with `if (state.saving) return`, so awaiting it mid-flight returns having
-    * written nothing. `#riders-save` mostly gets away with it; the split flow cannot,
-    * because it reads a brand-new group's server id back out of the write and
-    * `setRouteRiders` SILENTLY coerces an unknown group to null — a peel-off route
-    * claiming everybody rides as the main group.
-    *
-    * Polls rather than hooking the request, because what is being waited for is "the
-    * tree is clean", which a re-queued save satisfies only on its second pass.
-    * Bounded, so a ride that will not save reports false instead of hanging the
-    * dialog.
-    */
+        * Save and actually wait for it to have landed.
+        *
+        * **`save()` CANNOT BE AWAITED, AND THAT IS A LATENT BUG EVERYWHERE IT IS.** It
+        * opens with `if (state.saving) return`, so awaiting it mid-flight returns having
+        * written nothing. The split flow cannot get away with that, because it reads a
+        * new group's server id back out of the write and `setRouteRiders` SILENTLY
+        * coerces an unknown group to null.
+        *
+        * Polls rather than hooking the request, because what is being waited for is
+        * "the tree is clean", which a re-queued save satisfies only on its second pass.
+        * Bounded, so a ride that will not save reports false instead of hanging.
+        */
   async function saveNow(tries) {
     const limit = tries || 12;
     for (let n = 0; n < limit; n++) {
@@ -9309,9 +8634,8 @@
 
   async function save() {
     if (state.saving) return;
-    // Unreachable while markDirty holds the line, and here because a save is the
-    // one thing in this file that cannot be allowed to happen by a route nobody
-    // thought of.
+    // Unreachable while markDirty holds the line, and here because a save is the one
+    // thing in this file that cannot be allowed to happen by a route nobody thought of.
     if (!CAN_EDIT) return;
     const body = payload();
     const dropped = state.routes.length - body.routes.length;
@@ -9322,8 +8646,7 @@
       warnedDropped = false;
     }
 
-    // Captured BEFORE the fetch, beside the payload it belongs to. See the
-    // editSeq comment above for why the two have to be read at the same instant.
+    // Captured BEFORE the fetch, beside the payload it belongs to.
     const sentSeq = editSeq;
 
     state.saving = true;
@@ -9338,10 +8661,8 @@
       // A STALE SAVE IS NOT AN ERROR TO RETRY, WHICH IS WHY IT IS HANDLED SEPARATELY.
       // The catch below re-arms a timer, right for any other failure — but here the
       // request was REFUSED because somebody else wrote to this ride, so trying again
-      // is a second attempt to overwrite them, every fifteen seconds.
-      //
-      // Nothing local is thrown away: state.routes still holds this rider's work and
-      // the draft still holds the crash copy. The ride is left dirty on purpose.
+      // is a second attempt to overwrite them every fifteen seconds. Nothing local is
+      // thrown away and the ride is left dirty on purpose.
       if (res.status === 409) {
         state.conflict = true;
         clearTimeout(retryTimer);
@@ -9350,15 +8671,15 @@
         return;
       }
       if (!res.ok) throw new Error(data.error || "save failed (" + res.status + ")");
-      // Straight back out on the next save. Dropping this is how the SECOND
-      // save of a session 409s against a ride nobody else has touched.
+      // Straight back out on the next save. Dropping this is how the SECOND save of a
+      // session 409s against a ride nobody else has touched.
       if (typeof data.rev === "number") state.rev = data.rev;
       // REBASE ON WHAT WAS ACTUALLY STORED, BUT ONLY FOR ROUTES THIS BUILDER HOLDS.
-      // Without the rebase, the second save of a session is based on hashes the first
-      // invalidated and every route reads as contested. Without the FILTER it is
-      // worse: the server's map includes routes another rider has just added, and a uid
-      // in routeBase missing from the payload is exactly how the merge is told "the
-      // rider deleted this" — so the next autosave would erase their new routes.
+            // Without the rebase, the second save of a session is based on hashes the first
+            // invalidated and every route reads as contested. Without the FILTER it is
+            // worse: the server's map includes routes another rider has just added, and a
+            // uid in routeBase missing from the payload is exactly how the merge is told
+            // "the rider deleted this".
       if (data.routeBase) {
         const held = new Set(state.routes.map((d) => d.uid));
         const next = {};
@@ -9367,17 +8688,16 @@
       }
 
       // THIS BUILDER IS NOW STALE, AND SAVING AGAIN WOULD UNDO SOMEBODY.
-      //
-      // `superseded` means a route this rider edited was kept from the database
-      // instead, so state.routes still holds their rejected version and the rebase has
-      // just made its base match — the very next autosave would win, delaying the
-      // clobber by three seconds rather than preventing it.
-      //
-      // `adopted` means another rider added routes this builder has never seen: nothing
-      // is lost by saving, but the panel is showing a ride that is missing routes.
-      //
-      // Both stop the loop and ask for a reload. Two riders on DIFFERENT routes reach
-      // neither, which is the whole point of merging per route.
+            //
+            // `superseded` means a route this rider edited was kept from the database
+            // instead, so state.routes still holds their rejected version and the rebase has
+            // just made its base match — the very next autosave would win.
+            //
+            // `adopted` means another rider added routes this builder has never seen:
+            // nothing is lost by saving, but the panel is missing routes.
+            //
+            // Two riders on DIFFERENT routes reach neither, which is the point of merging
+            // per route.
       const clashed = (data.superseded || []).length + (data.adopted || []).length;
       if (clashed > 0) {
         state.conflict = true;
@@ -9389,57 +8709,44 @@
       if (!state.rideId) {
         state.rideId = data.id;
         history.replaceState(null, "", "/builder/" + data.id);
-        // The draft was filed under "new"; move it before it becomes an orphan
-        // that offers itself to the next new ride.
+        // The draft was filed under "new"; move it before it becomes an orphan.
         HIST.Draft.adopt(state.rideId);
-        // THE FIRST SAVE IS WHEN A NEW RIDE GETS A ROSTER, and the prefetch in
-        // init() ran before there was one to read — it returns immediately on a
-        // ride with no id. Without this the Riders tab's count stays blank on
-        // every newly planned ride until the rider happens to open it, which is
-        // exactly the ride where they are least likely to think to look.
+        // THE FIRST SAVE IS WHEN A NEW RIDE GETS A ROSTER, and the prefetch in init() ran
+        // before there was one to read. Without this the Riders tab's count stays blank
+        // on every newly planned ride until the rider happens to open it.
         loadRiders();
-        // AND WHO IS ON WHICH ROUTE, for the same reason: it returns immediately
-        // on a ride with no id, so a newly planned ride would show no rider line
-        // on any route until something else happened to reload it.
+        // AND WHO IS ON WHICH ROUTE, for the same reason.
         loadRouteRiders();
-        // NOT initComments() here. Its host element is server-rendered only for
-        // a ride that already has an id, so on a brand-new ride there is nothing
-        // in the DOM to bind to and it would return without doing anything.
-        // Comments appear on the next load of the builder, which is the same
-        // moment the Delete control does, and for the same reason.
+        // NOT initComments() here: its host element is server-rendered only for a ride
+        // that already has an id, so on a brand-new ride there is nothing to bind to.
+        // Comments appear on the next load, the same moment the Delete control does.
       }
       if (data.slug) showViewLink(data.slug);
 
-      // Did this response cover everything, or did the rider keep working
-      // through it? Both branches are load-bearing.
+      // Did this response cover everything, or did the rider keep working through it?
       if (editSeq !== sentSeq) {
-        // It did not. Stay dirty, keep the draft, and go round again — this is
-        // the re-queue that makes the mid-flight keystroke survive.
+        // It did not. Stay dirty, keep the draft, and go round again — the re-queue that
+        // makes the mid-flight keystroke survive.
         setSaveStatus("dirty");
         queueAutosave();
         return;
       }
       state.dirty = false;
-      // Clean, and the one moment the draft is provably redundant. Note this
-      // sits AFTER the check above on purpose: clearing it on a partial save
-      // would throw away the crash copy of the very edits still outstanding.
+      // Clean, and the one moment the draft is provably redundant. AFTER the check
+      // above on purpose: clearing it on a partial save would throw away the crash
+      // copy of the very edits still outstanding.
       clearTimeout(draftTimer);
       HIST.Draft.clear(state.rideId);
       draftFailed = false;
       setSaveStatus("saved");
-      // A SAVE IS WHAT GIVES A NEW SUBGROUP AN id, and an id is what the Riders
-      // tab's picker assigns by — so the tab is stale the moment the set of uids
-      // changes. Compared against the cache rather than invalidated on every
-      // save: autosave fires on idle throughout a session and re-reading the
-      // roster after each one would be a request per edit burst for an answer
-      // that did not change.
+      // A SAVE IS WHAT GIVES A NEW SUBGROUP AN id, and an id is what the Riders tab's
+      // picker assigns by. Compared against the cache rather than invalidated on every
+      // save: autosave fires on idle throughout a session.
       if (ridersCache && !sameGroupUids(ridersCache.groups, state.meta.subgroups)) ridersStale();
     } catch (e) {
-      // The message goes to the status line, not to a toast: an autosave that
-      // fails once tends to fail again, and one toast per attempt would bury the
-      // panel. The failure is also not fatal — the localStorage draft still has
-      // the work, and the retry below usually clears it without the rider ever
-      // needing to act.
+      // The message goes to the status line, not to a toast: an autosave that fails
+      // once tends to fail again. The failure is not fatal — the draft still has the
+      // work, and the retry usually clears it without the rider needing to act.
       setSaveStatus("error", e.message);
       clearTimeout(retryTimer);
       retryTimer = setTimeout(flushNow, AUTOSAVE_RETRY_MS);
@@ -9454,9 +8761,9 @@
     return b.every((g) => seen.has(g.uid));
   }
 
-  // The link to the public page, revealed once and never hidden again. It is
-  // rendered from the start and only made visible here — see the markup comment
-  // in src/routes/builder.ts for why it is `visibility` and not `hidden`.
+  // The link to the public page, revealed once and never hidden again. Rendered
+  // from the start and only made visible here — see src/routes/builder.ts for why
+  // it is `visibility` and not `hidden`.
   function showViewLink(slug) {
     state.slug = slug;
     showExport(slug);
@@ -9466,23 +8773,20 @@
     a.classList.remove("is-empty");
   }
 
-  // The export block's hrefs, filled in the same moment the View link is.
-  //
-  // A NEW RIDE HAS NO SLUG, so the server renders this hidden with every href a
-  // "#" — a live-looking link to a ride that does not exist is worse than no link.
-  // The first successful save mints the slug and this reveals the block.
-  //
-  // Rebuilt from `data-export`, which carries the path segment, rather than by
-  // index: a positional loop would silently point the zips at the wrong format the
-  // first time the order changed.
+  // The export block's hrefs, filled the same moment the View link is.
+    //
+    // A NEW RIDE HAS NO SLUG, so the server renders this hidden with every href a
+    // "#" — a live-looking link to a ride that does not exist is worse than no link.
+    //
+    // Rebuilt from `data-export`, which carries the path segment, rather than by
+    // index: a positional loop would silently point the zips at the wrong format.
   function showExport(slug) {
     const box = $("builder-export");
     if (!box || !slug) return;
     box.hidden = false;
     box.querySelectorAll("[data-export]").forEach((a) => {
       const what = a.getAttribute("data-export");
-      // Only the whole-ride formats take ?dl. A zip is already an attachment by
-      // virtue of being a zip, and the flag would be noise on the URL.
+      // Only the whole-ride formats take ?dl. A zip is already an attachment.
       const dl = what.indexOf("zip/") === 0 ? "" : "?dl";
       a.href = "/api/public/maps/" + encodeURIComponent(slug) + "/" + what + dl;
     });
@@ -9498,54 +8802,49 @@
       visibility: ride.visibility,
       external_url: ride.external_url,
       // The other half of payload()'s round-trip. Omitting any of these is how a
-      // rider's whole subgroup setup works perfectly until they reload — worse here
-      // than the altGroup case, because the routes keep their tags while the subgroups
-      // they name stop existing.
-      // SEEDED ON LOAD WHEN A STORED RIDE HAS NONE, which every ride planned before
-      // 2026-09-03 does. The alternative was a backfill against live rider data. A ride
-      // created outside the builder and never opened in it still has none, which is the
-      // known limit of doing it here.
+            // rider's whole subgroup setup works until they reload — worse than the altGroup
+            // case, because the routes keep their tags while the subgroups they name stop
+            // existing.
+            // SEEDED ON LOAD WHEN A STORED RIDE HAS NONE, which every ride planned before
+            // 2026-09-03 does; the alternative was a backfill against live rider data. A
+            // ride created outside the builder and never opened in it still has none.
       subgroups: (ride.subgroups || []).length ? ride.subgroups : [seedGroup()],
       primarySubgroup: ride.primarySubgroup ?? null,
       trunkSubgroup: ride.trunkSubgroup ?? null,
       timeAnchor: ride.timeAnchor || "departure",
-      // `?? null` rather than `||`: midnight is 0 and a real answer, and `||`
-      // would turn "start looking at 00:00" into "never said".
+      // `?? null` rather than `||`: midnight is 0 and a real answer, and `||` would
+      // turn "start looking at 00:00" into "never said".
       stopByMin: ride.stopByMin ?? null,
       vehicle: ride.vehicle ?? null,
       power: ride.power ?? null,
     };
     // ORDER IS RANK, SO THE STORED MAIN GROUP IS MOVED TO THE FRONT rather than the
-    // column being trusted where it sits. A ride saved before 2026-09-03 could name
-    // any group as primary while `position` put it third, and the panel now says the
-    // top row is the main group — so one has to give, and it is the order, because
-    // that is the thing the rider was never asked about.
-    //
-    // THE MAIN GROUP MAY NEVER BE NULL: a null column or one naming a deleted group
-    // both fall through to the first group.
+        // column being trusted where it sits. A ride saved before 2026-09-03 could name
+        // any group as primary while `position` put it third, and the panel says the top
+        // row is the main group — so one has to give, and it is the order, because that
+        // is the thing the rider was never asked about. THE MAIN GROUP MAY NEVER BE NULL.
     const wasPrimary = state.meta.subgroups.findIndex((g) => g.uid === state.meta.primarySubgroup);
     if (wasPrimary > 0) {
       state.meta.subgroups.splice(0, 0, state.meta.subgroups.splice(wasPrimary, 1)[0]);
     }
     state.meta.primarySubgroup = state.meta.subgroups[0].uid;
-    // `?? null` because rev 0 is a real, current revision — a ride nobody has
-    // saved since the column landed — and `||` would send it as null and turn
-    // the check off for exactly the rides that have never been contested.
+    // `?? null` because rev 0 is a real, current revision — a ride nobody has saved
+    // since the column landed — and `||` would turn the check off for exactly the
+    // rides that have never been contested.
     state.rev = ride.rev ?? null;
     state.conflict = false;
-    // Built from what the SERVER sent, never computed here. The hash is the
-    // server's own record of what it stored; a second implementation in this
-    // file would drift and every route would read as contested.
+    // Built from what the SERVER sent, never computed here: the hash is the server's
+    // own record of what it stored, and a second implementation would drift.
     state.routeBase = {};
     for (const r of ride.routes || []) {
       if (r.uid && r.contentHash) state.routeBase[r.uid] = r.contentHash;
     }
-    // Every route loads. This used to take routes[0] and warn that saving would
-    // drop the rest, which made multi-route rides effectively read-only.
+    // Every route loads. This used to take routes[0] and warn that saving would drop
+    // the rest, which made multi-route rides effectively read-only.
     state.routes = (ride.routes || []).map(routeFromPayload);
     state.routes.forEach(fillMissingLegs);
-    // Nothing has changed the route yet, so a stored end that matches what the
-    // route derives is one we wrote — anything else the rider chose themselves.
+    // Nothing has changed the route yet, so a stored end that matches what the route
+    // derives is one we wrote — anything else the rider chose themselves.
     state.routes.forEach((r) => {
       r.endManual = inferEndManual(r);
     });
@@ -9554,16 +8853,13 @@
     $("ride-description").value = state.meta.description;
     setFieldValue("ride-visibility", state.meta.visibility);
     renderVehicle();
-    // MISSED ON THE LOAD PATH FIRST TIME ROUND. The snapshot render calls this
-    // and this one did not, so a stop-by time set, saved and reloaded came back
-    // to an empty field — the value was in state and on the server, and the one
-    // control that shows it never heard. Every ride-level field has to be listed
-    // in BOTH places, which is the shape of this bug and the reason they sit
-    // together here.
+    // MISSED ON THE LOAD PATH FIRST TIME ROUND: a stop-by time set, saved and
+    // reloaded came back to an empty field, the value being in state and on the
+    // server with the one control that shows it never hearing. Every ride-level field
+    // has to be listed in BOTH places, which is why they sit together here.
     renderStopBy();
     fitTitle();
-    // What was just loaded IS what the server holds, so the panel opens on
-    // "Saved" rather than on the "Not saved yet" a new ride starts at.
+    // What was just loaded IS what the server holds, so the panel opens on "Saved".
     setSaveStatus("saved");
     if (ride.slug) showViewLink(ride.slug);
   }
@@ -9571,23 +8867,21 @@
   // --- Init -----------------------------------------------------------------
 
   // ALL DELEGATED ON #route-list, because there are N of every one of these now and
-  // renderRoutes() replaces the lot on any change to the set of routes. A bound
-  // listener would go with the element it was bound to.
-  //
-  // Every handler starts by making the touched route active. That single line is
-  // what let the ~15 shared edit functions below keep reading editIndex() when
-  // the panel went from one visible route to all of them.
+    // renderRoutes() replaces the lot on any change to the set of routes.
+    //
+    // Every handler starts by making the touched route active. That single line is
+    // what let the ~15 shared edit functions below keep reading editIndex() when the
+    // panel went from one visible route to all of them.
   function wireRoutes() {
     $("time-slider").addEventListener("input", (e) => setMoment(momentFromSlider(Number(e.target.value))));
-    // Delegated on the pill, so the two segments need no handler each and
-    // renderTimeScope can rewrite them freely.
+    // Delegated on the pill, so renderTimeScope can rewrite the segments freely.
     $("time-scope")?.addEventListener("click", (e) => {
       const seg = e.target.closest(".time-seg");
       if (seg) setTimeScope(seg.dataset.scope === "ride" ? "ride" : "route");
     });
-    // Repaints rather than re-rendering: the ring is a map overlay, so nothing
-    // in the panel changes and rebuilding the route list would cost a rider the
-    // field they are typing in — the #188 shape, reached from a map control.
+    // Repaints rather than re-rendering: the ring is a map overlay, so nothing in the
+    // panel changes and rebuilding the route list would cost a rider the field they
+    // are typing in — #188, reached from a map control.
     $("range-ring")?.addEventListener("click", () => {
       state.ringOn = !state.ringOn;
       renderRingToggle();
@@ -9598,9 +8892,8 @@
       if (!btn) return;
       const r = Number(btn.dataset.route);
       goToRoute(r);
-      // The rail is a jump list, so it scrolls as well as selects. Harmless while
-      // the drawer is collapsed and the sections are not on screen — it is the
-      // reopened drawer that lands in the right place.
+      // The rail is a jump list, so it scrolls as well as selects. Harmless while the
+      // drawer is collapsed — it is the reopened drawer that lands in the right place.
       const sec = routeSection(r);
       if (sec) sec.scrollIntoView({ block: "nearest", behavior: "smooth" });
     });
@@ -9614,8 +8907,7 @@
     const host = $("route-list");
 
     // Pointerdown rather than click: it fires before focus moves, so tabbing or
-    // clicking into a field has already set the right active route by the time any
-    // other handler runs.
+    // clicking into a field has already set the right active route.
     host.addEventListener("pointerdown", (e) => setActiveFromEl(e.target));
     host.addEventListener("focusin", (e) => setActiveFromEl(e.target));
 
@@ -9633,16 +8925,16 @@
       }
       if (btn.classList.contains("pref-btn")) return togglePref(r, btn);
       if (btn.classList.contains("route-riders")) return openRouteRiders(Number(btn.dataset.route));
-      // The group checkboxes are inside a <details> in the route head. Delegated
-      // like everything else here, because renderRoutes() replaces the lot.
+      // The group checkboxes are inside a <details> in the route head, delegated like
+      // everything else because renderRoutes() replaces the lot.
       if (btn.dataset && btn.dataset.group) return;
       if (btn.classList.contains("route-rev")) return reverseRoute();
       if (btn.classList.contains("route-menu-btn")) {
         return toggleRouteMenu(sec.querySelector(".route-head"), btn, r);
       }
       if (btn.classList.contains("row-menu-item") && btn.closest(".route-head")) {
-        // Close first: every one of these re-renders, and a menu still attached
-        // to a section that is about to be replaced would be orphaned mid-click.
+        // Close first: every one of these re-renders, and a menu still attached to a
+        // section about to be replaced would be orphaned mid-click.
         const act = btn.dataset.act;
         closeMenu();
         if (act === "route-delete") return deleteRoute();
@@ -9652,15 +8944,14 @@
         if (act === "route-select") return startSelect("route");
         return;
       }
-      // Ticking a route. Not delegated through setActive above — a checkbox is
-      // about the set, not about where the next map click lands.
+      // Ticking a route. Not delegated through setActive above — a checkbox is about
+      // the set, not about where the next map click lands.
       if (btn.classList.contains("route-pick")) return;
     });
 
-    // The keyboard half of the drag handle. Reordering was two buttons until
-    // 2026-08-16; the grip carries it now so the header keeps its width.
-    // preventDefault because the drawer scrolls, and an arrow key that both moves
-    // the route and scrolls the panel loses the route off the screen.
+    // The keyboard half of the drag handle. preventDefault because the drawer
+    // scrolls, and an arrow key that both moves the route and scrolls the panel loses
+    // the route off the screen.
     host.addEventListener("keydown", (e) => {
       const grip = e.target.closest(".route-drag");
       if (!grip) return;
@@ -9671,9 +8962,8 @@
       if (!sec) return;
       setActive(Number(sec.dataset.route));
       moveRoute(dir);
-      // renderRoutes() has replaced the button that was focused, so focus has to be
-      // put back on the same route's grip at its NEW position or the next arrow key
-      // goes nowhere.
+      // renderRoutes() has replaced the focused button, so focus has to go back on the
+      // same route's grip at its NEW position or the next arrow key goes nowhere.
       const moved = routeSection(activeIndex());
       const next = moved && moved.querySelector(".route-drag");
       if (next) next.focus();
@@ -9686,10 +8976,10 @@
       setActive(r);
       const route = state.routes[r];
       if (!route) return;
-      // WHICH GROUPS RIDE THIS ROUTE. Delegated here rather than bound per box,
-      // because renderRoutes() replaces every head. Ticking Everyone ticks the
-      // lot — it is a shortcut over the boxes below it, not a value of its own,
-      // so it is read back out of them rather than stored.
+      // WHICH GROUPS RIDE THIS ROUTE. Delegated rather than bound per box, because
+      // renderRoutes() replaces every head. Ticking Everyone ticks the lot — a
+      // shortcut over the boxes below it, not a value of its own, so it is read back
+      // out of them rather than stored.
       if (e.target.dataset && e.target.dataset.group) {
         const box = e.target.closest(".route-groups");
         const all = e.target.dataset.group === "*";
@@ -9701,10 +8991,9 @@
         const uids = [...box.querySelectorAll('input[data-group]:not([data-group="*"]):checked')].map(
           (i) => i.dataset.group,
         );
-        // NOBODY IS NOT A STATE THIS CONTROL CAN SET. A route ridden by no group
-        // is a route nobody rides, which payload() drops whole — so unticking
-        // the last box is read as "go back to inheriting", the same answer the
-        // rider picker's "Same as before" gives.
+        // NOBODY IS NOT A STATE THIS CONTROL CAN SET: a route ridden by no group is a
+        // route nobody rides, which payload() drops whole, so unticking the last box is
+        // read as "go back to inheriting".
         applyRouteGroups(r, uids);
         return;
       }
@@ -9721,8 +9010,8 @@
       if (e.target.classList.contains("route-title")) {
         beginEdit("rename route", "route-title:" + r);
         route.title = e.target.value;
-        // Deliberately NOT renderRoutes(): rebuilding the section would take the
-        // caret out of the field being typed in.
+        // Deliberately NOT renderRoutes(): rebuilding the section would take the caret
+        // out of the field being typed in.
         renderRailRoutes();
         refreshDerived();
         markDirty();
@@ -9738,12 +9027,12 @@
       if (!route) return;
       if (e.target.classList.contains("route-subgroup")) {
         beginEdit("change which group rides a route");
-        // "" is the Everyone option, and null is what the payload carries — an
-        // empty string would reach the server as a uid that matches nothing and
-        // be resolved to null anyway, but silently and one layer too late.
+        // "" is the Everyone option, and null is what the payload carries — an empty
+        // string would reach the server as a uid matching nothing and be resolved to
+        // null anyway, silently and one layer too late.
         route.subgroupUid = e.target.value || null;
-        // A full render: the map has to redraw the strand and the anchor note
-        // depends on which routes each group owns.
+        // A full render: the map has to redraw the strand and the anchor note depends on
+        // which routes each group owns.
         renderRoutes();
         rebuildLayers();
         markDirty();
@@ -9756,8 +9045,8 @@
         markDirty();
         return;
       }
-      // Typing an end overrides the derivation; clearing it hands control back,
-      // and refreshDerived() refills the field from the route on the way out.
+      // Typing an end overrides the derivation; clearing it hands control back, and
+      // refreshDerived() refills the field on the way out.
       if (e.target.classList.contains("route-end")) {
         beginEdit("change end time");
         route.endAt = localInputToIso(e.target.value);
@@ -9768,25 +9057,22 @@
     });
   }
 
-  // Sharing a ride that begins at the rider's front door puts a pin on their
-  // house — and moving the pin would not be enough, because the first leg is
-  // *drawn* from there. The line points at the building whatever the marker
-  // says. So the swap happens here, while planning, and re-routes leg 0.
-  //
-  // Offered rather than applied: the rider may well have meant to share it, and
-  // silently redrawing a route they already planned is worse than asking.
+  // Sharing a ride that begins at the rider's front door puts a pin on their house
+    // — and moving the pin would not be enough, because the first leg is *drawn* from
+    // there. So the swap happens here, while planning, and re-routes leg 0.
+    //
+    // Offered rather than applied: the rider may well have meant to share it, and
+    // silently redrawing a route they already planned is worse than asking.
   function offerPublicStart() {
-    // ANY LEVEL BUT PRIVATE, stated as the exclusion rather than as a list of
-    // the open ones — `friends` joined the enum on 2026-08-26 and a list would
-    // have silently kept the prompt from firing for it, which is a pin on
-    // somebody's house shown to everyone they ride with. The one level that
-    // shows a ride to nobody is the only one that is safe here.
+    // ANY LEVEL BUT PRIVATE, stated as the exclusion rather than a list of the open
+    // ones — `friends` joined the enum later and a list would have silently kept the
+    // prompt from firing for it. The one level that shows a ride to nobody is the
+    // only one that is safe here.
     const shared = state.meta.visibility !== "private";
     const start = window.TB.publicStart;
     // points[0], not the first STOP. The first point of every route is promoted on
-    // the spot, so they are the same element — reading the ordered list directly
-    // keeps it true if that ever stops being the case, and leg 0 below runs out
-    // of points[0] either way.
+    // the spot, so they are the same element — reading the ordered list keeps it true
+    // if that ever stops being the case.
     const route = state.routes[0];
     const first = route && route.points[0];
     if (!shared || !start || !first || !(first.roles || []).includes("home")) return;
@@ -9801,8 +9087,8 @@
         ")?",
     );
     if (!ok) {
-      // Asked once per session. Nagging on every visibility change would train
-      // the rider to dismiss it without reading.
+      // Asked once per session: nagging on every visibility change would train the
+      // rider to dismiss it without reading.
       state.startSwapDeclined = true;
       return;
     }
@@ -9822,9 +9108,9 @@
   }
 
   function wireMeta() {
-    // A new ride opens already named, so it can save from the first pin. An
-    // EXISTING ride is left exactly as stored — including a rider who genuinely
-    // named their ride "Untitled ride", which is theirs to keep.
+    // A new ride opens already named, so it can save from the first pin. An EXISTING
+    // ride is left exactly as stored — including a rider who genuinely named theirs
+    // "Untitled ride".
     if (!state.rideId && !state.meta.title) {
       state.meta.title = UNTITLED;
       $("ride-title").value = UNTITLED;
@@ -9832,15 +9118,14 @@
     }
 
     // Select the default so the first keystroke replaces it. Only the default:
-    // selecting a name the rider chose would make an accidental keypress destroy
-    // it, which is the failure mode this pattern is usually blamed for.
+    // selecting a name the rider chose would make an accidental keypress destroy it.
     $("ride-title").addEventListener("focus", (e) => {
       if (e.target.value === UNTITLED) e.target.select();
     });
 
     // Cleared back to empty falls back to the default rather than to "", because
-    // fields.title is min(1) server-side and an empty title 400s the whole save.
-    // Done on blur, not on input, so the field can be emptied and retyped.
+    // fields.title is min(1) server-side. Done on blur, not on input, so the field
+    // can be emptied and retyped.
     $("ride-title").addEventListener("blur", (e) => {
       if (e.target.value.trim()) return;
       e.target.value = UNTITLED;
@@ -9850,10 +9135,9 @@
     });
 
     $("ride-title").addEventListener("input", (e) => {
-      // A ride name is one line of text even though the control holding it is a
-      // textarea, so newlines are flattened rather than stored. They arrive by
-      // paste — a name copied out of a document brings its line break with it —
-      // and the Enter key is headed off separately below.
+      // A ride name is one line of text even though the control is a textarea, so
+      // newlines are flattened rather than stored. They arrive by paste; the Enter key
+      // is headed off separately below.
       const flat = e.target.value.replace(/\s*[\r\n]+\s*/g, " ");
       if (flat !== e.target.value) e.target.value = flat;
       beginEdit("rename ride", "ride-title");
@@ -9873,19 +9157,16 @@
       state.meta.description = e.target.value;
       markDirty();
     });
-    // Owner-only, and absent for everybody else — see setFieldValue. Optional
-    // chaining rather than a hoisted guard so the shape matches the other
-    // wirings around it.
+    // Owner-only, and absent for everybody else — see setFieldValue.
     $("ride-visibility")?.addEventListener("change", (e) => {
       beginEdit("change visibility");
       state.meta.visibility = e.target.value;
       markDirty();
       offerPublicStart();
     });
-    // The ride's own vehicle (#321). Picking Bicycle coerces the power to
-    // Pedal the way the server will, so the select does not claim a pair the
-    // save will not keep; the whole panel re-renders because the words in it
-    // just changed.
+    // The ride's own vehicle (#321). Picking Bicycle coerces the power to Pedal the
+    // way the server will, so the select does not claim a pair the save will not
+    // keep; the whole panel re-renders because the words in it just changed.
     const vehicleChanged = (label) => (e) => {
       beginEdit(label);
       state.meta.vehicle = $("ride-vehicle")?.value || null;
@@ -9900,20 +9181,17 @@
     };
     $("ride-vehicle")?.addEventListener("change", vehicleChanged("change what the ride is for"));
     $("ride-power")?.addEventListener("change", vehicleChanged("change what it runs on"));
-    // A <input type="time"> reports "" when it is cleared or half-typed, which
-    // is the same thing as "they have not said" — so it lands as null rather
-    // than being refused or defaulted.
+    // A <input type="time"> reports "" when cleared or half-typed, which is the same
+    // thing as "they have not said", so it lands as null.
     $("ride-stop-by")?.addEventListener("change", (e) => {
       beginEdit("change when to look for a bed");
       state.meta.stopByMin = minutesFromTimeValue(e.target.value);
       stopByCache = null;
       renderStopBy();
-      // THE MAP AND THE LIST BOTH MOVE. The marker is a repaint, but the row
-      // offer is part of the route list, so the list has to be rebuilt for it to
-      // appear at all — and this control is a ride-level field the rider has
-      // just committed to with a `change` event, so nothing in the list is
-      // mid-edit. That is the same test #188's rule turns on: only a render
-      // under a rider who is typing is the harmful one.
+      // THE MAP AND THE LIST BOTH MOVE. The marker is a repaint, but the row offer is
+      // part of the route list. This control is a ride-level field the rider has just
+      // committed to with a `change` event, so nothing in the list is mid-edit — the
+      // same test #188's rule turns on.
       paintStopBy();
       renderRoutes();
       markDirty();
@@ -9927,19 +9205,17 @@
       renderRoutes();
       markDirty();
     });
-    // Narrowed from "dirty" to "dirty and not yet flushed". With autosave most
-    // of a session is clean within three seconds of the last keystroke, so the
-    // old guard would have fired on almost every exit for work that was already
-    // on the server. What is left is the genuine window: an edit inside the
-    // debounce, a flush in flight, or a ride that cannot be saved at all.
+    // Narrowed from "dirty" to "dirty and not yet flushed": with autosave most of a
+    // session is clean within three seconds of the last keystroke, so the old guard
+    // fired on almost every exit for work already on the server. What is left is an
+    // edit inside the debounce, a flush in flight, or a ride that cannot be saved.
     window.addEventListener("beforeunload", (e) => {
       if (state.dirty || state.saving) e.preventDefault();
     });
 
     // The reliable half of the pair. beforeunload is increasingly restricted and
-    // never fires at all when a phone backgrounds the tab and later kills it;
-    // visibilitychange does, and it is the documented place to persist. Flushing
-    // early here is free — a clean state returns immediately.
+    // never fires when a phone backgrounds the tab and later kills it;
+    // visibilitychange does. Flushing early is free — a clean state returns at once.
     document.addEventListener("visibilitychange", () => {
       if (document.visibilityState === "hidden") flushNow();
     });
@@ -9948,10 +9224,9 @@
   function allTrackPoints() {
     const pts = [];
     state.routes.forEach((route, r) => {
-      // NOT a spread — see the same note in viewer.js. Spread passes every
-      // element as its own ARGUMENT, so a long track exceeds the engine's
-      // argument limit (~65k Safari, ~125k V8) and throws
-      // `RangeError: Maximum call stack size exceeded`. Measured on a
+      // NOT a spread — see the same note in viewer.js. Spread passes every element as
+      // its own ARGUMENT, so a long track exceeds the engine's argument limit and
+      // throws `RangeError: Maximum call stack size exceeded`. Measured on a
       // 211,939-vertex import, where one leg alone held 161,831.
       for (const p of fullTrack(r)) pts.push(p);
       route.points.forEach((p) => pts.push([p.lng, p.lat]));
@@ -9960,9 +9235,9 @@
   }
 
   // Undo/redo controls and the recovery prompt.
-  /** Is the pointer of a keystroke inside something a rider is typing in?
-   *  Shared by the shortcuts below, which each want a different answer about
-   *  what to do next but the same answer about this. */
+  /** Is the pointer of a keystroke inside something a rider is typing in? Shared by
+   *  the shortcuts below, which want different answers about what to do next but the
+   *  same answer about this. */
   function isTypingTarget(t) {
     if (!t || !t.tagName) return false;
     if (t.isContentEditable) return true;
@@ -9976,8 +9251,8 @@
 
     document.addEventListener("keydown", (e) => {
       if (!(e.metaKey || e.ctrlKey) || e.key.toLowerCase() !== "z") return;
-      // Text fields keep their own undo — except the row inputs, whose native
-      // stack renderList() destroys on every redraw anyway, so those are ours.
+      // Text fields keep their own undo — except the row inputs, whose native stack
+      // renderList() destroys on every redraw anyway.
       const t = e.target;
       const native =
         t &&
@@ -9990,10 +9265,9 @@
       applyUndo(e.shiftKey ? "redo" : "undo");
     });
 
-    // CTRL+Y IS REDO TOO, and only on the ctrl side. It is the Windows and Linux
-    // convention where shift+cmd+Z is the Mac one, and a rider who learned one
-    // does not discover the other by guessing. Not bound to the meta key: cmd+Y
-    // is taken on macOS and stealing it would be worse than not offering it.
+    // CTRL+Y IS REDO TOO, and only on the ctrl side: the Windows and Linux convention
+    // where shift+cmd+Z is the Mac one. Not bound to the meta key — cmd+Y is taken on
+    // macOS and stealing it would be worse than not offering it.
     document.addEventListener("keydown", (e) => {
       if (!e.ctrlKey || e.metaKey || e.key.toLowerCase() !== "y") return;
       if (isTypingTarget(e.target)) return;
@@ -10001,35 +9275,32 @@
       applyUndo("redo");
     });
 
-    // CMD/CTRL+S SAVES NOW instead of waiting for the autosave. #40.
-    //
-    // IT MUST preventDefault UNCONDITIONALLY, including when there is nothing to
-    // save: otherwise a rider who pressed it out of habit gets the browser's Save
-    // Page dialog over their ride. That is the whole reason to bind it.
-    //
-    // Bound wherever focus is, text fields included, because it is not an edit: a
-    // rider reaching for cmd+S means the ride.
+    // CMD/CTRL+S SAVES NOW instead of waiting for the autosave (#40).
+        //
+        // IT MUST preventDefault UNCONDITIONALLY, including when there is nothing to
+        // save, or a rider who pressed it out of habit gets the browser's Save Page
+        // dialog over their ride. That is the whole reason to bind it. Bound wherever
+        // focus is, text fields included, because it is not an edit.
     document.addEventListener("keydown", (e) => {
       if (!(e.metaKey || e.ctrlKey) || e.key.toLowerCase() !== "s") return;
       if (e.shiftKey || e.altKey) return;
       e.preventDefault();
       if (!CAN_EDIT) return;
-      // Ends the run of keystrokes first, or the field being typed in is not yet
-      // part of what gets written — `change` fires on blur and cmd+S does not
-      // blur anything.
+      // Ends the run of keystrokes first, or the field being typed in is not yet part
+      // of what gets written — `change` fires on blur and cmd+S does not blur.
       const el = document.activeElement;
       if (el && typeof el.blur === "function" && isTypingTarget(el)) el.blur();
       if (!state.dirty) return toast("Already saved");
       flushNow();
     });
 
-    // Leaving a field ends the run of keystrokes, so the next edit is its own
-    // undo step rather than folding into the last word typed.
+    // Leaving a field ends the run of keystrokes, so the next edit is its own undo
+    // step rather than folding into the last word typed.
     document.addEventListener("focusout", () => history_.breakCoalesce());
 
-    // THE WAY BACK INTO A DISMISSED ERROR. The readout can only ever show the
-    // first few words of one, so without this a rider who dismissed the dialog
-    // has no way to read the rest of the message their ride failed on.
+    // THE WAY BACK INTO A DISMISSED ERROR: the readout can only show the first few
+    // words of one, so without this a rider who dismissed the dialog cannot read the
+    // rest of the message their ride failed on.
     const detail = $("save-detail");
     if (detail) {
       detail.addEventListener("click", () => {
@@ -10042,15 +9313,14 @@
   }
 
   // A draft only means something if it is newer than what was just loaded, and
-  // nothing is applied until the rider says so.
-  // Tell the layout how tall the page-top banner is, so the map and the drawer move
-  // down instead of being painted over.
-  //
-  // THE HELPER MOVED TO site.js, because the VIEWER is a map page that loads no
-  // copy of this file and had nothing to push its map down. The measuring, the
-  // resize dispatch and the do-nothing-on-no-change guard went with it — see
-  // TBBanner.refresh() for why each is load-bearing. This shim is a courtesy for a
-  // load order that has never failed.
+    // nothing is applied until the rider says so.
+    // Tell the layout how tall the page-top banner is, so the map and the drawer move
+    // down instead of being painted over.
+    //
+    // THE HELPER MOVED TO site.js, because the VIEWER is a map page that loads no copy
+    // of this file and had nothing to push its map down. See TBBanner.refresh() for
+    // why the measuring, the resize dispatch and the no-change guard are each
+    // load-bearing. This shim is a courtesy for a load order that has never failed.
   function setBannerOffset() {
     if (window.TBBanner) window.TBBanner.refresh();
   }
@@ -10072,8 +9342,8 @@
       renderEverything();
       bar.hidden = true;
       setBannerOffset();
-      // Geometry is not in the draft — the router rebuilds it. Stops are what
-      // could not have been recovered from anywhere else.
+      // Geometry is not in the draft — the router rebuilds it. Stops are what could not
+      // have been recovered from anywhere else.
       state.routes.forEach((_, r) =>
         computeLegsAround(
           r,
@@ -10086,8 +9356,8 @@
     $("recover-no").addEventListener("click", () => {
       HIST.Draft.clear(state.rideId);
       bar.hidden = true;
-      // Put the map and the drawer back, or they stay pushed down by a banner
-      // that is no longer there.
+      // Put the map and the drawer back, or they stay pushed down by a banner that is
+      // no longer there.
       setBannerOffset();
     });
   }
@@ -10105,18 +9375,16 @@
     initTabs();
     wireRiders();
     wireRoutes();
-    // Delegated on the container rather than on each list, so the handlers
-    // survive renderRoutes() replacing every list. Sortable cannot work that way —
-    // it binds to the list element — so initDragToReorder is called per list from
-    // renderRoutes instead.
+    // Delegated on the container rather than on each list, so the handlers survive
+    // renderRoutes() replacing every list. Sortable cannot work that way — it binds
+    // to the list element — so initDragToReorder is called per list instead.
     wireList($("route-list"));
     wireMenuDismiss();
     wireSearch();
     wireSelect();
     wireHistory();
-    // Undo and redo are the only icons in static markup — every other one is in
-    // a row this file renders, and renderList() hydrates those as it goes. These
-    // two are in the shell, so nothing would ever come along and fill them.
+    // Undo and redo are the only icons in static markup: every other one is in a row
+    // this file renders, and renderList() hydrates those as it goes.
     hydrateIcons($("undo").parentElement);
 
     if (state.rideId) {
@@ -10127,25 +9395,23 @@
       }
     }
 
-    // AFTER loadExisting, so the first presence event lands on a state that
-    // already knows its routes — heldBy is keyed by uid and would otherwise mark
-    // nothing on the first render. Nothing below depends on it connecting.
+    // AFTER loadExisting, so the first presence event lands on a state that already
+    // knows its routes — heldBy is keyed by uid and would otherwise mark nothing.
     LIVE.start();
 
-    // Unlike Mapbox, the map is usable as soon as the constructor resolves —
-    // there is no style to wait on, so the `load` handler this replaces is gone.
+    // Unlike Mapbox, the map is usable as soon as the constructor resolves — there is
+    // no style to wait on.
     state.map = await initMap("map");
 
-    // The server only sends TB.home on the new-ride route, so this cannot fire
-    // while editing. Guarding on stops.length as well means a reload of a
-    // half-built ride does not stack a second home stop on the first.
+    // The server only sends TB.home on the new-ride route, so this cannot fire while
+    // editing. Guarding on stops.length as well means a reload of a half-built ride
+    // does not stack a second home stop on the first.
     if (window.TB.home && !state.rideId && state.routes[0].points.length === 0) {
-      // Seeded with its roles already set, so addPoint's auto-promotion leaves
-      // them alone — it only supplies `start` when the caller named nothing. Both
-      // are true of this point: it is where the ride begins and it is home.
-      // The rider's own name for the place, with "Home" as the server's
-      // fallback — see homeSeed() in routes/builder.ts. Hardcoded here until
-      // 2026-09-07, which named the shop and the storage unit wrong.
+      // Seeded with its roles already set, so addPoint's auto-promotion leaves them
+            // alone — it only supplies `start` when the caller named nothing.
+            // The rider's own name for the place, with "Home" as the server's fallback —
+            // see homeSeed() in routes/builder.ts. Hardcoded here until 2026-09-07, which
+            // named the shop and the storage unit wrong.
       const seed = newPoint(window.TB.home.lng, window.TB.home.lat, window.TB.home.label || "Home");
       seed.roles = ["start", "home"];
       addPoint(window.TB.home.lng, window.TB.home.lat, "Home", 0, seed);
@@ -10157,48 +9423,39 @@
     refreshDerived();
     const all = allTrackPoints();
     if (all.length) fitTo(state.map, all);
-    // Deliberately NOT awaited. The library is an accelerant on the search box,
-    // not something the map or the panel needs in order to render — blocking
-    // init on it would put a network round trip in front of a builder that works
-    // perfectly without one.
+    // Deliberately NOT awaited: the library is an accelerant on the search box, not
+    // something the map or the panel needs in order to render.
     loadSavedPlaces();
-    // Also not awaited, and for the same reason. It fills the count in the
-    // Riders tab's label, which is the whole affordance for opening a tab whose
-    // contents nothing else hints at — a strip that says "Riders 5" is a reason
-    // to look and one that says "Riders" is not. It also warms the cache, so the
-    // first open paints with no round trip. On a ride with no id yet it returns
-    // immediately without asking the server anything.
+    // Also not awaited. It fills the count in the Riders tab's label, which is the
+    // whole affordance for opening a tab whose contents nothing else hints at — a
+    // strip that says "Riders 5" is a reason to look and one that says "Riders" is
+    // not. It also warms the cache. On a ride with no id it returns immediately.
     loadRiders();
-    // Not awaited either. Every route row asks who is on it, so this is what
-    // turns those lines on — and until it lands they render nothing rather than
-    // guessing, which is why a slow answer costs no correctness. It returns
-    // immediately on a ride with no id.
+    // Not awaited either. Every route row asks who is on it, so this is what turns
+    // those lines on — and until it lands they render nothing rather than guessing.
     loadRouteRiders();
-    // Same reasoning as loadRiders above: the count beside the heading is the
-    // only hint that anybody has said anything, and warming it costs one request
-    // on a ride that has an id. It returns immediately on one that does not.
+    // Same reasoning as loadRiders above: the count beside the heading is the only
+    // hint that anybody has said anything.
     initComments();
     initSuggestions();
     offerRecovery();
     onRouteShapeDrag(state.map, shapeAt);
     onMapClick(state.map, ([lng, lat]) => {
-      // A drop at the end of a shape drag also produces a click. Without this
-      // the rider bends the line and gets a stop they never asked for.
+      // A drop at the end of a shape drag also produces a click. Without this the rider
+      // bends the line and gets a stop they never asked for.
       if (consumeShapeClick(state.map)) return;
-      // ADDING IS SUPPRESSED WHILE POINTS ARE SELECTED, and this is a
-      // correctness guard rather than a nicety: the selection keys points by
-      // index, and splicing a new stop into a route renumbers every point after
-      // it. The rider would then delete a different set from the one they
-      // ticked, silently. Saying so beats acting on the stale keys.
+      // ADDING IS SUPPRESSED WHILE POINTS ARE SELECTED, a correctness guard rather than
+      // a nicety: the selection keys points by index, and splicing a new stop in
+      // renumbers every point after it, so the rider would delete a different set from
+      // the one they ticked.
       if (state.select?.scope === "point") return toast("Finish selecting first", true);
       // NEVER A CHOICE HERE. addPoint() decides the kind and is the only place that
-      // does: a POI, unless this is the route's first point. The panel-wide + Stop /
-      // + POI pair read as buttons that add something and was really a mode switch that
-      // added nothing; the per-row radios that briefly replaced it went with the
-      // POI-first model. Promotion is a row-menu item now, and free.
-      //
-      // Read and cleared BEFORE the add, so a failed add cannot leave the builder armed
-      // with the button still lit.
+            // does: a POI, unless this is the route's first point. The panel-wide + Stop /
+            // + POI pair read as buttons that add something and was really a mode switch
+            // that added nothing. Promotion is a row-menu item now, and free.
+            //
+            // Read and cleared BEFORE the add, so a failed add cannot leave the builder
+            // armed with the button still lit.
       const armed = state.arm;
       const armedAt = state.armAt;
       disarmPlace();
@@ -10207,26 +9464,24 @@
   }
 
   // ——— The tour's one door ———
-  //
-  // tour.js DEMONSTRATES the builder rather than asking a rider to drive it (Ziad's
-  // call, 2026-09-11): it types into the real fields and picks from the real search
-  // list, all DOM it can reach on its own. The one thing it cannot reach is the
-  // map, so the two places it types have to be on screen before it starts. One
-  // function and not `state`: the tour reads what is on screen, never builder
-  // state, which is what keeps it unable to disagree with what the rider sees.
-  //
-  // `apply(frame)` is the load-bearing one — the tour is a canned planning session,
-  // so each beat REPLACES the ride with a pre-routed keyframe through the LOAD path
-  // (routeFromPayload, fillMissingLegs, inferEndManual) rather than the edit path,
-  // because five things fight a naive state swap: an in-flight save rebasing
-  // routeBase, the recovery draft offering the previous frame back, endManual read
-  // off a stored end, a stale legSeq dropping a response that is not coming, and a
-  // meet proposal drawn against a road that just changed.
+    //
+    // tour.js DEMONSTRATES the builder rather than asking a rider to drive it: it
+    // types into the real fields and picks from the real search list, all DOM it can
+    // reach on its own. The one thing it cannot reach is the map, so the two places it
+    // types have to be on screen before it starts. One function and not `state`: the
+    // tour reads what is on screen, never builder state.
+    //
+    // `apply(frame)` is the load-bearing one — each beat REPLACES the ride with a
+    // pre-routed keyframe through the LOAD path rather than the edit path, because
+    // five things fight a naive state swap: an in-flight save rebasing routeBase, the
+    // recovery draft offering the previous frame back, endManual read off a stored
+    // end, a stale legSeq dropping a response that is not coming, and a meet proposal
+    // drawn against a road that just changed.
   async function tourApply(frame) {
     if (!CAN_EDIT || !frame || !frame.ride) return false;
     const ride = frame.ride;
-    // Let whatever is in flight land first, so the rebase below is against
-    // the ride the server actually holds.
+    // Let whatever is in flight land first, so the rebase below is against the ride
+    // the server actually holds.
     await saveNow();
     beginEdit("tour step");
     state.meta = {
@@ -10264,27 +9519,26 @@
     if (bar) bar.hidden = true;
     renderEverything();
     renderSelectBar();
-    // The tour owns the camera when it says so: a demonstration that has
-    // already framed the story's box passes `fit: false`, or the map zooms
-    // to the ride after every frame and back out before the next one.
+    // The tour owns the camera when it says so: a demonstration that has already
+    // framed the story's box passes `fit: false`, or the map zooms to the ride after
+    // every frame and back out before the next one.
     const all = allTrackPoints();
     if (all.length && frame.fit !== false) fitTo(state.map, all);
     markDirty();
     const ok = await saveNow();
-    // A save is what gives a new route its stored uid and a new group its id,
-    // and both readers below answer from what the server holds.
+    // A save is what gives a new route its stored uid and a new group its id, and
+    // both readers below answer from what the server holds.
     loadRouteRiders();
     ridersStale();
     return ok;
   }
 
   // Resolved once init() has loaded the ride and made the map. THE TOUR AWAITS IT
-  // BEFORE ITS FIRST FRAME: this object exists from the moment the file runs while
-  // the ride arrives by fetch inside init(), so a tour resuming on a page whose
-  // Shepherd was cached applied a frame — and saveNow() PUT the seed's empty route
-  // — before loadExisting() had answered. The PUT was refused ("routes: Too small")
-  // and the dialog stayed up for the rest of the tour. Found by
-  // utils/record-tour-replay.ts, 2026-09-20.
+    // BEFORE ITS FIRST FRAME: this object exists from the moment the file runs while
+    // the ride arrives by fetch inside init(), so a tour resuming on a page whose
+    // Shepherd was cached applied a frame — and saveNow() PUT the seed's empty route —
+    // before loadExisting() had answered. The PUT was refused and the dialog stayed up
+    // for the rest of the tour.
   let markReady;
   const READY = new Promise((r) => {
     markReady = r;
@@ -10295,14 +9549,12 @@
     // `padding` is optional; the tour passes one to keep a card off the road.
     fitTo: (lngLats, padding) => fitTo(state.map, lngLats, padding),
     apply: tourApply,
-    // Awaited before the tour leaves the page, so the beforeunload guard has
-    // nothing to hold the rider for.
+    // Awaited before the tour leaves the page, so the beforeunload guard has nothing
+    // to hold the rider for.
     settled: () => saveNow(),
-    // The opposite, for a tour STARTING from a blank builder: the seeded home
-    // base has made the ride dirty and armed the autosave, and saving it
-    // would create a ride nobody planned on the way to the tour's own. Drop
-    // the work instead — there is none the rider typed — so the navigation
-    // is not stopped by the guard above.
+    // The opposite, for a tour STARTING from a blank builder: the seeded home base has
+    // made the ride dirty and armed the autosave, and saving it would create a ride
+    // nobody planned. Drop the work instead — there is none the rider typed.
     discard: () => {
       if (state.rideId) return;
       clearTimeout(idleTimer);
@@ -10313,8 +9565,8 @@
       state.dirty = false;
       HIST.Draft.clear(state.rideId);
     },
-    // The recorded proposal, drawn exactly as a live one is. The tour never
-    // presses a candidate's own button: that calls takeMeet, which routes.
+    // The recorded proposal, drawn exactly as a live one is. The tour never presses a
+    // candidate's own button: that calls takeMeet, which routes.
     showMeet: (data) => {
       const out = $("sg-meet-out");
       if (!out) return;
@@ -10336,8 +9588,8 @@
       return loadRouteRiders();
     },
     routeIndexOf: (uid) => state.routes.findIndex((d) => d.uid === uid),
-    // A coordinate as a pixel on the map element, for the cursor that slides
-    // a shaping point onto another road.
+    // A coordinate as a pixel on the map element, for the cursor that slides a
+    // shaping point onto another road.
     project: (lngLat) => (state.map ? containerPixel(state.map, lngLat) : null),
   };
 
