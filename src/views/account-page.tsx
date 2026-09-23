@@ -1,35 +1,24 @@
 // Settings and Profile as ONE page with two tabs (#269) — FOUR since #319:
 // Preferences, Profile, Places and Paddock. Ziad's call, 2026-09-13.
 //
-// They were two pages and two account-menu items, and the split did not answer a
+// They were two pages and two account-menu items, and the split answered no
 // question a rider was asking: both are "the things about me I can change", so
-// somebody looking for one had to already know which page it had been filed on.
-// Ziad's call, 2026-09-07. Places and the Paddock were two regions at the foot
-// of the Profile form until #319, which is where a rider with four bikes and
-// thirty saved places scrolled to find them; each is its own tab now, at its own
-// URL, and neither was ever part of that form's submit — every write goes
-// through /api/places and /api/bikes as JSON — so moving them changed nothing
-// about saving.
+// somebody looking for one had to already know which page it was filed on.
+// Places and the Paddock were regions at the foot of the Profile form until
+// #319; neither was ever part of that form's submit, so moving them changed
+// nothing about saving.
 //
-// **THE PRECEDENT IS `/riders` AND `/friends`, AND THIS FOLLOWS IT EXACTLY.**
-// Four URLs, one page, each opening its own tab — `/profile` is not redirected,
-// because it is linked from the account menu and from bookmarks, and a redirect
-// would put a hop in front of a page the rider already had. The two new tabs
-// set `navKey: 'settings'` like Preferences; `/profile` keeps its own key for
-// the reason recorded on that union in layout.tsx.
+// **THE PRECEDENT IS `/riders` AND `/friends`.** Four URLs, one page, each
+// opening its own tab — `/profile` is not redirected, because it is linked from
+// the account menu and from bookmarks.
 //
 // **THIS FILE COMPOSES; IT DOES NOT IMPORT EITHER ROUTE MODULE.** The profile
-// panel arrives as an already-rendered string, which is what keeps the imports
-// one-directional — `settings.tsx` and `profile.tsx` both import this, and this
-// imports neither. Rendering both here would need it to import profile.tsx while
-// profile.tsx imports it, and an ES module cycle that happens to work because
-// every binding is called at request time is a cycle waiting to stop working.
+// panel arrives as an already-rendered string, which keeps the imports
+// one-directional: rendering both here would need a module cycle that happens to
+// work only because every binding is called at request time.
 //
-// **BOTH PANELS ARE IN THE DOM, HIDDEN WITH `hidden`.** That is what tabs.js
-// requires — it swaps the attribute client-side with no round trip — and what
-// find-in-page and assistive tech both read. It also means the profile's forms
-// are present and submittable from either tab, which is correct: a rider who
-// switches tabs has not navigated anywhere.
+// **BOTH PANELS ARE IN THE DOM, HIDDEN WITH `hidden`**, which is what tabs.js
+// requires and what find-in-page and assistive tech both read.
 import type { Context } from 'hono'
 import { raw } from 'hono/html'
 import { currentUser, type AuthEnv } from '../auth/middleware'
@@ -72,33 +61,23 @@ import { asset } from './assets'
 export type AccountTab = 'preferences' | 'profile' | 'paddock' | 'places'
 
 // The Paddock and Places tabs are static markup driven by paddock.js and
-// places.js against their APIs, so they render here rather than arriving from
-// a route module — this file imports neither, per the note above. Each sits in
-// a `.profile-form` div so the fieldset takes the card styling the Profile
-// form's fieldsets have, without being a form.
+// places.js against their APIs, so they render here rather than arriving from a
+// route module. Each sits in a `.profile-form` div so the fieldset takes the card
+// styling without being a form.
 //
-// Places are CREATED from the builder ("Save to my places" on a stop), because a
-// place needs a pin and the builder is where the map is. This tab is for
-// organizing what is already there: rename, refile, delete. A create-from-scratch
-// flow here wants the address picker from roadmap item 19 and should wait for it
-// rather than ship a lat/lng text box.
-// THE PLACES BIN IS A FOLD UNDER THE LIST (#343): binned places and groups
-// sit beside the list they left, the way binned rides sit on the dashboard's
-// last Rides tab. `placesBin` arrives rendered (views/bin.tsx) with the count
-// beside it; an empty bin renders no fold at all, because a heading over an
-// empty list is a question and not an answer. Closed to start with — it is
-// history, and the list above it is the point of the tab.
-// ONE RADIO CARD, AND ITS EXPLANATION IS A TOOLTIP. Ziad's call, 2026-09-21:
-// the line under every label made a three-option group 270px tall and the page
-// mostly boxes, and the label is what a rider picks from — the sentence is for
-// the one time they wonder what it means. So the card carries it as `title`,
-// which is the browser's own tooltip with script off or tips off, and as
-// `data-tip-inline`, which tells tips.js the title IS the body — one sentence,
-// no headline, in the same bubble the builder's controls get. The same words
-// stay inside the label as hidden text, so the radio's accessible name is
-// exactly what it was when the line was visible; nothing about this reaches a
-// screen reader as a change. The cost to state: on a phone there is no hover,
-// so the sentence is a long-press away or not at all.
+// Places are CREATED from the builder, because a place needs a pin and the
+// builder is where the map is. This tab is for organizing what is there. A
+// create-from-scratch flow wants the address picker from roadmap item 19 rather
+// than a lat/lng text box.
+// THE PLACES BIN IS A FOLD UNDER THE LIST (#343): binned things sit beside the
+// list they left. An empty bin renders no fold at all, because a heading over an
+// empty list is a question and not an answer. Closed to start with.
+// ONE RADIO CARD, AND ITS EXPLANATION IS A TOOLTIP. Ziad's call, 2026-09-21: the
+// line under every label made a three-option group 270px tall, and the label is
+// what a rider picks from. The card carries it as `title` — the browser's own
+// tooltip with script off — and as `data-tip-inline`, which tells tips.js the
+// title IS the body. The same words stay inside the label as hidden text, so the
+// accessible name is unchanged. The cost to state: on a phone there is no hover.
 const Choice = (props: {
   name: string
   id: string
@@ -418,23 +397,17 @@ export async function accountPage(
         hidden={!tabOn('preferences')}
       >
         {/*
-          TWO TOPICS, NOT FOUR PEERS (#178) — THREE SINCE #133, and the count in
-          this note is what changed rather than its reasoning. Appearance is one
-          topic and Units is the other, and the copy is what said so: the duration and date settings
-          each promise, in nearly the same words, that they change the WRITING
-          and not the number. Two settings making the same promise are one topic.
-
-          THE OLD PAGE'S GAPS WERE THE GRID, NOT THE SPACING. Four `.setting`
-          blocks sat in a fixed two-column `.two-col` with `align-items: start`,
-          so every cell kept its own height and the shorter column simply ended
-          early. Every control here is a short radio group, so a topic is a ROW
-          OF THREE and `.three-col` wraps the rest onto a second row of its own
-          — and on a desktop, since 2026-09-21, the row holds the whole topic:
-          four across for Appearance, five for Units (`.three-col--four`,
-          `.three-col--five`).
-
-          GTFO stays outside both topics: it is a boxed-off danger area and half
-          a page is not where it belongs.
+          TWO TOPICS, NOT FOUR PEERS (#178) — THREE SINCE #133. Appearance is one topic
+          and Units the other: the duration and date settings each promise, in nearly the
+          same words, that they change the WRITING and not the number.
+        
+          THE OLD PAGE'S GAPS WERE THE GRID, NOT THE SPACING. Four `.setting` blocks sat
+          in a two-column `.two-col` with `align-items: start`, so the shorter column
+          ended early. Every control here is a short radio group, so a topic is a ROW —
+          and on a desktop, since 2026-09-21, the row holds the whole topic: four across
+          for Appearance, five for Units.
+        
+          GTFO stays outside both: it is a boxed-off danger area.
         */}
 
         <section class="setting-topic" id="appearance">
@@ -445,32 +418,20 @@ export async function accountPage(
           </p>
 
           {/*
-            THE PALETTE ITSELF, UNDER THE LEDE AND ABOVE THE CONTROLS. Ziad's
-            call, 2026-09-07 — it sat above the Save row inside the form, which
-            put the thing being changed BELOW the controls that change it, so a
-            rider picking a palette was looking at the wrong half of the section.
-            It reads as an illustration of the sentence above it now, which is
-            what it is.
-
-            OUTSIDE THE FORM, which it can be because it carries no input — nine
-            `aria-hidden` swatches and nothing to post. Keeping it inside would
-            have meant a decoration sitting in the middle of a form for no reason
-            beyond where it started.
-
-            NO JAVASCRIPT AT ALL. Every swatch is a `var()`, and the palettes are
-            one stylesheet keyed on the attributes restamp() writes — so the bar
-            changes with the choice for free, and it cannot disagree with what
-            the app is actually painting, because it IS what the app is painting.
-
-            THE SIGN FIELDS, IN SIGNAL ORDER, because those are the colors a
-            rider meets: red on a road they cannot ride, amber on advice, green
-            on a guide sign. The neutrals are left out — a strip of greys says
-            nothing about which palette is on.
-
-            `aria-hidden`, and the radio labels are what carry the meaning. Nine
-            unlabelled swatches announce as nothing useful, and each option
-            already says what it is in words.
-          */}
+              THE PALETTE ITSELF, UNDER THE LEDE AND ABOVE THE CONTROLS. Ziad's call,
+              2026-09-07 — it sat above the Save row inside the form, which put the thing
+              being changed BELOW the controls that change it.
+            
+              OUTSIDE THE FORM, which it can be because it carries no input.
+            
+              NO JAVASCRIPT AT ALL: every swatch is a `var()` and the palettes are one
+              stylesheet keyed on the attributes restamp() writes, so the bar cannot disagree
+              with what the app is painting, because it IS what the app is painting.
+            
+              THE SIGN FIELDS, IN SIGNAL ORDER, because those are the colors a rider meets.
+              The neutrals are left out — a strip of greys says nothing about which palette is
+              on. `aria-hidden`, because the radio labels carry the meaning.
+            */}
           <p class="palette-bar" aria-hidden="true">
             {['stop', 'detour', 'warning', 'yield', 'go', 'interstate', 'disabled', 'recreation', 'tarmac'].map(
               (token) => (
@@ -480,19 +441,14 @@ export async function accountPage(
           </p>
 
           {/*
-            ONE FORM FOR ALL THREE AXES, which is what the appearance handler
-            already did for two. A rider has ONE appearance and would be
-            surprised if saving the palette reverted the light/dark choice they
-            made in the same breath; motion is the same kind of answer to the
-            same question and joins them rather than getting a fourth endpoint.
-
-  THERE IS A LIVE PREVIEW NOW, AND THAT REVERSES THE NOTE THAT WAS HERE.
-            It read: no live preview, deliberately, because "a preview would need
-            script this page does not otherwise want, and the choice applies on
-            save". Both halves stopped being true on 2026-09-07 — the page
-            autosaves and re-stamps <html>, so the whole page IS the preview and
-            the palette bar above is the part of it a rider can point at.
-          */}
+              ONE FORM FOR ALL THREE AXES: a rider has ONE appearance and would be surprised
+              if saving the palette reverted the light/dark choice made in the same breath.
+            
+              THERE IS A LIVE PREVIEW NOW, AND THAT REVERSES THE NOTE THAT WAS HERE. It read:
+              no live preview, because "a preview would need script this page does not want,
+              and the choice applies on save". Both halves stopped being true on 2026-09-07 —
+              the page autosaves and re-stamps <html>, so the whole page IS the preview.
+            */}
           <form method="post" action="/settings/appearance" class="setting-form" data-autosave>
             <div class="three-col three-col--four">
               <fieldset class="choice-set">
@@ -833,24 +789,16 @@ export async function accountPage(
         </section>
 
         {/*
-          WHAT THE APP CALLS THINGS (#321). Ziad's call, 2026-09-13: Routeloop
-          is for every vehicle a rider owns, and the words were a motorcycle's.
-          Two pickers and a table. The pickers are the PRESETS — a vehicle and
-          what powers it — and the table is one row per term with the words
-          each preset would use as radios and a Custom box; typing in the box
-          picks Custom (public/js/jargon.js). A ride carries its own pair too,
-          set in the builder, and wins over the pickers; a row set here wins
-          over both. See src/views/vocab.ts for the precedence and the table.
-
-          THREE FORMS, THREE COLUMNS, like every other topic: the pickers each
-          write their own column and the table writes `jargon`, so saving a
-          word cannot revert the vehicle.
-
-          Third on the page, after Appearance and Units. Ziad's call,
-          2026-09-13 (#338): the two topics everybody touches come first, and
-          this one — the other preference that exists for a rider who has not
-          used the app yet — sits right under them.
-        */}
+            WHAT THE APP CALLS THINGS (#321). Ziad's call, 2026-09-13: Routeloop is for
+            every vehicle a rider owns, and the words were a motorcycle's. Two pickers — the
+            PRESETS — and a table of one row per term. A ride carries its own pair, set in
+            the builder, and wins over the pickers; a row set here wins over both.
+          
+            THREE FORMS, THREE COLUMNS, like every other topic: each writes its own column,
+            so saving a word cannot revert the vehicle.
+          
+            Third on the page (#338): the two topics everybody touches come first.
+          */}
         <section class="setting-topic" id="jargon">
           <h2>Vocabulary</h2>
           <p>
@@ -906,16 +854,13 @@ export async function accountPage(
               <form method="post" action="/settings/power" class="setting-form" data-autosave data-jargon-preset>
                 <fieldset class="choice-set">
                   <legend class="visually-hidden">Power</legend>
-                  {/* THE POWER FOLLOWS THE VEHICLE, GRAYED RATHER THAN GONE.
-                      Ziad's call, 2026-09-21: a power the vehicle cannot use —
-                      Pedal under a motorcycle or a car, Gas under a bicycle —
-                      is disabled, so the option is still there to be read and
-                      the vehicle is the one thing to change. One direction
-                      only; gating the vehicles on the power as well was built
-                      first and was too convoluted. The rule is toPower()'s
-                      own, and a vehicle change that leaves the checked power
-                      impossible moves it (jargon.js, mirroring the server's
-                      own coercion in the vehicle handler). */}
+                  {/* THE POWER FOLLOWS THE VEHICLE, GRAYED RATHER THAN GONE. Ziad's
+                         call, 2026-09-21: a power the vehicle cannot use is disabled, so
+                         the option is still there to be read and the vehicle is the one
+                         thing to change. One direction only — gating the vehicles on the
+                         power as well was built first and was too convoluted. The rule is
+                         toPower()'s own, and a vehicle change that leaves the checked
+                         power impossible moves it. */}
                   {POWER_CHOICES.map((choice) => (
                     <Choice
                       name="power"
@@ -945,21 +890,16 @@ export async function accountPage(
               <code>person/people</code>.
             </p>
             {/*
-              TWO PILLS BESIDE THE TERM: THE DEFAULT, AND THE BOX, WITH NO WORD
-              ON IT — the Custom column heading says what it is.
-              Ziad's call, 2026-09-21, replacing a pill for every preset's word.
-              The default pill's word comes from the two pickers and jargon.js
-              moves it when they change; Custom is the whole override, and the
-              alternatives the other pills used to offer (Trip under a
-              motorcycle, Motorway for the big road) are just words a rider
-              types. The stored shape is unchanged, so a word picked from a pill
-              before this renders as Custom now.
-
-              A ROW UNDER PEDAL KEEPS ITS PILLS IN THE DOM, hidden, so the word a
-              rider typed for their e-bike's fuel survives a save made while the
-              pedal preset blanks the row — the old form rendered no input there
-              and every save dropped it.
-            */}
+                TWO PILLS BESIDE THE TERM: THE DEFAULT, AND THE BOX, WITH NO WORD ON IT — the
+                Custom column heading says what it is. Ziad's call, 2026-09-21, replacing a pill
+                for every preset's word. The default pill's word comes from the two pickers and
+                jargon.js moves it when they change; the alternatives the other pills offered
+                are just words a rider types. The stored shape is unchanged.
+              
+                A ROW UNDER PEDAL KEEPS ITS PILLS IN THE DOM, hidden, so the word a rider typed
+                for their e-bike's fuel survives a save made while the pedal preset blanks the
+                row — the old form rendered no input there and every save dropped it.
+              */}
             <form method="post" action="/settings/jargon" class="setting-form" data-autosave data-jargon>
               {/*
                 ONE TABLE, FOUR COLUMNS: the term, where it shows up, the
@@ -1030,28 +970,21 @@ export async function accountPage(
         </section>
 
         {/*
-          SHOW ME AROUND IS FIRST, AND ITS OWN TOPIC (#133).
-
-          First because it is the one preference here that exists for somebody
-          who has never used the app: everything below answers "how do you want
-          this written", which presumes a rider who already knows what the
-          controls are. This one is what tells them.
-
-          ITS OWN TOPIC RATHER THAN A FOURTH APPEARANCE AXIS, although it very
-          nearly fits — appearance is one form and one handler on the stated
-          reasoning that a rider has ONE appearance and would be surprised if
-          saving the palette reverted the light/dark choice made in the same
-          breath. That argument is about three answers to one question, and this
-          is a different question: whether the app talks to you is not how it
-          looks. Folding it in would also mean folding it into that handler,
-          which is the thing the per-column split exists to prevent.
-
-          A ONE-SETTING TOPIC IS NOT THE THING `reports` WAS. That notification
-          group was folded into `account` because it rendered as a heading, two
-          column labels and a single row — furniture around nothing. This is a
-          heading, a lede that explains a feature, and the control. The section
-          is complete; it is just short.
-        */}
+            SHOW ME AROUND IS FIRST, AND ITS OWN TOPIC (#133).
+          
+            First because it is the one preference that exists for somebody who has never
+            used the app: everything below answers "how do you want this written", which
+            presumes a rider who already knows what the controls are.
+          
+            ITS OWN TOPIC RATHER THAN A FOURTH APPEARANCE AXIS: appearance is three answers
+            to one question, and whether the app talks to you is a different question.
+            Folding it in would also mean folding it into that handler, which is the thing
+            the per-column split exists to prevent.
+          
+            A ONE-SETTING TOPIC IS NOT THE THING `reports` WAS — that rendered as a heading,
+            two column labels and a single row. This is a heading, a lede that explains a
+            feature, and the control.
+          */}
         {/*
           PLACES TO AVOID (#271). Its own topic rather than a fourth cell in the
           grid above: everything in Units is a radio group about how a figure is
