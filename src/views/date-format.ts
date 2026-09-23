@@ -82,9 +82,14 @@ export const toDateFormat = (v: unknown): DateFormat =>
  * setting shows only what it decides.
  */
 export const DATE_FORMAT_CHOICES: { id: DateFormat; label: string; example: string }[] = [
-  { id: 'en-US', label: 'Month first', example: '08-24-2026' },
-  { id: 'en-GB', label: 'Day first', example: '24-08-2026' },
-  { id: 'en-CA', label: 'Year first', example: '2026-08-24' },
+  // LABELED AS THE PATTERN, not as "Month first". Ziad's call, 2026-09-22: the
+  // order IS the choice, and MM-DD-YYYY says it in the shape a rider is about to
+  // see, where the old labels made them read the example to find out what the
+  // label meant. The examples stay, pinned against the formatter by
+  // test/date-format.test.ts.
+  { id: 'en-US', label: 'MM-DD-YYYY', example: '08-24-2026' },
+  { id: 'en-GB', label: 'DD-MM-YYYY', example: '24-08-2026' },
+  { id: 'en-CA', label: 'YYYY-MM-DD', example: '2026-08-24' },
 ]
 
 // UTC, EVERYWHERE IN THIS FILE, and it is the CORRECT reading rather than a
