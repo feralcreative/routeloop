@@ -9,37 +9,27 @@
 
 // --- Google's own controls, scaled down -------------------------------------
 //
-// #173. They are drawn at a size that suits a full-screen map and this app puts
-// one behind a drawer, so they took more of the view than they earn.
+// #173. They are drawn for a full-screen map and this app puts one behind a
+// drawer, so they took more of the view than they earn.
 //
-// **SEVENTY PERCENT, NOT SIXTY, AND THE NUMBER IS MEASURED.** The call was
-// "about 40% smaller"; the issue asked for the controls to be measured first
-// because the answer decides the figure. Measured in Chrome on /builder at
-// 1200px: every zoom button is exactly 40x40 CSS px, so 40% off lands on 24px —
-// which is the WCAG 2.2 SC 2.5.8 (Target Size, Minimum, AA) floor EXACTLY, on
-// the line rather than clear of it, and a transform's rounding is not something
-// to spend that last pixel on. 0.7 gives 28px, which clears it and is within
-// the 25-30% the issue named for this outcome.
+// **SEVENTY PERCENT, NOT SIXTY, AND THE NUMBER IS MEASURED.** Every zoom button
+// is exactly 40x40 CSS px, so the 40% that was asked for lands on 24px — the
+// WCAG 2.2 target-size floor EXACTLY, on the line rather than clear of it. 0.7
+// gives 28px.
 //
-// **CSS ON GOOGLE'S OWN DOM, NOT CUSTOM CONTROLS.** Ziad's call, 2026-08-29.
-// Custom controls are the documented, supported API and would match the house
-// style — but they mean reimplementing the map-type control's collapse-to-a-
-// dropdown behavior that map-common.js deliberately leaves to Google, and they
-// put new `google.maps` calls outside that file, which is the one boundary
-// AGENTS.md flags as his to move. This touches no JavaScript at all. The cost
-// is that `.gm-bundled-control` and `.gm-style-mtc-bbw` are undocumented
-// internals with generated class names: a Google release can silently stop
-// matching, and the failure mode is the controls quietly returning to full
-// size. That is a visible, harmless regression rather than a broken map.
+// **CSS ON GOOGLE'S OWN DOM, NOT CUSTOM CONTROLS.** Ziad's call, 2026-08-29:
+// custom controls are the supported API, but they mean reimplementing the
+// map-type collapse behavior and putting new `google.maps` calls outside
+// map-common.js. The cost is that these are undocumented internals with
+// generated class names — a Google release can silently stop matching, and the
+// failure mode is the controls quietly returning to full size.
 //
-// **TRANSFORM-ORIGIN IS THE LOAD-BEARING HALF.** A scaled element keeps its
-// original layout box, so scaling from the default center leaves the control
-// floating away from the edge it is anchored to by half the difference. Each
-// origin is the corner Google positioned that control against.
+// **TRANSFORM-ORIGIN IS THE LOAD-BEARING HALF**: a scaled element keeps its
+// original layout box, so scaling from center leaves the control floating away
+// from the edge it is anchored to.
 //
-// NOT TOUCHED, and deliberately: the logo, the attribution strip, the keyboard
-// shortcuts link and Terms along the bottom. Those are a licensing requirement
-// rather than controls, and they must be neither scaled nor covered.
+// NOT TOUCHED, deliberately: the logo, the attribution strip and Terms. Those
+// are a licensing requirement and must be neither scaled nor covered.
 
 // The zoom pair and the camera control, stacked bottom-right. One wrapper holds
 // both, so one rule moves them together and they cannot drift apart.
@@ -236,84 +226,56 @@
 // The numbers the map page's furniture is built from, stated once.
 //
 // These used to live on #info-panel, which was fine while the panel was the only
-// thing floating over the map. It is not any more: .map-timeline is a SIBLING of
-// the panel, so a custom property declared on the panel is invisible to it —
-// custom properties inherit down, not sideways. They belong on the page.
+// thing over the map. .map-timeline is a SIBLING of it, and custom properties
+// inherit down rather than sideways, so they belong on the page.
 //
-// --panel-width is the drawer's open width, and it is the fix for the panel
-// resizing on every edit. It used to be `width: auto !important`, which is
-// shrink-to-fit over max-content, so a long stop name or the multi-route totals
-// line growing to two moved the right edge while the rider typed. (Route ticks
-// look like they would too, but they are absolutely positioned and so
-// contribute nothing to intrinsic width.)
+// --panel-width is the drawer's open width and the fix for the panel resizing on
+// every edit: it was `width: auto !important`, shrink-to-fit over max-content, so
+// a long stop name moved the right edge while the rider typed. 380px was checked
+// in the browser — the narrowest round number at which .route-times still lays
+// its two datetime fields on one row.
 //
-// 380px was checked in the browser rather than derived: it is the narrowest
-// round number at which .route-times still lays its two datetime fields on one
-// row, and it leaves most of the map visible. Below roughly 390 they wrap,
-// which is stable but taller.
+// --drawer-rail is the collapsed width: 56px takes a 24px icon with 16px either
+// side, the smallest that clears the 44px tap target the route dots need.
 //
-// --drawer-rail is the collapsed width. 56px takes a 24px icon with 16px either
-// side, which is the smallest that still clears the 44px minimum tap target the
-// route dots inside it need.
+// --drawer-current is the one the layout reads and the ONLY thing that changes
+// when the drawer opens. #map, .map-timeline and the drawer all size off it, so
+// they cannot fall out of step. Redeclared on html because #map is a sibling.
 //
-// --drawer-current is the one the layout actually reads, and the ONLY thing that
-// changes when the drawer opens or closes. #map, .map-timeline and the drawer
-// itself all size off it, so one declaration below moves all three and they
-// cannot fall out of step. It is redeclared on html rather than on the drawer
-// because #map is a sibling — custom properties inherit down, not sideways.
+// --panel-top-clearance no longer reserves room for a floating logo; it survives
+// because the phone sheet uses it as a minimum distance from the top.
 //
-// --panel-top-clearance no longer reserves room for a floating logo, because
-// there is not one any more: the mark moved into the drawer's own header on
-// 2026-08-16. It survives because the phone bottom-sheet rule still uses it as
-// the sheet's minimum distance from the top of the screen.
-//
-// --timeline-height is the timeline bar's whole footprint, declared rather than
-// measured because the things that have to clear the bar — the phone sheet's
-// stacking, the feedback dock at every width — reserve the room before the bar
-// exists. It is a fixed number on purpose: the readout inside it is single-line
-// and ellipsized, so the bar cannot grow.
+// --timeline-height is the bar's whole footprint, declared rather than measured
+// because the things clearing it reserve the room before the bar exists.
 //
 // **IT IS A RESERVE, SO IT HAS TO BE THE LARGER OF THE TWO BARS AND IT WAS NOT.**
-// It read 3.4em from the route the bar moved out of the panel, and the root font
-// size here is 14px, so it was declaring 47.6px against a builder bar measured
-// in Chrome at 51px — under by three and a half pixels, silently, with the only
-// symptom being that everything clearing it cleared it by that much less. The
-// scope button (#222) took the builder's bar to 55px and made it worse. 4em is
-// 56px, which covers the builder; the viewer's bar has no button and is 46px,
-// and one variable serving both has to cover the taller one. **Measure the bar
-// in the BUILDER if you change anything inside it** — the viewer will pass a
-// number the builder overruns.
+// It read 3.4em against a 14px root — 47.6px against a builder bar measured at
+// 51px, under by three and a half pixels, silently. The scope button took the
+// builder's bar to 55px and made it worse. 4em is 56px; the viewer's bar is 46px,
+// and one variable serving both has to cover the taller. **Measure the bar in the
+// BUILDER** — the viewer will pass a number the builder overruns.
 //
-// --map-control-gutter is the strip Google's own zoom and recenter buttons own
-// at RIGHT_BOTTOM. Nothing of ours may cross it.
+// --map-control-gutter is the strip Google's zoom and recenter buttons own.
+// Nothing of ours may cross it.
 //
-// --map-credit-height is the Google wordmark bottom-left and the attribution row
-// bottom-right. Measured at 26px on a phone. This one is not a preference: the
-// Maps terms require the logo and the data attribution to stay visible, so it is
-// a no-go zone rather than a nicety, and covering it is a license problem and
-// not only an ugly one.
+// --map-credit-height is the wordmark and attribution row, 26px on a phone. Not a
+// preference: the Maps terms require both to stay visible, so covering it is a
+// license problem and not only an ugly one.
 // --banner-h is the height of a page-top banner, or 0 when there is none.
 //
-// It exists because EVERY piece of furniture on this page is fixed over a
-// full-viewport map, so a banner in normal flow pushes nothing — it just paints
-// over the drawer's logo and the top of the map, which is exactly how the
-// unsaved-changes bar was reported. Nothing here can be pushed down by a sibling;
-// it has to be told to move.
+// EVERY piece of furniture here is fixed over a full-viewport map, so a banner in
+// normal flow pushes nothing — it paints over the drawer's logo and the top of
+// the map. Nothing here can be pushed down by a sibling.
 //
-// Set from JavaScript because the banner's height is not a number anyone can
-// declare: the recovery text wraps to two lines on a narrow drawer and the
-// maps-misconfigured banner is longer still. See TBBanner.refresh() in
-// public/js/site.js — it lives there rather than in builder.js because the
-// VIEWER is a map page too and loads no copy of builder.js, so a banner there
-// had nothing to push the map down. It stays 0 for every page that never shows
-// one, which is most of them, so the calc()s below are a no-op by default.
+// Set from JavaScript because the height is not a number anyone can declare: the
+// recovery text wraps to two lines on a narrow drawer. See TBBanner.refresh() in
+// site.js — it lives there because the VIEWER is a map page too and loads no copy
+// of builder.js.
 //
-// IT IS DECLARED ON :root AS WELL, because the stage banner is on ordinary
-// chrome pages too and they need the same reserve — see the body rule in
-// _chrome.scss. `html.has-stage-banner` seeds a plausible one-line height so
-// the first paint is close; site.js corrects it to the measured value, which is
-// what covers the wrap. Do not treat the seeded number as authoritative: that is
-// exactly how --timeline-height came to be three pixels short for two weeks.
+// IT IS DECLARED ON :root AS WELL, because the stage banner is on ordinary chrome
+// pages. `html.has-stage-banner` seeds a plausible one-line height so the first
+// paint is close; site.js corrects it. Do not treat the seed as authoritative —
+// that is exactly how --timeline-height came to be three pixels short.
 :root {
   --banner-h: 0px;
 }
@@ -460,17 +422,13 @@ html.map-page.is-resizing {
     }
   }
 
-  // 1.575rem is 2.1 less a quarter — the whole panel heading came down 25% on
-  // 2026-08-15 to buy the panel back some vertical space. Wrapping is the point
-  // of the size cut on the builder, not just the saving: a name that used to run
-  // off the end of one line now fits two (see #ride-title in _builder.scss).
+  // 1.575rem is 2.1 less a quarter — the panel heading came down 25% to buy back
+  // vertical space. Wrapping is the point of the cut on the builder, not just the
+  // saving: a name that used to run off one line now fits two.
   //
-  // The right margin that used to clear .panel-controls is gone: the controls
-  // moved into .drawer-head above and no longer overlap anything. It was 0.5em
-  // here and 2.6em on the builder, which meant the VIEWER'S heading ran under
-  // the collapse and exit buttons the moment a ride name reached two lines.
-  // Nothing overlaps now, so neither number is needed — but .builder-panel still
-  // restates its own and can go on doing so harmlessly.
+  // The right margin that cleared .panel-controls is gone — they moved into
+  // .drawer-head. It was 0.5em here and 2.6em on the builder, which meant the
+  // VIEWER'S heading ran under the collapse and exit buttons at two lines.
   .panel-title {
     transition: font-size 0.4s cubic-bezier(0.77, 0, 0.175, 1);
     font-size: 1.575rem;
@@ -596,17 +554,13 @@ html.map-page.is-resizing {
     mask-image: url("/img/icons/icon-expand.svg");
   }
 
-  // THE DRAG HANDLE (#323), and on a wide screen it is the only collapse
-  // control: the icon above hides at this width and survives for the phone
-  // sheet, which travels vertically and has no width to set. A strip down the
-  // drawer's right edge, inside it (the drawer clips overflow), wide enough to
-  // grab and invisible until hovered or focused — a visible bar down every
-  // drawer would be furniture. The bar it paints on hover is the affordance;
-  // `col-resize` is the cursor for exactly this.
-  // IT LOOKS LIKE A HANDLE. The hit area is the whole edge, and a pill halfway
-  // down it is the affordance — see ::after below for its shape and the shapes
-  // it replaced. The pill is inside the drawer (it clips overflow); hover and
-  // focus color it and light a line down the edge itself.
+  // THE DRAG HANDLE (#323), and on a wide screen the only collapse control: the
+  // icon above hides at this width and survives for the phone sheet, which travels
+  // vertically. A strip down the drawer's right edge, inside it, wide enough to
+  // grab and invisible until hovered — a visible bar down every drawer would be
+  // furniture. `col-resize` is the cursor for exactly this.
+  // IT LOOKS LIKE A HANDLE: the hit area is the whole edge and a pill halfway down
+  // it is the affordance.
   .drawer-resize {
     display: none;
     position: absolute;
@@ -683,21 +637,16 @@ html.map-page.is-resizing {
     }
   }
 
-  // THE DAY ACTIONS DRAW THEIR GLYPHS AS A MASK rather than as an <img> or an
-  // inlined SVG, and the choice is not cosmetic.
+  // THE ROUTE ACTIONS DRAW THEIR GLYPHS AS A MASK rather than an <img> or inlined
+  // SVG, and the choice is not cosmetic.
   //
-  // The artwork is `fill="black"`, not `fill="currentColor"`. An <img> cannot
-  // take a color from CSS at all, and inlining the file through hydrateIcons
-  // would faithfully reproduce that hardcoded black — so a disabled .route-del
-  // would stay black while the button grayed out around it. Masking ignores the
-  // fill entirely: it reads the alpha channel, paints `currentColor` through it,
-  // and therefore inherits hover, disabled opacity and the route tint for free.
+  // The artwork is `fill="black"`. An <img> cannot take a color from CSS, and
+  // inlining would faithfully reproduce that black — so a disabled .route-del would
+  // stay black while the button grayed out. Masking reads the alpha channel and
+  // paints `currentColor` through it, inheriting hover, disabled opacity and the
+  // route tint for free, and keeps one copy of the artwork.
   //
-  // It also keeps one copy of the artwork. The mask points at the file, so a
-  // redraw ships by replacing the file and nothing here changes.
-  //
-  // Both properties: -webkit-mask is still required for Safari, which has not
-  // unprefixed the shorthand.
+  // Both properties: -webkit-mask is still required for Safari.
   .route-del,
   .route-rev {
     &::before {
@@ -818,20 +767,15 @@ html.map-page.is-resizing {
   &.collapsed {
     //@ MD 768px and up — only these widths have a rail to drop things for.
     //
-    // SCOPED, and the scoping is the fix for a bug that has now bitten twice.
-    // Below 768px the collapsed panel is not a rail at all, it is a sheet that
-    // slides off the bottom edge with everything still inside it — so the phone
-    // block used to un-hide these one at a time by restating `display`, and a
-    // restated value is a value somebody has to guess. `.panel-exit` was guessed
-    // as `block` and lost the flex centering that put its X in the middle of its
-    // own button — that control has since been removed outright, but the lesson
-    // it cost is the reason this is scoped rather than restated. `.panel-title`
-    // cannot be guessed at all either way, because the viewer wants `flex` and
-    // the builder overrides it to `block`.
+    // SCOPED, and the scoping is the fix for a bug that has bitten twice. Below 768px
+    // the collapsed panel is a sheet that slides off the bottom with everything
+    // inside it, so the phone block used to un-hide these by restating `display` —
+    // and a restated value is a value somebody has to guess. `.panel-exit` was
+    // guessed as `block` and lost the flex centering on its X; `.panel-title` cannot
+    // be guessed either way, because the viewer wants `flex` and the builder `block`.
     //
-    // Hiding only where a rail exists means the phone inherits every natural
-    // value and restates nothing. If a sixth element ever joins this list, it
-    // joins it here and the sheet keeps working with no counterpart edit.
+    // Hiding only where a rail exists means the phone inherits every natural value
+    // and restates nothing.
     @media (min-width: 768px) {
       .drawer-logo,
       .panel-title,
@@ -1017,26 +961,20 @@ table.route-table {
 // RIDE TIMELINE — a bar across the bottom edge of the map, not a control in the
 // panel.
 //
-// It was in the panel until 2026-08-15, stacked under the route scrubber, where it
-// and the scrubber together took 185px of a 620px window. That is what issue #93
-// was filed about, but the fix is not "make it shorter": the Vision has always
-// described this as "a slider across the bottom of every ride and route", and a
-// slider that scrubs the WHOLE map belongs over the map rather than inside a
-// 380px column of edit controls. The route scrubber stayed behind, which is the
-// view/edit split #93 asked for — the scrubber picks what you are editing, the
-// timeline moves through what you are looking at.
+// It was in the panel until 2026-08-15, where it and the route scrubber took
+// 185px of a 620px window (#93). The fix is not "make it shorter": a slider that
+// scrubs the WHOLE map belongs over the map rather than inside a 380px column of
+// edit controls. The scrubber stayed behind, which is the view/edit split #93
+// asked for.
 //
-// Still lives in _map.scss rather than _builder.scss because both pages carry
-// it, and the builder's rules are all nested under .builder-panel, which the
-// viewer's panel is not.
+// Still in _map.scss rather than _builder.scss because both pages carry it, and
+// the builder's rules are all nested under .builder-panel.
 //
-// It is a SIBLING of #map and #info-panel, all three fixed to the viewport, so
-// the offsets below are viewport offsets and the custom properties have to come
-// from html.map-page rather than from the panel.
+// A SIBLING of #map and #info-panel, all three fixed to the viewport, so the
+// offsets are viewport offsets and the custom properties come from html.map-page.
 //
-// The bar is fixed-height by construction: the readout is one ellipsized line
-// and the slider is one row. Nothing in it can grow, which is what lets the
-// phone layout below reserve --timeline-height for it sight unseen.
+// Fixed-height by construction — the readout is one ellipsized line — which is
+// what lets the phone layout reserve --timeline-height sight unseen.
 .map-timeline {
   position: fixed;
   z-index: 1000;
@@ -1286,21 +1224,16 @@ table.route-table {
 
 //@ Phone — the drawer stops being a drawer and becomes a bottom sheet
 //
-// A left drawer does not survive this width. 380px of a 390px viewport leaves
-// ten pixels of map, and narrowing the drawer instead would mean a stop list in
-// a column too narrow to read. So below 768 it is a sheet: full width, anchored
-// to the bottom, occupying the lower part of the screen with the map above it,
-// and collapsing to its own header rather than to a rail.
+// A left drawer does not survive this width: 380px of a 390px viewport leaves ten
+// pixels of map, and narrowing it instead means a stop list too narrow to read.
+// So below 768 it is a sheet, collapsing to its own header rather than to a rail.
 //
 // Everything that made it a drawer is undone explicitly rather than left to
-// cascade. --drawer-current is forced back to zero so #map and .map-timeline —
-// both of which size off it — go full width again; the sheet is over the map at
-// this size, not beside it.
+// cascade: --drawer-current is forced back to zero so #map and .map-timeline go
+// full width again.
 //
 // The sheet still cannot resize itself, which is the property the whole redesign
-// exists for. Its height is a fixed fraction of the viewport, not its content's
-// height, so the route scrubber pinned at its bottom edge stays put exactly as it
-// does on a wide screen.
+// exists for — its height is a fixed fraction of the viewport, not its content's.
 @media (max-width: 767px) {
   html.map-page,
   html.map-page:has(#info-panel.collapsed) {
@@ -1354,22 +1287,19 @@ table.route-table {
     // with `viewport-fit=cover`, and a Download row half under a system
     // gesture strip is a row that cannot be pressed.
     padding-bottom: env(safe-area-inset-bottom, 0px);
-    // THE SHEET SLIDES, IT DOES NOT SHRINK — and the rule this replaced did
-    // neither. It declared `transition: height 0.28s …` against a collapsed
-    // state of `height: auto`, and a length cannot be interpolated toward a
-    // keyword, so the transition sat there doing nothing while the sheet jumped
-    // 528px to 52px in a single frame. Measured before the change: 33 samples
-    // over 500ms, every one already at the collapsed height. The desktop drawer
-    // was never affected because it animates `width` between two real lengths.
+    // THE SHEET SLIDES, IT DOES NOT SHRINK — and the rule this replaced did neither.
+    // It declared `transition: height` against a collapsed state of `height: auto`,
+    // and a length cannot be interpolated toward a keyword, so the sheet jumped 528px
+    // to 52px in a single frame. Measured: 33 samples over 500ms, every one already
+    // at the collapsed height. The desktop drawer animates `width` between two real
+    // lengths and was never affected.
     //
-    // `transform` rather than a pair of explicit heights because this is the
-    // phone: a translate runs on the compositor and never touches layout, where
-    // animating height would re-lay-out a drawer holding every route of the ride
-    // on every frame of the slide.
+    // `transform` rather than explicit heights because this is the phone: a translate
+    // runs on the compositor, where animating height re-lays-out a drawer holding
+    // every route of the ride on every frame.
     //
-    // Longer than the drawer's 0.28s because the travel is longer — the sheet
-    // covers about 476px where the drawer covers 324px — and the same easing,
-    // so the two read as one piece of furniture moving two ways.
+    // Longer than the drawer's 0.28s because the travel is longer, same easing, so
+    // the two read as one piece of furniture moving two ways.
     transition: transform 0.34s cubic-bezier(0.4, 0, 0.2, 1);
   }
 
@@ -1382,18 +1312,14 @@ table.route-table {
     width: auto;
     transform: translateY(calc(var(--sheet-height) - var(--sheet-collapsed-height)));
 
-    // The head, the heading, the list and the footer are all still here and
-    // still at their own natural `display` — the rail's hiding is scoped to
-    // 768px and up, so nothing has to be un-hidden and no value has to be
-    // guessed. See the note on that media query.
+    // The head, the heading, the list and the footer are all still at their own
+    // natural `display` — the rail's hiding is scoped to 768px and up, so nothing has
+    // to be un-hidden and no value guessed.
     //
-    // They stop being REACHABLE once they have finished traveling, which is
-    // the one thing `display: none` was doing for free and is not a property to
-    // drop quietly. `visibility` is discretely animatable, so the delay holds
-    // them on screen for exactly the length of the slide and then takes them
-    // out of the tab order and the accessibility tree. Expanding carries no
-    // delay — this rule simply stops applying — so they are back the instant
-    // the sheet starts coming up.
+    // They stop being REACHABLE once they have finished traveling, which is the one
+    // thing `display: none` was doing for free. `visibility` is discretely animatable,
+    // so the delay holds them on screen for the length of the slide and then takes
+    // them out of the tab order. Expanding carries no delay.
     //
     // Keep the delay and the slide's duration in step.
     .panel-title,
@@ -1449,17 +1375,12 @@ table.route-table {
 // Role markers (unified viewer + builder)
 //
 // The wrapper is deliberately zero-size. An AdvancedMarkerElement anchors its
-// content at the content's bottom-center, so a 0×0 box puts that anchor exactly
-// on the point and every child below can be positioned from the center with the
-// negative margins the legacy viewer used. Sizing the wrapper to its contents
-// instead would hang each marker above and to the right of its own coordinates.
+// content at bottom-center, so a 0×0 box puts that anchor exactly on the point
+// and the negative margins do the centering. Sizing it to its contents hangs each
+// marker above and to the right of its own coordinates.
 // The scrubbed moment: where the rider would be, and the point the range circle
-// reaches to. Drawn by setMoment() in map-common.js.
-//
-// ZERO-SIZED WRAPPERS, like .tb-marker and for the same reason: an
-// AdvancedMarkerElement anchors its content at bottom-center, so a box with no
-// size puts the anchor exactly on the coordinate and the negative margins do
-// the centering. Give either of these a width and it drifts off the road.
+// reaches to. ZERO-SIZED WRAPPERS, for the same reason — give either a width and
+// it drifts off the road.
 .tb-moment-dot,
 .tb-moment-target {
   position: relative;
@@ -1501,26 +1422,21 @@ table.route-table {
 
 // WHERE THE TANK RUNS DRY: a red disc with a white E on it, for empty.
 //
-// NOT A NO-ENTRY SIGN. It was one for a build, and a red disc with a white BAR
-// is the international sign for a road CLOSURE — which this is not. The road is
-// open; the rider has no fuel to reach it on. Ziad's call, 2026-08-31. The
-// letter is what tells the two apart without a legend.
+// NOT A NO-ENTRY SIGN. It was one for a build, and a red disc with a white BAR is
+// the international sign for a road CLOSURE — which this is not. The road is
+// open; the rider has no fuel to reach it on. Ziad's call, 2026-08-31.
 //
-// IT DOES NOT ROTATE. It replaced a red bar laid perpendicular to the road,
-// whose angle was correct and still looked wrong: a broadly northbound route
-// runs genuinely east-west for a mile here and there, so a wall landing on one
-// of those stretches stood vertical against a northbound ride. Smoothing the
-// heading over a wider chord was measured and trades one wrongness for another.
-// A sign is read upright and has no angle to get wrong. See targetEl() in
-// map-common.js.
+// IT DOES NOT ROTATE. It replaced a red bar laid perpendicular to the road, whose
+// angle was correct and still looked wrong: a broadly northbound route runs
+// east-west for a mile here and there, so a wall on one of those stretches stood
+// vertical against a northbound ride. A sign is read upright.
 //
-// $stop rather than $warning: the amber diamond means "put a fuel stop in" and
-// is what .row-dist-dry says in the route list. This is not advice. NOT $signal
-// either — that is the blue of a go light in this palette.
+// $stop rather than $warning: the amber diamond means "put a fuel stop in" and is
+// what .row-dist-dry says. This is not advice. NOT $signal either — that is the
+// blue of a go light in this palette.
 //
-// FIXED PIXELS, NOT METERS. A sign is a symbol and should stay the same size at
-// every zoom; drawn in real distance it would be invisible at low zoom and a
-// mile wide at high zoom.
+// FIXED PIXELS, NOT METERS: drawn in real distance it would be invisible at low
+// zoom and a mile wide at high zoom.
 .tb-moment-disc {
   position: absolute;
   display: flex;
