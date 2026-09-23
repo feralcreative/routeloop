@@ -101,11 +101,11 @@ The header wordmark is a PNG, one per color scheme, swapped by the dark-mode blo
 
 |        |                                                                                                                      |
 | ------ | -------------------------------------------------------------------------------------------------------------------- |
-| Source | `public/img/logo-routeloop-email-hz@2x.png`, `…-hz-dark@2x.png`—export straight here, nothing reads `_assets/` |
+| Source | `public/img/logo-routeloop-email-beta-hz@2x.png`, `…-beta-hz-dark@2x.png`—export straight here, nothing reads `_assets/`. The `-beta-` names the LOCKUP, not the environment: these carry the sign baked in, and the unsuffixed names are the plain wordmark the beta ends with |
 | Served | `public/img/` (the same bytes—`/img/*` is what the email points at, and a test asserts the two copies are identical) |
-| Size   | 800×100, ~10 KB each, displayed at 400×50 so the file named is the 2x asset                                          |
+| Size   | 420×148, displayed at 210×74 so the file named is the 2x asset                                                      |
 
-The mark is 8.15:1 since the 2026-08-11 rebrand, against 3.5:1 before it, which is why the display size went from 180×52 to 400×50—nearly the full 536px the cell has. Anything narrower renders a wordmark too short to read beside 16px body copy.
+The mark is 8.15:1 since the 2026-08-11 rebrand, against 3.5:1 before it, which is why the display width went from 180 to 400—nearly the full 536px the cell has, on the reasoning that anything narrower renders a wordmark too short to read beside 16px body copy. **That floor does not survive the beta lockup** (#393, 2026-09-22): the sign hangs above the word and made the header most of the first screen of a message on a phone, so the pair is drawn at half—210×74—and the artwork was re-exported at that size rather than the old composite being scaled down. `LOGO_W`/`LOGO_H` in `shell.tsx` have to MATCH the file, because an explicit `width` and `height` is what Outlook needs and a mismatch scales the raster to a shape nobody drew.
 
 **Both are opaque, and that is load-bearing rather than incidental.** A transparent PNG vanishes wherever the client repaints the cell behind it. These carry their own ground—white and pure `#000`—so each is correct regardless of what a client does to the surrounding table. The consequence is that `DARK.cardBg` **must** be exactly `#000`: anything else paints a 400×50 rectangle of not-quite-the-right-black into the header, and `#0a0e11` against `#000` is 1.07:1, which is invisible on a laptop and obvious on an OLED phone in the dark. `test/email-dark-mode.test.ts` reads the PNG's actual corner pixel and fails if the two stop matching, so redrawing the asset on a different ground is caught rather than shipped.
 
