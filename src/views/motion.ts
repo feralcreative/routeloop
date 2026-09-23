@@ -53,10 +53,12 @@ export const motionAttr = (m: Motion): string | null => (m === 'system' ? null :
 export const MOTION_CHOICES: { id: Motion; label: string; hint: string }[] = [
   {
     id: 'system',
-    label: 'Follow my device',
-    // Named for what the rider does rather than for the media query, because a
-    // rider who has never heard of `prefers-reduced-motion` is exactly who this
-    // option is the safe default for.
+    // "Match", not "Follow", so the three Appearance groups open with one word:
+    // Match my device, Match my device, Match the page. Named for what the rider
+    // does rather than for the media query either way, because a rider who has
+    // never heard of `prefers-reduced-motion` is exactly who this option is the
+    // safe default for.
+    label: 'Match my device',
     hint: 'Animate unless your phone or computer is set to reduce motion.',
   },
   { id: 'always', label: 'Always animate', hint: 'Animate here even if your device asks for less motion.' },
