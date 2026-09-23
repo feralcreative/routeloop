@@ -1,7 +1,6 @@
 // The ride builder's API and page shells. A ride payload is the full graph —
 // ride meta + routes + stops/POIs + routed legs — saved whole (PUT is a
-// full-replace inside one transaction). The builder MVP sent exactly one route;
-// the API accepted many from route one, and the builder caught up on 2026-07-30.
+// full-replace inside one transaction).
 import { Hono } from 'hono'
 import type { Context } from 'hono'
 import { bodyLimit } from 'hono/body-limit'
@@ -69,23 +68,19 @@ export const builderRoutes = new Hono<AuthEnv>()
 // does not apply. 8 MB JSON backstop over the structural caps.
 const BODY_LIMIT = 8 * 1024 * 1024
 /**
- * `rev` RIDES ALONGSIDE THE PAYLOAD RATHER THAN INSIDE IT, and deliberately.
+ * `rev` RIDES ALONGSIDE THE PAYLOAD RATHER THAN INSIDE IT. `ridePayload` is
+ * shared with the native JSON import — a file on disk, which has no opinion
+ * about who else is editing — and Zod strips unknown keys, so a token declared
+ * there would appear wired and check nothing.
  *
- * `ridePayload` is shared with the native JSON import — a file on disk, which
- * has no opinion about who else is editing — so a concurrency token has no
- * business in that schema. Zod strips unknown keys, so it would be silently
- * dropped there anyway, which is the worst of both: the guard would appear to
- * be wired and would check nothing.
- *
- * Optional, and see drizzle/0024 for why that is not laziness: during the
- * blue/green overlap the OLD builder posts no `rev` at all, and requiring it
- * would refuse every one of those saves.
+ * Optional, and not laziness: during the blue/green overlap the OLD builder
+ * posts no `rev` at all, and requiring it would refuse every one of those saves.
  */
 const revField = z.coerce.number().int().nonnegative().optional()
 
 /** Every route uid the client held when it loaded, and the hash it saw. The WHOLE
- *  set, not a field on each route it still has — a route the rider deleted is absent
- *  from the payload and would carry nothing, and that is precisely the case
+ *  set, not a field on each route it still has — a route the rider deleted is
+ *  absent from the payload and would carry nothing, which is precisely the case
  *  mergeRoutes has to tell apart from a route somebody else added. */
 const baseField = z.record(z.string().max(12), z.string().max(32)).optional()
 
@@ -117,29 +112,19 @@ async function parseRideBody(
 const jsonLimit = bodyLimit({ maxSize: BODY_LIMIT, onError: (c) => c.json({ error: 'payload too large' }, 413) })
 
 // **THERE IS DELIBERATELY NO TURNSTILE GATE HERE, AND THE ONE THAT USED TO BE
-// WAS A LANDMINE.** Ziad's call, 2026-08-30, closing #132.
+// WAS A LANDMINE** (#132). It checked an `X-Turnstile-Token` header that NOTHING
+// SENDS, while `turnstileEnabled()` is one flag over the whole app — so setting
+// `TURNSTILE_SECRET_KEY` to arm the upload pipeline would have made "Plan a ride"
+// 403 for everybody.
 //
-// It checked an `X-Turnstile-Token` header that NOTHING SENDS — every fetch in
-// builder.js sets `Content-Type` and nothing else — while `turnstileEnabled()`
-// is one flag over the whole app. So setting `TURNSTILE_SECRET_KEY` to arm the
-// upload pipeline, which is the thing it was written for and which does work,
-// would have made "Plan a ride" 403 for everybody. Dark code that breaks the
-// app the route a flag is flipped is worse than no code.
+// Removed rather than fixed, because Turnstile answers "is this a human" and this
+// route already asks harder: `requireActiveApi` means an approved account and
+// `requireSameOrigin` means the request came from the site. The import path is the
+// one that earns a gate — it opens files strangers hand it — and it keeps its own.
 //
-// Removed rather than fixed, because Turnstile answers "is this a human" and
-// this route already asks a HARDER question: `requireActiveApi` means an
-// account Ziad personally approved, and `requireSameOrigin` means the request
-// came from the site. A bot holding both is not stopped by a checkbox. The
-// import path is the one that earns it — it opens files strangers hand it and
-// writes them to disk against a quota — and it keeps its gate.
-//
-// Note the blast radius was narrower than it looked, which is why nobody hit
-// it: only CREATE was gated. The autosave `PUT /api/rides/:id` and the clone
-// never were, so an existing ride would have gone on saving.
-//
-// If a bot check is ever wanted here, the answer is rate limiting (#16), not a
-// widget: a token is single-use and expires in five minutes, so it cannot ride
-// on an autosave that fires every three seconds.
+// If a bot check is ever wanted here the answer is rate limiting (#16), not a
+// widget: a token is single-use and expires in five minutes, so it cannot ride on
+// an autosave that fires every three seconds.
 builderRoutes.post('/api/rides', requireActiveApi, requireSameOrigin, jsonLimit, async (c) => {
   const user = currentUser(c)
 
@@ -165,11 +150,9 @@ builderRoutes.post('/api/rides', requireActiveApi, requireSameOrigin, jsonLimit,
     // In the SAME transaction as the ride, so a ride never exists with an empty
     // roster — see seedOwner.
     await seedOwner(tx, ride.id, user.id)
-    // AND ITS MAIN GROUP, in the same transaction and for the same reason:
-    // every ride has at least one group, and the builder seeds that one
-    // CLIENT-SIDE — so a ride made by any other path arrived with none. It
-    // no-ops when the payload already brought one, which is why it is safe
-    // here whether insertRideGraph has already run or not.
+    // AND ITS MAIN GROUP, in the same transaction: every ride has at least one group
+    // and the builder seeds that one CLIENT-SIDE, so a ride made by any other path
+    // arrived with none. It no-ops when the payload already brought one.
     await seedMainGroup(tx, ride.id)
     return ride
   })
@@ -177,19 +160,13 @@ builderRoutes.post('/api/rides', requireActiveApi, requireSameOrigin, jsonLimit,
   return c.json({ id: created.id, slug: created.slug }, 201)
 })
 
-// Clone a public ride into the caller's account as a private draft.
+// Clone a public ride into the caller's account as a private draft, rebuilt
+// through the same insertRideGraph the builder's save uses.
 //
-// Reads the stored graph and rebuilds it through the same insertRideGraph the
-// builder's save uses, so a clone is a first-class native ride rather than a
-// second representation that drifts.
-//
-// Deliberately dropped:
-//   - descriptions, on the ride and on every stop. Those are the author's
-//     writing, and stop notes are where "gate code 4417, park behind the barn"
-//     lives. Copying them hands one rider's private notes to a stranger.
-//   - visibility. A clone lands private no matter what the original was; making
-//     it public is a decision the new owner takes deliberately.
-//   - via points, which are shaping for a route the cloner will now edit.
+// Deliberately dropped: descriptions, on the ride and on every stop — those are
+// the author's writing, and stop notes are where "gate code 4417" lives;
+// visibility, so a clone lands private whatever the original was; and via points,
+// which are shaping for a route the cloner will now edit.
 builderRoutes.post('/api/rides/:id/clone', requireActiveApi, requireSameOrigin, async (c) => {
   const user = currentUser(c)
   const id = Number(c.req.param('id'))
@@ -200,16 +177,10 @@ builderRoutes.post('/api/rides/:id/clone', requireActiveApi, requireSameOrigin, 
     .from(rides)
     .where(and(eq(rides.id, id), LIVE_RIDE))
     .limit(1)
-  // canClone, not `visibility === 'public'` written out. Two levels are
-  // clonable now — public, and friends by a friend — and which they are is
-  // src/access/policy.ts's call, shared with the button on the viewer page that
-  // offers this endpoint. A button and a gate that disagree is a Clone that
-  // 404s, or worse.
-  //
-  // The `source !== 'native'` half of the old test is gone and stays gone: it
-  // was there because an imported ride's graph could not be rebuilt into
-  // something the builder would open, which stopped being true when the import
-  // started splitting its track into real legs.
+  // canClone, not `visibility === 'public'` written out: two levels are clonable —
+  // public, and friends by a friend — and which they are is src/access/policy.ts's
+  // call, shared with the button on the viewer page. A button and a gate that
+  // disagree is a Clone that 404s.
   if (!src || !canClone(src, user, await grantsFor(src, user))) {
     return c.json({ error: 'not found' }, 404)
   }
@@ -234,29 +205,24 @@ builderRoutes.post('/api/rides/:id/clone', requireActiveApi, requireSameOrigin, 
       address: p.address,
       description: '',
       roles: p.roles,
-      // A clone gets FRESH identities and NO private details, and both halves of
-      // that are deliberate.
+      // A clone gets FRESH identities and NO private details.
       //
-      // `details: null` is a privacy boundary, not a tidiness choice. A public
-      // ride is clonable by anyone, and its author's confirmation numbers, gate
-      // codes and phone numbers are exactly what point_details exists to keep
-      // off a stranger's screen. Copying them here would hand them over wholesale
-      // — the one place a clone could leak what `ride.json` is careful not to.
+      // `details: null` is a privacy boundary: a public ride is clonable by anyone,
+      // and its author's confirmation numbers and gate codes are exactly what
+      // point_details exists to keep off a stranger's screen.
       //
-      // `uid: null` follows from it: the new ride mints its own, so nothing ties
-      // a cloned stop back to the original's details row.
+      // `uid: null` follows — the new ride mints its own, so nothing ties a cloned
+      // stop back to the original's details row.
       uid: null,
       details: null,
     })
 
     payloadRoutes.push({
-      // A clone has no subgroups: the cloner is one person taking a copy, and
-      // the original's approaches are about people who are not on their ride.
-      // The routes come across as everyone's, which is what a solo ride is.
+      // A clone has no subgroups: the cloner is one person taking a copy, and the
+      // original's approaches are about people who are not on their ride.
       subgroupUid: null,
-      // Fresh, exactly as a cloned point's is and for the same reason one level
-      // up: a clone must not inherit the original's votes, and alt_votes is
-      // keyed by route uid. Null lets insertRideGraph mint one.
+      // Fresh, as a cloned point's is: a clone must not inherit the original's votes,
+      // and alt_votes is keyed by route uid.
       uid: null,
       title: r.title,
       color: r.color,
@@ -264,25 +230,19 @@ builderRoutes.post('/api/rides/:id/clone', requireActiveApi, requireSameOrigin, 
       // rides it. The timeline re-derives from legs and stops either way.
       startAt: null,
       endAt: null,
-      // Kept, unlike the times and the via-points above. An alternate is part of
-      // what the author planned — "here are two ways to do Thursday" is the
-      // thing being cloned, not incidental state — and dropping it would both
-      // lose that and hand the clone a bigger mileage than the original, because
-      // the losing alternates would become ordinary routes.
+      // Kept, unlike the times and the via-points above. "Here are two ways to do
+      // Thursday" is the thing being cloned, and dropping it would hand the clone a
+      // bigger mileage than the original, the losing alternates becoming ordinary
+      // routes.
       altGroup: r.altGroup,
       altActive: r.altActive,
-      // Kept for the same reason the alternate is: what the author asked of the
-      // router is part of the plan being cloned, not incidental state. A route the
-      // author routed off the interstate becomes a route on it the moment this is
-      // dropped, and the clone's mileage would quietly disagree with the
-      // original's for a reason nothing on screen explains.
+      // Kept for the same reason the alternate is: a route the author routed off the
+      // interstate becomes a route on it the moment this is dropped, and the clone's
+      // mileage would quietly disagree with the original's.
       routePrefs: r.routePrefs,
-      // ONE ORDERED LIST, and the read above is already ordered by position,
-      // so the rider's own sequence clones intact. Both kinds carry a duration,
-      // so a clone keeps the POI dwell too — dropping it would quietly shorten
-      // every cloned route.
-      // slackMin comes across with the dwell: it is a property of the meeting
-      // point the author planned, not of who is riding to it.
+      // ONE ORDERED LIST, and the read above is already ordered by position. Both kinds
+      // carry a duration, so a clone keeps the POI dwell too. slackMin comes across
+      // with it: a property of the meeting point, not of who is riding to it.
       points: pts.map((p) => ({ ...point(p), kind: p.kind, durationMin: p.durationMin, slackMin: p.slackMin })),
       legs: legs.map((l) => ({
         geometry: l.geometry,
@@ -298,18 +258,14 @@ builderRoutes.post('/api/rides/:id/clone', requireActiveApi, requireSameOrigin, 
     description: '',
     visibility: 'private',
     external_url: '',
-    // NO SUBGROUPS ON A CLONE, and therefore no anchors either. A clone is one
-    // person taking a copy of a route; the original's approaches are about
-    // people who are not on their ride, and carrying them over would give the
-    // cloner a converge-and-split shape with nobody in any of the groups.
+    // NO SUBGROUPS ON A CLONE, and therefore no anchors either: carrying them over
+    // would give the cloner a converge-and-split shape with nobody in any group.
     subgroups: [],
     primarySubgroup: null,
     trunkSubgroup: null,
     stopByMin: null,
-    // The vehicle comes across (#321): a clone of a car trip is a car trip,
-    // and what the road was routed for is part of the plan the way routePrefs
-    // is. It is coerced on read, so a stored value the app no longer knows
-    // clones as null.
+    // The vehicle comes across (#321): a clone of a car trip is a car trip. Coerced
+    // on read, so a stored value the app no longer knows clones as null.
     vehicle: VEHICLES.includes(src.vehicle as never) ? (src.vehicle as RidePayload['vehicle']) : null,
     power: POWERS.includes(src.power as never) ? (src.power as RidePayload['power']) : null,
     timeAnchor: 'departure',
@@ -335,11 +291,9 @@ builderRoutes.post('/api/rides/:id/clone', requireActiveApi, requireSameOrigin, 
     // whoever took it, and copying the source's members would put a stranger on
     // a ride they were never invited to.
     await seedOwner(tx, ride.id, user.id)
-    // AND ITS MAIN GROUP, in the same transaction and for the same reason:
-    // every ride has at least one group, and the builder seeds that one
-    // CLIENT-SIDE — so a ride made by any other path arrived with none. It
-    // no-ops when the payload already brought one, which is why it is safe
-    // here whether insertRideGraph has already run or not.
+    // AND ITS MAIN GROUP, in the same transaction: every ride has at least one group
+    // and the builder seeds that one CLIENT-SIDE. It no-ops when the payload already
+    // brought one.
     await seedMainGroup(tx, ride.id)
     return ride
   })
@@ -348,39 +302,29 @@ builderRoutes.post('/api/rides/:id/clone', requireActiveApi, requireSameOrigin, 
   return c.json({ id: created.id, slug: created.slug }, 201)
 })
 
-// THIS CHURNS EVERY POINT AND DAY ID, ON PURPOSE, AND THE BUILDER NOW CALLS IT
-// CONSTANTLY. Decided 2026-08-15 while planning autosave (#89): the full replace
-// below deletes the ride's routes — cascading to points and legs — and re-inserts
-// them, so `points.id` and `routes.id` are different rows after every save. The
-// builder used to save when a rider pressed a button, perhaps a dozen times in a
-// session; it now flushes on idle, which is two orders of magnitude more often.
+// THIS CHURNS EVERY POINT AND ROUTE ID, ON PURPOSE, AND THE BUILDER CALLS IT
+// CONSTANTLY: the full replace below deletes the ride's routes — cascading to
+// points and legs — and re-inserts them, and the autosave flushes on idle.
 //
-// That is still safe TODAY for exactly one reason: nothing anywhere references a
-// point across a save. The client payload carries no ids, the exports rebuild
-// from the graph, and the roadbook reads it whole.
+// That is safe TODAY for exactly one reason: nothing anywhere references a point
+// across a save. The client payload carries no ids, the exports rebuild from the
+// graph, and the roadbook reads it whole.
 //
-// It stops being safe the moment anything does — rich stop details (#15), a
-// comment on a stop, a photo attached to one. **Any feature that needs a point
-// to keep its identity has to fix this first**, and the fix is not small: send
-// ids in the payload, diff here, and update in place, which rewrites
-// insertRideGraph, ridePayload and loadRidePayload — the path the native JSON
-// import shares. Do not add the reference and hope; the failure is silent and
-// looks like data that wandered off.
+// **Any feature that needs a point to keep its identity has to fix this first**,
+// and the fix is not small: send ids in the payload, diff here, and update in
+// place, which rewrites insertRideGraph, ridePayload and loadRidePayload. Do not
+// add the reference and hope; the failure is silent and looks like data that
+// wandered off.
 /**
  * The ride, plus the viewer's own roster row — what all three builder gates ask
  * about now that a ride is editable by somebody who does not own it.
  *
  * NOT `ownRide()`, which filters on `rides.owner_id` and is still correct for
- * every OWNER power: delete, clone, visibility, the roster. This one resolves the
- * ride first and asks the roster second, and the caller decides which rung it
- * needs.
+ * every OWNER power. This resolves the ride first and asks the roster second.
  *
- * **The owner's row is synthesized if it is somehow missing** rather than being
- * a second permission rule beside canEditAsMember(). seedOwner() runs inside the
- * transaction that inserts every ride and drizzle/0015 backfilled the rest, so
- * this should never fire — but the cost of the invariant being wrong once is an
- * owner locked out of their own ride, and repairing the INPUT keeps there being
- * exactly one answer to "who may edit this".
+ * **The owner's row is synthesized if it is somehow missing** rather than being a
+ * second permission rule beside canEditAsMember(). It should never fire, but the
+ * cost of the invariant being wrong once is an owner locked out of their own ride.
  */
 async function builderRide(
   userId: number,
@@ -394,18 +338,17 @@ async function builderRide(
     .where(and(eq(rides.id, id), LIVE_RIDE))
     .limit(1)
   if (!ride) return undefined
-  // ONE IMPLEMENTATION, shared with the viewer's builder link — see
-  // memberOrOwner. The synthesized owner row used to live here; two copies of it
-  // is how the link starts offering what this gate refuses.
+  // ONE IMPLEMENTATION, shared with the viewer's builder link — see memberOrOwner.
+  // Two copies of the synthesized owner row is how the link starts offering what
+  // this gate refuses.
   return { ride, member: await memberOrOwner(ride, userId) }
 }
 
 builderRoutes.put('/api/rides/:id', requireActiveApi, requireSameOrigin, jsonLimit, async (c) => {
   const user = currentUser(c)
   const found = await builderRide(user.id, c.req.param('id'))
-  // 404 rather than 403 for a rider who may see the ride but not write to it.
-  // A 403 confirms the ride exists to somebody holding a guessed id, and this
-  // endpoint is reachable by anyone signed in.
+  // 404 rather than 403 for a rider who may see the ride but not write to it: a 403
+  // confirms the ride exists to somebody holding a guessed id.
   if (!found || !canEditAsMember(found.member)) return c.json({ error: 'not found' }, 404)
   const { ride, member } = found
   const isOwner = canAdminister(member)
@@ -416,29 +359,20 @@ builderRoutes.put('/api/rides/:id', requireActiveApi, requireSameOrigin, jsonLim
   const p_rev = body.rev
   const p_base = body.base
 
-  // THE STALE-WRITE CHECK, AND IT HAS TO BE INSIDE THE TRANSACTION.
-  //
-  // Read-then-write outside one is the race it exists to close: two saves both
-  // read rev 7, both find it current, and both write. `for update` on the row
-  // makes the second wait for the first to commit and then see rev 8.
-  //
-  // A missing `rev` means unchecked — see revField. That is the expand/contract
-  // half of this, not an oversight.
+  // THE STALE-WRITE CHECK, AND IT HAS TO BE INSIDE THE TRANSACTION. Read-then-write
+  // outside one is the race it exists to close: two saves both read rev 7, both find
+  // it current, and both write. A missing `rev` means unchecked — see revField.
   const result = await db.transaction(async (tx) => {
     const [cur] = await tx.select({ rev: rides.rev }).from(rides).where(eq(rides.id, ride.id)).for('update')
     if (p_rev !== undefined && cur && cur.rev !== p_rev) return { stale: cur.rev }
 
-    // THE PER-DAY MERGE, AND THE ORDER OF THESE THREE STEPS IS THE WHOLE THING.
+    // THE PER-ROUTE MERGE, AND THE ORDER OF THESE THREE STEPS IS THE WHOLE THING.
+    // The merged set has to be complete BEFORE insertRideGraph runs, because that
+    // function reconciles votes, comments and point details against the uid set of
+    // the payload it is given — hand it one rider's partial route list and it deletes
+    // the other rider's votes and orphans their comments, silently.
     //
-    // The merged set has to be complete BEFORE insertRideGraph runs, because
-    // that function reconciles votes, comments and point details against the uid
-    // set of the payload it is given — reconcileVotes, demoteOrphanComments and
-    // writePointDetails all do. Hand it one rider's partial route list and it
-    // deletes the other rider's votes and orphans their comments, silently,
-    // with nothing raised anywhere.
-    //
-    // The lock above is what makes reading here safe: no second save can land
-    // between this select and the write below.
+    // The lock above is what makes reading here safe.
     let merge: MergeResult | null = null
     if (p_base !== undefined) {
       const storedRoutes = await tx
@@ -535,8 +469,8 @@ builderRoutes.put('/api/rides/:id', requireActiveApi, requireSameOrigin, jsonLim
     routes: result.after.filter((d) => d.hash !== null).map((d) => ({ uid: d.uid, hash: d.hash })),
   })
 
-  // routeBase goes straight back out so the builder can rebase without a reload.
-  // Without it the SECOND save of a session is based on hashes the first save
+  // routeBase goes straight back out so the builder can rebase without a reload:
+  // without it the SECOND save of a session is based on hashes the first save
   // invalidated, and every route reads as contested.
   return c.json({
     id: ride.id,
@@ -550,20 +484,17 @@ builderRoutes.put('/api/rides/:id', requireActiveApi, requireSameOrigin, jsonLim
   })
 })
 
-// Member load for the builder — the same shape PUT accepts, vias included.
-//
-// The gate is `view`, not `edit`: the read-only builder is what a view-, comment-
-// or suggest-level rider gets, and it loads through here like any other.
-// The route behind a change notice. `view` is the floor, like the ride GET it
-// borrows: a comment- or suggest-level rider watching a route change is exactly
-// who this is for.
+// Member load for the builder — the same shape PUT accepts, vias included. The
+// gate is `view`, not `edit`: the read-only builder is what a view-, comment- or
+// suggest-level rider gets.
+// The route behind a change notice, with `view` as the floor for the same reason.
 builderRoutes.get('/api/rides/:id/route/:uid', requireActiveApi, async (c) => {
   const user = currentUser(c)
   const found = await builderRide(user.id, c.req.param('id'))
   if (!found || !canViewAsMember(found.member)) return c.json({ error: 'not found' }, 404)
-  // detailsForViewer is owner-only and blind to visibility, so a non-owner's
-  // copy of this route carries no confirmation numbers — the same boundary the
-  // ride GET goes through, reached the same way rather than re-decided here.
+  // detailsForViewer is owner-only and blind to visibility, so a non-owner's copy
+  // of this route carries no confirmation numbers — the same boundary the ride GET
+  // goes through, reached the same way rather than re-decided here.
   const route = await loadRoutePayload(found.ride, user, c.req.param('uid'))
   if (!route) return c.json({ error: 'not found' }, 404)
   return c.json({ route })
@@ -577,23 +508,17 @@ builderRoutes.get('/api/rides/:id', requireActiveApi, async (c) => {
 })
 
 /**
- * ONE DAY, for a builder catching up on somebody else's save.
+ * ONE ROUTE, for a builder catching up on somebody else's save.
  *
- * A change notice carries a route uid and its new hash; this is what the client
- * fetches to act on it. A refetch of the whole ride would be the obvious
- * alternative and is not viable at editing speed: the body limit is 8 MB, the
- * ceilings are 31 routes and 400 points, and leg geometry dominates — so a save
- * every three seconds would move megabytes per notice, per watcher.
+ * A refetch of the whole ride is not viable at editing speed: the body limit is
+ * 8 MB, the ceilings are 31 routes and 400 points, and leg geometry dominates, so
+ * a save every three seconds would move megabytes per notice, per watcher.
+ * Broadcasting the route over SSE has the same problem and would put a rider's
+ * stop details into a channel every member is subscribed to.
  *
- * Broadcasting the route over SSE instead has the same problem pointed the other
- * way, and would put a rider's stop details into a channel every member of the
- * ride is subscribed to.
- *
- * Built by picking out of loadRidePayload rather than by a query of its own.
- * That is deliberate and costs a little work on a rare path: a second route
- * serializer would drift from the first, and the drift would surface as routes
- * quietly losing fields only when they arrive over the live channel — which is
- * the hardest possible place to notice it.
+ * Built by picking out of loadRidePayload rather than by a query of its own: a
+ * second route serializer would drift, and the drift would surface as routes
+ * quietly losing fields only when they arrive over the live channel.
  */
 export async function loadRoutePayload(ride: RideRow, viewer: { id: number } | null, uid: string) {
   const full = (await loadRidePayload(ride, viewer)) as { routes: Array<{ uid?: string }> }
@@ -603,13 +528,13 @@ export async function loadRoutePayload(ride: RideRow, viewer: { id: number } | n
 export async function loadRidePayload(ride: RideRow, viewer: { id: number } | null) {
   // NOT owner-only by construction any more. This used to reach detailsForOwner
   // directly, on the grounds that every caller arrived behind `ownRide()` — true
-  // until #190 let an `edit`-level member load the same payload, and false in a
-  // way that would have handed somebody else's confirmation numbers and gate
-  // codes to every collaborator on the ride.
+  // until #190 let an `edit`-level member load the same payload, and false in a way
+  // that would have handed somebody else's confirmation numbers to every
+  // collaborator.
   //
-  // detailsForViewer() is the boundary and it is owner-only and deliberately
-  // blind to visibility. A non-owner gets an empty map, which is why a non-owner
-  // save writes point_details in `preserve` mode — see the PUT above.
+  // detailsForViewer() is the boundary and is owner-only and blind to visibility. A
+  // non-owner gets an empty map, which is why a non-owner save writes point_details
+  // in `preserve` mode.
   const details = await detailsForViewer(ride.id, ride.ownerId, viewer)
   const routeRows = await db
     .select()
@@ -624,10 +549,9 @@ export async function loadRidePayload(ride: RideRow, viewer: { id: number } | nu
   const out = {
     id: ride.id,
     slug: ride.slug,
-    // OUT AND STRAIGHT BACK ON THE NEXT SAVE, like every uid in this payload,
-    // and the same class of failure if it is dropped: the PUT stops checking,
-    // silently, and two riders are back to overwriting each other with nothing
-    // raised on either screen.
+    // OUT AND STRAIGHT BACK ON THE NEXT SAVE, like every uid in this payload, and the
+    // same class of failure if it is dropped: the PUT stops checking, silently, and
+    // two riders are back to overwriting each other.
     rev: ride.rev,
     source: ride.source,
     title: ride.title,
@@ -650,47 +574,38 @@ export async function loadRidePayload(ride: RideRow, viewer: { id: number } | nu
       // Out and straight back, like the uid below. Omitting it is how a rider's
       // whole subgroup assignment survives until they reload and is then gone.
       subgroupUid: r.subgroupId ? (uidOf.get(r.subgroupId) ?? null) : null,
-      // The route's uid, out and straight back on the next save — exactly what
-      // the point comment below says about a stop's, and the same failure if it
-      // is omitted: the save mints a fresh one, uq_route_ride_uid is satisfied,
-      // and every vote cast on that alternate is reconciled away as belonging
-      // to a route that no longer exists. Nothing would raise anything.
+      // The route's uid, out and straight back on the next save. Omit it and the save
+      // mints a fresh one, uq_route_ride_uid is satisfied, and every vote cast on that
+      // alternate is reconciled away as belonging to a route that no longer exists.
       uid: r.uid,
-      // VERBATIM FROM THE COLUMN, NEVER RECOMPUTED HERE. routeRevision() runs in
-      // exactly one place — the write, in insertRideGraph — and this hands back
-      // what it stored. Recomputing would mean the write shape and this read
-      // shape had to stay identical field for field forever, and the first time
-      // they drifted every route would conflict with itself on every save, on
-      // rides nobody else had touched, with nothing to point at.
+      // VERBATIM FROM THE COLUMN, NEVER RECOMPUTED HERE. routeRevision() runs in one
+      // place — the write, in insertRideGraph — and this hands back what it stored.
+      // Recomputing would mean the write shape and this read shape had to stay
+      // identical forever, and the first drift would make every route conflict with
+      // itself on every save, with nothing to point at.
       //
-      // Null for a route written before the column existed. mergeRoutes() reads that
-      // as unknown and takes the client's version, which is what these rides did
-      // before any of this.
+      // Null for a route written before the column existed; mergeRoutes() reads that
+      // as unknown and takes the client's version.
       contentHash: r.contentHash,
       title: r.title,
       color: r.color,
       startAt: r.startAt?.toISOString() ?? null,
       endAt: r.endAt?.toISOString() ?? null,
-      // Omitting these is how a saved alternate grouping silently disappears on
-      // the next page load — the same trap the durationMin comment below names,
-      // and worse here because the ride's mileage would jump at the same time.
-      // This function names every field it carries; nothing is spread.
+      // Omitting these is how a saved alternate grouping silently disappears on the
+      // next page load, with the ride's mileage jumping at the same time. This
+      // function names every field it carries; nothing is spread.
       altGroup: r.altGroup,
       altActive: r.altActive,
-      // Same rule as the two above, and the same failure if it is omitted: the
-      // builder would send the next save back with no preference on the route and
-      // the router would put the rider straight back on the interstate they
-      // asked to avoid, silently, on a save they made for some other reason.
+      // Same rule as the two above: without it the builder would send the next save
+      // back with no preference and the router would put the rider straight back on
+      // the interstate they asked to avoid, on a save made for some other reason.
       routePrefs: r.routePrefs ?? null,
-      // uid and details go out here and are sent straight back by the next
-      // save. Omitting either is how a stop's confirmation number silently
-      // disappears: without the uid the save mints a new one and orphans the
-      // details row, and without the details the reconcile pass reads the stop
-      // as cleared and deletes it.
-      // ONE ORDERED LIST, in the rider's own order — the read above is ordered
-      // by position, which is now set for both kinds. The two arms this
-      // replaced were field-for-field identical apart from the filter, which is
-      // the clearest sign the split was never carrying its weight.
+      // uid and details go out here and are sent straight back by the next save.
+      // Omitting either is how a stop's confirmation number silently disappears:
+      // without the uid the save mints a new one and orphans the details row, and
+      // without the details the reconcile pass reads the stop as cleared.
+      // ONE ORDERED LIST, in the rider's own order — the read above is ordered by
+      // position, which is set for both kinds.
       points: pts.map((p) => ({
         kind: p.kind,
         lat: p.lat,
@@ -718,41 +633,35 @@ export async function loadRidePayload(ride: RideRow, viewer: { id: number } | nu
 // --- Builder pages ---------------------------------------------------------
 
 // The rider's saved home, but only if they asked for it and it geocoded. Gating
-// on the server rather than in builder.js is deliberate: the edit route below
-// never loads this, so an existing ride cannot grow a home stop on every save
-// even if the client logic were wrong.
+// on the server is deliberate: the edit route below never loads this, so an
+// existing ride cannot grow a home stop on every save even if the client logic
+// were wrong.
 async function homeSeed(userId: number): Promise<{ lat: number; lng: number; label: string } | null> {
   const [p] = await db
     .select({ lat: userProfiles.homeLat, lng: userProfiles.homeLng, label: userProfiles.homeLabel })
     .from(userProfiles)
     .where(and(eq(userProfiles.userId, userId), eq(userProfiles.addHomeToRides, true)))
     .limit(1)
-  // "Home" IS A FALLBACK RATHER THAN A STORED DEFAULT, exactly as
-  // builderPrefs() treats "Meeting point": a rider who clears the name goes back
-  // to it, instead of it being written into their profile as though they typed
-  // it. builder.js hardcoded the word until 2026-09-07, which was right for most
-  // riders and wrong for anyone whose home base is the shop.
+  // "Home" IS A FALLBACK RATHER THAN A STORED DEFAULT, exactly as builderPrefs()
+  // treats "Meeting point": a rider who clears the name goes back to it instead of
+  // it being written into their profile as though they typed it.
   return p?.lat != null && p?.lng != null ? { lat: p.lat, lng: p.lng, label: p.label?.trim() || 'Home' } : null
 }
 
-// Everything the builder needs off the rider's profile that is NOT the home
-// seed, in one read. Two things travel together here because they come off the
-// same row and the alternative was two round trips on the app's busiest page;
-// they are otherwise unrelated and the comments below are per field.
+// Everything the builder needs off the rider's profile that is NOT the home seed,
+// in one read — they come off the same row and the alternative was two round trips
+// on the app's busiest page.
 //
-//   publicStart — the public starting point, sent to every builder page rather
-//   than only the new-ride one: an existing ride can be made public at any time,
-//   and that is exactly when the swap is offered. Unlike homeSeed it is not
-//   gated on a preference — it is not seeding anything, only standing by in case
-//   a home-started ride is about to be shared.
+//   publicStart — sent to every builder page rather than only the new-ride one: an
+//   existing ride can be made public at any time, and that is when the swap is
+//   offered. Unlike homeSeed it is not gated on a preference.
 //
 //   durationFormat — how the stop duration field reads. Defaulted through
-//   toDurationFormat rather than trusted, because a rider with no profile row at
-//   all gets undefined here and every reader has to agree on what that means.
+//   toDurationFormat rather than trusted, because a rider with no profile row gets
+//   undefined here.
 //
-//   meetDivertMi — where the Groups tab's detour dial starts (#370). The
-//   rider's own number where they set one, the app's default otherwise, and
-//   clamped either way because the column carries no CHECK.
+//   meetDivertMi — where the Groups tab's detour dial starts (#370), clamped
+//   because the column carries no CHECK.
 type PublicStart = { lat: number; lng: number; label: string }
 type BuilderPrefs = {
   publicStart: PublicStart | null
@@ -794,10 +703,9 @@ builderRoutes.get('/builder', requireActive, async (c) => {
 builderRoutes.get('/builder/:id', requireActive, async (c) => {
   const user = currentUser(c)
   const found = await builderRide(user.id, c.req.param('id'))
-  // `view` is the floor, not `edit`. A member below `edit` gets the SAME PAGE
-  // with its writes turned off rather than a redirect to the viewer: comments
-  // and suggestions both hang off the row list and the stop details, so the
-  // viewer is a dead end and the redirect would only have to be built twice.
+  // `view` is the floor, not `edit`. A member below `edit` gets the SAME PAGE with
+  // its writes turned off rather than a redirect to the viewer: comments and
+  // suggestions both hang off the row list and the stop details.
   if (!found || !canViewAsMember(found.member)) return c.text('Not found', 404)
   const { ride, member } = found
   const [prefs, range] = await Promise.all([builderPrefs(user.id), groupRange(ride.id)])
@@ -845,73 +753,52 @@ function builderHtml(
   // Null-ranged by default so a caller that has not worked it out yet renders a
   // page with no fuel warning, rather than one claiming a range of zero.
   range: GroupRange = { miles: null, riderName: null, bikeLabel: null, unknown: 0, riders: 0, fuelType: null },
-  // The ride's own vehicle and power (#321), for the words on this page and
-  // for the two selects in the ride band. Null on a new ride, and null on
-  // either field means unset — the rider's own default.
+  // The ride's own vehicle and power (#321), for the words on this page and the two
+  // selects in the ride band. Null on either means unset — the rider's own default.
   vehicle: { vehicle: string | null; power: string | null } | null = null,
 ): string {
   // The route slider is a focus control, not a navigation one: every route stays
-  // drawn on the map at all times and the slider only changes which one is
-  // emphasized. Seeing the whole ride on one map is the product.
-  // Three bands, each naming the scope of what it holds: the ride, the route
-  // across all its routes, and the one route being edited. Before this the panel was
-  // a flat run of divs and nothing said whether a given control changed one route
-  // or the whole ride — the route scrubber sat next to the route's own color
-  // picker, and the ride timeline sat between two route-level blocks.
+  // drawn on the map at all times. Seeing the whole ride on one map is the product.
+  // Three bands, each naming the scope of what it holds: the ride, the route across
+  // all its routes, and the one route being edited. Before this the panel was a flat
+  // run of divs and nothing said whether a control changed one route or the whole
+  // ride.
   //
-  // THE RIDE TIMELINE IS NO LONGER IN HERE. It moved to a bar across the bottom
-  // edge of the map on 2026-08-15 — see rideTimeline() in src/views/layout.tsx
-  // and .map-timeline in style/_map.scss. What is left in the second ride band is
-  // the route scrubber alone, and the two are not the same control: the scrubber
+  // THE RIDE TIMELINE IS NO LONGER IN HERE — it is a bar across the bottom edge of
+  // the map, see rideTimeline(). The two are not the same control: the scrubber
   // picks which route you are EDITING and belongs beside the edit controls, the
-  // timeline moves through what you are LOOKING AT and belongs over the map.
-  // That split is what issue #93 asked for.
+  // timeline moves through what you are LOOKING AT and belongs over the map (#93).
   //
-  // THERE IS NO SAVE BUTTON, and no Discard either. The builder autosaves on
-  // idle — see the autosave block in public/js/builder.js for the timing and for
-  // the two conditions that hold a flush. What is left in .builder-actions is
-  // undo, redo, a status readout and the link to the public page.
+  // THERE IS NO SAVE BUTTON, and no Discard either — the builder autosaves on idle.
+  // What is left in .builder-actions is undo, redo, a status readout and the link to
+  // the public page.
   //
-  // Two details in that row are load-bearing rather than cosmetic, both serving
-  // the rule that nothing in the panel changes size as its value changes:
+  // Two details in that row are load-bearing, both serving the rule that nothing in
+  // the panel changes size as its value changes:
   //
-  //   #save-status is aria-hidden and #save-announce below it is the live
-  //   region. A polite region on the readout itself would say "Unsaved changes,
-  //   Saving, Saved" aloud on every edit burst — three announcements a minute
-  //   for something a sighted rider takes in peripherally. The live region
-  //   speaks only for an error or a blocked save, which are the states that
-  //   need acting on. Its width is fixed in _builder.scss for the same reason.
+  //   #save-status is aria-hidden and #save-announce below it is the live region. A
+  //   polite region on the readout would say "Unsaved changes, Saving, Saved" aloud
+  //   three times a minute; it speaks only for an error or a blocked save.
   //
   //   #view-link ships from first paint and is revealed by the first successful
-  //   save, using visibility rather than the hidden attribute. An element that
-  //   appeared would shove the status beside it, which is the exact jump this
-  //   whole epic is about.
-  // THREE TABS, and the ride's own fields above them. Adding riders and groups
-  // to a panel that was already the densest surface in the app turned it into a
-  // scroll: the route list, the subgroup editor and a link to the roster all
-  // stacked in one column, with the route you were editing pushed below the fold
-  // by a feature about people. Splitting it means only one of the three is ever
-  // paying for vertical space.
+  //   save, using visibility rather than the hidden attribute — an element that
+  //   appeared would shove the status beside it.
+  // THREE TABS, and the ride's own fields above them: the route list, the subgroup
+  // editor and the roster in one column pushed the route you were editing below the
+  // fold.
   //
-  // WHAT IS ABOVE THE STRIP BELONGS TO THE RIDE, not to any tab: the description
-  // and the visibility select. Putting them inside Routes would have said they
-  // were about the route, which visibility in particular is not — it is the
-  // single most consequential control in the panel and it governs the whole
-  // package. They cost every tab a couple of lines, which is the trade.
+  // WHAT IS ABOVE THE STRIP BELONGS TO THE RIDE, not to any tab: the description and
+  // the visibility select. Inside Routes they would read as being about the route,
+  // which visibility in particular is not.
   //
-  // DELETE IS BELOW THE PANELS, not above the strip with the other two ride-level
-  // controls and not in any tab. Same reasoning it has always had: a destructive
-  // control wants distance from the rows a pointer lives in, and directly under
-  // the ride's name is the least distance available.
+  // DELETE IS BELOW THE PANELS, not above the strip and not in any tab: a
+  // destructive control wants distance from the rows a pointer lives in.
   //
-  // The strip is buttons with role="tab", not links and not a <details> each.
-  // Links would need a URL per tab and the builder has one page with unsaved
-  // state in it; three disclosures would let a rider open all three and be back
-  // where they started. Roving tabindex, arrow keys and aria-selected are wired
-  // by initTabs() in builder.js — nothing here is decorative.
-  // The words for this page (#321): the ride's own pair over the rider's
-  // default. The two selects' "My default" option names the default so the
-  // rider can see what leaving them alone means.
+  // The strip is buttons with role="tab", not links and not a <details> each. Links
+  // would need a URL per tab and the builder has one page with unsaved state in it;
+  // three disclosures would let a rider open all three. Roving tabindex, arrow keys
+  // and aria-selected are wired by initTabs().
+  // The words for this page (#321): the ride's own pair over the rider's default.
   const words = wordsOf({ user, ride: vehicle })
 
   const tabs = `        <div class="panel-tabs" role="tablist" aria-label="Builder sections">
@@ -926,29 +813,19 @@ function builderHtml(
   // ROUTES. Everything that was in the panel about the road: the route list, the
   // select-mode action bar, and + Route.
   //
-  // THE SEARCH BOX THAT WAS ONCE HERE IS GONE, and its absence is the point.
-  // One field above the route list had to guess which route a searched address
-  // belonged to, and it guessed "whichever you touched last" — invisible until
-  // it is wrong, which is the moment you scroll to route 4, type an address and
-  // watch it land on route 2.
+  // THE SEARCH BOX THAT WAS ONCE HERE IS GONE, and its absence is the point. One
+  // field above the route list had to guess which route a searched address belonged
+  // to, and it guessed "whichever you touched last". Every route now ends in its own
+  // search row, which knows its route and says so; the results dropdown is created
+  // once on demand and moved to whichever row is asking.
   //
-  // Every route now ends in its own search row, built by addRowHtml() in
-  // builder.js, which knows its route and says so. The results dropdown is created
-  // once on demand and moved to whichever row is asking; it is not in this
-  // markup because no row owns it.
+  // EVERY ROUTE, ALL THE TIME. This was one #route-band showing whichever route a
+  // slider had selected; renderRoutes() fills #route-list with one .route-section
+  // per route instead. A fixed-height drawer has room to show the whole ride.
   //
-  // EVERY DAY, ALL THE TIME. This was one #route-band showing whichever route a
-  // slider at the bottom of the drawer had selected; the slider is gone and
-  // renderRoutes() in builder.js fills #route-list with one .route-section per route
-  // instead. A fixed-height drawer has room to show the whole ride, so hiding
-  // all but one of its routes was a constraint of the old floating panel rather
-  // than a decision.
-  //
-  // The per-route controls are CLASSES, not ids—there are N of each—and every
-  // section and row carries data-route. wireRoutes() delegates on the container and
-  // reads that attribute, which is also what keeps the existing edit handlers
-  // correct: touching anything inside a section makes that route active first, so
-  // editIndex() resolves to it.
+  // The per-route controls are CLASSES, not ids — there are N of each — and every
+  // section and row carries data-route. Touching anything inside a section makes
+  // that route active first, so editIndex() resolves to it.
   const routesTab = `        <div class="panel-tabpanel is-active" role="tabpanel" id="panel-routes" aria-labelledby="tab-routes" tabindex="0">
           <div class="tab-actions">
             ${faqLink('waypoint-poi-stop', 'the difference between a stop and a POI')}
@@ -965,16 +842,13 @@ function builderHtml(
           <p class="route-empty-hint" id="route-empty-hint" hidden>No routes yet.</p>
         </div>`
 
-  // GROUPS (#67). A named set of riders sharing an approach; a route belongs to
-  // one or to nobody, and nobody means everyone rides it.
+  // GROUPS (#67). A named set of riders sharing an approach; a route belongs to one
+  // or to nobody, and nobody means everyone rides it.
   //
-  // THIS WAS A COLLAPSED <details> AND IS NOW A TAB BODY. The disclosure existed
-  // so a solo ride would not pay a line of panel for a feature about groups —
-  // a tab costs that line whatever is inside it, so the argument has moved: what
-  // renderSubgroups() writes when there are none is a sentence explaining what a
-  // group is for, which is a better use of a tab nobody opened than an empty
-  // box. The count in the strip is what a solo rider reads instead, and it is
-  // empty until there is something to count.
+  // THIS WAS A COLLAPSED <details> AND IS NOW A TAB BODY. The disclosure existed so
+  // a solo ride would not pay a line of panel for a feature about groups — a tab
+  // costs that line whatever is inside it, so what renderSubgroups() writes when
+  // there are none is a sentence explaining what a group is for.
   const groupsTab = `        <div class="panel-tabpanel" role="tabpanel" id="panel-groups" aria-labelledby="tab-groups" tabindex="0" hidden>
           <div id="sg-body"></div>
           <div class="tab-actions">
@@ -1011,35 +885,23 @@ function builderHtml(
           <div class="sg-meet-out" id="sg-meet-out"></div>
         </div>`
 
-  // RIDERS. Who is coming, what they are bringing, and which approach they are
-  // on — filled by renderRiders() in builder.js from /api/rides/:id/riders.
+  // RIDERS. Who is coming, what they are bringing, and which approach they are on.
   //
-  // NOT A SECOND ROSTER PAGE. The two verbs that work in here are the two that
-  // are about the PLAN: assigning a rider to a subgroup, and taking somebody off
-  // the ride. RSVP, bike, invite and the vote are statements by a rider rather
-  // than decisions by the planner, and they stay on /m/:slug/riders, which is
-  // also the only rider surface a non-owner can reach at all. See the header of
-  // src/routes/roster.tsx.
+  // NOT A SECOND ROSTER PAGE. The two verbs that work in here are the two about the
+  // PLAN: assigning a rider to a subgroup, and taking somebody off the ride. RSVP,
+  // bike, invite and the vote are statements BY a rider and stay on /m/:slug/riders.
   //
-  // EMPTY UNTIL THE RIDE HAS BEEN SAVED ONCE, because until then there is no
-  // ride row and so no roster — seedOwner() runs inside the transaction that
-  // inserts the ride, so the moment there IS one it has the owner on it and this
-  // is never empty again. The autosave makes that a few seconds on a new ride,
-  // which is why the placeholder says "once it saves" rather than asking the
-  // rider to do something.
+  // EMPTY UNTIL THE RIDE HAS BEEN SAVED ONCE, because until then there is no ride
+  // row and so no roster. The autosave makes that a few seconds, which is why the
+  // placeholder says "once it saves".
   const ridersTab = `        <div class="panel-tabpanel" role="tabpanel" id="panel-riders" aria-labelledby="tab-riders" tabindex="0" hidden>
           <div id="riders-body"></div>
         </div>`
 
-  // WHAT THIS RIDER MAY DO, said once at the top of the panel.
-  //
-  // Only for somebody who is not the owner. An owner does not need telling they
-  // own the ride, and a line saying so on every builder load is a line every
-  // rider reads once and then stops seeing — which is how a banner that DOES
-  // matter gets missed.
-  //
-  // It names the rider's OWN rung and nobody else's. A rung is administration
-  // and belongs to the owner; see canSeePerms in src/members/policy.ts.
+  // WHAT THIS RIDER MAY DO, said once at the top of the panel, and only for somebody
+  // who is not the owner: a line saying you own your own ride is one every rider
+  // reads once and then stops seeing, which is how a banner that DOES matter gets
+  // missed. It names the rider's OWN rung and nobody else's.
   const standingBanner = standing.isOwner
     ? ''
     : `        <div class="builder-standing">
@@ -1156,9 +1018,8 @@ ${
             </p>
             <ul class="builder-export-list">
               ${
-                // Labeled explicitly rather than by uppercasing the path
-                // segment: that produced "GEOJSON", which is not how the format
-                // writes its own name and reads as shouting beside GPX.
+                // Labeled explicitly rather than by uppercasing the path segment,
+                // which produced "GEOJSON".
                 (
                   [
                     ['gpx', 'GPX'],
@@ -1209,46 +1070,30 @@ ${
           <button id="recover-no" class="linkbtn" type="button">Discard</button>
         </div>`
 
-  // THE RIDE'S NAME IS THE HEADING. It used to say "Edit ride" on the most
-  // prominent line in the panel and put the actual name in an input below it,
-  // spending the largest type in the app on a label the rider already knew — and
-  // on a new ride there was no heading at all, so a collapsed panel showed
-  // nothing. The viewer has always titled itself with the ride's name; this is
-  // the builder catching up, with the difference that its copy is editable.
+  // THE RIDE'S NAME IS THE HEADING. It used to say "Edit ride" on the most prominent
+  // line in the panel and put the actual name in an input below it, and on a new
+  // ride there was no heading at all.
   //
-  // The input IS the heading rather than something a pencil reveals. A reveal
-  // would be a second mode and a layout jump, which is the exact thing item 16
-  // exists to remove; instead the field is styled as the heading, carries no
-  // border until it is hovered or focused, and shows the pencil as an affordance.
-  // Nothing moves when it is edited.
+  // The input IS the heading rather than something a pencil reveals: a reveal would
+  // be a second mode and a layout jump. The field is styled as the heading, carries
+  // no border until hovered or focused, and shows the pencil as an affordance.
   //
-  // The summary line follows it, out of the band below both sliders where it
-  // used to sit. Both are outside .panel-contents-wrapper, so they stay put while
-  // the stop list scrolls — renderTotals() writes #totals by id and did not care
-  // that it moved.
+  // IT IS A TEXTAREA, NOT A TEXT INPUT, and that is the only way to have it wrap: an
+  // <input> will ellipsize a long name but never break one onto a second line.
   //
-  // IT IS A TEXTAREA, NOT A TEXT INPUT, and that is the only way to have it wrap.
-  // An <input> is a single-line replaced element by definition: it will ellipsize
-  // a long name but it will never break one onto a second line, so a rider naming
-  // a ride "Big Sur and back the inland way" saw about half of it. The heading
-  // came down 25% at the same time and now runs to two lines before it truncates.
-  //
-  // Being a textarea costs three things, all handled in builder.js: Enter has to
-  // be swallowed or it puts a newline in a ride's name, pasted newlines have to be
-  // flattened, and the height has to be set from scrollHeight on every edit since
-  // a textarea does not size itself. `rows="1"` is the floor that fitTitle()
-  // grows from; the two-line ceiling is a max-height in _builder.scss.
+  // Being a textarea costs three things, all handled in builder.js: Enter has to be
+  // swallowed, pasted newlines flattened, and the height set from scrollHeight on
+  // every edit. `rows="1"` is the floor fitTitle() grows from; the two-line ceiling
+  // is a max-height in _builder.scss.
   const titleHtml = `<textarea id="ride-title" name="title" maxlength="150" rows="1" wrap="soft"
              placeholder="${rideId ? 'Untitled ride' : `Plan ${aWd(words, 'journey')}`}" autocomplete="off" spellcheck="false"
              aria-label="${Wd(words, 'journey')} name" data-tip="ride-name" title="${Wd(words, 'journey')} name—click to edit"></textarea>
           <div class="totals" id="totals"></div>`
 
-  // PINNED TO THE DRAWER'S BOTTOM EDGE, not scrolled with the route list.
-  // It was `position: sticky; bottom: 0` inside .panel-contents-wrapper, which
-  // is close but not the same thing: a sticky element still belongs to the
-  // scroller, so it sat above the scrollbar and shifted with the list's own
-  // padding. As the drawer's footer it is a sibling of the scroller and cannot
-  // move at all.
+  // PINNED TO THE DRAWER'S BOTTOM EDGE, not scrolled with the route list. It was
+  // `position: sticky; bottom: 0` inside .panel-contents-wrapper, so it sat above
+  // the scrollbar and shifted with the list's own padding. As the drawer's footer it
+  // is a sibling of the scroller and cannot move.
   const builderActions = `<div class="builder-actions">
           <!-- TWO DRAWN FILES, not one mirrored with scaleX(-1), which is what
                this was until 2026-08-16. The argument for mirroring was that a
@@ -1319,9 +1164,8 @@ ${
       roles: ROLE_META,
       routeColors: ROUTE_COLORS,
       rideId,
-      // For the Riders tab's link to the roster page. Null on a new ride, which
-      // has no slug yet — showViewLink() in builder.js fills it in on the first
-      // successful save, the same moment the View link is revealed.
+      // For the Riders tab's link to the roster page. Null on a new ride, which has no
+      // slug yet — showViewLink() fills it in on the first successful save.
       slug,
       home,
       publicStart: prefs.publicStart,

@@ -1,15 +1,12 @@
-// Shared Google Maps helpers for the routeloop viewer and builder.
-// Ports the hard-won behavior of the legacy Google Maps viewer (main.js):
-// per-route colored tracks with direction arrows, role-icon markers tinted via
+// Shared Google Maps helpers for the routeloop viewer and builder: per-route
+// colored tracks with direction arrows, role-icon markers tinted via
 // currentColor, and the waypoint tooltip with its mileage columns.
 //
-// Expects window.TB = { gmapsKey, mapId, roles, ... } injected by the page shell
-// and the Maps bootstrap loader (which defines google.maps.importLibrary) to
-// have run. Exposes window.TBMap.
+// Expects window.TB = { gmapsKey, mapId, roles, ... } from the page shell and the
+// Maps bootstrap loader to have run. Exposes window.TBMap.
 //
-// This file is the ONLY one that touches google.maps. The viewer and the builder
-// go through the handles returned here — that boundary is what made replacing
-// Mapbox a rewrite of one file instead of three.
+// This file is the ONLY one that touches google.maps. That boundary is what made
+// replacing Mapbox a rewrite of one file instead of three.
 (function () {
   "use strict";
 
@@ -661,15 +658,12 @@
   // hazard tape rather than a road.
   //
   // WHY NOT DASH THE RED ITSELF. That was tried and reported as "dashed AND
-  // solid underneath", and the report was right: a route is drawn as ONE polyline
-  // (see route-shape.js and the note in AGENTS.md), so there is no way to blank
-  // the span of it the stretch covers. Gapping the red just let the route's own
-  // color through, and the eye read the continuous line beneath rather than the
-  // gaps. Painting over it opaquely is the only way to make the road look
-  // closed, so the dashes go ON the red instead of being made of it.
-  //
-  // White, not the route's color: the whole point is that the route's line has been
-  // covered, and tinting the dashes with it would put it straight back.
+  // solid underneath", and the report was right: a route is drawn as ONE polyline,
+    // so there is no way to blank the span of it the stretch covers — gapping the red
+    // just let the route's own color through. Painting over it opaquely is the only
+    // way to make the road look closed, so the dashes go ON the red rather than being
+    // made of it, and they are white: tinting them with the route's color would put
+    // back the thing being covered.
   function dryDashes() {
     return [
       {
@@ -695,15 +689,11 @@
       dot.className = "tb-moment-dot";
       m = {
         dot: new Marker.AdvancedMarkerElement({ map, content: dot, zIndex: 6 }),
-        // THE FILL ONLY, and a Polygon rather than a Circle. Circle cannot draw
-        // a dashed or dotted edge — it has strokeWeight, strokeColor and
-        // strokeOpacity and nothing else — so the edge is the polyline below,
-        // which carries repeating icons the way a ghosted route does. Once the
-        // edge is a path, the fill may as well take the same one: two overlays
-        // built from one array cannot disagree about where the ring is.
-        //
-        // Below the route lines, so a ring drawn over a route never obscures the
-        // road it is a statement about.
+        // THE FILL ONLY, and a Polygon rather than a Circle: Circle cannot draw a
+        // dashed edge, so the edge is the polyline below and the fill may as well
+        // take the same path — two overlays built from one array cannot disagree
+        // about where the ring is. Below the route lines, so a ring never obscures
+        // the road it is a statement about.
         circle: new Maps.Polygon({
           map,
           zIndex: 1,
@@ -724,21 +714,17 @@
           // same mechanism dashIcons() uses. See ringDots().
           strokeOpacity: 0,
         }),
-        // A POOL, not one marker. There is a wall for every tankful the route
-        // needs (#220), so a 700-mile route with no pumps draws six or seven.
-        // Grown on demand by wallMarkers() and never shrunk — the spares are
-        // detached rather than destroyed, because a rider scrubbing back and
-        // forth would otherwise rebuild them on every frame.
+        // A POOL, not one marker: there is a wall for every tankful the route needs
+        // (#220). Grown on demand and never shrunk — the spares are detached rather
+        // than destroyed, because a rider scrubbing back and forth would otherwise
+        // rebuild them on every frame.
         targets: [],
         // THE STRETCH THE RIDER CANNOT MAKE, from the wall to the next pump.
         //
-        // 3.5 is deliberate and not a mistake. The leg highlight is 3 and the
-        // drag preview is 4, and this has to sit between them: above the
-        // highlight, because a rider who scrubs INTO the dry stretch would
-        // otherwise have the bright route-colored highlight paint over the one
-        // thing on screen telling them they cannot ride it; and below the drag
-        // preview, which is the line following their pointer and must never be
-        // obscured while they are holding it.
+        // 3.5 is deliberate: the leg highlight is 3 and the drag preview is 4, and
+        // this has to sit between them — above the highlight, or a rider scrubbing
+        // INTO the dry stretch has it painted over by the bright route color, and
+        // below the preview, which follows their pointer.
         stretch: new Maps.Polyline({
           map,
           // Opaque, unlike dashIcons()' host line: here the stroke is the red
@@ -757,24 +743,16 @@
   }
 
   // WHERE THE TANK RUNS OUT: a red disc with a white E on it, for empty.
-  //
-  // NOT A NO-ENTRY SIGN, which is what it was for one build. A red disc with a
-  // white BAR is the international sign for a road CLOSURE, and this is not one
-  // — the road is open, the rider simply has no fuel to reach it on. Ziad's
-  // call, 2026-08-31. The letter is what tells the two apart without a legend.
-  //
-  // IT DOES NOT ROTATE, and that is the whole reason it replaced a bar laid
-  // perpendicular to the road. The bar's angle was correct and still looked
-  // wrong: a route heading broadly north runs genuinely east-west for a mile
-  // here and there, so a wall landing on one of those stretches stood vertical
-  // against a northbound ride. Smoothing the heading over a wider chord was
-  // measured and trades one wrongness for another — on route 2 of ride 32 a
-  // five-mile window fixed the wall at mile 291 and broke the ones at 181 and
-  // 621, where the bar would then visibly not be square to the road in front of
-  // it. A sign is meant to be read upright, so it has no angle to get wrong.
-  //
-  // The `<i>` carries the letter rather than the disc carrying it as text, so
-  // the two can be sized and positioned independently.
+    //
+    // NOT A NO-ENTRY SIGN, which is what it was for one build: a red disc with a
+    // white BAR is the international sign for a road CLOSURE, and this is not one —
+    // the road is open, the rider has no fuel to reach it on.
+    //
+    // IT DOES NOT ROTATE, which is why it replaced a bar laid perpendicular to the
+    // road. The bar's angle was correct and still looked wrong: a route heading
+    // broadly north runs east-west for a mile here and there. Smoothing the heading
+    // over a wider chord was measured and trades one wrongness for another. A sign is
+    // meant to be read upright, so it has no angle to get wrong.
   /** The i-th wall marker, created on first use. */
   function wallMarker(m, map, i) {
     if (!m.targets[i]) {
@@ -782,11 +760,10 @@
         map,
         content: targetEl(),
         zIndex: 5,
-        // NOT gmpClickable. It would make the marker reachable, and it also
-        // exposes <gmp-advanced-marker> as a BUTTON — a control a screen reader
-        // announces and a keyboard can activate, which here does nothing at
-        // all. `pointer-events: auto` on the disc is enough on its own: Google
-        // sets `none` on the container, and a descendant may re-enable it.
+        // NOT gmpClickable. It would make the marker reachable and also expose
+        // <gmp-advanced-marker> as a BUTTON, which here does nothing at all.
+        // `pointer-events: auto` on the disc is enough: Google sets `none` on the
+        // container, and a descendant may re-enable it.
       });
     }
     return m.targets[i];
@@ -800,30 +777,22 @@
   function targetEl() {
     const el = document.createElement("div");
     el.className = "tb-moment-target";
-    // THE DISC IS A REAL CHILD, NOT A PSEUDO-ELEMENT. The wrapper has to stay
-    // 0x0 — AdvancedMarkerElement anchors its content at bottom-center, so a
-    // sized wrapper drifts off the point, the same rule .tb-marker follows — but
-    // a 0x0 box is not a hover target and not something an accessibility tree
-    // treats as visible. The child carries the size, the letter, the name, and
-    // the hover.
+    // THE DISC IS A REAL CHILD, NOT A PSEUDO-ELEMENT. The wrapper has to stay 0x0 —
+    // AdvancedMarkerElement anchors its content at bottom-center — but a 0x0 box is
+    // not a hover target and not something an accessibility tree treats as visible.
     const glyph = document.createElement("i");
     glyph.className = "tb-moment-disc";
     glyph.textContent = "E";
     glyph.setAttribute("role", "img");
-    // What the app calls things (#321): "runs dry" or "goes flat", in the
-    // words of the ride on screen. Falls back to the motorcycle's when vocab.js
-    // is absent, which is what the label always said.
+    // What the app calls things (#321): "runs dry" or "goes flat", in the words of
+    // the ride on screen.
     glyph.setAttribute("aria-label", cap((window.TBVocab ? window.TBVocab.w("dry") : "runs dry") + " here"));
     el.appendChild(glyph);
-    // A TOOLTIP OF OUR OWN, NOT `title`. The native one waits about a second,
-    // renders in the OS style at the pointer, and cannot be styled — on a map
-    // that is slow enough to miss and quiet enough to ignore. This one is CSS
-    // on hover, so it appears instantly and reads as part of the map.
-    //
-    // It is why `.tb-moment-target` takes pointer events where `.tb-moment-dot`
-    // does not: the disc has to be hoverable. The cost is six small dead spots
-    // for drag-to-shape, one per wall, which is the same cost every other
-    // marker on the map already imposes.
+    // A TOOLTIP OF OUR OWN, NOT `title`: the native one waits about a second, renders
+        // in the OS style at the pointer, and cannot be styled. This one is CSS on hover.
+        //
+        // It is why `.tb-moment-target` takes pointer events where `.tb-moment-dot` does
+        // not. The cost is six small dead spots for drag-to-shape, one per wall.
     const tip = document.createElement("span");
     tip.className = "tb-moment-tip";
     tip.textContent = "Empty";
@@ -835,24 +804,19 @@
   }
 
   /**
-   * Draw the moment, or clear it with a null `at`.
-   *
-   * `at` is [lng, lat]; `dryWalls` is one [lng, lat] per point the tank runs
-   * out, in order; `ringPath` is the fuel ring's own closed path;
-   * `dryPath` is the stretch from the first wall to the next pump. All of it is
-   * computed by the caller — this file draws and decides nothing, which is why
-   * the ring arrives as a path rather than as a radius.
-   *
-   * THREE THINGS THAT MOVE TOGETHER, which is why they are one function rather
-   * than three setters: a ring left behind around a dot that has moved on is a
-   * claim about nowhere.
-   *
-   * A NULL RADIUS STILL DRAWS THE DOT. Where the rider would be does not depend
-   * on whether anything is known about their tank, and a bike with no range on
-   * file is the common case rather than the edge one. A radius of ZERO also
-   * draws no ring, and it is a different fact — the tank is empty rather than
-   * unmeasured — which is why range-circle.js keeps the two apart.
-   */
+      * Draw the moment, or clear it with a null `at`.
+      *
+      * `at` is [lng, lat]; `dryWalls` is one per point the tank runs out; `ringPath`
+      * is the fuel ring's closed path; `dryPath` is the stretch from the first wall to
+      * the next pump. All of it is computed by the caller — this file draws and decides
+      * nothing, which is why the ring arrives as a path rather than a radius.
+      *
+      * THREE THINGS THAT MOVE TOGETHER, which is why they are one function: a ring
+      * left behind around a dot that has moved on is a claim about nowhere.
+      *
+      * A NULL RADIUS STILL DRAWS THE DOT — a bike with no range on file is the common
+      * case. A radius of ZERO also draws no ring and is a different fact.
+      */
   function setMomentOverlay(map, at, dryWalls, ringPath, dryPath, ringTone) {
     const m = momentOf(map);
     if (!at) {
@@ -868,10 +832,8 @@
 
     if (ringPath && ringPath.length > 2) {
       const path = ringPath.map(toLatLng);
-      // Both re-read on every paint rather than being set once at construction:
-      // the tone changes as the tank drains, and the two halves of the ring have
-      // to change together or the dotted edge and the wash disagree about how
-      // much fuel is left.
+      // Both re-read on every paint rather than set once: the tone changes as the tank
+      // drains, and the two halves of the ring have to change together.
       const tone = RING(ringTone);
       m.circle.setOptions({ fillColor: tone });
       m.circle.setPath(path);
@@ -884,10 +846,9 @@
       m.ringLine.setVisible(false);
     }
 
-    // Independent of the ring, and drawn whenever the route holds one. The ring
-    // is how much fuel is left as the crow flies; this is where that runs out
-    // on the road the rider is actually on, and the gap between them is the
-    // cost of the bends.
+    // Independent of the ring, and drawn whenever the route holds one. The ring is
+    // how much fuel is left as the crow flies; this is where that runs out on the
+    // road the rider is actually on.
     // ONE SIGN PER WALL, and no angle to compute — see targetEl().
     const walls = dryWalls || [];
     walls.forEach((w, i) => {
@@ -912,16 +873,14 @@
   // --- Drag to shape --------------------------------------------------------
 
   // Pulling the route line onto the road the rider actually meant.
-  //
-  // Google's own `editable: true` is the obvious answer and the wrong one: a
-  // routed leg is thousands of shape points, so it would hand back thousands of
-  // drag handles, and dragging one edits geometry that the next re-route throws
-  // away. What a rider wants is to grab the line anywhere and leave ONE shaping
-  // point behind. So the gesture is built by hand.
-  //
-  // The drag is tracked on the map rather than the polyline because the pointer
-  // leaves the line the instant it moves — that is the whole point of the
-  // gesture.
+    //
+    // Google's own `editable: true` is the obvious answer and the wrong one: a routed
+    // leg is thousands of shape points, so it would hand back thousands of drag
+    // handles, and dragging one edits geometry the next re-route throws away. What a
+    // rider wants is to grab the line anywhere and leave ONE shaping point behind.
+    //
+    // The drag is tracked on the map rather than the polyline because the pointer
+    // leaves the line the instant it moves.
   const shapeDrags = new WeakMap(); // map -> { preview, handler, active }
 
   function previewOf(map, state) {
@@ -941,11 +900,9 @@
   }
 
   // handler({ id, vertexIndex, edgeForward, lngLat }) fires once, on drop.
-  //
   // `edgeForward` says the rider grabbed the segment leaving the nearest vertex
-  // rather than the one arriving at it. Consecutive legs share their joint
-  // vertex, so on a joint that flag is the only thing that says which leg was
-  // meant.
+  // rather than the one arriving at it: consecutive legs share their joint vertex,
+  // so on a joint that flag is the only thing that says which leg was meant.
   function onRouteShapeDrag(map, handler) {
     requireInit("onRouteShapeDrag");
     const state = shapeDrags.get(map) || {};
@@ -1049,40 +1006,34 @@
   // change when the engine did. They go through these four functions now.
 
   // THE MARKER Z-SCALE, WRITTEN DOWN IN ONE PLACE BECAUSE IT IS NOT ONE.
-  //
-  // Polylines never compete with markers — Google draws them in a lower pane —
-  // so the 0..4 values elsewhere in this file order the ROUTE against itself and
-  // have nothing to do with these. What follows is the marker order, low to
-  // high:
-  //
-  //   MARKER_Z        stops and POIs — the ride's own furniture
-  //   5               the fuel walls and the bedtime marks: warnings ABOUT the
-  //                   route, which must not be hidden behind a pin sitting on it
-  //   6               the moment dot — where the rider is right now
-  //   PREVIEW_Z       search results and meeting-point candidates
-  //
-  // **AN UNSET zIndex IS NOT A LOW ONE, AND THAT WAS THE BUG.** This function
-  // set none at all until 2026-09-06, so every stop and POI fell out of the
-  // scale into Google's default ordering, which places a marker by its VERTICAL
-  // POSITION — further south draws in front. So an ordinary gas-station pin
-  // covered a meeting-point candidate at zIndex 6, and whether it did depended
-  // on which of the two happened to be further down the screen. Reported as
-  // "number 3 is behind a gas station icon so I can't hover on it", and the
-  // positional part is the tell: it hid the dot and it took the POINTER with it,
-  // because for an advanced marker the DOM order follows the z-order.
-  //
-  // Give a new marker a number from this list rather than leaving it unset. An
-  // unset one is not neutral — it outranks things unpredictably.
+    //
+    // Polylines never compete with markers — Google draws them in a lower pane — so
+    // the 0..4 values elsewhere in this file order the ROUTE against itself. The
+    // marker order, low to high:
+    //
+    //   MARKER_Z        stops and POIs — the ride's own furniture
+    //   5               the fuel walls and bedtime marks: warnings ABOUT the route,
+    //                   which must not hide behind a pin sitting on it
+    //   6               the moment dot
+    //   PREVIEW_Z       search results and meeting-point candidates
+    //
+    // **AN UNSET zIndex IS NOT A LOW ONE, AND THAT WAS THE BUG.** This set none at
+    // all until 2026-09-06, so every stop and POI fell into Google's default ordering,
+    // which places a marker by its VERTICAL POSITION. A gas-station pin covered a
+    // meeting-point candidate at zIndex 6 depending on which was further down the
+    // screen — and it took the POINTER with it, because for an advanced marker the
+    // DOM order follows the z-order.
+    //
+    // Give a new marker a number from this list rather than leaving it unset.
   const MARKER_Z = 4;
   const PREVIEW_Z = 7;
 
   function addMarker(map, lngLat, element, opts) {
     requireInit("addMarker");
     const o = opts || {};
-    // A pin carries its route's color as `style.color` (markerElement); on dark
-    // tiles it takes the same lift the line took, so the two agree. Read back
-    // as rgb() by the style object, which route-ink.js reads as readily as a
-    // hex. Untouched on light tiles and for a pin that set no color.
+    // A pin carries its route's color as `style.color`; on dark tiles it takes the
+    // same lift the line took, so the two agree. Read back as rgb(), which
+    // route-ink.js reads as readily as a hex.
     if (element && element.style && element.style.color) element.style.color = inkFor(map, element.style.color);
     return new Marker.AdvancedMarkerElement({
       map,
@@ -1105,15 +1056,14 @@
 
   // --- Place search ---------------------------------------------------------
 
-  // Replaces Mapbox Geocoding v6 forward search. The move was not optional once
-  // the map became Google: each provider's terms tie their search results to
-  // their own basemap, so a Mapbox geocode rendered on a Google map breaks the
-  // one and Google Places on a Mapbox map breaks the other.
+  // Replaces Mapbox Geocoding v6 forward search. The move was not optional once the
+  // map became Google: each provider's terms tie their search results to their own
+  // basemap.
   let Places = null;
 
-  // Autocomplete keystrokes and the details lookup that resolves the pick are
-  // billed as one session when they share a token. The token is retired after
-  // each resolved pick — reusing it would merge unrelated searches.
+  // Autocomplete keystrokes and the details lookup that resolves the pick are billed
+  // as one session when they share a token. The token is retired after each resolved
+  // pick — reusing it would merge unrelated searches.
   let sessionToken = null;
 
   async function placesLib() {
@@ -1122,27 +1072,20 @@
   }
 
   /**
-   * RESTRICTED TO WHAT IS ON SCREEN. Ziad's call, 2026-08-31.
-   *
-   * It was a bias until then, on the recorded reasoning that "a rider planning
-   * from home still wants to find the far end of the ride" — which is true and
-   * is not what a bias delivers. A bias only reorders: the list still fills
-   * with a Shell in Ohio while the rider is looking at Oregon, and by a long
-   * way the common act is adding a point to the stretch of road on screen.
-   *
-   * A FALLBACK TO THE BIASED SEARCH WAS TRIED AND REMOVED THE SAME HOUR, and it
-   * is recorded because it reads as obviously kind and is not. Retrying
-   * unrestricted whenever the viewport had nothing turned "no matches here"
-   * into a list from three states away: zoomed into the Bay Area, "shell"
-   * returned Shelley ID, Shell Lake WI and Shell Knob MO. It served a specific
-   * name like "Dunsmuir Lodge" well and a generic word terribly, and telling
-   * those apart needs a guess about what the rider meant.
-   *
-   * So the rule is plain and the empty case SAYS SO rather than being papered
-   * over — the caller names the viewport in its no-matches line, which makes
-   * zooming out the obvious next move. That is how the far end of the ride
-   * stays reachable: one gesture, and the rider is the one who chose it.
-   */
+      * RESTRICTED TO WHAT IS ON SCREEN.
+      *
+      * It was a bias until 2026-08-31, on the reasoning that "a rider planning from
+      * home still wants to find the far end of the ride" — true, and not what a bias
+      * delivers: a bias only reorders, so the list still fills with a Shell in Ohio
+      * while the rider is looking at Oregon.
+      *
+      * A FALLBACK TO THE BIASED SEARCH WAS TRIED AND REMOVED THE SAME HOUR, recorded
+      * because it reads as obviously kind and is not: zoomed into the Bay Area,
+      * "shell" returned Shelley ID, Shell Lake WI and Shell Knob MO.
+      *
+      * So the rule is plain and the empty case SAYS SO — the caller names the viewport
+      * in its no-matches line, which makes zooming out the obvious next move.
+      */
   async function searchPlaces(map, input) {
     const { AutocompleteSuggestion, AutocompleteSessionToken } = await placesLib();
     if (!sessionToken) sessionToken = new AutocompleteSessionToken();
@@ -1164,10 +1107,9 @@
         // chosen — Place Details is billed per call, autocomplete is not.
         resolve: async () => {
           const place = prediction.toPlace();
-          // `formattedAddress` rides along with no change to what this costs:
-          // Place Details is billed by the highest field tier requested, and it
-          // sits in the same Pro tier `displayName` already puts this call in.
-          // It is what the popup prints under the name — see points.address.
+          // `formattedAddress` rides along with no change to what this costs: Place
+          // Details is billed by the highest field tier requested, and it sits in the
+          // same Pro tier `displayName` already puts this call in.
           await place.fetchFields({ fields: ["displayName", "location", "formattedAddress"] });
           sessionToken = null;
           if (!place.location) return null;
@@ -1310,11 +1252,10 @@
       "<div class='waypoint-tooltip-name'>" +
       esc(point.name || "") +
       "</div>" +
-      // WHERE THE SPOT IS, IN WORDS, AND IT IS PUBLIC. A popup naming "Shell"
-      // says nothing a rider can navigate by — Bakersfield has several — so the
-      // address Google gave when the point was added rides in ride.json for
-      // every viewer. Null for a point dropped on the map: nothing geocodes one
-      // after the fact, and an absent line is better than an invented one.
+      // WHERE THE SPOT IS, IN WORDS, AND IT IS PUBLIC. A popup naming "Shell" says
+      // nothing a rider can navigate by, so the address Google gave when the point was
+      // added rides in ride.json for every viewer. Null for a point dropped on the
+      // map: nothing geocodes one after the fact.
       (point.address ? "<div class='waypoint-tooltip-addr'>" + esc(point.address) + "</div>" : "") +
       (point.description ? "<div class='waypoint-tooltip-desc'>" + esc(point.description) + "</div>" : "") +
       detailsBlock(point.details, point.address)
@@ -1322,15 +1263,14 @@
   }
 
   // The private half of a stop, in the popup.
-  //
-  // `point.details` is present ONLY when the server decided the viewer is the
-  // ride's owner — ride.json omits the key entirely for everyone else, so there
-  // is no client-side permission check here and there must not be one. A viewer
-  // that had the data and chose not to draw it would still have shipped it.
-  //
-  // Every value goes through esc(), links included, and the URL was already
-  // constrained to http(s) at save time by fields.external_url — an href is the
-  // one place esc() alone is not enough.
+    //
+    // `point.details` is present ONLY when the server decided the viewer is the ride's
+    // owner — ride.json omits the key entirely for everyone else, so there is no
+    // client-side permission check here and there must not be one.
+    //
+    // Every value goes through esc(), links included, and the URL was already
+    // constrained to http(s) at save time — an href is the one place esc() alone is
+    // not enough.
   function detailsBlock(d, publicAddress) {
     if (!d) return "";
     let rows = "";
@@ -1338,10 +1278,8 @@
     if (d.checkInAt) rows += numRow("Check in", esc(fmtStamp(d.checkInAt)));
     if (d.checkOutAt) rows += numRow("Check out", esc(fmtStamp(d.checkOutAt)));
     if (d.phone) rows += numRow("Phone", "<a href='tel:" + esc(d.phone) + "'>" + esc(d.phone) + "</a>");
-    // Skipped when it is the same address the public half already printed. The
-    // owner's typed one and the point's own are two different fields and a stop
-    // taken from a saved place carries both, which read as the popup saying it
-    // twice.
+    // Skipped when it is the same address the public half printed: a stop taken from
+    // a saved place carries both, which reads as the popup saying it twice.
     if (d.address && d.address.trim() !== (publicAddress || "").trim()) {
       rows += numRow("Address", esc(d.address));
     }
@@ -1367,9 +1305,8 @@
     );
   }
 
-  // The stored value is the wall clock where the stop is, carried as UTC — see
-  // the header of public/js/route-clock.js. So UTC is what reads it back, and the
-  // rider sees the digits they typed wherever they are standing.
+  // The stored value is the wall clock where the stop is, carried as UTC, so UTC is
+  // what reads it back and the rider sees the digits they typed.
   function fmtStamp(iso) {
     const d = new Date(iso);
     if (isNaN(d.getTime())) return "";
@@ -1395,11 +1332,9 @@
     });
   }
 
-  // Attaches hover-open / click-pin popup behavior (legacy wasClicked port).
-  //
-  // The listeners go on the marker's own DOM content rather than through
-  // gmp-click, because the content is a real element in the overlay and the
-  // hover half of this behavior has no marker-level equivalent.
+  // Attaches hover-open / click-pin popup behavior. The listeners go on the
+  // marker's own DOM content rather than through gmp-click, because the hover half
+  // has no marker-level equivalent.
   function attachPopup(map, marker, html) {
     requireInit("attachPopup");
 
@@ -1414,8 +1349,7 @@
       content,
       disableAutoPan: true,
       // Suppresses the close button and header. _map.scss also hides
-      // .gm-ui-hover-effect, which is what covered this before the option
-      // existed; between them the tooltip stays chrome-free either way.
+      // .gm-ui-hover-effect, so the tooltip stays chrome-free either way.
       headerDisabled: true,
     });
 
@@ -1424,19 +1358,15 @@
     let hideTimer = null;
     const el = marker.content;
 
-    // CLOSING IS DELAYED AND OPENING IS NOT, AND THE POPUP ITSELF HOLDS IT OPEN.
-    // Two things made the hover flicker rather than settle. The window opens
-    // ANCHORED over the marker, so Google's own `.gm-style-iw-a` box lands on
-    // top of the dot the pointer is resting on — the browser then fires
-    // `mouseleave` on a pointer that never moved, the popup closes, the dot is
-    // uncovered, `mouseenter` fires, and the pair loops at frame rate. And the
-    // hit target is a 16px dot (`.tb-marker` is 0x0 by design), so the few
-    // pixels of travel between the dot and the window's tail count as leaving.
-    //
-    // The grace period covers the gap and the popup's own hover cancels it, so
-    // a rider can move onto the window to read it or follow a link. Closing on
-    // a timer rather than on the edge is what makes it feel solid; opening is
-    // still immediate, because a delay there reads as lag.
+    // CLOSING IS DELAYED AND OPENING IS NOT, AND THE POPUP ITSELF HOLDS IT OPEN. Two
+        // things made the hover flicker: the window opens ANCHORED over the marker, so
+        // Google's box lands on the dot the pointer is resting on and the browser fires
+        // `mouseleave` on a pointer that never moved — the pair then loops at frame rate
+        // — and the hit target is a 16px dot, so the travel to the window's tail counts
+        // as leaving.
+        //
+        // The grace period covers the gap and the popup's own hover cancels it. Opening
+        // is still immediate, because a delay there reads as lag.
     const HOVER_GRACE_MS = 140;
 
     function cancelHide() {
@@ -1467,10 +1397,8 @@
     }
 
     // Google re-parents the content node into its own box on every open, so the
-    // element that actually sits under the pointer is an ancestor we do not own
-    // and cannot bind until it exists. `domready` is when it does. The flag is
-    // per element, so a box Google reuses across opens is bound once and a box
-    // it rebuilds is bound again.
+    // element under the pointer is an ancestor we do not own and cannot bind until it
+    // exists. `domready` is when it does, and the flag is per element.
     function bindPopupHover() {
       const box = content.closest(".gm-style-iw-a") || content.parentElement;
       if (!box || box.dataset.tbHoverBound === "1") return;
@@ -1526,11 +1454,9 @@
 
   // --- Panel collapse (ported from the legacy DOMContentLoaded block) -------
 
-  // `getMap` is an optional accessor, not a map, and it is a function on
-  // purpose: both pages bind this toggle at load and create their map inside an
-  // await several hundred milliseconds later. Taking the map itself here would
-  // capture null forever. A caller that passes nothing still gets a working
-  // toggle, just without the re-center.
+  // `getMap` is an accessor, not a map, and it is a function on purpose: both pages
+  // bind this toggle at load and create their map inside an await several hundred
+  // milliseconds later, so taking the map itself would capture null forever.
   function initPanelToggle(getMap) {
     const panel = document.getElementById("info-panel");
     const toggle = panel && panel.querySelector(".collapse-toggle");
@@ -1538,38 +1464,29 @@
     const rail = panel.querySelector(".drawer-rail");
     toggle.addEventListener("click", () => {
       const map = typeof getMap === "function" ? getMap() : null;
-      // THE CENTER IS CAPTURED BEFORE THE WIDTH CHANGES. #map is sized to the
-      // space beside the drawer now rather than to the whole viewport, so
-      // collapsing hands it 324 more pixels — and Google keeps the map's
-      // top-left fixed through a resize, which slides the route sideways by
-      // half that. Reinstating the center afterwards keeps whatever the rider
-      // was looking at in the middle of what they can see.
+      // THE CENTER IS CAPTURED BEFORE THE WIDTH CHANGES. #map is sized to the space
+      // beside the drawer, so collapsing hands it 324 more pixels — and Google keeps
+      // the map's top-left fixed through a resize, which slides the route sideways by
+      // half that.
       const center = map && map.getCenter && map.getCenter();
 
       panel.classList.toggle("collapsed");
       const collapsed = panel.classList.contains("collapsed");
-      // The button carries aria-expanded, so it has to be kept true. The markup
-      // ships it as "true" and this is the only thing that flips it — a stale
-      // attribute is worse than none, because it states the opposite of what a
-      // screen reader user is looking at.
+      // The button carries aria-expanded and this is the only thing that flips it: a
+      // stale attribute is worse than none, stating the opposite of what a screen
+      // reader user is looking at.
       toggle.setAttribute("aria-expanded", String(!collapsed));
       toggle.setAttribute("aria-label", collapsed ? "Expand panel" : "Collapse panel");
       // The rail's controls duplicate the route scrubber, so they are hidden from
-      // assistive tech while the scrubber itself is on screen and exposed only
-      // once it is not. The markup ships aria-hidden="true" to match the
-      // expanded state it also ships in.
+      // assistive tech while the scrubber is on screen and exposed once it is not.
       if (rail) rail.setAttribute("aria-hidden", String(!collapsed));
-      // No src to swap any more: .collapse-icon is a masked span and the mask
-      // is selected by the aria-expanded set two lines up. That attribute was
-      // always the real state — driving the artwork from it as well removes the
-      // second thing to keep in step, and there is nothing to do here.
+      // No src to swap: .collapse-icon is a masked span and the mask is selected by the
+      // aria-expanded set two lines up, which was always the real state.
 
       if (!center) return;
-      // Re-centered on transitionend rather than immediately: the width animates
-      // over 0.28s and a setCenter against the old width is undone by the very
-      // next frame. The timeout is the fallback for a browser that never fires
-      // the event — prefers-reduced-motion kills the transition entirely, and
-      // transitionend does not fire for a transition that did not run.
+      // Re-centered on transitionend rather than immediately: the width animates over
+      // 0.28s and a setCenter against the old width is undone by the next frame. The
+      // timeout is the fallback for a transition that never runs.
       let done = false;
       const settle = () => {
         if (done) return;
@@ -1582,20 +1499,19 @@
   }
 
   // --- Drawer width (#323) --------------------------------------------------
-  //
-  // THE WIDTH IS THE RIDER'S TO SET. Ziad's call, 2026-09-13: a handle on the
-  // drawer's right edge replaces the collapse icon on a wide screen. Drag it
-  // and the drawer follows; pushed under DRAWER_MIN it folds into the rail,
-  // and pulled back out it pops to DRAWER_MIN and goes on up to
-  // DRAWER_MAX_VW of the viewport. A click with no drag toggles collapsed, which is what the
-  // icon did; the arrow keys move it for a keyboard. Remembered in localStorage
-  // — a width is a fact about this screen, not the rider — and applied before
-  // first paint by the inline script page() emits after the drawer, so the
-  // shape written here is the shape that script reads: {w, collapsed}.
-  //
-  // The width lands on <html> as --panel-width, which is what --drawer-current
-  // already reads, so the map and the timeline resize with the drawer through
-  // the one declaration _map.scss records. Nothing here sizes an element.
+    //
+    // THE WIDTH IS THE RIDER'S TO SET: a handle on the drawer's right edge replaces
+    // the collapse icon on a wide screen. Pushed under DRAWER_MIN it folds into the
+    // rail; pulled back out it pops to DRAWER_MIN and goes up to DRAWER_MAX_VW. A
+    // click with no drag toggles collapsed; the arrow keys move it for a keyboard.
+    //
+    // Remembered in localStorage — a width is a fact about this screen, not the rider
+    // — and applied before first paint by the inline script page() emits after the
+    // drawer, so the shape written here is the shape that script reads: {w, collapsed}.
+    //
+    // The width lands on <html> as --panel-width, which --drawer-current already
+    // reads, so the map and the timeline resize with the drawer. Nothing here sizes an
+    // element.
   const DRAWER_KEY = "routeloop.drawer";
   const DRAWER_DEFAULT = 380;
   const DRAWER_MIN = 360;
@@ -1603,9 +1519,9 @@
   const DRAWER_STEP = 20;
   // The rail's width, --drawer-rail in _map.scss; the edge a pull-out starts from.
   const DRAWER_RAIL = 56;
-  // How far under the minimum a push has to go before it folds. Every
-  // pull-out lands at exactly the minimum, so with no slack a one-pixel
-  // wobble left from there would fold what the rider just opened.
+  // How far under the minimum a push has to go before it folds. Every pull-out lands
+  // at exactly the minimum, so with no slack a one-pixel wobble would fold what the
+  // rider just opened.
   const DRAWER_FOLD_SLACK = 24;
 
   function readDrawer() {
@@ -1665,8 +1581,7 @@
     }
 
     // The map keeps its top-left fixed through a resize, which slides the road
-    // sideways by half the change. Captured at the start and put back at the
-    // end, the way the collapse toggle does it.
+    // sideways by half the change. Captured at the start and put back at the end.
     let center = null;
     const holdCenter = () => {
       const map = typeof getMap === "function" ? getMap() : null;
@@ -1704,23 +1619,16 @@
       const dx = e.clientX - drag.x0;
       if (!drag.moved && Math.abs(dx) < 4) return;
       drag.moved = true;
-      // THE WIDTH MOVES BY THE POINTER'S TRAVEL, NOT TO THE POINTER'S X. The
-      // grab strip is 20px wide and sits inside the edge, so a hand on it is
-      // up to 20px short of the edge — and reading the pointer's x as the
-      // new edge folded a 360px drawer on the first move outward, because
-      // x was 350. Reported 2026-09-13. Width is where it started plus how
-      // far the pointer has moved, which is what a drag on an edge means.
-      // Open, the drawer collapses the moment the edge is pushed under the
-      // minimum; collapsed, it POPS to the minimum as soon as the rail is
-      // pulled outward at all, and follows the pointer from there.
-      //
-      // ONE GESTURE, ONE DIRECTION. Ziad's call, 2026-09-13: a pull from the
-      // rail pops the drawer to the minimum and it stays open on release
-      // wherever the pointer ends up, and a push past the minimum folds it
-      // and it stays folded on release even if the pointer comes back — the
-      // drag decided, and the rest of the gesture is the rider letting go. A
-      // warn-and-wait version (hold at 360, glow, fold on release) was tried
-      // and pulled the same day: it read as the drawer resisting.
+      // THE WIDTH MOVES BY THE POINTER'S TRAVEL, NOT TO THE POINTER'S X. The grab strip
+            // is 20px wide and sits inside the edge, so a hand on it is up to 20px short of
+            // the edge — and reading the pointer's x as the new edge folded a 360px drawer
+            // on the first move outward.
+            //
+            // ONE GESTURE, ONE DIRECTION: a pull from the rail pops the drawer to the
+            // minimum and it stays open on release wherever the pointer ends up, and a push
+            // past the minimum folds it and it stays folded even if the pointer comes back.
+            // A warn-and-wait version was tried and pulled the same day — it read as the
+            // drawer resisting.
       const want = drag.w0 + dx;
       if (drag.closing) return;
       if (panel.classList.contains("collapsed")) {
@@ -1799,31 +1707,25 @@
   }
 
   // --- Search result preview ------------------------------------------------
-  //
-  // WHERE THE CANDIDATES ACTUALLY ARE. The category search answers with names
-  // and a "3 mi off" number, which is enough to rank them and not enough to
-  // choose one: a rider picking a fuel stop wants to see which side of the river
-  // it is on and whether it is before or after the pass. Ziad's call,
-  // 2026-09-02, asked while looking at a dropdown of Oregon gas stations.
-  //
-  // TRANSIENT AND POOLED. These live exactly as long as the dropdown, so they
-  // are detached rather than destroyed — a rider retyping a query would
-  // otherwise rebuild a dozen markers per keystroke. Same arrangement as the
-  // fuel walls above.
+    //
+    // WHERE THE CANDIDATES ACTUALLY ARE. The category search answers with names and a
+    // "3 mi off" number, which is enough to rank them and not enough to choose one: a
+    // rider picking a fuel stop wants to see which side of the river it is on.
+    //
+    // TRANSIENT AND POOLED. These live exactly as long as the dropdown, so they are
+    // detached rather than destroyed — a rider retyping a query would otherwise
+    // rebuild a dozen markers per keystroke.
   const previews = new Map();
 
-  // NAMED FOR ITS FEATURE, and it has to be. It shipped as `previewOf` in #238
-  // and there was already a `previewOf` a few hundred lines up — the shape
-  // drag's preview polyline — so the later declaration silently replaced the
-  // earlier one for the whole IIFE. Dragging a leg onto another road then called
-  // this by mistake, got `{pins, onHover, onPick}` back, and died on
-  // `preview.setPath is not a function`. It broke the moment #238 merged and was
-  // reported the same route.
-  //
-  // Nothing catches that class of mistake for free: two function declarations in
-  // one scope is legal JavaScript, `node --check` accepts it, and the failure
-  // only appears when somebody uses the older feature. `test/map-globals.test.ts`
-  // is the guard now.
+  // NAMED FOR ITS FEATURE, and it has to be. It shipped as `previewOf` in #238 and
+    // there was already a `previewOf` a few hundred lines up — the shape drag's
+    // preview polyline — so the later declaration silently replaced the earlier one
+    // for the whole IIFE, and dragging a leg onto another road died on
+    // `preview.setPath is not a function`.
+    //
+    // Nothing catches that for free: two function declarations in one scope is legal
+    // JavaScript and `node --check` accepts it. `test/map-globals.test.ts` is the
+    // guard now.
   function searchPreviewOf(map) {
     let p = previews.get(map);
     if (!p) {
@@ -1835,38 +1737,29 @@
 
   function previewEl(p, i) {
     const el = document.createElement("div");
-    // 0x0 for the same reason .tb-marker is: AdvancedMarkerElement anchors its
-    // content at bottom-center, so a sized wrapper puts the anchor off the
-    // point. The child carries the size, the hover and the click.
+    // 0x0 for the same reason .tb-marker is: AdvancedMarkerElement anchors its content
+    // at bottom-center. The child carries the size, the hover and the click.
     el.className = "tb-hit";
-    // A REAL <button>, NOT AN <i>. It shipped as an <i> for one build and the
-    // dots could be hovered and not pressed — which is the obvious thing to try,
-    // since a dot on a map that lights up when you point at it is a control by
-    // every convention there is. A button is also the only version a keyboard
-    // can reach.
-    //
-    // NOTE THIS IS NOT THE gmpClickable CASE. That was tried on the fuel wall
-    // and reverted because it exposes <gmp-advanced-marker> itself as a button
-    // that does nothing; here the button is ours, it is a descendant, and
-    // pressing it does the same thing as pressing the row.
+    // A REAL <button>, NOT AN <i>. It shipped as an <i> for one build and the dots
+        // could be hovered and not pressed — the obvious thing to try, since a dot that
+        // lights up when you point at it is a control by every convention. A button is
+        // also the only version a keyboard can reach.
+        //
+        // NOT the gmpClickable case: that exposes <gmp-advanced-marker> itself as a
+        // button that does nothing, where this one is ours and is a descendant.
     const dot = document.createElement("button");
     dot.type = "button";
     dot.className = "tb-hit-dot";
     dot.textContent = String(i + 1);
     el.appendChild(dot);
-    // Hover in BOTH directions is half the point of the feature — a dot with no
-    // way back to its row is a dot you cannot identify. The listeners go on the
-    // child, because Google sets pointer-events: none on a non-clickable
-    // marker's container and only a descendant may re-enable it.
+    // Hover in BOTH directions is half the point of the feature. The listeners go on
+    // the child, because Google sets pointer-events: none on a non-clickable marker's
+    // container and only a descendant may re-enable it.
     dot.addEventListener("pointerenter", () => p.onHover && p.onHover(i));
     dot.addEventListener("pointerleave", () => p.onHover && p.onHover(null));
-    // A TOOLTIP OF OUR OWN, NOT `title`. Same reasoning as the fuel wall's: the
-    // native one waits about a second, renders in the OS style at the pointer,
-    // and cannot be styled — on a map that is slow enough to miss. This one is
-    // CSS on :hover, so it appears instantly and reads as part of the map.
-    //
-    // aria-hidden, because the button's own accessible name already says it and
-    // a readable tip would join it as "Add Shell Shell, 3 mi off route".
+    // A TOOLTIP OF OUR OWN, NOT `title`: the native one waits about a second and
+    // cannot be styled. aria-hidden, because the button's own accessible name already
+    // says it and a readable tip would join it as "Add Shell Shell, 3 mi off route".
     const tip = document.createElement("span");
     tip.className = "tb-hit-tip";
     tip.setAttribute("aria-hidden", "true");
@@ -1882,20 +1775,17 @@
   }
 
   /**
-   * Draw one numbered dot per search result, or clear them with an empty list.
-   *
-   * `items` is [{ lngLat, name, tip, label, color }] in the order the list shows
-   * them, so the number on a dot is the row it belongs to. `tip` is the hover
-   * text and `label` the accessible name; both fall back to `name`.
-   * `onHover(i | null)` fires when the pointer enters or leaves a dot.
-   *
-   * `color` is optional and exists because the dots serve two features that need
-   * opposite things from a color. A place search is offering places and the
-   * brand is right for it. A meeting-point proposal is drawn ON the main group's
-   * own route, so a brand-blue dot on a brand-blue road is invisible — the
-   * caller passes the JOINING group's color there. Omitted leaves the CSS to it,
-   * which is what keeps the search call site untouched.
-   */
+      * Draw one numbered dot per search result, or clear them with an empty list.
+      *
+      * `items` is [{ lngLat, name, tip, label, color }] in the order the list shows
+      * them, so the number on a dot is the row it belongs to. `onHover(i | null)`
+      * fires when the pointer enters or leaves a dot.
+      *
+      * `color` is optional because the dots serve two features that want opposite
+      * things: a place search is offering places and the brand is right for it, while a
+      * meeting-point proposal is drawn ON the main group's own route, where a
+      * brand-blue dot on a brand-blue road is invisible.
+      */
   function setSearchPreview(map, items, onHover, onPick) {
     const p = searchPreviewOf(map);
     p.onHover = onHover || null;
@@ -1906,12 +1796,10 @@
         p.pins[i] = new Marker.AdvancedMarkerElement({
           map,
           content: previewEl(p, i),
-          // ABOVE EVERY OTHER MARKER, not merely above the route and the fuel
-          // walls. These are the thing being chosen RIGHT NOW and they are gone
-          // the moment the dropdown closes, so nothing standing on the map has a
-          // better claim to the pixels — or to the pointer, which is what makes
-          // this a correctness rule rather than a visual one: a covered dot
-          // cannot be hovered, and hovering is how a candidate is read.
+          // ABOVE EVERY OTHER MARKER. These are the thing being chosen RIGHT NOW and
+          // are gone the moment the dropdown closes, so nothing has a better claim to
+          // the pixels — or to the pointer, which makes this a correctness rule: a
+          // covered dot cannot be hovered, and hovering is how a candidate is read.
           zIndex: PREVIEW_Z,
         });
       }
@@ -1919,78 +1807,55 @@
       p.pins[i].map = map;
       const dot = p.pins[i].content.firstChild;
       dot.classList.remove("is-lit");
-      // THE NUMBER IS THE CALLER'S WHEN IT OFFERS ONE. A place search numbers a
-      // single list 1..n and the index is that number. A meeting-point proposal
-      // draws several lists at once — one per joining group, each in that
-      // group's color — and each has to count from one, or the rider is reading
-      // dot 5 against a row labeled 2.
+      // THE NUMBER IS THE CALLER'S WHEN IT OFFERS ONE. A place search numbers one list
+      // 1..n; a meeting-point proposal draws several at once, each of which has to
+      // count from one, or the rider reads dot 5 against a row labeled 2.
       dot.textContent = String(list[i].num == null ? i + 1 : list[i].num);
-      // Cleared rather than left alone when there is no color: the pins are a
-      // POOL, so a dot the meeting-point proposal painted is the same element
-      // the next place search gets back, and an unset inline style is what lets
-      // the stylesheet's own color through again.
+      // Cleared rather than left alone when there is no color: the pins are a POOL, so
+      // an unset inline style is what lets the stylesheet's own color through again.
       dot.style.background = list[i].color || "";
-      // No role — it is a button, and announcing it as an image would take the
-      // press away from anyone using a screen reader.
-      //
-      // `label` is the caller's, because the dots serve two features now and
-      // "Add" is only right for one of them: a place search adds a point, and a
-      // meeting-point proposal is a choice between candidates. Defaulted rather
-      // than required so the search call site is untouched.
+      // No role — it is a button, and announcing it as an image would take the press
+      // away from anyone using a screen reader. `label` is the caller's, because "Add"
+      // is only right for the place search; a proposal is a choice between candidates.
       dot.setAttribute("aria-label", list[i].label || "Add " + (list[i].name || "result " + (i + 1)));
-      // ON HOVER, ONE AT A TIME. Painting every name on the map at once is the
-      // thing that would be unreadable — twelve labels overlapping each other —
-      // which is why the dot carries a NUMBER and the name arrives only when the
-      // rider asks for it by pointing. `tip` is built by the caller so this file
-      // stays out of miles-versus-kilometers.
+      // ON HOVER, ONE AT A TIME: twelve labels overlapping each other is what would be
+      // unreadable, which is why the dot carries a NUMBER. `tip` is built by the
+      // caller so this file stays out of miles-versus-kilometers.
       const tip = p.pins[i].content.lastChild;
       tip.textContent = list[i].tip || list[i].name || "Result " + (i + 1);
     }
     for (let i = list.length; i < p.pins.length; i++) p.pins[i].map = null;
   }
 
-  // THE JOINING GROUPS' ROADS TO EACH CANDIDATE, so a rider can see what the
-  // three choices actually ask of everybody rather than comparing two numbers.
-  //
-  // POOLED AND DETACHED, never destroyed, the same as the preview dots and the
-  // fuel walls above: a rider pressing Find meeting points twice would
-  // otherwise rebuild every line, and there is one per candidate per joining
-  // group.
-  //
-  // These are REAL ROUTED PATHS — Ziad's call, 2026-09-03, over a dashed
-  // straight connector. The straight line is free and it lies about the
-  // distance on any road that bends, and the whole point of drawing them is to
-  // make the candidates comparable. The requests are the caller's to make and to
-  // cache; this file only draws what it is handed.
+  // THE JOINING GROUPS' ROADS TO EACH CANDIDATE, so a rider can see what the three
+    // choices actually ask of everybody rather than comparing two numbers.
+    //
+    // POOLED AND DETACHED, never destroyed, like the preview dots and the fuel walls.
+    //
+    // These are REAL ROUTED PATHS, over a dashed straight connector: the straight line
+    // is free and lies about the distance on any road that bends, which defeats the
+    // point of drawing them. The requests are the caller's to make and to cache.
   const approaches = new Map();
 
-  // NOT dashIcons(), which is tuned for a GHOSTED route and carries
-  // GHOST_OPACITY — an approach is a live annotation about a choice the rider is
-  // making right now, and at ghost opacity over busy tiles it is not readable.
-  // Dashed because it is not a route of the ride: nothing here is saved, and a
-  // solid line at rest would read as another route on the map.
-  // `color` is the joining group's, so a rider comparing three groups' roads can
-  // tell whose is whose — the same reason the candidate dots take it. Null falls
-  // back to the neutral pair, which is what a single unattributed approach wants
-  // and what this drew for every line before groups were colored.
-  //
-  // THE DASHES ARE THE RESTING STATE AND NOTHING ELSE — the hovered one is
-  // SOLID, see approachStyle() — so there is no `lit` parameter to get wrong.
-  // It had one while the highlight was opacity alone, and it went dead the route
-  // the hover became solid.
+  // NOT dashIcons(), which is tuned for a GHOSTED route and carries GHOST_OPACITY —
+    // an approach is a live annotation about a choice being made right now. Dashed
+    // because it is not a route of the ride: nothing here is saved, and a solid line
+    // at rest would read as another route on the map.
+    // `color` is the joining group's, so a rider comparing three groups' roads can
+    // tell whose is whose. Null falls back to the neutral pair.
+    //
+    // THE DASHES ARE THE RESTING STATE AND NOTHING ELSE — the hovered one is SOLID,
+    // see approachStyle() — so there is no `lit` parameter to get wrong.
   function approachDashes(color) {
     return [
       {
         icon: {
           path: "M 0,-1 0,1",
           strokeColor: color || "#8a8a8a",
-          // HALF, AND THAT IS THE RESTING OPACITY OF EVERY APPROACH ON THE MAP.
-          // Ziad's call, 2026-09-05: it was 0.55, then 0.35 when the lit end
-          // went to 1 on the reasoning that a highlight is a ratio — and at
-          // 0.35 over busy tiles a road nobody is pointing at is nearly gone,
-          // which defeats the reason three of them are drawn at once. The
-          // contrast comes from solid-versus-dashed now, so the resting line
-          // can afford to be legible.
+          // HALF, AND THAT IS THE RESTING OPACITY OF EVERY APPROACH ON THE MAP. It was
+          // 0.35 when the lit end went to 1, on the reasoning that a highlight is a
+          // ratio — and at 0.35 over busy tiles a road nobody is pointing at is nearly
+          // gone. The contrast comes from solid-versus-dashed now.
           strokeOpacity: 0.5,
           strokeWeight: 3,
           scale: 3,
@@ -2002,29 +1867,23 @@
   }
 
   /**
-   * The whole look of one approach, hovered or at rest.
-   *
-   * THE HOVERED ONE IS A SOLID LINE AT FULL OPACITY. Ziad's call, 2026-09-05,
-   * and it reverses the "dashed at every opacity" reasoning above: with three
-   * groups' roads on the map at once, a dashed line at opacity 1 beside dashed
-   * lines at half opacity is a difference the eye has to look for, and pointing at a row
-   * has to answer "which road is that" instantly. Solid versus dashed is a
-   * difference in KIND rather than in degree, so the one being pointed at stops
-   * competing with the others. The worry it was avoiding — an approach read as a
-   * planned route — is answered by the fact that it is solid only while the
-   * pointer is on its row, which is not a state anything saved is ever in.
-   *
-   * The dashes live in `icons` on a polyline whose own stroke is invisible, so
-   * the two states are mutually exclusive by construction: solid sets a real
-   * `strokeOpacity` and empties `icons`, dashed puts the stroke back to 0.
-   */
+      * The whole look of one approach, hovered or at rest.
+      *
+      * THE HOVERED ONE IS A SOLID LINE AT FULL OPACITY, which reverses the "dashed at
+      * every opacity" reasoning above: with three groups' roads on the map, a dashed
+      * line at opacity 1 beside dashed lines at half opacity is a difference the eye
+      * has to look for. Solid versus dashed is a difference in KIND. The worry it was
+      * avoiding — an approach read as a planned route — is answered by it being solid
+      * only while the pointer is on its row.
+      *
+      * The dashes live in `icons` on a polyline whose own stroke is invisible, so the
+      * two states are mutually exclusive by construction.
+      */
   // THE zIndex IS IN HERE BECAUSE `Polyline` HAS NO `setZIndex()`. Markers and
-  // Circles do, which is what makes the call look reasonable and is why it went
-  // unnoticed: `line.setZIndex(...)` threw a TypeError on the FIRST line of the
-  // pool, inside a pointerenter handler, and took the rest of the loop with it —
-  // so hovering any row lit only the first candidate's road and every other row
-  // did nothing at all. Reported as "nothing but the very first route works",
-  // 2026-09-05. A polyline's z-order is an option like any other.
+    // Circles do, which is what made the call look reasonable: `line.setZIndex(...)`
+    // threw a TypeError on the FIRST line of the pool, inside a pointerenter handler,
+    // and took the rest of the loop with it — so hovering any row lit only the first
+    // candidate's road. A polyline's z-order is an option like any other.
   function approachStyle(lit, color) {
     const zIndex = lit ? 3.7 : 3.6;
     if (!lit) return { strokeOpacity: 0, strokeWeight: 3, icons: approachDashes(color), zIndex };
@@ -2041,12 +1900,10 @@
   }
 
   /**
-   * Draw one line per joining-group approach.
-   *
-   * `paths` is [{ path, group }] where `path` is a [lng, lat] track and `group`
-   * is the candidate index it belongs to, so hovering a candidate can lift its
-   * own lines. An empty list clears them.
-   */
+      * Draw one line per joining-group approach. `paths` is [{ path, group }] where
+      * `group` is the candidate index it belongs to, so hovering a candidate can lift
+      * its own lines. An empty list clears them.
+      */
   function setMeetApproaches(map, paths) {
     const a = approachOf(map);
     const list = paths || [];
@@ -2054,10 +1911,9 @@
       if (!a.lines[i]) {
         a.lines[i] = new Maps.Polyline({
           map,
-          // Under the preview dots (6) and under the drag preview (4), above the
-          // route: it is an annotation ABOUT the dots, so it must not cover the
-          // thing being chosen, and a rider dragging the road must never lose
-          // their own line behind it.
+          // Under the preview dots (6) and under the drag preview (4), above the route:
+          // it is an annotation ABOUT the dots, so it must not cover the thing being
+          // chosen.
           zIndex: 3.6,
           clickable: false,
           ...approachStyle(false, null),
@@ -2078,19 +1934,14 @@
   }
 
   /**
-   * Lift the approach belonging to one candidate, or put them all back at rest
-   * with null.
-   *
-   * Lifting is solid-versus-dashed, opacity and weight — never color, because
-   * these are all the same KIND of thing and recoloring one would read as a
-   * different one. The color a line already carries is its group's.
-   *
-   * NULL LEVELS THEM ALL DOWN, NOT ALL UP, and that was wrong here until
-   * 2026-09-05: `i == null` counted as lit for every line, so the initial paint
-   * showed them all at rest and a pointer leaving a row left them all lifted.
-   * Invisible while lifting was opacity alone; with a solid line it would put
-   * three solid roads on the map the moment the pointer moved off a row.
-   */
+      * Lift the approach belonging to one candidate, or put them all back at rest with
+      * null. Lifting is solid-versus-dashed, opacity and weight — never color, because
+      * these are all the same KIND of thing and the color a line carries is its group's.
+      *
+      * NULL LEVELS THEM ALL DOWN, NOT ALL UP, and that was wrong here until 2026-09-05:
+      * `i == null` counted as lit for every line, so a pointer leaving a row left them
+      * all lifted. Invisible while lifting was opacity alone.
+      */
   function highlightMeetApproaches(map, i) {
     const a = approaches.get(map);
     if (!a) return;
@@ -2101,11 +1952,9 @@
     });
   }
 
-  // WHERE THE RIDER WILL BE AT BEDTIME, one per route that reaches the hour.
-  //
-  // POOLED AND DETACHED like every other transient marker in this file. Named
-  // for its feature rather than its shape — see the `previewOf` collision that
-  // took drag-to-shape out for a route.
+  // WHERE THE RIDER WILL BE AT BEDTIME, one per route that reaches the hour. POOLED
+  // AND DETACHED like every other transient marker here, and named for its feature
+  // rather than its shape — see the `previewOf` collision above.
   const bedtimes = new Map();
 
   function bedtimeOf(map) {
@@ -2118,21 +1967,18 @@
   }
 
   /**
-   * Draw a bed marker at each position, or clear them with an empty list.
-   *
-   * `spots` is [{ lngLat, label }]. A DISC WITH A GLYPH, the same construction
-   * as the fuel E: a bare dot on a line reads as another stop, which is the one
-   * thing this is not — it marks a moment, not a place the rider chose.
-   */
+      * Draw a bed marker at each position, or clear them with an empty list. `spots`
+      * is [{ lngLat, label }]. A DISC WITH A GLYPH, the same construction as the fuel
+      * E: a bare dot on a line reads as another stop, and this marks a moment rather
+      * than a place the rider chose.
+      */
   function setBedtimeMarks(map, spots) {
     const b = bedtimeOf(map);
     const list = spots || [];
     for (let i = 0; i < list.length; i++) {
       if (!b.pins[i]) {
         const el = document.createElement("div");
-        // 0x0 for the same reason .tb-marker is: AdvancedMarkerElement anchors
-        // its content at bottom-center, so a sized wrapper puts the anchor off
-        // the point. The child carries the size and the hover.
+        // 0x0 for the same reason .tb-marker is. The child carries the size and hover.
         el.className = "tb-marker";
         const disc = document.createElement("div");
         disc.className = "tb-bed-disc";
@@ -2147,9 +1993,8 @@
         b.pins[i] = new Marker.AdvancedMarkerElement({
           map,
           content: el,
-          // Above the ride's own pins and the fuel overlay, below the search
-          // dots: it is a standing annotation, and the dots are the thing being
-          // chosen right now. See the marker z-scale above addMarker().
+          // Above the ride's own pins and the fuel overlay, below the search dots: it is
+          // a standing annotation, and the dots are the thing being chosen right now.
           zIndex: 5,
         });
       }
