@@ -74,8 +74,8 @@ describe('the dark-mode block', () => {
 })
 
 describe('the wordmark', () => {
-  const LIGHT = `${APP_ORIGIN}/img/logo-routeloop-email-hz@2x.png`
-  const DARK_SRC = `${APP_ORIGIN}/img/logo-routeloop-email-hz-dark@2x.png`
+  const LIGHT = `${APP_ORIGIN}/img/logo-routeloop-email-beta-hz@2x.png`
+  const DARK_SRC = `${APP_ORIGIN}/img/logo-routeloop-email-beta-hz-dark@2x.png`
 
   for (const t of ALL_EMAILS) {
     it(`${t.key} carries both copies, absolute`, () => {
@@ -122,7 +122,7 @@ describe('the logo assets', () => {
 
     let idat = Buffer.alloc(0)
     let ihdr: Buffer | undefined
-    for (let i = 8; i < buf.length; ) {
+    for (let i = 8; i < buf.length;) {
       const len = buf.readUInt32BE(i)
       const type = buf.subarray(i + 4, i + 8).toString('ascii')
       const data = buf.subarray(i + 8, i + 8 + len)
@@ -173,12 +173,12 @@ describe('the logo assets', () => {
   // into public/img/. Nothing reads from `_assets/` any more, so a master
   // updated there and nowhere else ships nothing and no test will say so.
   it('the dark logo is drawn on the dark card color', () => {
-    expect(groundOf('public/img/logo-routeloop-email-hz-dark@2x.png')).toBe('#000000')
+    expect(groundOf('public/img/logo-routeloop-email-beta-hz-dark@2x.png')).toBe('#000000')
     expect(expand(DARK.cardBg)).toBe('#000000')
   })
 
   it('the light logo is drawn on the light card color', () => {
-    expect(groundOf('public/img/logo-routeloop-email-hz@2x.png')).toBe('#ffffff')
+    expect(groundOf('public/img/logo-routeloop-email-beta-hz@2x.png')).toBe('#ffffff')
     expect(expand(COLORS.white)).toBe('#ffffff')
   })
 })
