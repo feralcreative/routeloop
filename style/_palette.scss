@@ -1,30 +1,24 @@
 // WHERE COLOR VALUES ACTUALLY LIVE. Six palettes, computed at build time.
 //
-// `_tokens.scss` used to hold these literals directly and every rule compiled to
-// a hex. That cannot support a theme a rider switches at runtime: Sass runs once
-// at build time, so a value baked into a rule is the only value that rule will
-// ever have. The split is now:
+// `_tokens.scss` used to hold these literals and every rule compiled to a hex,
+// which cannot support a theme a rider switches at runtime: Sass runs once, so a
+// value baked into a rule is the only value it will ever have. The split is:
 //
 //   _palette.scss  the numbers, per theme and per scheme          (this file)
 //   _theme.scss    emits them as custom properties, six blocks
 //   _tokens.scss   the public names, each one a `var(--x)` reference
 //
-// A rule still says `background: $stop` and does not care. That indirection is
-// what let ~950 existing token references stay untouched.
+// A rule still says `background: $stop` and does not care, which is what let ~950
+// existing token references stay untouched.
 //
-// THE TWO AXES ARE INDEPENDENT AND MEAN DIFFERENT THINGS. `$theme` is about which
-// signals a rider can distinguish — default, high-contrast, colorblind. `$scheme`
-// is about ambient light — light or dark. Every theme exists in both, which is
-// why there are six palettes rather than a flat list of six names: "follow the
-// OS" is a statement about the scheme axis only, and there is no OS signal for
-// colorblindness.
+// THE TWO AXES ARE INDEPENDENT. `$theme` is about which signals a rider can
+// distinguish; `$scheme` is about ambient light. "Follow the OS" is a statement
+// about the scheme axis only — there is no OS signal for colorblindness.
 //
 // **THE ROAD-SIGN PALETTE IS SCHEME-INVARIANT, and this is the finding the whole
 // job turns on.** A sign's colors do not change at night: $stop is the same red
-// on an unlit road, still carrying a white legend. So $interstate through $tarmac
-// and the ink each field takes do not move between light and dark. What inverts
-// is the page AROUND them — body text, surfaces, borders, panel fills. That is a
-// far smaller surface than "six palettes" suggests.
+// on an unlit road, still carrying a white legend. What inverts is the page
+// AROUND them — body text, surfaces, borders, panel fills.
 //
 // The theme axis is the opposite: it moves the sign colors and leaves the neutral
 // ramp broadly alone, because that is what those themes are FOR.
@@ -67,36 +61,28 @@ $-neutrals-light: (
 );
 
 // The dark ramp: each step takes the value its L*-complement holds in the light
-// ramp, so -21 (near-black text) becomes what -76 was and -98 (the page) becomes
-// a near-black. Two deliberate departures from a pure flip, both because the
-// complement is not a step that exists:
+// ramp. Two departures from a pure flip, both because the complement is not a
+// step that exists:
 //
 //   21 -> 79 has no step; -76 is the nearest and is the text color.
-//   98 -> 2 has no step either. $splash-ink (#0a0e11) is used instead, because
-//   the app ALREADY has a dark surface — it is the sign-in page's ground and
-//   src/emails/theme.ts mirrors it as DARK.cardBg. Inventing a second near-black
-//   would put two of them in one product.
+//   98 -> 2 has none either. $splash-ink (#0a0e11) is used instead, because the
+//   app ALREADY has a dark surface and inventing a second near-black would put
+//   two of them in one product.
 //
 // **-43 AND -50 WERE BOTH #888888 UNTIL 2026-09-07, WHICH COLLAPSED THE TWO
-// MOST-USED GREYS IN THE APP.** They are 32 and 70 usages, distinct in every
-// light palette and identical in every dark one — so any pairing that relied on
-// the step between them (muted text against a mid gray, a border against a fill)
-// simply vanished after dark, with nothing to say so. The complement rule stated
-// above is what fixes it: 50 -> 50 is #777777, not #888888.
+// MOST-USED GREYS IN THE APP.** 32 and 70 usages, distinct in every light palette
+// and identical in every dark one, so any pairing that relied on the step between
+// them simply vanished after dark. The complement rule fixes it: 50 -> 50 is
+// #777777.
 // **THE TEXT END IS LIFTED ONE STEP PAST THE COMPLEMENT, 2026-09-14.** Ziad's
-// call: -21 at #bbbbbb read as dim everywhere on a dark page — body copy,
-// headings, the release-note summaries — and the complement rule's caveat
-// above cuts the other way in practice: the bloom it hedges against is a
-// problem for pure white, not for a light gray, and text at L*76 on a
-// near-black ground simply looks gray. The four text steps move up one hex
-// pair each (see the second note below), and so do the muted-text steps under them, down to -70: -50 is the
-// most-used muted text in the app (84 rules) and -57 the third (39), and at
-// #808080 and #777777 on the near-black page they were 4.9 and 4.0 to one —
-// legal, and unreadable. -76 and below are borders and fills and stay where the
-// complement put them. Two consequences worth recording: -57 is $concrete,
-// which carries a BLACK legend, so lifting it only widens that pair; and the
-// Removed badge in _modal.scss moved off -50 onto $concrete with black ink,
-// because a lifted -50 no longer holds a white legend at 4.5:1 in either scheme.
+// call: -21 at #bbbbbb read as dim everywhere on a dark page, and the complement
+// rule's caveat cuts the other way in practice — the bloom it hedges against is a
+// problem for pure white, not a light gray. The four text steps and the muted
+// steps under them move up one hex pair each, down to -70: at #808080 and #777777
+// on the near-black page they were 4.9 and 4.0 to one — legal, and unreadable.
+// -76 and below are borders and fills and stay where the complement put them.
+// Two consequences: -57 is $concrete, which carries a BLACK legend, so lifting it
+// only widens that pair; and the Removed badge moved off -50 onto $concrete.
 $-neutrals-dark: (
   // TWO STEPS UP FROM THE COMPLEMENT, NOT ONE: #dddddd text with #999999 muted
   // was checked on the dashboard and still read as dim, so the whole text half
@@ -154,15 +140,14 @@ $-neutrals-dark: (
 // "correct" one of these toward a published value.
 /// A color as a plain hex string.
 ///
-/// SASS EMITS `rgb(98.03%, 52.74%, 0%)` FOR ANYTHING IT COMPUTED, and a token
-/// read back out of the stylesheet by JavaScript has to be a value its consumer
-/// parses. `map-common.js` hands these straight to google.maps as fillColor and
-/// strokeColor, and every authored token there is a hex — so a computed one must
-/// be too, rather than being the one value in the set with a different shape.
-/// It is also what `parsePalette()` in src/views/tokens.ts reads.
+/// SASS EMITS `rgb(98.03%, 52.74%, 0%)` FOR ANYTHING IT COMPUTED, and these
+/// tokens are read back out of the stylesheet by JavaScript: `map-common.js`
+/// hands them to google.maps as fillColor and strokeColor, and `parsePalette()`
+/// in src/views/tokens.ts parses them. Every authored token is a hex, so a
+/// computed one must be too.
 ///
-/// ie-hex-str() gives #AARRGGBB; the alpha is dropped, which is safe because
-/// every sign field is opaque.
+/// ie-hex-str() gives #AARRGGBB; the alpha is dropped, safe because every sign
+/// field is opaque.
 @function -hex($c) {
   @return string.unquote("#" + string.slice(color.ie-hex-str($c), 4));
 }
@@ -193,21 +178,16 @@ $-signs-default: (
   "tarmac": #291507,
 );
 
-// HIGH CONTRAST. Every field pushed away from the ink it carries, including the
-// pairs that only just clear 4.5:1 today. The white-legend fields darken, the
-// black-legend fields lighten — which is the ink-pairing table applied as
-// arithmetic rather than a general "more saturated".
+// HIGH CONTRAST. Every field pushed away from the ink it carries. The
+// white-legend fields darken and the black-legend fields lighten — the
+// ink-pairing table applied as arithmetic rather than a general "more saturated".
 //
 // **$detour AND $go WERE DARKENED HERE AND BOTH TAKE A BLACK LEGEND**, so the
-// "high contrast" theme shipped them at 3.31:1 and 3.88:1 where the DEFAULT
-// theme had them at 6.59:1 and 7.39:1 — the theme named for legibility was the
-// least legible of the three on those two fields. Those are the figures AS THEY
-// WERE, kept because this paragraph is a record of a mistake rather than a
-// current measurement: $detour took $fuel-low's value on 2026-09-09 and now
-// reads 8.53:1 in the default palette and 10.63:1 here. Corrected 2026-08-25 by the
-// measured audit (test/palette-contrast.test.ts), which is exactly the class of
-// mistake the values being "reasoned rather than measured" was hiding: the rule
-// two lines above was right and the arithmetic went the other way.
+// "high contrast" theme shipped them at 3.31:1 and 3.88:1 where the DEFAULT theme
+// had 6.59:1 and 7.39:1 — the theme named for legibility was the least legible on
+// those two fields. Those figures are AS THEY WERE, kept as a record of a mistake
+// rather than a current measurement. Corrected 2026-08-25 by the measured audit,
+// which is exactly the class of mistake "reasoned rather than measured" hides.
 $-signs-contrast: (
   "interstate": #14402f,
   "speed": #ffffff,
@@ -223,32 +203,26 @@ $-signs-contrast: (
 );
 
 // COLORBLIND. Addresses the collisions this palette has BY CONSTRUCTION rather
-// than shifting every hue: $stop and $go are a red/green pair that converge under
-// deuteranopia and protanopia, and $yield and $detour are adjacent ambers.
+// than shifting every hue: $stop and $go converge under deuteranopia and
+// protanopia, and $yield and $detour are adjacent ambers. The move is the
+// standard one — pull "go" toward blue and "stop" toward orange-red, so the pair
+// separates on the blue-yellow axis both common forms leave intact.
 //
-// The move is the standard one for exactly this: pull the "go" signal toward blue
-// and the "stop" signal toward orange-red, so the pair separates on the
-// blue-yellow axis that both common forms of color blindness leave intact.
-//
-// **THIS IS NOT SUFFICIENT ON ITS OWN AND MUST NOT BE TREATED AS IF IT WERE.**
-// A theme that only shifts hues does not fix a signal that was carrying meaning
-// alone. The audit of where color is the ONLY cue — and giving each of those a
-// shape, an icon, a label or a weight — is a separate piece of work, and this
+// **THIS IS NOT SUFFICIENT ON ITS OWN AND MUST NOT BE TREATED AS IF IT WERE.** A
+// theme that only shifts hues does not fix a signal that was carrying meaning
+// alone. The audit of where color is the ONLY cue is separate work, and this
 // theme is a lie until it is done.
 //
 // **THE INK PAIRING IS INVARIANT AND THESE TWO BROKE IT.** The pair started as
-// the Okabe-Ito vermillion (#d55e00) and blue (#0072b2), which separate on
-// blue-yellow exactly as intended — and land on the WRONG SIDE of the legend
-// table: the vermillion is light enough that white ink on it measured 3.87:1,
-// and the blue is dark enough that black ink on it measured 4.05:1. Both are
-// backwards from every other palette.
+// Okabe-Ito vermillion and blue, which separate on blue-yellow exactly as
+// intended and land on the WRONG SIDE of the legend table: white on the
+// vermillion measured 3.87:1 and black on the blue 4.05:1, backwards from every
+// other palette.
 //
 // That could have been fixed by making the ink table theme-dependent, and must
-// not be: `$ink-light` and `$ink-dark` are referenced directly by dozens of
-// rules, so a field whose legend changes with the theme means every button
-// variant has to know which theme is active. The colors moved instead — the
-// vermillion darkened 6% and the blue lightened 7%, which keeps both on the
-// blue-yellow axis and puts each back under its own legend. Measured 2026-08-25.
+// not be: `$ink-light` and `$ink-dark` are referenced directly by dozens of rules.
+// The colors moved instead — the vermillion darkened 6% and the blue lightened
+// 7%. Measured 2026-08-25.
 $-signs-colorblind: (
   "interstate": #1f5c7a,
   "speed": #efefef,
@@ -342,24 +316,18 @@ $-signs-colorblind: (
   // it the token for a label sitting on a $pending tint.
   $pending-l: 30%;
   $label-l: 28%;
-  // Where the four "Your records" FIGURES land (#177). Every one of the four
-  // accents is a sign FIELD — a color authored to be sat on, carrying a legend —
-  // and a field is not a text color. $detour is the loudest failure (2.46:1 on
-  // $white in the default palette, 1.98:1 in contrast — the theme named for
-  // legibility being the worst of the three), which is what got this measured at
-  // all, but ALL FOUR fail on the dark schemes, where the surface is near-black
-  // and every field is a mid-tone: interstate 2.67, disabled 2.52, recreation
-  // 2.01, and worse again under contrast-dark.
-  //
-  // Those detour figures moved on 2026-09-09, when the token took $fuel-low's
-  // value and got lighter — worse as text on a white card, better on a dark one.
-  // The derived tone still clears AA in all six (4.89 at worst).
-  //
-  // So this is one lightness for all four rather than a patch for the one that
-  // was noticed. The mark keeps its field color — it is a filled glyph, not text —
-  // and only the numeral takes the derived tone. Same mechanism as the two amber
-  // text tokens above, and the same reason: a derivation whose job is to be READ
-  // takes an absolute lightness, not a relative step off a base a theme may move.
+  // Where the four "Your records" FIGURES land (#177). All four accents are sign
+    // FIELDS — colors authored to be sat on, carrying a legend — and a field is not
+    // a text color. $detour is the loudest failure (2.46:1 on $white by default,
+    // 1.98:1 in contrast, the theme named for legibility being worst), but ALL FOUR
+    // fail on the dark schemes, where the surface is near-black and every field is
+    // a mid-tone.
+    //
+    // So this is one lightness for all four rather than a patch for the one that
+    // was noticed. The mark keeps its field color — it is a filled glyph, not text
+    // — and only the numeral takes the derived tone. Same reason as the two amber
+    // text tokens above: a derivation whose job is to be READ takes an absolute
+    // lightness, not a relative step off a base a theme may move.
   $record-text-l: 30%;
   @if $dark {
     $n: $-neutrals-dark;
@@ -396,23 +364,20 @@ $-signs-colorblind: (
   $interstate: map.get($s, "interstate");
 
   // **THE LINK IS NOT THE SIGN FIELD, AND ON A DARK PAGE THEY CANNOT BE THE SAME
-  // VALUE.** $disabled is the blue of an accessible-parking sign: it is a FIELD,
-  // it carries a white legend, and it is dark by design. $url is TEXT on the
-  // page. Those two requirements agree on a white page and are opposites on a
-  // near-black one — the dark scheme shipped links at 2.52:1 on the default
-  // palette and 1.71:1 on high contrast, which is unreadable, and nothing said
-  // so because both were the same token.
-  //
-  // Lifting only the link keeps one authored blue per theme. $disabled itself
-  // does not move: a sign field is scheme-invariant, which is the finding this
-  // whole file turns on. Found by the measured audit, 2026-08-25.
-  //
-  // AN ABSOLUTE LIGHTNESS, NOT A STEP, SINCE 2026-09-20 — the -tone() rule
-  // this file states for $pending, arriving here the same way. It was
-  // `+30%`, which put the default's link at L62 and the contrast theme's at
-  // L53, because that theme's field starts darker; the day the card lifted to
-  // #242424 the contrast link measured 4.26:1 on it. 62% is where the default
-  // already sat, so nothing moves there, and the other two land beside it.
+    // VALUE.** $disabled is the blue of an accessible-parking sign: a FIELD,
+    // carrying a white legend, dark by design. $url is TEXT on the page. Those
+    // agree on a white page and are opposites on a near-black one — the dark scheme
+    // shipped links at 2.52:1 by default and 1.71:1 on high contrast, and nothing
+    // said so because both were the same token.
+    //
+    // Lifting only the link keeps one authored blue per theme; $disabled itself
+    // does not move, a sign field being scheme-invariant. Found by the measured
+    // audit, 2026-08-25.
+    //
+    // AN ABSOLUTE LIGHTNESS, NOT A STEP, SINCE 2026-09-20 — the -tone() rule this
+    // file states for $pending. It was `+30%`, which put the contrast theme's link
+    // at L53 because that theme's field starts darker; the day the card lifted to
+    // #242424 it measured 4.26:1 on it.
   $url: $disabled;
   @if $dark {
     $url: -tone($disabled, 62%);
@@ -420,26 +385,18 @@ $-signs-colorblind: (
   $grey: map.get($n, 88);
   $text: map.get($n, 21);
 
-  // THE DERIVATION DIRECTION INVERTS WITH THE SCHEME, and this is the mechanism
-  // the roadmap flagged as the expensive part. Every legibility derivation in the
-  // light palette DARKENS: $pending is -20% and $label is -22%, both making a
-  // yellow survive as text on white. On a dark ground the same tokens have to
-  // LIGHTEN or they vanish into it. Carrying a signed direction is what keeps the
-  // expressions written once.
-  //
-  // **The trap is assuming that makes the contrast symmetric. It does not.**
-  // +20% on a dark ground and -20% on a light one land on different ratios, so
-  // all six palettes need their figures measured rather than inferred from the
-  // light ones.
-  //
-  // THAT MEASUREMENT IS NO LONGER OWED AND IS NO LONGER A COMMENT.
-  // `test/palette-contrast.test.ts` compiles this file and asserts every pair the
-  // app actually paints, in all six palettes: each sign field against its own
-  // legend, each field FAILING on the other one, body text and links against the
-  // page surface, and both signed derivations as text. It found four defects on
-  // the route it was written — see the notes on $-signs-contrast, $-signs-colorblind
-  // and $url. A figure written into a comment goes stale the first time somebody
-  // nudges a hue; a figure asserted there cannot.
+  // THE DERIVATION DIRECTION INVERTS WITH THE SCHEME. Every legibility derivation
+    // in the light palette DARKENS ($pending -20%, $label -22%) to keep a yellow
+    // readable on white; on a dark ground the same tokens have to LIGHTEN. Carrying
+    // a signed direction is what keeps the expressions written once.
+    //
+    // **The trap is assuming that makes the contrast symmetric. It does not** —
+    // +20% on a dark ground and -20% on a light one land on different ratios.
+    //
+    // WHICH IS WHY THE FIGURES ARE ASSERTED RATHER THAN COMMENTED.
+    // `test/palette-contrast.test.ts` compiles this file and checks every pair the
+    // app paints, in all six palettes. It found four defects on the route it was
+    // written — see the notes on $-signs-contrast, $-signs-colorblind and $url.
   @return (
     // Neutrals, addressed by their L* number exactly as before.
     "neutral-21": map.get($n, 21),
@@ -463,30 +420,23 @@ $-signs-colorblind: (
     "warning": $warning,
     "yield": map.get($s, "yield"),
     // THE SAME COLOR AS $detour, AND IT IS AN ALIAS SO THE TWO CANNOT DRIFT.
-    // Ziad's call, 2026-09-09, and it REVERSES the shape recorded on 2026-09-02
-    // rather than leaving the old reasoning to be rediscovered.
-    //
-    // **WHAT CHANGED IS $detour, NOT THIS.** This was
-    // `color.mix(detour, warning, 50%)` — a midpoint reached because $warning
-    // washed out over pale busy tiles and $detour "read as too red for you have
-    // half a tank". That mix is now the AUTHORED value of $detour in all three
-    // sign sets, so the half-tank orange and the work-zone orange are one color
-    // and the ring's middle band needs no token of its own to be right.
-    //
-    // **AN ALIAS RATHER THAN A SECOND LITERAL**, which is the whole point of
-    // doing it this way: two hexes that are meant to be equal are two places to
-    // change, and the failure is silent — a ring band a shade off the detour
-    // orange looks like a design choice. The name survives because the MEANING
-    // does: "you have half a tank" is not "go a different way", and
-    // range-circle.js asks for a tone by name.
-    //
-    // Still through -hex(), which is load-bearing rather than tidy: map-common.js
-    // hands this value straight to google.maps as a fillColor, and Sass writes
-    // `rgb(98.03%, …)` for anything it computed. It is a no-op on an authored
-    // hex and the guard against the next derivation landing here.
-    //
-    // It is a FIELD color on a map overlay, never text, so it is deliberately
-    // absent from the ink-pairing tables below: nothing is printed on it.
+        // Ziad's call, 2026-09-09, reversing the 2026-09-02 shape rather than leaving
+        // the old reasoning to be rediscovered.
+        //
+        // **WHAT CHANGED IS $detour, NOT THIS.** This was
+        // `color.mix(detour, warning, 50%)`, a midpoint reached because $warning
+        // washed out over pale busy tiles and $detour "read as too red for you have
+        // half a tank". That mix is now the AUTHORED value of $detour in all three
+        // sign sets.
+        //
+        // **AN ALIAS RATHER THAN A SECOND LITERAL**: two hexes meant to be equal are
+        // two places to change, and the failure is silent — a ring band a shade off
+        // the detour orange looks like a design choice. The name survives because the
+        // MEANING does: "you have half a tank" is not "go a different way".
+        //
+        // Still through -hex(), which map-common.js needs; a no-op on an authored hex
+        // and the guard against the next derivation landing here. It is a FIELD color
+        // on a map overlay, never text, so it is absent from the ink-pairing tables.
     "fuel-low": -hex(map.get($s, "detour")),
     "go": $go,
     "disabled": $disabled,

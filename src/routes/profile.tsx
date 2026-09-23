@@ -422,20 +422,17 @@ export function profilePanel({ user, values, errors, saved, history }: RenderArg
         <fieldset>
           <legend>Home base</legend>
           {/*
-            WHAT IT SAYS IS WHAT THE CODE DOES, and the difference matters more
-            here than anywhere else on this form. Ziad asked for copy saying a
-            ride going public "automatically swaps" the home address for the
-            public starting point. `offerPublicStart()` in builder.js does not:
-            it ASKS, with a confirm; it fires on any level above private rather
-            than on public alone; and it does nothing at all when no public
-            starting point is set. Promising an automatic swap that is really a
-            dialog somebody can dismiss is how a rider publishes their house
-            believing the app had handled it.
-
-            SO THE THIRD SENTENCE IS THE LOAD-BEARING ONE. The offer needs a
-            public starting point to exist, and a rider with none gets no
-            prompt — which is exactly the rider most in need of one.
-          */}
+              WHAT IT SAYS IS WHAT THE CODE DOES, and the difference matters more here than
+              anywhere else on this form. Ziad asked for copy saying a ride going public
+              "automatically swaps" the home address for the public starting point.
+              `offerPublicStart()` does not: it ASKS with a confirm, fires on any level above
+              private, and does nothing at all when no public starting point is set.
+              Promising an automatic swap that is really a dismissible dialog is how a rider
+              publishes their house believing the app had handled it.
+            
+              SO THE THIRD SENTENCE IS THE LOAD-BEARING ONE: a rider with no public starting
+              point gets no prompt, and is exactly the rider most in need of one.
+            */}
           <p class="field-hint">
             Only ever on rides you keep private or friends-only, and only if you ask for it below. Share a ride any
             wider and the builder offers to swap your home for your public starting point before anyone sees&nbsp;it —
@@ -507,29 +504,21 @@ export function profilePanel({ user, values, errors, saved, history }: RenderArg
           <legend>Splitting costs</legend>
           <p class="field-hint">Optional. For settling up on hotels, gas and meals along a ride.</p>
           {/*
-            THE SIGIL EACH SERVICE ACTUALLY USES, drawn in the field rather than
-            asked for (#183 follow-up, Ziad's call 2026-09-07). Cash App writes a
-            Cashtag as `$name` and Venmo writes a handle as `@name`, so a rider
-            typing one into a field that already shows it stores it twice — which
-            is why the handler strips a leading sigil, the same way it strips one
-            off a social handle.
-
-            ZELLE GETS NONE, AND THAT IS THE ANSWER RATHER THAN AN OMISSION: a
-            Zelle account is reached by US mobile number or email address, not by
-            a handle, so there is no sigil to draw and the hint says what to put
-            there instead.
-
-            EVERY ONE OF THEM IS `autocomplete="off"`, AND THAT IS A DATA FIX
-            RATHER THAN A PREFERENCE. Chrome autofills a field it cannot place by
-            guessing from the label, and an autofill fires a real `input` event —
-            which profile.js's idle autosave cannot tell from typing. So a rider
-            who merely OPENED this page had their display name written into Cash
-            App and a saved username into Venmo, silently, and the next thing to
-            read those handles would have offered strangers a payment address
-            nobody chose. Seen live, on this page, during the browser pass that
-            added the sigils. The socials block carries it for the same reason,
-            and the Public starting point block already did.
-          */}
+              THE SIGIL EACH SERVICE ACTUALLY USES, drawn in the field rather than asked for
+              (Ziad's call, 2026-09-07). Cash App writes a Cashtag as `$name` and Venmo a
+              handle as `@name`, so a rider typing one into a field that already shows it
+              stores it twice — which is why the handler strips a leading sigil.
+            
+              ZELLE GETS NONE, AND THAT IS THE ANSWER RATHER THAN AN OMISSION: a Zelle account
+              is reached by US mobile number or email address.
+            
+              EVERY ONE OF THEM IS `autocomplete="off"`, AND THAT IS A DATA FIX RATHER THAN A
+              PREFERENCE. Chrome autofills a field it cannot place by guessing from the label,
+              and an autofill fires a real `input` event — which profile.js's idle autosave
+              cannot tell from typing. A rider who merely OPENED this page had their display
+              name written into Cash App and a saved username into Venmo, silently. Seen live
+              during the browser pass that added the sigils.
+            */}
           <Field
             name="cashApp"
             label="Cash App"
@@ -745,21 +734,17 @@ profileRoutes.post('/profile', requireActive, async (c) => {
 
   // A PAYMENT HANDLE, WITHOUT THE SIGIL THE FIELD ALREADY DRAWS.
   //
-  // Cash App writes a Cashtag as `$name` and Venmo writes a handle as `@name`,
-  // and those fields render the character ahead of the input — so a rider who
-  // types the one they can see would store it, and every surface that ever
-  // prints the value reads `$$ziad`. Stripping it here is the same reasoning as
-  // the social handles above, one character further out.
+  // Cash App writes a Cashtag as `$name` and Venmo a handle as `@name`, and those
+  // fields render the character ahead of the input — so a rider who types the one
+  // they can see stores it, and everything that prints the value reads `$$ziad`.
   //
   // IT REUSES `handle()` RATHER THAN BEING A SECOND NORMALIZER, because a rider
-  // pastes `cash.app/$ziad` and `venmo.com/u/ziad` exactly as readily as they
-  // paste an Instagram URL, and one implementation is one thing to get right.
+  // pastes `cash.app/$ziad` as readily as an Instagram URL.
   //
-  // ZELLE DOES NOT GO THROUGH IT, and that is deliberate: a Zelle account is
-  // reached by phone number or email address, and `handle()` is built to take
-  // the last path segment of a URL. It would leave an email alone today, but the
-  // field is not a handle and treating it as one is the kind of thing that
-  // stops being harmless the first time somebody widens the helper.
+  // ZELLE DOES NOT GO THROUGH IT: a Zelle account is reached by phone number or
+  // email address, and `handle()` is built to take the last path segment of a URL.
+  // It would leave an email alone today, which is the kind of thing that stops
+  // being harmless the first time somebody widens the helper.
   const money = (s: string) => {
     const bare = handle(s)
     return bare ? bare.replace(/^[$@]+/, '') || null : null
@@ -872,27 +857,23 @@ profileRoutes.post('/profile', requireActive, async (c) => {
 // --- Autosave (#100) ---------------------------------------------------------
 //
 // The profile saved on a button, so a rider who edited a field and navigated away
-// lost it silently. This is the JSON half: the form's own POST is untouched and
-// still works with script off.
+// lost it silently. This is the JSON half; the form's own POST still works with
+// script off.
 //
-// **THREE THINGS THIS DELIBERATELY WILL NOT SAVE, and each for its own reason.**
+// **THREE THINGS THIS DELIBERATELY WILL NOT SAVE.**
 //
-// `username` — claiming one is not a field write. It closes out the old name in
-// `username_history`, opens the new one, and holds it. On an idle timer that
-// fires mid-typing, "zia" gets claimed and held before the rider finishes typing
-// "ziad", and the name they wanted is now taken by their own abandoned keystroke.
-// The button is the right affordance for a write with a side effect.
+// `username` — claiming one is not a field write: it closes out the old name in
+// `username_history` and holds the new one. On an idle timer that fires
+// mid-typing, "zia" gets claimed before the rider finishes typing "ziad".
 //
-// The two ADDRESS BLOCKS — #100 says why and #101 is the other half: autosave and
-// address autocomplete both act on a pause in typing, so a rider who stops to
-// read the suggestion list gets "123 Ma" saved and geocoded underneath them. The
-// address fields are owned by the selection trigger instead, never by a timer.
+// The two ADDRESS BLOCKS — autosave and address autocomplete both act on a pause
+// in typing, so a rider who stops to read the suggestion list gets "123 Ma" saved
+// and geocoded underneath them.
 //
-// **A FIELD THAT FAILS VALIDATION DOES NOT BLOCK THE ONES THAT PASSED.** A ride is
-// one object and a bad leg invalidates it; a profile is independent fields, so a
-// postal code with a typo in it must not stop a display name from persisting.
-// Each field is parsed on its own and only the ones that passed are written —
-// which is also why this cannot reuse the whole-form schema in one call.
+// **A FIELD THAT FAILS VALIDATION DOES NOT BLOCK THE ONES THAT PASSED.** A ride
+// is one object and a bad leg invalidates it; a profile is independent fields, so
+// a postal code with a typo must not stop a display name persisting — which is
+// also why this cannot reuse the whole-form schema in one call.
 const AUTOSAVE_FIELDS = [
   'displayName',
   'firstName',
@@ -1029,28 +1010,24 @@ profileRoutes.post('/api/profile', requireActiveApi, requireSameOrigin, async (c
 // --- Avatar (#99) ------------------------------------------------------------
 //
 // `users.avatar_url` exists but is WRITE-ONCE FROM GOOGLE SIGN-IN, so a
-// magic-link rider has never had one and never could. This is the upload.
+// magic-link rider has never had one. This is the upload.
 //
-// **THE FIRST USER-SUPPLIED BINARY THIS APP SERVES PUBLICLY**, and that is what
-// makes it a different risk profile from a stored ride original — the nav
-// renders it on every page, to anyone. The rules, all of them enforced here and
-// not by the browser:
+// **THE FIRST USER-SUPPLIED BINARY THIS APP SERVES PUBLICLY**, which is what
+// makes it a different risk profile from a stored ride original — the nav renders
+// it on every page, to anyone. The rules, all enforced here and not by the
+// browser:
 //
 //   RASTER ONLY, NEVER SVG. An SVG can carry script and would be stored XSS from
 //   this origin. `checkUpload` sniffs the magic number and accepts only JPEG and
-//   PNG, so an SVG is refused whatever it is named or what Content-Type it
-//   claims. This is a security boundary, not a format preference.
+//   PNG. A security boundary, not a format preference.
 //
-//   RE-ENCODED ALWAYS. The client-side crop is convenience; browser output is
-//   attacker-controlled, so the server decodes, orients, crops, resizes and
-//   re-encodes to WebP regardless of what arrived.
+//   RE-ENCODED ALWAYS: browser output is attacker-controlled, so the server
+//   decodes, orients, crops, resizes and re-encodes to WebP regardless.
 //
-//   EXIF STRIPPED, which sharp does by default and processAvatar() documents.
-//   A phone photo carries GPS and an avatar should not publish where it was
-//   taken.
+//   EXIF STRIPPED — a phone photo carries GPS and an avatar should not publish
+//   where it was taken.
 //
-//   SERVED THROUGH A ROUTE, never a static path. src/maps/storage.ts writes
-//   outside the web root deliberately and avatars live in the same place.
+//   SERVED THROUGH A ROUTE, never a static path.
 profileRoutes.post(
   '/api/profile/avatar',
   requireActiveApi,

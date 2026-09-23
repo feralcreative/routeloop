@@ -1,17 +1,13 @@
 // The ride builder. State mirrors the /api/rides payload: ride meta plus an
-// ordered array of routes, each a route/session of ordered stops, unordered POIs,
-// and road-routed legs (legs[i] connects stops[i] → stops[i+1]).
+// ordered array of routes, each one ordered points and road-routed legs.
 //
-// Every route is drawn on the map at once, always. The route slider changes which
-// one is emphasized and never hides anything — seeing the whole ride on a single
-// map is the point of the app, so dimming is the only thing focus does.
+// Every route is drawn at once, always. The slider only changes which is
+// emphasized — seeing the whole ride on one map is the point of the app.
 (function () {
   "use strict";
 
-  // The interpunct data delimiter and the space around it, mirroring SEP in
-  // src/views/sep.ts — read that file for why it is an en space rather than a
-  // word space, and why it is written as an escape. test/sep.test.ts fails if
-  // the three copies stop agreeing.
+  // The interpunct data delimiter, mirroring SEP in src/views/sep.ts.
+    // test/sep.test.ts holds the three copies together.
   const SEP = "\u2002\u00b7\u2002";
   const {
     esc,
@@ -49,8 +45,8 @@
   initPanelToggle(() => state.map);
   initPanelResize(() => state.map);
 
-  // The ride's time model is shared with the viewer so the two can never
-  // disagree about what is happening at a given moment. See ride-time.js.
+  // The time model is shared with the viewer, so the two can never disagree about
+  // a given moment. See ride-time.js.
   const {
     legIsEstimated,
     legDurationS,
@@ -71,19 +67,16 @@
     fmtMoment: fmtMomentRaw,
   } = window.TBTime;
 
-  // ride-time.js is a PURE helper and reads no DOM, so the rider's date format
-  // and clock are handed to it rather than looked up inside (#270). One wrapper
-  // here keeps all five call sites reading exactly as they did.
+  // ride-time.js is PURE and reads no DOM, so the rider's date format and clock
+  // are handed to it (#270).
   const fmtMoment = (s) => fmtMomentRaw(s, window.TBFmt && window.TBFmt.timePrefs());
 
-  // Twistiness, computed here rather than read from the ride: the stored figure
-  // is whatever the geometry looked like at the last save, and this panel has to
-  // be right while the rider is still moving stops around. See twist.js for why
-  // there are two implementations and what keeps them honest.
+  // Twistiness is computed here, not read from the ride: the stored figure is
+    // whatever the geometry was at the last save, and this panel has to be right
+    // while stops are still moving. See twist.js.
   const { routeTwistiness, twistLabel, twistRank, twistScale } = window.TBTwist;
 
-  // Category-vs-name detection and the place-type to role map. See
-  // public/js/place-query.js — pure, and pinned by test/place-query.test.ts.
+  // Category-vs-name detection and the place-type to role map. See place-query.js.
   const QUERY = window.TBQuery;
 
   // Pure drag-to-shape arithmetic — see route-shape.js.
@@ -95,53 +88,45 @@
 
   const MILE = 1609.344;
 
-  // Miles or kilometers — see public/js/units.js, which mirrors
-  // src/views/units.ts and is pinned to it by test/units-client.test.ts.
+  // Miles or kilometers — units.js, mirroring src/views/units.ts.
   const UNITS = window.TBUnits ? window.TBUnits.toUnits(window.TB.units) : "imperial";
   const distUnit = window.TBUnits ? window.TBUnits.distanceUnit(UNITS) : "mi";
 
-  // Cumulative and since-refuel distance — see public/js/route-distance.js. Pure,
-  // meters throughout, and it formats nothing: the unit is the rider's, applied
-  // here at the point of display.
+  // Cumulative and since-refuel distance — route-distance.js. Meters throughout;
+  // the unit is the rider's and is applied at display.
   const DIST = window.TBDistance;
 
-  // Cutting a route in two — see public/js/route-split.js. Pure, and the uid minter
-  // is passed in, so the identity a carried point gets is this file's to mint.
+  // Cutting a route in two — route-split.js. The uid minter is passed in, so a
+  // carried point's identity is this file's to mint.
   const SPLIT = window.TBSplit;
 
-  // How far off the route's line a place is — see public/js/corridor.js. Pure
-  // geometry; the searching and the spending live below.
+  // How far off the route a place is — corridor.js. The spending lives below.
   const CORRIDOR = window.TBCorridor;
 
-  // Where the rider would be at a scrubbed moment, and how much fuel is left
-  // there. See public/js/range-circle.js.
+  // Where the rider would be at a scrubbed moment, and the fuel left there.
   const RANGE = window.TBRange;
 
-  /** Meters as the rider's own unit, rounded to a whole one. Distances in the
-   *  panel are read at a glance against a tank, so a decimal is noise. */
+  /** Meters as the rider's unit, whole: panel distances are read at a glance
+   *  against a tank, so a decimal is noise. */
   const fmtDist = (m) => Math.round(window.TBUnits.distanceFrom(m, UNITS)) + " " + distUnit;
   const MAX_ROUTES = 31; // matches MAX_ROUTES in src/routes/rides.ts
-  // Mirrors MAX_POINTS / MAX_STOPS in src/maps/ride-graph.ts. One cap over the
-  // whole list, plus a separate ceiling on how many of them may be routing
-  // anchors — promoting 400 POIs would be 399 Directions calls.
+    // Mirrors MAX_POINTS / MAX_STOPS in src/maps/ride-graph.ts: one cap over the
+    // list plus a ceiling on routing anchors, since promoting 400 POIs would be
+    // 399 Directions calls.
   const MAX_POINTS = 400;
   const MAX_STOPS = 200;
   const MAX_LINKS = 5;
 
-  // A point's durable identity. Mirrors newUid() in src/maps/uid.ts and is pinned
-  // to it by test/point-details.test.ts — same alphabet, same length, or the save
-  // 400s.
-  //
-  // Minted on the CLIENT because a rider can type a confirmation number into a
-  // stop before any save has happened, and those details need something to hang
-  // on. crypto.getRandomValues over Math.random: a repeat inside one save
-  // violates the per-route unique index. Bytes at or above 252 are discarded, or
-  // 256 % 36 biases the first four symbols.
+  // A point's durable identity. Mirrors newUid() in src/maps/uid.ts — same
+    // alphabet and length, or the save 400s.
+    //
+    // Minted on the CLIENT because a rider can type a confirmation number into a
+    // stop before any save. getRandomValues over Math.random: a repeat inside one
+    // save violates the per-route unique index. Bytes at or above 252 are
+    // discarded, or 256 % 36 biases the first four symbols.
   const UID_ALPHABET = "abcdefghijklmnopqrstuvwxyz0123456789";
-  // The group every ride starts with. Named rather than blank because it is
-  // rendered in a <select> and in the route pickers, where an unnamed option is
-  // an empty row nobody can aim at; the rider renames it if they want to, which
-  // is what "optional name" means here.
+  // The group every ride starts with. Named rather than blank because it renders
+    // in a <select>, where an unnamed option is a row nobody can aim at.
   function seedGroup() {
     return { uid: uid(), name: "Group 1", color: ROUTE_COLORS[0] };
   }
@@ -160,36 +145,31 @@
     return out;
   }
 
-  // A stop or POI as it is born: an identity, and no details until the rider
-  // opens the editor. `details: null` rather than an empty object so that
-  // "nothing filled in" is one representation rather than two, matching what the
-  // server stores and what loadRidePayload sends back.
+  // A point as it is born. `details: null` rather than {} so "nothing filled in"
+    // has one representation, matching what the server stores and sends back.
   /**
-    * A ROUTE MUST KEEP A STOP, and this is the one place that rule is applied.
-    *
-    * `routeSchema` refuses a route with no stop and `payload()` cannot send one, so
-    * a route that loses its last one can no longer be saved — with a server message
-    * that names an array index and ellipsizes to nothing in the status box. #233.
-    *
-    * It was five hand-written copies until 2026-09-03, and addRoute() was the one
-    * without it: its seed was a bare object with no `kind`, `kind` defaults to
-    * `poi`, and addPoint() promotes nothing on a non-empty route — so every route
-    * after the first had no stop and every save of that ride failed forever.
-    */
+        * A ROUTE MUST KEEP A STOP, and this is the one place that rule is applied.
+        *
+        * `routeSchema` refuses a route with no stop and `payload()` cannot send one,
+        * so a route that loses its last one can never be saved again (#233).
+        *
+        * It was five hand-written copies until 2026-09-03 and addRoute() was the one
+        * without it: its seed had no `kind`, `kind` defaults to `poi`, and addPoint()
+        * promotes nothing on a non-empty route — so every route after the first had
+        * no stop and every save of that ride failed forever.
+        */
   function ensureRouteHasStop(route) {
     if (route && route.points.length > 0 && stopsOf(route).length === 0) route.points[0].kind = "stop";
     return route;
   }
 
-  // `address` is the place's own street address as Google gave it, or "" for a
-  // point the rider dropped on the map — nothing geocodes one after the fact.
-  // It is PUBLIC and rides in the payload beside the name; the owner-only
-  // address a rider types by hand lives on `details` and is a different field.
+  // The place's own street address from Google, or "" for a point dropped on the
+    // map — nothing geocodes one after the fact. PUBLIC; the owner-only address a
+    // rider types lives on `details`.
   function newPoint(lng, lat, name, address) {
     return {
-      // THE BASELINE TYPE. Ziad's call, 2026-08-23: a point is a POI until it is
-      // promoted, so nothing has to be decided at the moment of creation — which
-      // is the moment a rider knows least about the place they just dropped.
+      // THE BASELINE TYPE. A point is a POI until promoted, so nothing is decided at
+          // creation — the moment a rider knows least about the place they dropped.
       kind: "poi",
       lat: +lat.toFixed(6),
       lng: +lng.toFixed(6),
@@ -198,8 +178,8 @@
       description: "",
       roles: [],
       durationMin: null,
-      // Time only a LATE group spends, and meaningful on a meeting point alone
-      // — see points.slack_min. Null is not zero: null is nobody set any.
+      // Time only a LATE group spends, meaningful on a meeting point alone. Null is
+          // not zero: null is nobody set any.
       slackMin: null,
       uid: uid(),
       details: null,
@@ -207,29 +187,21 @@
   }
 
   // --- One ordered list -----------------------------------------------------
-  //
-  // A route holds ONE array, `points`, in the rider's order, and `kind` says only
-  // whether the rider means to STOP there. It replaced `route.stops` and
-  // `route.pois`, where stopness was which array an object sat in and a POI had
-  // no stored order at all.
-  //
-  // ONE INDEX SPACE, as of 2026-08-24. `legs[i]` joins `points[i]` to
-  // `points[i+1]`, whatever kind either end is, so a point's position IS its leg
-  // index. stopIdx() and stopOrdinalAt() are gone with the second index space.
-  //
-  // stopsOf() survives for the things that genuinely count stops rather than
-  // points: the row numbering, the at-least-one-stop guard, and an alternate
-  // group's endpoints.
+    //
+    // A route holds ONE array, `points`, in the rider's order; `kind` says only
+    // whether they mean to STOP there. It replaced `route.stops`/`route.pois`,
+    // where stopness was which array an object sat in and a POI had no order.
+    //
+    // ONE INDEX SPACE: `legs[i]` joins `points[i]` to `points[i+1]` whatever kind
+    // either end is, so a point's position IS its leg index.
+    //
+    // stopsOf() survives for what genuinely counts stops: the row numbering, the
+    // at-least-one-stop guard, and an alternate group's endpoints.
   const stopsOf = (route) => route.points.filter((pt) => pt.kind === "stop");
 
-  // The rider's saved-place library, loaded once when the builder opens.
-  //
-  // Held in memory rather than re-fetched per keystroke: one rider's own list,
-  // bounded at 500 by MAX_PLACES, and matching locally is what puts a saved place
-  // in the search list instantly and for free.
-  //
-  // A failure is silent and non-fatal — saved places are an accelerant, not a
-  // dependency.
+  // The rider's saved places, loaded once. In memory rather than re-fetched per
+    // keystroke — one bounded list, and matching locally is free. A failure is
+    // silent: saved places are an accelerant, not a dependency.
   let savedPlaces = [];
   async function loadSavedPlaces() {
     try {
@@ -244,10 +216,8 @@
     }
   }
 
-  // Substring match on name, group and address, cheapest thing that works on a
-  // list this size. Matches from ONE character rather than three: the Google
-  // search waits for three because each call is billed, and this one costs
-  // nothing.
+  // Substring match on name, group and address. From ONE character rather than
+    // three: the Google search waits because each call is billed; this is free.
   function matchSavedPlaces(q) {
     const needle = q.trim().toLowerCase();
     if (!needle) return [];
@@ -257,12 +227,9 @@
   }
 
   // The client half of placeToStop() in src/places/policy.ts. A saved place is
-  // COPIED into the ride and keeps no reference back — see the table comment in
-  // src/db/schema.ts — so this builds a plain point and nothing ties it to the
-  // row it came from.
-  //
-  // Only the DURABLE half of the details travels: a phone number is a fact about
-  // the place, a confirmation number is a fact about one trip.
+    // COPIED into the ride and keeps no reference back. Only the DURABLE half of
+    // the details travels: a phone number is a fact about the place, a
+    // confirmation number about one trip.
   function stopFromPlace(pl) {
     const durable = Boolean(pl.phone || pl.address || (pl.links || []).length);
     const pt = newPoint(pl.lng, pl.lat, pl.name, pl.address);
@@ -278,14 +245,8 @@
     return pt;
   }
 
-  // Saves a stop into the rider's library.
-  //
-  // Sends only the DURABLE half of its details: a phone number belongs to the
-  // place, a confirmation number to one trip, and sending the second would put
-  // last September's booking on every future ride.
-  //
-  // The copy is independent from here on, in both directions — the
-  // copy-not-reference decision.
+  // Saves a stop into the rider's library, sending only the DURABLE half of its
+    // details — the rest would put last September's booking on every future ride.
   async function savePointAsPlace(point) {
     if (!point) return;
     if (!point.name.trim()) return toast("Give the stop a name first", true);
@@ -306,8 +267,8 @@
       });
       const data = await res.json().catch(() => ({}));
       if (!res.ok) return toast(data.error || "Could not save that place", true);
-      // Pushed into the in-memory list rather than re-fetching, so the place is
-      // searchable on the very next keystroke without a round trip.
+      // Pushed into the in-memory list rather than re-fetched, so the place is
+      // searchable on the next keystroke.
       savedPlaces.push({ ...data, groupName: "" });
       toast("Saved to your places");
     } catch (e) {
@@ -319,13 +280,10 @@
     return { confirmation: "", checkInAt: null, checkOutAt: null, phone: "", address: "", links: [], notes: "" };
   }
 
-  // Which detail fields a stop shows, keyed off its roles: a hotel wants check-in
-  // and a confirmation number, a food stop a reservation time, and fourteen
-  // inputs for a gas stop is how a feature stops being used. Notes and links are
-  // on everything.
-  //
-  // A stop with no roles gets the full set rather than the minimum — an
-  // uncategorized stop with fields hidden looks broken.
+  // Which detail fields a stop shows, keyed off its roles: fourteen inputs for a
+    // gas stop is how a feature stops being used. Notes and links are on
+    // everything, and a roleless stop gets the FULL set — one with fields hidden
+    // looks broken.
   const LODGING_ROLES = ["hotel", "camp"];
   const TABLE_ROLES = ["food", "coffee", "drinks", "grocery"];
   function detailFieldsFor(roles) {
@@ -339,54 +297,41 @@
     return ["phone", "address"].concat(base);
   }
 
-  // Anything filled in at all — what badges the row so a rider can see which
-  // stops carry detail without opening each one.
+  // Anything filled in at all — what badges the row, so a rider sees which stops
+  // carry detail without opening each one.
   function hasDetails(d) {
     if (!d) return false;
     return Boolean(
       d.confirmation || d.checkInAt || d.checkOutAt || d.phone || d.address || d.notes || (d.links || []).length,
     );
   }
-  // Matches MAX_VIAS_PER_LEG in src/maps/ride-graph.ts, which the save path
-  // enforces. Refusing the 21st here is the difference between a rider being
-  // told now and a whole ride failing to save later.
+  // Matches MAX_VIAS_PER_LEG, which the save enforces. Refusing the 21st here is
+    // the difference between being told now and a whole ride failing to save later.
   const MAX_VIAS_PER_LEG = 20;
 
-  // Injected by the page shell from src/maps/palette.ts, the same way
-  // window.TB.roles carries the role table. The importer colors the routes of a
-  // folder import server-side, so the palette cannot live only in here.
+  // Injected by the page shell from src/maps/palette.ts. The importer colors a
+    // folder import's routes server-side, so the palette cannot live only here.
   const ROUTE_COLORS = window.TB.routeColors;
 
-  // How the stop dwell field reads, from the rider's profile — 'hours', 'hm' or
-  // 'minutes'. It is a DISPLAY choice and nothing below it stores anything
-  // differently: point.durationMin is integer minutes whatever this says, which
-  // is what keeps every export, the roadbook and the timeline out of it.
-  //
-  // Read once at load rather than per row. Changing it is a page load, because it
-  // is set on /settings and the builder is a different page.
+  // How the dwell field reads — 'hours', 'hm' or 'minutes'. DISPLAY only:
+    // point.durationMin is integer minutes whatever this says, which keeps every
+    // export, the roadbook and the timeline out of it. Read once at load.
   const DUR = window.TBDuration;
   const durFormat = DUR.toFormat(window.TB.durationFormat);
 
   // WHETHER THIS RIDER MAY WRITE. A hint, never the gate — the server refuses a
-  // PUT from anybody below `edit` whatever this says (#190). What it buys is a
-  // page that does not offer an edit it cannot keep.
-  //
-  // Defaults to TRUE on a missing value: the new-ride page has no roster, and an
-  // older cached page that predates the key must keep working.
+    // PUT from anybody below `edit` (#190). Defaults TRUE on a missing value: the
+    // new-ride page has no roster, and an older cached page must keep working.
   const CAN_EDIT = window.TB.canEdit !== false;
 
-  // WHETHER THIS RIDER MAY PROPOSE A CHANGE. `suggest` is the DEFAULT an
-  // invitation grants, so this is the common case for anybody who is not the
-  // owner — and it is what makes the read-only builder useful rather than a
-  // museum: a rider edits a route locally, presses Suggest, and the owner takes it
-  // or leaves it. Nothing they do is saved to the ride.
+  // WHETHER THIS RIDER MAY PROPOSE A CHANGE. `suggest` is what an invitation
+    // grants, so it is the common case for a non-owner: edit locally, press
+    // Suggest, the owner takes it or leaves it. Nothing is saved to the ride.
   const CAN_SUGGEST = window.TB.perm === "suggest" || CAN_EDIT;
 
   // Alternates: the numbering, the active-route filter and the ride rollup. The
-  // builder is the only client that calls resolveAltGroups — it is the one
-  // editing routes, and repairing locally is what keeps the panel, the map and
-  // the totals agreeing before the next save round trip. The server resolves
-  // again on save regardless, and its answer wins.
+    // builder resolves locally to keep the panel, the map and the totals agreeing
+    // before the next round trip; the server resolves again on save and wins.
   const ALT = window.TBAlt;
 
   const newRoute = (color) => ({
@@ -396,77 +341,60 @@
     endAt: null,
     // Session-only: see inferEndManual(). Never part of payload().
     endManual: false,
-    // The route's durable identity, minted here the way a point's is. It DOES go
-    // in payload() and it DOES come back in loadExisting(); mirror of
-    // `routes.uid` in src/db/schema.ts. Votes on an alternate are keyed by it, so
-    // a route that loses its uid loses its votes silently.
+    // The route's durable identity, minted here as a point's is; mirror of
+        // `routes.uid`. Votes on an alternate are keyed by it, so a route that loses
+        // its uid loses its votes silently.
     uid: uid(),
-    // WHOSE DAY THIS IS, by subgroup uid. Null means everyone rides it, which
-    // is what a new route always is: tagging one is something a rider does to a
-    // route that already exists, the same as grouping it as an alternate.
+    // WHOSE DAY THIS IS, by subgroup uid. Null means everyone rides it, which a new
+        // route always is: tagging one is done to a route that already exists.
     subgroupUid: null,
-    // Alternates. A new route is always a plain one — grouping is something a
-    // rider does to routes that already exist. Both fields DO go in payload() and
-    // both come back in loadExisting(); see src/maps/alts.ts for what they mean
-    // and why the group id is not stable across a save.
+    // Alternates. A new route is always plain — grouping is done to routes that
+        // already exist. See src/maps/alts.ts for why the group id is not stable
+        // across a save.
     altGroup: null,
     altActive: true,
-    // What this route asks of the router (#29). Null is no preference, which is
-    // what a new route always is — the server normalizes {} to null on save, so
-    // there is only ever one spelling of it in the column.
+    // What this route asks of the router (#29). Null is no preference; the server
+        // normalizes {} to null, so the column holds one spelling of it.
     routePrefs: null,
-    // One ordered list of both kinds, and legs[i] joins points[i] to points[i+1]
-    // whatever kind either end is — see the One ordered list block above.
+    // One ordered list of both kinds — see One ordered list above.
     points: [],
     legs: [],
   });
 
-  // THE NAME A RIDE HAS BEFORE ANYBODY NAMES IT. Ziad's call, 2026-08-24.
-  //
-  // A ride used to be unsaveable without a title, so autosave never fired and a
-  // rider who dropped three pins and closed the tab lost all three to a naming
-  // rule. That is the defect, not the missing name.
-  //
-  // Visible and pre-filled rather than a placeholder, which would leave `title`
-  // genuinely empty and still be refused server-side. The field selects itself on
-  // focus, so the first keystroke replaces it.
+  // THE NAME A RIDE HAS BEFORE ANYBODY NAMES IT. A ride used to be unsaveable
+    // without a title, so autosave never fired and a rider who dropped three pins
+    // and closed the tab lost all three to a naming rule. Visible and pre-filled
+    // rather than a placeholder, which would leave `title` genuinely empty and
+    // still be refused server-side; the field selects itself on focus.
   const UNTITLED = "Untitled ride";
 
-  // Built before the state literal so the seed's uid can be the main group in
-  // the same breath: `primarySubgroup` may never be null, and setting it
-  // afterwards is a second statement somebody can forget to keep.
+  // Built before the state literal so the seed's uid can be the main group in the
+    // same breath: `primarySubgroup` may never be null.
   const SEED_GROUP = seedGroup();
 
   const state = {
     map: null,
-    // Which row has its category picker open, as {route, i}, or null.
-    //
-    // In state rather than in the DOM because picking a category now changes the
-    // point's KIND, which renumbers every stop after it — so the row has to be
-    // re-rendered, and a picker whose openness lived only in a `hidden` attribute
-    // would slam shut after every icon tap.
+    // Which row has its category picker open, or null. In state rather than the DOM
+        // because picking a category changes the point's KIND, which renumbers every
+        // stop after it — so the row is re-rendered, and a picker living in a
+        // `hidden` attribute would slam shut after every tap.
     rolesOpen: null,
-    // Which gap between two points has its add-row open, as {route, at}, or null.
-    // `at` is an index into route.points: 0 is before the first point, and
-    // route.points.length would be the bottom row, which is always there anyway.
+    // Which gap has its add-row open, or null. `at` indexes route.points: 0 is
+        // before the first, and route.points.length is the bottom row.
     insertAt: null,
     rideId: window.TB.rideId || null,
-    // WHAT THIS BUILDER'S WORK IS BASED ON. Sent with every save and compared
-    // server-side; a mismatch means somebody else wrote to this ride since it
-    // was loaded, and the save is refused rather than applied.
-    //
-    // Null on a ride that has never been loaded from the server — a brand-new
-    // one, or a session that predates this — and the server reads a missing rev
-    // as unchecked, which is the same behavior the builder had before.
+    // WHAT THIS BUILDER'S WORK IS BASED ON. Compared server-side; a mismatch means
+        // somebody else wrote to this ride since it was loaded, and the save is
+        // refused. Null on a ride never loaded from the server, which the server
+        // reads as unchecked.
     rev: null,
-    // What each route looked like when this builder last saw it, as {uid: hash}.
-    // Echoed with every save so the server merges per route instead of refusing the
-    // whole ride because somebody renamed route 4.
-    //
-    // THE WHOLE SET, not a field on each route in state.routes. A route this rider
-    // DELETED is absent from the payload, and its base hash is the only thing
-    // separating "I deleted this" from "somebody else added this" — which need
-    // opposite answers.
+    // What each route looked like when this builder last saw it, as {uid: hash},
+        // so the server merges per route instead of refusing the whole ride because
+        // somebody renamed route 4.
+        //
+        // THE WHOLE SET, not a field on each route. A route this rider DELETED is
+        // absent from the payload, and its base hash is the only thing separating
+        // "I deleted this" from "somebody else added this".
     routeBase: {},
     // Set when a save is refused as stale. It STOPS THE AUTOSAVE LOOP: a retry
     // is not a recovery here, it is a second attempt to overwrite whatever the
@@ -500,125 +428,98 @@
       trunkSubgroup: null,
       // Which event is pinned: "departure", "meet" or "arrival".
       timeAnchor: "departure",
-      // WHEN THE RIDER WANTS TO BE LOOKING FOR A BED, minutes from midnight, or
-      // null for "they have not said" — which is most rides, and the whole
-      // feature is quiet until they do. A wall clock at the departure point, see
-      // rides.stop_by_min.
+      // WHEN THE RIDER WANTS TO BE LOOKING FOR A BED, minutes from midnight, or null
+      // for "they have not said" — most rides. A wall clock at the departure point.
       stopByMin: null,
-      // WHICH VEHICLE THIS RIDE IS FOR (#321), or null for "not said" — the
-      // rider's own default, which is what TBVocab resolves to. The words on
-      // every rider-facing string in this file follow it through TBVocab.
+      // WHICH VEHICLE THIS RIDE IS FOR (#321), or null for the rider's own default.
+      // Every rider-facing string in this file follows it through TBVocab.
       vehicle: null,
       power: null,
     },
     routes: [newRoute()],
     // WHICH FEATURE OWNS THE MAP'S PREVIEW DOTS — "search", "meet" or null.
-    // The last proposal, whole, so taking one group's meeting point can re-render
-    // the sections for the groups still undecided. Null until the button is
-    // pressed and again the moment a press fails.
+    // The last proposal is held whole, so taking one group's meeting point can
+    // re-render the sections for the groups still undecided.
     meet: null,
-    // The sentence about the decision just made, held for the same reason the
-    // proposal is — the panel that shows it is rebuilt whenever a route changes.
+    // The sentence about the decision just made, held because the panel showing it
+    // is rebuilt whenever a route changes.
     meetNote: "",
-    // `setSearchPreview` is one slot and two features draw into it, so the one
-    // that did not put them there must not clear them: see hideSearchResults.
+    // `setSearchPreview` is one slot and two features draw into it, so the one that
+    // did not put them there must not clear them: see hideSearchResults.
     previewOwner: null,
-    // The active route, as a plain index into state.routes. It is where a map click
-    // puts a stop and which route the map emphasizes; it is NOT a filter, because
-    // every route is on screen at once.
-    //
-    // It was `focus`, a 0..N slider value with 0 meaning "all routes". Both the
-    // off-by-one and the null-means-all case went with the slider.
+    // The active route, a plain index into state.routes: where a map click puts a
+    // stop and which route is emphasized. NOT a filter — every route is on screen.
+    // It was a 0..N slider where 0 meant "all routes"; the off-by-one and the
+    // null-means-all case went with it.
     active: 0,
-    // The timeline's position, in epoch seconds, or null for "no moment
-    // chosen". When it is set it is the single source of what is emphasized:
-    // the route containing it, and the leg being ridden at it. The route slider
-    // does not compete with this — moving it just picks a new moment (that
-    // route's start), so there is one model and two ways to drive it. Null falls
-    // back to plain route focus, which is what an undated ride always uses.
+    // The timeline's position in epoch seconds, or null for "no moment chosen".
+    // When set it decides everything emphasized — the route containing it and the
+    // leg being ridden. The route slider does not compete: moving it picks a new
+    // moment (that route's start), so there is one model and two ways to drive it.
     moment: null,
-    // WHAT THE TIMELINE SPANS: "route" (the active route) or "ride" (all of it).
-    //
-    // Route by default, which fixes two reports at once. #222: a slider stretched
-    // over a 72-hour ride spends most of its travel on the overnights, so an hour
-    // of Saturday afternoon came out at a few pixels. #214: the lit route was
-    // whichever one the MOMENT fell in, so clicking into route 3 left it dimmed
-    // behind wherever the timeline was parked. Scoped to the active route the two
-    // cannot disagree.
-    //
-    // Ride scope stays behind the button in the bar — a real thing to want, just
-    // not while building. Session-only: it is a way of looking at the ride for a
-    // minute, not a preference about it. Ziad's call, 2026-08-30.
+    // WHAT THE TIMELINE SPANS: "route" (the active one) or "ride".
+        //
+        // Route by default, which fixes two reports. #222: stretched over a 72-hour
+        // ride the slider spends most of its travel on overnights. #214: the lit route
+        // was whichever one the MOMENT fell in, so clicking into route 3 left it
+        // dimmed. Scoped to the active route the two cannot disagree.
+        //
+        // Session-only: a way of looking at the ride for a minute, not a preference.
     timeScope: "route",
-    // #50's search scope. FALSE means a category chip searches near the route's last
-    // point; TRUE means along the whole line, keeping what falls inside CORRIDOR_MI.
-    // Session-only and shared across routes, like timeScope.
-    // #229's fuel ring, on or off. Session-only and ride-wide for the same reason,
-    // and on by default — a rider who finds a 300-mile circle in the way turns it
-    // off.
+    // #50's search scope. FALSE searches near the route's last point, TRUE along the
+    // whole line within CORRIDOR_MI. Session-only and shared across routes.
+    // #229's fuel ring. Session-only, ride-wide, and on by default — a rider who
+    // finds a 300-mile circle in the way turns it off.
     ringOn: true,
     corridorOn: false,
-    // HOW MUCH FURTHER OUT OF THEIR WAY THAN NECESSARY A JOINING GROUP MAY BE
-    // SENT, in miles, for the next meeting-point press. Session-only and
-    // ride-wide for the same reason as the two above: it is how the planner is
-    // asking the question right now. SEEDED FROM THE RIDER'S PREFERENCE (#370)
-    // — the page renders the dial from the same number, so the box and the
-    // state agree before anybody touches either.
+    // HOW MUCH FURTHER OUT OF THEIR WAY A JOINING GROUP MAY BE SENT, in miles, for
+    // the next meeting-point press. Session-only: it is how the planner is asking
+    // right now. SEEDED FROM THE RIDER'S PREFERENCE (#370), which the dial renders
+    // from too, so the box and the state agree before anybody touches either.
     maxDivertMi: window.TB.maxDivertMi || 10,
-    // Who is on which route, resolved server-side. NULL until it loads — the row
-    // renderer checks, because a line that guessed "everyone" before the fetch
-    // landed would flicker to the truth on exactly the routes where the truth is
-    // interesting. Not part of the payload: route_riders is reconciled by uid like
-    // votes and point details rather than churned with the graph.
+    // Who is on which route, resolved server-side. NULL until it loads — a line that
+    // guessed "everyone" would flicker to the truth on exactly the routes where the
+    // truth is interesting. Not in the payload: reconciled by uid like votes.
     routeRiders: null,
     // markers[r] = { stops: [{marker, el}], pois: [{marker, el}] }
     markers: [],
-    // WHICH DAY IS WAITING FOR A MAP CLICK, or null. Set by a route's "+ Stop"
-    // button and cleared by the click that satisfies it.
-    //
-    // One value rather than a boolean plus a route index: two fields can disagree
-    // with each other, and the disagreement here would put a stop on the wrong
-    // route silently. Every armed button re-derives its own state from this, so
-    // there is no class anybody has to remember to move.
+    // WHICH DAY IS WAITING FOR A MAP CLICK, or null. One value rather than a boolean
+    // plus a route index: two fields can disagree, and here the disagreement puts a
+    // stop on the wrong route silently. Every armed button re-derives from this.
     arm: null,
     dirty: false,
-    // A flush is in flight. Declared rather than sprung into existence by the
-    // first assignment, because autosave now READS it before any save has run.
+    // A flush is in flight. Declared rather than sprung into existence by the first
+    // assignment, because autosave READS it before any save has run.
     saving: false,
     layersReady: false,
     layerCount: 0, // how many route layers are currently on the map
     legSeq: [], // legSeq[r][i]—stale routing responses are dropped
-    // SELECT MODE, or null when off:
-    //   { scope: "route" | "point", routes: Set<int>, points: Set<"route:kind:i"> }
-    //
-    // ON state, DELIBERATELY NOT ON A ROUTE OR A POINT: snapshot() in
-    // builder-history.js reads only state.meta and state.routes, so a sibling key
-    // here can never ride into the undo stack. A `selected` flag on a route would,
-    // and would then have to be stripped in payload() the way endManual is.
-    //
-    // Points are keyed "routeIndex:kind:i", never held as references — HIST.restore
-    // builds fresh objects on undo. Indices are safe because every bulk action,
-    // undo and structural render clears the selection.
+        // SELECT MODE, or null when off:
+        //   { scope: "route" | "point", routes: Set<int>, points: Set<"route:kind:i"> }
+        //
+        // ON state, DELIBERATELY NOT ON A ROUTE OR A POINT: snapshot() reads only
+        // state.meta and state.routes, so a sibling key here can never ride into the
+        // undo stack, where a `selected` flag on a route would.
+        //
+        // Points are keyed "routeIndex:kind:i", never held as references — restore
+        // builds fresh objects. Indices are safe because every bulk action, undo and
+        // structural render clears the selection.
     select: null,
   };
 
   const $ = (id) => document.getElementById(id);
 
-  // WHICH ROUTE EDITS LAND ON — the last route the rider touched, and the only
-  // thing it decides is where a map click puts a new stop.
-  //
-  // It was `state.focus`, a 0..N slider where 0 meant "All routes". Two things
-  // went with the slider: the null case, which left edits nowhere to land, and the
-  // off-by-one that is why this pair of helpers existed.
-  //
-  // Clamped rather than allowed to go stale: deleting route 3 of 3 must leave the
-  // index pointing at a route that exists, which every caller here assumes.
+  // WHICH ROUTE EDITS LAND ON — the last route the rider touched, and all it
+    // decides is where a map click puts a new stop. It was a 0..N slider where 0
+    // meant "All routes"; the null case, which left edits nowhere to land, went
+    // with it. Clamped rather than allowed to go stale: deleting route 3 of 3 must
+    // leave the index pointing at a route that exists.
   const activeIndex = () => {
     if (!state.routes.length) return null;
     return Math.max(0, Math.min(state.routes.length - 1, state.active | 0));
   };
-  // Kept under their old names because eighteen call sites read them and none of
-  // them cared which route it was, only that it was the one being edited.
+  // Kept under their old names because eighteen call sites read them and none
+  // cared which route it was, only that it was the one being edited.
   const editIndex = activeIndex;
   const focusedIndex = activeIndex;
   const editRoute = () => {
@@ -626,22 +527,20 @@
     return r == null ? null : state.routes[r];
   };
 
-  // Makes a route the active one. Cheap and idempotent, because every row and
-  // section handler calls it before doing anything else — that is what lets the
-  // edit handlers go on reading editIndex() without each of them being rewritten
-  // to take a route.
+  // Makes a route active. Cheap and idempotent, because every row and section
+  // handler calls it first — which is what lets the edit handlers go on reading
+  // editIndex() unchanged.
   function setActive(r) {
     const next = Math.max(0, Math.min(state.routes.length - 1, r | 0));
     if (state.active === next) return;
     state.active = next;
     // THE MOMENT FOLLOWS THE ROUTE, and in route scope it has to: the slider is
-    // about to be re-ranged, and a moment left over from the last route is off the
-    // end of its own travel. Snapping to the route's opening is where goToRoute()
-    // has always put it. A moment already inside the new route is kept.
-    //
-    // Ride scope is deliberately NOT clamped — its job is to look across the ride,
-    // and yanking the thumb because the rider clicked a name field is the jump the
-    // split between this and goToRoute() exists to avoid.
+        // about to be re-ranged and a moment from the last route is off the end of its
+        // travel. A moment already inside the new route is kept.
+        //
+        // Ride scope is deliberately NOT clamped — its job is to look across the ride,
+        // and yanking the thumb because the rider clicked a name field is the jump
+        // this split from goToRoute() exists to avoid.
     if (state.timeScope === "route" && state.moment != null) {
       const span = routeSpan(state.routes[next]);
       if (!span) state.moment = null;
@@ -653,13 +552,12 @@
     renderRailRoutes();
     renderTotals();
     // The active route IS what this rider is working on, so it is the claim. Every
-    // row and section handler already calls setActive before doing anything
-    // else, which is why the claim needs no second set of hooks.
+    // handler already calls setActive, so the claim needs no second set of hooks.
     LIVE.claim(state.routes[next] && state.routes[next].uid);
   }
 
-  // Reads the route off whatever was clicked. Every .route-section and every
-  // .point-row carries data-route, so one lookup covers both.
+  // Reads the route off whatever was clicked. Every .route-section and .point-row
+  // carries data-route, so one lookup covers both.
   function setActiveFromEl(el) {
     const host = el && el.closest("[data-route]");
     if (host) setActive(Number(host.dataset.route));
@@ -683,25 +581,23 @@
   }
 
   // Reached only when something slipped past the disabled controls — a stale
-  // Kept as the backstop for "there is no route at all", which is now the only way
-  // editIndex() returns null — a ride always has at least one route, so in practice
-  // this fires for nothing. It used to cover the slider's "All routes" position,
-  // where every route-level control was live but had nowhere to act.
+    // Kept as the backstop for "there is no route at all", the only way editIndex()
+    // returns null now: a ride always has at least one route, so it fires for
+    // nothing. It used to cover the slider's "All routes" position.
   function noRouteYet() {
     toast("Add a route first", true);
   }
 
-  // Undo/redo and the crash draft. The logic lives in builder-history.js so it
-  // can be tested without a DOM; everything here is the wiring.
+  // Undo/redo and the crash draft. The logic is in builder-history.js so it can be
+  // tested without a DOM; this is the wiring.
   const HIST = window.TBHistory;
   const history_ = HIST.createHistory();
   let draftTimer = null;
   let draftFailed = false;
 
   // Called at the TOP of every content mutation, before the change lands —
-  // markDirty() runs after, which is why the two are separate. `coalesce` is a
-  // stable key for a run of keystrokes on one field, so typing a name is one
-  // undo step rather than one per letter.
+  // markDirty() runs after. `coalesce` is a stable key for a run of keystrokes on
+  // one field, so typing a name is one undo step rather than one per letter.
   function beginEdit(label, coalesce) {
     history_.push(HIST.snapshot(state), label, coalesce);
     renderHistoryButtons();
@@ -717,15 +613,11 @@
     r.title = history_.canRedo() ? "Redo " + history_.redoLabel() : "Nothing to redo";
   }
 
-  // The ride name is a TEXTAREA, so its height is ours to set — the price of a
-  // heading that wraps. Nothing sizes it to its content unless this does.
-  //
-  // Resetting to "auto" first is load-bearing: scrollHeight reports the larger of
-  // the content and the current box, so without it the field grows and never
-  // shrinks back.
-  //
-  // The two-line ceiling is a max-height in _builder.scss, not a number here, so
-  // the type size and the clamp cannot drift apart.
+  // The ride name is a TEXTAREA, so its height is ours to set. Resetting to
+    // "auto" first is load-bearing: scrollHeight reports the larger of the content
+    // and the current box, so without it the field grows and never shrinks. The
+    // two-line ceiling is a max-height in _builder.scss, so the type size and the
+    // clamp cannot drift apart.
   function fitTitle() {
     const el = $("ride-title");
     if (!el) return;
@@ -733,12 +625,12 @@
     el.style.height = el.scrollHeight + "px";
   }
 
-  // There is no single render() in this file — this is the sequence init() runs,
-  // plus the three inputs that no render function touches (they are written
-  // only by loadExisting), which would otherwise keep showing pre-undo text.
+  // There is no single render() — this is the sequence init() runs, plus the three
+  // inputs no render function touches (written only by loadExisting), which would
+  // otherwise keep showing pre-undo text.
   function renderEverything() {
-    // FIRST, before anything renders a word: it tells TBVocab which vehicle
-    // the strings below are for.
+    // FIRST, before anything renders a word: it tells TBVocab which vehicle the
+    // strings below are for.
     renderVehicle();
     rebuildLayers();
     renderMarkers();
@@ -748,8 +640,8 @@
     $("ride-description").value = state.meta.description;
     setFieldValue("ride-visibility", state.meta.visibility);
     renderStopBy();
-    // Undo can shorten the name as easily as lengthen it, and the field will not
-    // notice either on its own.
+    // Undo can shorten the name as easily as lengthen it, and the field notices
+    // neither on its own.
     fitTitle();
   }
 
@@ -757,10 +649,10 @@
     const entry = dir === "redo" ? history_.redo(HIST.snapshot(state)) : history_.undo(HIST.snapshot(state));
     if (!entry) return;
     HIST.restore(state, entry.snap);
-    // The selection is keyed by index and the route and point arrays have just
-    // been replaced wholesale, so every key in it may now name something else.
-    // Dropped rather than remapped: there is no honest remapping of "the third
-    // stop of route 2" across an undo that removed route 1.
+    // The selection is keyed by index and the arrays have just been replaced, so
+    // every key may now name something else. Dropped rather than remapped: there
+    // is no honest remapping of "the third stop of route 2" across an undo that
+    // removed route 1.
     state.select = null;
     renderEverything();
     renderSelectBar();
@@ -770,14 +662,13 @@
   }
 
   // Debounced rather than on a timer: a localStorage write of this size is
-  // sub-millisecond, so waiting a minute would only buy up to a minute of lost
-  // work. Two seconds of idle is close enough to continuous.
+  // sub-millisecond, so a minute would only buy a minute of lost work.
   function queueDraft() {
     clearTimeout(draftTimer);
     draftTimer = setTimeout(() => {
       const ok = HIST.Draft.write(state.rideId, state);
-      // Silence here would be the worst outcome: a rider who believes a draft
-      // exists and finds nothing after a crash. Say it once, not every 2s.
+      // Silence would be the worst outcome: a rider who believes a draft exists and
+      // finds nothing after a crash. Say it once, not every 2s.
       if (!ok && !draftFailed) {
         draftFailed = true;
         toast("This ride is too big to keep a recovery copy—save often", true);
@@ -785,30 +676,27 @@
     }, 2000);
   }
 
-  // Sets a field that MAY NOT EXIST. The visibility select is rendered for the
-  // owner only — the PUT ignores it from a non-owner, and a select that silently
-  // does nothing is worse than none — so every read and write tolerates absence.
-  //
-  // Not hypothetical: an unguarded `.addEventListener` threw during init(), which
-  // unwound before the ride loaded, and a member opening a shared ride got a
-  // blank map called "Untitled".
+  // Sets a field that MAY NOT EXIST. The visibility select renders for the owner
+    // only, so every read and write tolerates absence. Not hypothetical: an
+    // unguarded `.addEventListener` threw during init(), which unwound before the
+    // ride loaded, and a member opening a shared ride got a blank map called
+    // "Untitled".
   function setFieldValue(id, value) {
     const el = $(id);
     if (el) el.value = value;
   }
 
-  // The two vehicle selects follow state, and TBVocab follows them: every
-  // string this file builds goes through W()/Ws() below, so a change here is
-  // a re-render away from every label agreeing. `"" ` is "my default".
+  // The two vehicle selects follow state and TBVocab follows them: every string
+  // here goes through W()/Ws(), so a change is a re-render away from every label
+  // agreeing. `""` is "my default".
   function renderVehicle() {
     setFieldValue("ride-vehicle", state.meta.vehicle || "");
     setFieldValue("ride-power", state.meta.power || "");
     if (window.TBVocab) window.TBVocab.setRide({ vehicle: state.meta.vehicle, power: state.meta.power });
   }
 
-  // What the app calls things (#321): the singular, the plural, and either
-  // capitalized. Falls back to the motorcycle words when vocab.js is absent,
-  // which is what every string here read before.
+  // What the app calls things (#321). Falls back to the motorcycle words when
+  // vocab.js is absent, which is what every string here read before.
   const W = (id) => (window.TBVocab ? window.TBVocab.w(id) : FALLBACK_WORDS[id][0]);
   const Ws = (id) => (window.TBVocab ? window.TBVocab.many(id) : FALLBACK_WORDS[id][1]);
   const Wc = (id) => cap(W(id));
@@ -839,14 +727,12 @@
 
   function markDirty() {
     // THE READ-ONLY BUILDER STOPS HERE, and this is the only place it needs to.
-    // Every edit funnels through markDirty, so nothing goes dirty, no recovery draft
-    // is filed and no autosave arms — rather than attempting a save and being
-    // refused, which shows a rider an error for something they were never allowed
-    // to do. Not routed through saveBlockReason(), which reports a condition the
-    // rider can CLEAR.
-    //
-    // A SUGGESTER IS THE EXCEPTION AND STILL GOES NO FURTHER: their edits live in
-    // `state` so there is something to propose, but there is nothing to save.
+        // Every edit funnels through markDirty, so nothing goes dirty and no autosave
+        // arms — rather than attempting a save and being refused, which shows a rider
+        // an error for something they were never allowed to do.
+        //
+        // A SUGGESTER IS THE EXCEPTION AND STILL GOES NO FURTHER: their edits live in
+        // `state` so there is something to propose, but there is nothing to save.
     if (!CAN_EDIT) {
       if (CAN_SUGGEST) renderSuggestBar();
       return;
@@ -859,78 +745,64 @@
   }
 
   // --- Autosave -------------------------------------------------------------
-  //
-  // There is no Save button. A flush is a plain PUT of the whole ride, affordable
-  // because it makes NO billable Maps call — the money is in the routing request,
-  // which keeps its own debounce in computeLeg().
-  //
-  // Two timers, and the second is the one that matters: an idle debounce alone has
-  // no upper bound, so dragging a stop around for four minutes never saves. The
-  // ceiling fires regardless of activity, measured from the first edit after a
-  // clean state. Both are far under the five-minute acceptance bar, which is what
-  // must never be exceeded rather than what to aim for.
+    //
+    // There is no Save button. A flush is a plain PUT of the whole ride, affordable
+    // because it makes NO billable Maps call — the money is in the routing request,
+    // which keeps its own debounce in computeLeg().
+    //
+    // Two timers, and the second is the one that matters: an idle debounce alone
+    // has no upper bound, so dragging a stop around for four minutes never saves.
+    // The ceiling fires regardless of activity, from the first edit after a clean
+    // state.
   const AUTOSAVE_IDLE_MS = 3000;
   const AUTOSAVE_MAX_MS = 20000;
-  // After a failed flush. Long enough not to hammer a server that is down,
-  // short enough that a dropped wifi connection recovers on its own.
+  // After a failed flush. Long enough not to hammer a server that is down, short
+  // enough that a dropped connection recovers on its own.
   const AUTOSAVE_RETRY_MS = 15000;
 
   let idleTimer = null;
   let ceilingTimer = null;
   let retryTimer = null;
 
-  // WHICH EDITS A COMPLETED SAVE ACTUALLY COVERS, and getting this wrong is
-  // silent data loss rather than a visible bug.
-  //
-  // payload() serializes when the fetch STARTS, so a keystroke during the round
-  // trip is not in that request — but the response says "saved", and clearing
-  // state.dirty on success marks that keystroke saved. Every later flush then
-  // returns early on `!state.dirty` and it is never sent, with the status
-  // reading "Saved" throughout.
-  //
-  // markDirty() bumps editSeq; save() records it before the fetch and compares
-  // after. Equal means the response covers everything. (A boolean set by
-  // flushNow() was the first version and missed the common case: typing does not
-  // call flushNow().)
+  // WHICH EDITS A COMPLETED SAVE ACTUALLY COVERS, and getting this wrong is silent
+    // data loss rather than a visible bug.
+    //
+    // payload() serializes when the fetch STARTS, so a keystroke during the round
+    // trip is not in that request — but the response says "saved", and clearing
+    // state.dirty marks that keystroke saved. Every later flush then returns early
+    // on `!state.dirty` and it is never sent, reading "Saved" throughout.
+    //
+    // markDirty() bumps editSeq; save() records it before the fetch and compares
+    // after. (A boolean set by flushNow() was the first version and missed the
+    // common case: typing does not call flushNow().)
   let editSeq = 0;
 
-  // Why a flush cannot happen, in the rider's words, or null.
-  //
-  // save() used to enforce these two with a toast and a focus jump, which is
-  // wrong for autosave: a rider who has not typed a title yet is mid-task, not
-  // in error. The status line states the condition and waits.
-  //
-  // A ride that has never been saved and carries no points is NOT STARTED rather
-  // than blocked — #290, where a rider who created a ride and typed its name got
-  // the save-failure modal three seconds later.
-  //
-  // GATED ON `rideId` AND NOT ON THE POINTS ALONE, which is the whole care here:
-  // a ride that HAS been saved and is then emptied cannot save either, and there
-  // the rider has a real deletion that is not persisting, so going quiet would
-  // hide it. That case keeps saveBlockReason() and the dialog.
-  //
-  // Nothing is at risk in the case this covers — the ride does not exist yet, so
-  // there is no stored version to fall behind.
+  // Why a flush cannot happen, in the rider's words, or null. save() used to
+    // enforce these with a toast and a focus jump, which is wrong for autosave: a
+    // rider who has not typed a title is mid-task, not in error.
+    //
+    // A ride that has never been saved and carries no points is NOT STARTED rather
+    // than blocked — #290, where creating a ride and typing its name brought up the
+    // save-failure modal three seconds later.
+    //
+    // GATED ON `rideId` AND NOT ON THE POINTS ALONE: a ride that HAS been saved and
+    // is then emptied cannot save either, and there the rider has a real deletion
+    // that is not persisting, so going quiet would hide it.
   function notStartedYet() {
     return !state.rideId && !state.routes.some((r) => r.points.length > 0);
   }
 
   function saveBlockReason() {
     // NO TITLE CHECK. An unnamed ride saves as UNTITLED — blocking it was the bug
-    // rather than the safeguard. A ride with no points still cannot save, and that
-    // one is real: the API requires a stop per route.
-    // A NEVER-SAVED RIDE NEVER REACHES THIS — flushNow() returns at notStartedYet()
-    // first. What is left is a stored ride emptied of every point, where the
-    // deletion is genuine work that is not persisting.
+        // rather than the safeguard. A ride with no points still cannot save.
+        // A NEVER-SAVED RIDE NEVER REACHES THIS — flushNow() returns at notStartedYet()
+        // first. What is left is a stored ride emptied of every point.
     if (!state.routes.some((r) => r.points.length > 0)) return "Needs a stop";
     // A ROUTE WITH POINTS BUT NO STOP IS THE #233 SHAPE, CAUGHT HERE SO THE MESSAGE
-    // CAN NAME THE ROUTE. The server refuses it as `routes.1: a route needs at least
-    // one stop` — an index a rider cannot count to, in a box that ellipsizes it.
-    //
-    // ensureRouteHasStop() means the builder can no longer CREATE this shape, so in
-    // practice it fires for a ride that was already broken. Kept for the reason the
-    // API's refine is: a check that cannot fire costs nothing, and this one could
-    // not fire for two weeks.
+        // CAN NAME THE ROUTE. The server refuses it as `routes.1: a route needs at
+        // least one stop` — an index a rider cannot count to, in a box that
+        // ellipsizes it. ensureRouteHasStop() means the builder can no longer CREATE
+        // this shape, so it fires for a ride that was already broken.
     const noStop = state.routes.find((r) => r.points.length > 0 && stopsOf(r).length === 0);
     if (noStop) {
       return routeLabel(state.routes.indexOf(noStop)) + " has no stop—give a point a category, or make one a stop";
@@ -943,8 +815,8 @@
     retryTimer = null;
     clearTimeout(idleTimer);
     idleTimer = setTimeout(flushNow, AUTOSAVE_IDLE_MS);
-    // Only armed once per dirty run — re-arming it on every keystroke would make
-    // it a second idle timer and give back the unbounded case it exists to close.
+    // Armed once per dirty run — re-arming on every keystroke would make it a second
+    // idle timer and give back the unbounded case it closes.
     if (!ceilingTimer) ceilingTimer = setTimeout(flushNow, AUTOSAVE_MAX_MS);
   }
 
@@ -953,43 +825,38 @@
     clearTimeout(ceilingTimer);
     idleTimer = ceilingTimer = null;
     if (!state.dirty) return;
-    // Every path back into a save goes through here, so one check covers the
-    // idle timer, the ceiling timer, the retry timer and an explicit flush.
+    // Every path back into a save goes through here, so one check covers the idle
+    // timer, the ceiling timer, the retry timer and an explicit flush.
     if (state.conflict) return;
-    // Coalesce rather than queue: two overlapping PUTs of the same ride would
-    // only race to write the same thing. Nothing is recorded here — save()
-    // re-queues itself from the editSeq comparison if this flush's request
-    // turns out not to have covered everything.
+    // Coalesce rather than queue: two overlapping PUTs of the same ride would race
+    // to write the same thing. save() re-queues itself from the editSeq comparison.
     if (state.saving) return;
-    // NOT STARTED IS NOT BLOCKED — see notStartedYet(). Deliberately sets no
-    // status: the readout is already on "Unsaved changes" from markDirty(),
-    // which is true, and `blocked` reaches the live region and the error dialog,
-    // so reporting through it here is the #290 modal by another door.
+    // NOT STARTED IS NOT BLOCKED — see notStartedYet(). Deliberately sets no status:
+    // the readout is already on "Unsaved changes", and `blocked` reaches the live
+    // region and the error dialog, which is the #290 modal by another door.
     if (notStartedYet()) return;
     const blocked = saveBlockReason();
     if (blocked) {
       setSaveStatus("blocked", blocked);
-      // No timer. The condition can only clear through an edit, and every edit
-      // calls markDirty() — so re-arming here would be a spin loop that changes
-      // nothing. This is the one path that deliberately stops trying.
+      // No timer. The condition can only clear through an edit and every edit calls
+      // markDirty(), so re-arming would be a spin loop. This is the one path that
+      // deliberately stops trying.
       return;
     }
     await save();
   }
 
   /**
-    * Moves this ride to the recycle bin and leaves.
-    *
-    * NO CONFIRMATION, deliberately: the bin holds it for thirty days with a button
-    * to put it back, so the bin IS the confirmation. Asking twice for something
-    * reversible is how a rider learns to click through the dialog that is not.
-    *
-    * CLEARING dirty AND saving IS THE LOAD-BEARING PART. The beforeunload guard and
-    * the visibilitychange flush both key off those two flags, so leaving them set
-    * means a "leave site?" prompt and one last PUT at a binned ride. That PUT 404s
-    * — nothing is corrupted, but the panel flashes a save error at somebody who has
-    * already left.
-    */
+        * Moves this ride to the recycle bin and leaves.
+        *
+        * NO CONFIRMATION, deliberately: the bin holds it for thirty days with a button
+        * to put it back, so the bin IS the confirmation.
+        *
+        * CLEARING dirty AND saving IS THE LOAD-BEARING PART. The beforeunload guard
+        * and the visibilitychange flush both key off those flags, so leaving them set
+        * means a "leave site?" prompt and one last PUT at a binned ride, which 404s
+        * and flashes a save error at somebody who has already left.
+        */
   async function deleteRide() {
     if (!state.rideId) return;
     const res = await fetch("/api/maps/" + state.rideId, { method: "DELETE" });
@@ -1000,71 +867,66 @@
     }
     state.dirty = false;
     state.saving = false;
-    // The list, not the dashboard: a rider who just binned a ride wants to see
-    // it gone from the rides, and the bin tab that can undo it is on that page.
+    // The list, not the dashboard: a rider who just binned a ride wants to see it
+    // gone, and the bin tab that can undo it is on that page.
     window.location.href = "/rides";
   }
 
   // --- Save status ----------------------------------------------------------
 
   // One state name in, one fixed-footprint readout out. The width is reserved in
-  // CSS for the longest string here, so it cannot reflow what sits beside it.
-  // One payload route, in this file's own shape.
-  //
-  // EXTRACTED SO THE LIVE REFRESH CANNOT DRIFT FROM THE LOAD: two mappings would
-  // diverge quietly, and only for routes that came in over the channel — the
-  // hardest place to notice a missing field.
+    // CSS for the longest string here, so it cannot reflow what sits beside it.
+    // One payload route, in this file's own shape.
+    //
+    // EXTRACTED SO THE LIVE REFRESH CANNOT DRIFT FROM THE LOAD: two mappings would
+    // diverge quietly, and only for routes that came in over the channel.
   function routeFromPayload(r, i) {
     return {
-      // `|| uid()` rather than assuming one is there: a ride saved before this
-      // shipped has none in flight, and the server repairs a null anyway — but
-      // a route carrying undefined here would send undefined straight back and
-      // churn its uid on every save, losing its votes each time.
+      // `|| uid()` rather than assuming one is there: a ride saved before this has
+      // none in flight, and a route carrying undefined would send it straight back
+      // and churn its uid on every save, losing its votes each time.
       uid: r.uid || uid(),
-      // `?? null` rather than `|| null` for symmetry with altGroup below —
-      // there is no falsy uid, but the two fields are read the same way and one
-      // of them written differently is a thing somebody has to check.
+      // `?? null` for symmetry with altGroup below — there is no falsy uid, but the
+      // two fields are read the same way.
       subgroupUid: r.subgroupUid ?? null,
       title: r.title || "",
       color: r.color || ROUTE_COLORS[(i || 0) % ROUTE_COLORS.length],
       startAt: r.startAt || null,
       endAt: r.endAt || null,
       endManual: false,
-      // The other half of payload()'s round-trip. Omitting these is how a
-      // rider's alternate grouping works perfectly until they reload the page
-      // and then is silently gone, with the ride's mileage jumping to match —
-      // `?? null` rather than `|| null` because 0 is a real group id.
+      // The other half of payload()'s round-trip. Omitting these is how a rider's
+      // alternate grouping works until they reload and is then silently gone, with
+      // the mileage jumping to match. `?? null` because 0 is a real group id.
       altGroup: r.altGroup ?? null,
       altActive: r.altActive ?? true,
-      // Omitting this is how a rider's avoid-highways route quietly goes back on
-      // the interstate: the next save would post no preference and every leg
-      // would re-route to the fast road, on a save made for some other reason.
+      // Omitting this is how an avoid-highways route quietly goes back on the
+      // interstate: the next save would post no preference and every leg would
+      // re-route to the fast road, on a save made for some other reason.
       routePrefs: r.routePrefs ?? null,
       // One ordered list. A payload from before 2026-08-23 cannot reach this —
-      // loadRidePayload is the only source and it was changed with the schema.
+      // loadRidePayload is the only source and it changed with the schema.
       points: r.points || [],
       legs: r.legs || [],
     };
   }
 
   // --- The live channel -----------------------------------------------------
-  //
-  // Who else is in this ride, what they are working on, and when a route changes
-  // under us. EventSource rather than a socket: everything is one-directional
-  // except the claim, an ordinary POST. Server half is src/routes/live.ts.
-  //
-  // **NOTHING HERE PROTECTS ANY WORK.** A claim is a courtesy that stops two
-  // riders picking up the same route by accident; the route hash checked on every
-  // save is what prevents loss, and it needs no connection. Every path below
-  // degrades to "no presence shown" rather than to "cannot edit".
+    //
+    // Who else is in this ride, what they are working on, and when a route changes
+    // under us. EventSource rather than a socket: everything is one-directional
+    // except the claim, an ordinary POST. Server half is src/routes/live.ts.
+    //
+    // **NOTHING HERE PROTECTS ANY WORK.** A claim is a courtesy that stops two
+    // riders picking up the same route by accident; the route hash checked on every
+    // save is what prevents loss, and it needs no connection.
   const LIVE = (function () {
     let source = null;
     let claimed = null;
     let riders = [];
 
-    // A route another rider is holding, as {routeUid: name}. Read by renderRoutes to
-    // mark the section; empty whenever the channel is not connected, which is
-    // what makes the whole feature invisible rather than broken when it is off.
+    // A route another rider is holding, as {routeUid: name}. Empty whenever the
+    // channel is not connected, which makes the feature invisible rather than
+    // broken when it is off.
     const heldBy = {};
 
     function rebuildHeld() {
@@ -1085,9 +947,8 @@
         return;
       }
       el.hidden = false;
-      // Names only, and the route they are on if they are on one. The rung is
-      // deliberately not shown: canSeePerms is the owner's business, and a
-      // presence strip is seen by everybody in the ride.
+      // Names only, and the route they are on. The rung is deliberately not shown:
+      // canSeePerms is the owner's business and a presence strip is seen by everybody.
       el.textContent =
         others.length === 1
           ? others[0].name + (others[0].routeUid ? " is editing a route" : " is here")
@@ -1109,9 +970,8 @@
           return;
         }
         rebuildHeld();
-        // Re-assert after a reconnect. The server forgets every claim when the
-        // stream drops, so without this a rider silently stops holding the route
-        // they are visibly working on.
+        // Re-assert after a reconnect: the server forgets every claim when the stream
+        // drops, so a rider would silently stop holding the route they are working on.
         if (claimed) send(claimed);
       });
       source.addEventListener("routes", (e) => {
@@ -1125,8 +985,8 @@
         if (msg.by === window.TB.riderId) return;
         onRemoteSave(msg);
       });
-      // EventSource reconnects on its own, so an error is not something to
-      // handle — closing here would turn a blip into a permanent disconnect.
+      // EventSource reconnects on its own — closing here would turn a blip into a
+      // permanent disconnect.
     }
 
     function send(routeUid) {
@@ -1163,15 +1023,12 @@
     };
   })();
 
-  // What another rider's save means for this builder.
-  //
-  // A route is refreshed in place only when it is SAFE to: this rider is not
-  // editing it and has nothing unsaved touching it. Anything else is left alone
-  // and reported, because patching state under a rider mid-edit is the kind of
-  // data loss where nothing is deleted and what they were looking at changes.
-  //
-  // One route at a time rather than reloading the ride — a big ride's payload is
-  // megabytes and the autosave fires every three seconds.
+  // What another rider's save means for this builder. A route is refreshed in
+    // place only when this rider is not editing it and has nothing unsaved touching
+    // it; anything else is left alone and reported, because patching state under a
+    // rider mid-edit is data loss where nothing is deleted and what they were
+    // looking at changes. One route at a time rather than reloading the ride — a
+    // big payload is megabytes and the autosave fires every three seconds.
   async function onRemoteSave(msg) {
     const changed = (msg.routes || []).filter((d) => state.routeBase[d.uid] !== d.hash);
     if (changed.length === 0) return;
@@ -1180,24 +1037,22 @@
     const refreshable = [];
     let blocked = false;
 
-    // A REFRESH RE-RENDERS THE WHOLE DAY LIST, AND THAT EATS A FOCUSED FIELD.
-    // Same defect as #188 and the places.js one it was mirrored from: rebuilding
-    // the list under a rider destroys the input they are typing in and drops
-    // focus to <body>. state.dirty does not cover it — `change` fires on BLUR,
-    // so a rider mid-word is still clean. So if the caret is anywhere in the route
-    // list, nothing is taken and the panel just says it is behind.
+    // A REFRESH RE-RENDERS THE WHOLE ROUTE LIST, AND THAT EATS A FOCUSED FIELD:
+        // #188 again. state.dirty does not cover it, because `change` fires on BLUR and
+        // a rider mid-word is still clean. So if the caret is anywhere in the route
+        // list, nothing is taken and the panel just says it is behind.
     const focused = document.activeElement;
     const typing = focused && focused.closest && focused.closest("#route-list");
     for (const d of changed) {
       const at = state.routes.findIndex((x) => x.uid === d.uid);
-      // A route this builder has never seen. It cannot be spliced meaningfully —
-      // there is no position for it — so it is a reload, not a refresh.
+      // A route this builder has never seen has no position to be spliced into, so it
+      // is a reload rather than a refresh.
       if (at === -1) {
         blocked = true;
         continue;
       }
-      // The route under the rider's hands, or unsaved work anywhere. Either way
-      // this builder holds something the server has not got.
+      // The route under the rider's hands, or unsaved work anywhere: either way this
+      // builder holds something the server has not got.
       if (d.uid === mine || state.dirty || typing) {
         blocked = true;
         continue;
@@ -1217,16 +1072,14 @@
           blocked = true;
           continue;
         }
-        // Re-read the index: an await happened, and a render or another refresh
-        // may have moved the route. Splicing at a stale index replaces the wrong
-        // one, which is exactly the silent corruption this whole sprint is about.
+        // Re-read the index: an await happened and the route may have moved. Splicing
+        // at a stale index replaces the wrong one.
         const at = state.routes.findIndex((x) => x.uid === r.uid);
         if (at === -1) {
           blocked = true;
           continue;
         }
-        // Still not mid-edit, and still clean. Both can have changed while the
-        // fetch was in flight.
+        // Still not mid-edit, and still clean — both can have changed in flight.
         const nowMine = state.routes[state.active] && state.routes[state.active].uid;
         if (state.dirty || r.uid === nowMine) {
           blocked = true;
@@ -1234,8 +1087,8 @@
         }
         state.routes[at] = routeFromPayload(body.route, at);
         state.routes[at].endManual = inferEndManual(state.routes[at]);
-        // Rebase, or the next save sends this route with the hash it had BEFORE
-        // the refresh and the merge reads it as contested.
+        // Rebase, or the next save sends this route with its pre-refresh hash and the
+        // merge reads it as contested.
         if (r.hash) state.routeBase[r.uid] = r.hash;
       } catch (e) {
         blocked = true;
@@ -1243,19 +1096,17 @@
     }
 
     if (refreshable.length > 0) {
-      // The render half of renderEverything, without the three form inputs it
-      // also writes. Those belong to the ride rather than to a route, and nothing
-      // here changed them — rewriting a field the rider may be in is the defect
-      // above, arriving by another route.
+      // The render half of renderEverything, without the three form inputs: those
+      // belong to the ride, nothing here changed them, and rewriting a field the
+      // rider may be in is the defect above by another route.
       rebuildLayers();
       renderMarkers();
       renderRoutes();
       refreshDerived();
     }
 
-    // Something changed that could not be taken safely. Say so rather than
-    // leaving the panel quietly behind — but do NOT stop the autosave unless
-    // this rider has work at stake, because a stale VIEW is not a stale WRITE.
+    // Something changed that could not be taken safely. Do NOT stop the autosave
+    // unless this rider has work at stake: a stale VIEW is not a stale WRITE.
     if (blocked) {
       if (state.dirty) {
         state.conflict = true;
@@ -1272,26 +1123,23 @@
     saving: "Saving…",
     saved: "Saved",
     error: "Not saved",
-    // Nothing of this rider's is at risk — they have no unsaved work — but what
-    // is on screen is behind. A softer wording than `conflict` for that reason.
+    // Nothing of this rider's is at risk, but what is on screen is behind — hence a
+    // softer wording than `conflict`.
     stale: "Someone else changed this " + W("journey") + "—reload to see it",
-    // Deliberately says what to DO, not what went wrong. A rider seeing this has
-    // work in front of them that the server has refused, and the only safe move
-    // is to reload and redo it — which is worth saying plainly rather than
-    // leaving them pressing a save that is never going to be attempted again.
+    // Deliberately says what to DO. The server has refused work still in front of
+    // them and the only safe move is to reload and redo it, which beats leaving
+    // them pressing a save that will never be attempted again.
     conflict: "Someone else edited this " + W("journey") + "—reload to see their changes",
   };
 
   // --- Errors that need saying properly -------------------------------------
-  //
-  // #233. A save failure went to the status readout and nowhere else: a fixed box
-  // that ellipsizes, with the whole message only in a `title`. The server's
-  // wording makes it worse — `routes.1: a route needs at least one stop` reached
-  // the screen as "routes.1: a route n…".
-  //
-  // ONCE PER DISTINCT MESSAGE, NOT ONCE PER ATTEMPT: the autosave retries on a
-  // timer and a failing save keeps failing, so a dialog per attempt would be far
-  // worse than the ellipsized box. The memory resets on the next clean save.
+    //
+    // #233. A save failure went to the status readout and nowhere else: a fixed box
+    // that ellipsizes, so `routes.1: a route needs at least one stop` reached the
+    // screen as "routes.1: a route n…".
+    //
+    // ONCE PER DISTINCT MESSAGE, NOT PER ATTEMPT: the autosave retries on a timer
+    // and a failing save keeps failing. The memory resets on the next clean save.
   let lastErrorSeen = null;
 
   const ERROR_TITLES = {
@@ -1301,27 +1149,25 @@
     blocked: "This " + W("journey") + " cannot be saved yet",
   };
 
-  // THE HOUSE MODAL, ON A DIALOG ELEMENT. `.modal` is the box every other modal
-  // is drawn in and `.modal--error` adds only what a <dialog> needs — see
-  // _modal.scss.
-  //
-  // BOTH BUTTONS CARRY `.btn`, WHICH THEY DID NOT. `.btn-quiet` alone sets three
-  // colors and no padding; the rule that sets those is nested inside
-  // `.builder-panel`, which this dialog is not, since showModal() needs it in the
-  // top layer. The pair rendered as raw UA buttons on every failure.
-  //
-  // TWO SIGNS, TWO CLASSES OF SIGN: Dismiss is the green guide sign, Reload the
-  // amber WARNING sign, because it is the one action here that can lose work
-  // still on screen. Ranked by what each RISKS rather than by which is
-  // recommended. Ziad's call, 2026-09-03.
+  // THE HOUSE MODAL, ON A DIALOG ELEMENT. `.modal--error` adds only what a
+    // <dialog> needs — see _modal.scss.
+    //
+    // BOTH BUTTONS CARRY `.btn`, WHICH THEY DID NOT: `.btn-quiet` alone sets three
+    // colors and no padding, and the rule that sets those is nested inside
+    // `.builder-panel`, which this dialog is not. The pair rendered as raw UA
+    // buttons on every failure.
+    //
+    // TWO CLASSES OF SIGN: Dismiss is the green guide sign, Reload the amber
+    // warning sign, because it is the one action that can lose work still on
+    // screen — ranked by what each RISKS, not by which is recommended.
   function errorDialog() {
     let el = $("tb-error");
     if (el) return el;
     el = document.createElement("dialog");
     el.id = "tb-error";
     el.className = "modal modal--error";
-    // showModal() gives it role=dialog and aria-modal itself; the heading is the
-    // only thing it cannot work out on its own.
+    // showModal() gives it role=dialog and aria-modal; the heading is the only thing
+    // it cannot work out itself.
     el.setAttribute("aria-labelledby", "tb-error-title");
     el.innerHTML =
       '<h2 id="tb-error-title"></h2>' +
@@ -1347,22 +1193,19 @@
   }
 
   /**
-   * Show a failure in full, at a size that can hold it.
-   *
-   * `kind` picks the heading; `text` is the message as it will be read. The
-   * Reload button is offered only where reloading is the actual remedy — on a
-   * plain save error the work is still in the panel and in the recovery draft,
-   * and reloading is the one thing that would lose it.
-   */
+      * Show a failure in full, at a size that can hold it. The Reload button is
+      * offered only where reloading is the actual remedy — on a plain save error the
+      * work is still in the panel and in the recovery draft, and reloading is the one
+      * thing that would lose it.
+      */
   function showErrorDialog(kind, text) {
     const el = errorDialog();
     el.dataset.kind = kind;
     el.querySelector("#tb-error-title").textContent = ERROR_TITLES[kind] || ERROR_TITLES.error;
     el.querySelector(".modal-error-msg").textContent = text || SAVE_TEXT[kind] || "";
-    // WHAT IS AT RISK, WHICH IS THE QUESTION A RIDER ACTUALLY HAS. A save error
-    // is alarming and usually harmless — the retry clears most of them — and
-    // saying so is the difference between a dialog that helps and one that only
-    // interrupts.
+    // WHAT IS AT RISK, WHICH IS THE QUESTION A RIDER ACTUALLY HAS. A save error is
+    // alarming and usually harmless, and saying so is the difference between a
+    // dialog that helps and one that only interrupts.
     el.querySelector(".modal-error-note").textContent =
       kind === "conflict" || kind === "stale"
         ? "Reload to see their version. Anything you have changed since will need doing again."
@@ -1382,26 +1225,23 @@
     const msg = text || SAVE_TEXT[name] || "";
     el.dataset.state = name;
     el.querySelector(".save-text").textContent = msg;
-    // A server error message is arbitrary length and the readout is a fixed box,
-    // so the visible text ellipsizes and the whole thing lives here.
+    // A server message is arbitrary length and the readout is a fixed box, so the
+    // visible text ellipsizes and the whole thing lives here.
     el.title = msg;
-    // Only the states a rider needs told about reach the live region. The
-    // routine dirty/saving/saved cycle runs several times a minute and
-    // announcing it would make the panel unusable with a screen reader on.
+    // Only states a rider needs told about reach the live region: the dirty/saving/
+    // saved cycle runs several times a minute and announcing it would make the
+    // panel unusable with a screen reader on.
     if (name === "error" || name === "blocked" || name === "conflict" || name === "stale") {
       $("save-announce").textContent = msg;
-      // #233. THE READOUT IS NOT ENOUGH ON ITS OWN — a fixed box that ellipsizes, so
-      // a server message longer than a few words reached the rider as its first
-      // fragment, the rest in a `title` nobody hovers.
-      //
-      // ONCE PER DISTINCT MESSAGE, since the autosave retries on a timer and a
-      // failing save keeps failing. `lastErrorSeen` clears on the next clean save.
+      // #233. The readout ellipsizes, so a server message longer than a few words
+      // reached the rider as its first fragment. ONCE PER DISTINCT MESSAGE, since a
+      // failing save keeps failing; `lastErrorSeen` clears on the next clean save.
       if (msg !== lastErrorSeen) {
         lastErrorSeen = msg;
         showErrorDialog(name, msg);
       }
-      // A way back IN, because a dismissed dialog is otherwise unrecoverable and
-      // the box still cannot show the message.
+      // A way back IN: a dismissed dialog is otherwise unrecoverable and the box still
+      // cannot show the message.
       const d = $("save-detail");
       if (d) d.hidden = false;
     } else {
@@ -1419,31 +1259,26 @@
   // --- Routing --------------------------------------------------------------
 
   function straightLeg(a, b, vias) {
-    // Placeholder while the real route is in flight (and the NoRoute fallback
-    // the server accepts — its distance is the haversine truth). durationS stays
-    // 0 because we genuinely do not know it: fabricating a number here would
-    // persist as though the router had returned it. legDurationS() estimates it
-    // at the point of use instead, which also survives a save/reload.
+    // Placeholder while the real route is in flight (and the NoRoute fallback the
+    // server accepts — its distance is the haversine truth). durationS stays 0
+    // because we do not know it: a number fabricated here would persist as though
+    // the router had returned it. legDurationS() estimates at the point of use.
     const geometry = [a, ...(vias || []), b];
     return { geometry, distanceM: Math.round(haversineTrack(geometry)), durationS: 0, viaPoints: vias || [] };
   }
 
   // Every route arrives with exactly points−1 legs, whatever it was stored as.
-  //
-  // A CSV import has NO geometry — csv.ts refuses to join points with straight
-  // lines — so it lands with N points and zero legs, which the payload rejects.
-  // Once the builder accepted imported rides, a rider could open a CSV import and
-  // watch every autosave fail.
-  //
-  // Filled with straight legs, the placeholder drawn while the router answers.
-  // Free and synchronous: NO routing request here, because routing every leg on
-  // open is a page load that silently spends money.
+    //
+    // A CSV import has NO geometry, so it lands with N points and zero legs, which
+    // the payload rejects — a rider could open a CSV import and watch every
+    // autosave fail. Filled with straight legs, free and synchronous: NO routing
+    // request here, because routing every leg on open silently spends money.
   function fillMissingLegs(route) {
     const pts = route.points;
     const want = Math.max(0, pts.length - 1);
     if (route.legs.length === want) return;
-    // Trim first: more legs than pairs cannot be saved either, and a leg with
-    // no pair of points to connect has nothing to be about.
+    // Trim first: more legs than pairs cannot be saved either, and a leg with no
+    // pair of points has nothing to be about.
     route.legs.length = Math.min(route.legs.length, want);
     for (let i = 0; i < want; i++) {
       if (route.legs[i]) continue;
@@ -1467,15 +1302,13 @@
     return m;
   }
 
-  // Routes through our own origin rather than calling Google directly: the
-  // Routes key is IP-restricted, so it cannot be used from a browser. The proxy
-  // also caches, which matters because dragging a stop re-requests the same pair
-  // on every frame and Routes bills per call. See src/routes/routing.ts.
+  // Through our own origin rather than Google directly: the Routes key is
+  // IP-restricted. The proxy also caches, which matters because dragging a stop
+  // re-requests the same pair on every frame and Routes bills per call.
   async function directions(a, b, vias, prefs) {
-    // OMITTED WHEN NOTHING IS SET, rather than sent as an object of falses. The
-    // proxy keys its cache on the preferences, so a route with none has to send
-    // the request it sent before #29 or every already-cached leg misses and
-    // re-bills. prefsBody() is what guarantees that.
+    // OMITTED WHEN NOTHING IS SET, rather than an object of falses: the proxy keys
+    // its cache on the preferences, so a route with none has to send the request it
+    // sent before #29 or every cached leg misses and re-bills.
     const body = { origin: a, destination: b, vias: vias || [] };
     const set = prefsBody(prefs);
     if (set) body.prefs = set;
@@ -1486,12 +1319,10 @@
     });
     const data = await res.json().catch(() => null);
     if (!res.ok) {
-      // THE STATUS RIDES ALONG. Every failure used to reach the caller as a bare
-      // message and be reported as "no road route for that leg", which blames
-      // the road for a 401 — and a session problem looks exactly like a pair of
-      // stops with no road between them. That cost a long debugging session on
-      // 2026-08-24: an account sitting at `status = 'pending'` 403s every leg,
-      // the map drew straight lines, and nothing on screen said why.
+      // THE STATUS RIDES ALONG. Every failure used to be reported as "no road route
+            // for that leg", which blames the road for a 401. That cost a long debugging
+            // session: an account at `status = 'pending'` 403s every leg, the map drew
+            // straight lines, and nothing on screen said why.
       const err = new Error((data && data.error) || "no route found (" + res.status + ")");
       err.status = res.status;
       throw err;
@@ -1505,21 +1336,17 @@
   }
 
   // A SHAPING POINT IS PULLED ONTO THE ROAD THE ROUTER ACTUALLY CHOSE, AFTER the
-  // response rather than before the request. Ziad's call, 2026-09-06: a via is
-  // dropped wherever the pointer landed and Routes snaps it to whatever is
-  // nearest, so the road returned is not always the one the rider pointed at and
-  // the export is built from the wrong one.
-  //
-  // The returned geometry IS the road, so projecting onto it costs nothing — no
-  // Roads API, no request per drag. The trade-off to state rather than treat as a
-  // bug: the HANDLE MOVES once the response lands. Snapping first instead is
-  // snapToRoads, billable on every drag; see docs/decisions.md.
-  //
-  // Vias are walked IN ORDER with each one's segment as the next one's floor, or
-  // two snap out of order and the leg doubles back.
-  //
-  // It reports whether anything MOVED so the caller can mark dirty: a fast
-  // response can land after the three-second autosave has gone.
+    // response rather than before the request. A via is dropped wherever the pointer
+    // landed and Routes snaps it to whatever is nearest, so the road returned is not
+    // always the one the rider pointed at.
+    //
+    // The returned geometry IS the road, so projecting onto it costs nothing. The
+    // trade-off to state rather than treat as a bug: the HANDLE MOVES once the
+    // response lands. Snapping first instead is snapToRoads, billable per drag.
+    //
+    // Vias are walked IN ORDER with each one's segment as the next one's floor, or
+    // two snap out of order and the leg doubles back. It reports whether anything
+    // MOVED, because a fast response can land after the autosave has gone.
   function snapVias(leg) {
     const vias = leg && leg.viaPoints;
     if (!vias || !vias.length || !leg.geometry || leg.geometry.length < 2) return false;
@@ -1537,14 +1364,11 @@
     return moved;
   }
 
-  // What to tell the rider when a leg does not come back.
-  //
-  // The leg is drawn straight either way — a placeholder beats no line at all —
-  // but WHY it is straight decides whether there is anything they can do about
-  // it. "No road route" is the only one of these that is about the route; the
-  // rest are about the session or the service, and reporting them as a routing
-  // failure sends the rider off to move their stops when they should be
-  // reloading the page.
+  // What to tell the rider when a leg does not come back. It is drawn straight
+    // either way, but WHY decides whether there is anything they can do: "no road
+    // route" is the only one of these about the route, and reporting a session or
+    // service failure as a routing one sends them off to move their stops when they
+    // should be reloading the page.
   function legErrorText(e) {
     const s = e && e.status;
     if (s === 401) return "Signed out—reload the page. The leg is drawn straight until then";
@@ -1555,12 +1379,10 @@
     return "Could not route that leg—drawn straight, its time is estimated";
   }
 
-  // Recomputes leg i of route r, joining points[i] to points[i+1]. `i` indexes
-  // route.points directly — both kinds anchor a leg.
-  // RETURNS A PROMISE THAT SETTLES WHEN THE ROAD IS REAL, and every early exit
-  // returns a settled one. Fire-and-forget is still the normal use, but syncing
-  // departures to an arrival needs the ROUTED duration, and the straight
-  // placeholder installed first is a number that is about to change.
+  // Recomputes leg i of route r, joining points[i] to points[i+1]; `i` indexes
+    // route.points directly. RETURNS A PROMISE THAT SETTLES WHEN THE ROAD IS REAL,
+    // and every early exit returns a settled one — fire-and-forget is still the
+    // normal use, but syncing departures to an arrival needs the ROUTED duration.
   function computeLeg(r, i) {
     const route = state.routes[r];
     if (!route) return Promise.resolve();
@@ -1573,12 +1395,10 @@
     renderTrack(r);
     refreshDerived();
 
-    // Two points in the same place have no route between them, and asking is both
-    // a billable Routes request and a guaranteed 422 — which surfaces as "no road
-    // route for that leg" in a toast, for a leg the rider never asked to route.
-    // The straight leg above is already the right answer: zero meters, zero
-    // seconds. This became reachable the moment duplicate-a-point shipped, which
-    // by design puts the copy exactly on top of its original.
+    // Two points in the same place have no route between them, and asking is both a
+    // billable request and a guaranteed 422 — surfacing as "no road route for that
+    // leg" for a leg the rider never asked to route. The straight leg above is
+    // already right. Reachable since duplicate-a-point, which puts the copy on top.
     if (!vias.length && a[0] === b[0] && a[1] === b[1]) return Promise.resolve();
 
     if (!state.legSeq[r]) state.legSeq[r] = [];
@@ -1589,8 +1409,8 @@
         if (state.routes[r] !== route) return;
         if (state.legSeq[r][i] !== seq || !route.legs[i]) return;
         route.legs[i] = leg;
-        // Onto the road, now that there is a road to be on. renderMarkers()
-        // rather than renderTrack() alone, because the handles are what move.
+        // Onto the road, now that there is one. renderMarkers() rather than
+        // renderTrack() alone, because the handles are what move.
         if (snapVias(leg)) {
           renderMarkers();
           markDirty();
@@ -1604,8 +1424,7 @@
       });
   }
 
-  // Also returns a promise, for the same reason and with the same caveat: it is
-  // normally called for its effect and the result ignored.
+  // Also returns a promise, with the same caveat: normally called for its effect.
   function computeLegsAround(r, indices) {
     const n = state.routes[r].points.length - 1;
     return Promise.all([...new Set(indices)].filter((i) => i >= 0 && i < n).map((i) => computeLeg(r, i)));
@@ -1613,12 +1432,11 @@
 
   // --- Map rendering --------------------------------------------------------
 
-  // The concatenated track, plus where each leg lands in it. Deliberately the
-  // same walk the server does in src/index.ts, down to dropping *any*
-  // consecutive duplicate rather than only the joints between legs — otherwise
-  // a span computed here and one computed there would disagree on the same
-  // ride. spans[i] lines up with legs[i]; a leg with no geometry has no place
-  // on the track and gets null rather than shifting everything after it.
+  // The concatenated track, plus where each leg lands in it. Deliberately the same
+    // walk the server does, down to dropping *any* consecutive duplicate rather than
+    // only the joints — otherwise a span computed here and one computed there would
+    // disagree on the same ride. spans[i] lines up with legs[i]; a leg with no
+    // geometry gets null rather than shifting everything after it.
   function trackAndSpans(r) {
     const track = [];
     const spans = [];
@@ -1645,9 +1463,9 @@
     updateRouteTrack(state.map, r, fullTrack(r));
   }
 
-  // Layers are keyed by route index, so a delete or reorder invalidates every
-  // key at or after it. Rebuilding all of them is O(routes) on a list capped at
-  // 31 and removes a whole class of stale-layer bug.
+  // Layers are keyed by route index, so a delete or reorder invalidates every key
+  // at or after it. Rebuilding all of them is O(routes) on a list capped at 31 and
+  // removes a whole class of stale-layer bug.
   function rebuildLayers() {
     if (!state.map) return;
     for (let i = 0; i < state.layerCount; i++) removeRouteLayers(state.map, i);
@@ -1660,61 +1478,49 @@
   }
 
   // The only thing the active route does to the map: every route stays drawn and
-  // the others are dimmed.
-  //
-  // There is no "all routes, dim nothing" state — that was the slider's 0
-  // position. Something is always active, because a map click has to land
-  // somewhere.
-  //
-  // With a moment chosen the timeline decides instead. A moment in the overnight
-  // gap belongs to no route, so everything dims and no leg is drawn — what
-  // "nobody is riding right now" honestly looks like.
+    // the others are dimmed. There is no "dim nothing" state — something is always
+    // active, because a map click has to land somewhere. With a moment chosen the
+    // timeline decides instead, and a moment in the overnight gap belongs to no
+    // route, so everything dims — what "nobody is riding right now" looks like.
   function applyFocus() {
     if (!state.map) return;
     const a = activeNow();
     // THE ROUTE BEING EDITED IS THE LIT ONE. ALWAYS. It used to be the route the
-    // MOMENT fell in, which is the same answer until a rider scrubs and then clicks
-    // into a different route — leaving the one they were editing dimmed behind the
-    // slider's. That was #214.
-    //
-    // In route scope the two cannot disagree; the rule matters in ride scope, where
-    // the slider deliberately does not move when a rider clicks a row.
-    //
-    // The consequence, stated rather than treated as a bug: a moment in the
-    // overnight gap no longer dims every route. This is an editor, so the honest
-    // picture is the route being worked on.
+        // MOMENT fell in, which is the same answer until a rider scrubs and then clicks
+        // into a different route, leaving the one they were editing dimmed. That was
+        // #214. The rule matters in ride scope, where the slider deliberately does not
+        // move when a rider clicks a row.
+        //
+        // Consequence stated rather than treated as a bug: a moment in the overnight
+        // gap no longer dims every route. This is an editor.
     const lit = focusedIndex();
     state.routes.forEach((route, r) => {
       const dim = lit !== null && r !== lit;
       const ghost = route.altGroup != null && !route.altActive;
       setRouteDim(state.map, r, dim);
       // Set every pass rather than once when a route is grouped: rebuildLayers()
-      // recreates the entry on every add, delete, reorder and recolor, and
-      // applyFocus is what runs after all of them.
+      // recreates the entry on every add, delete, reorder and recolor.
       setRouteGhost(state.map, r, ghost);
       const m = state.markers[r];
       if (!m) return;
       m.points.forEach(({ el }) => {
-        // A ghost stays quiet even while it is the focused route — the rider
-        // clicked into it to edit it, which is precisely when they need to see
-        // it is the one that does not count.
+        // A ghost stays quiet even while focused — the rider clicked into it to edit
+        // it, which is precisely when they need to see it is the one that does not
+        // count.
         el.style.opacity = ghost ? "0.25" : dim ? "0.35" : "";
       });
     });
 
     // The engine drops the highlight whenever a track is repathed, so this is a
-    // re-apply rather than a set — see clearLegHighlight in map-common.js.
-    //
-    // ONLY ON THE LIT ROUTE. In ride scope the moment can sit on a route the rider
-    // is not editing, and a bright leg across a route dimmed to 0.25 reads as
-    // neither state. Otherwise there is nothing to point at and it goes.
+    // re-apply. ONLY ON THE LIT ROUTE: in ride scope the moment can sit on a route
+    // the rider is not editing, and a bright leg across a route dimmed to 0.25
+    // reads as neither state.
     const onLitRoute = a && a.routeIndex != null && a.routeIndex === lit;
 
-    // WHERE THE RIDER WOULD BE, drawn on WHATEVER ROUTE THE MOMENT FALLS ON —
-    // deliberately not gated on onLitRoute the way the leg highlight is. A
-    // highlight is a stretch of the route's own line and reads as neither state when
-    // dimmed; a dot is a discrete overlay with no such ambiguity, and suppressing it
-    // would make ride scope show nothing for most of its travel.
+    // WHERE THE RIDER WOULD BE, on WHATEVER ROUTE THE MOMENT FALLS ON — deliberately
+    // not gated on onLitRoute the way the highlight is. A dot is a discrete overlay
+    // with no such ambiguity, and suppressing it would make ride scope show nothing
+    // for most of its travel.
     paintMoment(a);
 
     const leg = onLitRoute && a.legIndex != null ? state.routes[a.routeIndex].legs[a.legIndex] : null;
@@ -1728,22 +1534,19 @@
   }
 
   /**
-   * The moment dot, the fuel ring around it, and where the tank runs dry.
-   *
-   * THE RING'S RADIUS IS THE FUEL LEFT — the bike's range minus the miles
-   * ridden since the last fill — so it shrinks as the rider scrubs, refills at
-   * every pump, and is gone at max range. See public/js/range-circle.js.
-   */
+      * The moment dot, the fuel ring around it, and where the tank runs dry.
+      *
+      * THE RING'S RADIUS IS THE FUEL LEFT — range minus miles since the last fill —
+      * so it shrinks as the rider scrubs and refills at every pump.
+      */
   function paintMoment(a) {
-    // BEFORE THE SLIDER IS TOUCHED, STAND AT THE START OF THE ROUTE.
-    //
-    // `state.moment` is null until a rider drags, so this used to draw nothing — the
-    // ring, the E markers and the closed stretch were invisible on load and appeared
-    // only if somebody happened to scrub, which hid the whole feature behind a
-    // gesture nobody was told to make. Ziad's call, 2026-08-31.
-    //
-    // `state.moment` is deliberately NOT seeded instead: the readout's "from – to"
-    // line and the absent highlight are the correct rendering of "no moment
+    // BEFORE THE SLIDER IS TOUCHED, STAND AT THE START OF THE ROUTE. `state.moment`
+        // is null until a rider drags, so this used to draw nothing: the ring, the E
+        // markers and the closed stretch were invisible on load, hiding the whole
+        // feature behind a gesture nobody was told to make.
+        //
+        // `state.moment` is deliberately NOT seeded instead — the readout's "from – to"
+        // line and the absent highlight are the correct rendering of "no moment
     // chosen", and this only decides where to draw the overlay.
     const at = a || { routeIndex: focusedIndex(), pointIndex: 0, legIndex: null, legFraction: null };
     const route = at.routeIndex != null ? state.routes[at.routeIndex] : null;
@@ -1758,15 +1561,14 @@
     const here = pointAtDistance(track, distM);
     if (!here) return setMomentOverlay(state.map, null);
 
-    // Null is the ordinary case, not the edge one: a rider with no bike on file
-    // has no range. The dot is still where they would be.
+    // Null is the ordinary case: a rider with no bike on file has no range. The dot
+    // is still where they would be.
     const role = fuelRole();
     const range = rangeM();
     // ONE SWITCH FOR THE WHOLE FUEL OVERLAY. `state.ringOn` gated only the ring
-    // until 2026-08-31, so turning it off left the E markers and the closed
-    // stretch on the map — most of the red, and the half a rider is turning off
-    // when they want the route back. Everything range-derived is behind it now;
-    // the moment dot is not, because where the rider is is not a fuel fact.
+    // until 2026-08-31, so turning it off left the E markers and the closed stretch
+    // on the map — most of the red. The moment dot is not behind it, because where
+    // the rider is is not a fuel fact.
     const on = state.ringOn;
     const reach = on ? RANGE.fuelReachM(route, distM, cum, role, range) : null;
     // ONE MARKER PER TANKFUL, not just the next one — see dryDistancesM().
@@ -1785,28 +1587,26 @@
       ringPath(here, track, distM, reach),
       gap && sliceBetween(track, gap.from, gap.to),
       // GREEN THROUGH THE FIRST HALF OF THE TANK, amber past it, red from three
-      // quarters — the ring is the one part of the fuel overlay that is a
-      // quantity rather than a verdict. Computed even when the overlay is off,
-      // which costs nothing and keeps the tone right the instant it comes back.
+      // quarters: the ring is the one part of the fuel overlay that is a quantity
+      // rather than a verdict. Computed even when the overlay is off.
       RANGE.ringTone(RANGE.tankUsed(route, distM, cum, role, range)),
     );
   }
 
   /**
-    * The ring itself, as a closed path: a circle around the rider whose radius is
-    * the straight line to the furthest point on the route their fuel reaches, so
-    * its edge is a PLACE rather than a number and collapses as they arrive.
-    *
-    * A PATH RATHER THAN A RADIUS because the edge is dotted, and
-    * google.maps.Circle has no dash support at all.
-    *
-    * MEASURED TO THE REACH POINT, NOT TO THE WALL — the same place on a route the
-    * rider runs dry on and not on one they do not. Drawing it from the wall is what
-    * made the ring disappear for good after a rider's last refuel.
-    */
+        * The ring itself, as a closed path: a circle around the rider whose radius is
+        * the straight line to the furthest point on the route their fuel reaches, so
+        * its edge is a PLACE rather than a number and collapses as they arrive.
+        *
+        * A PATH RATHER THAN A RADIUS because the edge is dotted, and
+        * google.maps.Circle has no dash support.
+        *
+        * MEASURED TO THE REACH POINT, NOT TO THE WALL. Drawing it from the wall is
+        * what made the ring disappear for good after a rider's last refuel.
+        */
   function ringPath(here, track, distM, reachM) {
-    // No `state.ringOn` check here: `reachM` is already null when the overlay is
-    // off, and one switch read in two places is one that can be half-flipped.
+    // No `state.ringOn` check: `reachM` is already null when the overlay is off, and
+    // one switch read in two places is one that can be half-flipped.
     if (reachM == null || reachM <= distM) return null;
     const at = pointAtDistance(track, reachM);
     return at ? circlePath(here, haversineM(here, at)) : null;
@@ -1815,25 +1615,23 @@
   function clearMarkers() {
     state.markers.forEach((m) => {
       m.points.forEach(({ marker }) => removeMarker(marker));
-      // Vias came later than the other two. A kind that renderMarkers creates
-      // and this forgets does not error — it just leaves the old handles on the
-      // map, so every redraw stacks another set on top of the last.
+      // Vias came later than the other two. A kind renderMarkers creates and this
+      // forgets does not error — it leaves the old handles on the map, so every
+      // redraw stacks another set on the last.
       (m.vias || []).forEach(({ marker }) => removeMarker(marker));
     });
     state.markers = [];
   }
 
   // ONE MAKER FOR BOTH KINDS. `i` indexes route.points; the kind decides only the
-  // marker's CSS class — `.tb-marker-poi` is the smaller, solid, route-colored dot
-  // — and whether a drag has legs to invalidate.
+  // marker's CSS class and whether a drag has legs to invalidate.
   function makePointMarker(r, point, i) {
     const el = markerElement(point, state.routes[r].color, point.kind);
     el.addEventListener("click", (e) => {
       e.stopPropagation();
       // Clicking a marker on a dimmed route makes that route active, so the map's
-      // emphasis follows what was just clicked. Every route's rows are on screen
-      // now, so this is no longer what makes the row reachable — focusRow scrolls
-      // to it either way.
+      // emphasis follows the click. Every route's rows are on screen now, so this is
+      // no longer what makes the row reachable.
       if (editIndex() !== r) goToRoute(r);
       focusRow(point.kind, i, r);
     });
@@ -1843,11 +1641,9 @@
       beginEdit(point.kind === "stop" ? "move stop" : "move POI");
       point.lng = +lng.toFixed(6);
       point.lat = +lat.toFixed(6);
-      // BOTH KINDS BEND THE ROAD. Dragging a POI used to move a dot and cost
-      // nothing, because a POI anchored no leg; it anchors the two either side of
-      // it now, so the same surgery a stop always got applies to every point.
-      // Their shaping points go with them — a via belongs to the pair of points
-      // its leg used to join.
+      // BOTH KINDS BEND THE ROAD. Dragging a POI used to cost nothing because a POI
+      // anchored no leg; it anchors the two either side now. Their shaping points go
+      // with them — a via belongs to the pair of points its leg used to join.
       if (route.legs[i - 1]) route.legs[i - 1].viaPoints = [];
       if (route.legs[i]) route.legs[i].viaPoints = [];
       computeLegsAround(r, [i - 1, i]);
@@ -1859,10 +1655,9 @@
   // --- Drag to shape --------------------------------------------------------
 
   // A shaping point is a hint about which road to take, not a place anyone is
-  // going: smaller handle, no row in the stop list, no place in the numbering.
-  // ONE PATH FOR BOTH SURFACES, so the map handle and the pane row cannot come to
-  // disagree about what removing one does. The pane needs the row list rebuilt
-  // and the map does not, which is the only difference.
+    // going: smaller handle, no row in the stop list, no place in the numbering.
+    // ONE PATH FOR BOTH SURFACES, so the map handle and the pane row cannot
+    // disagree about what removing one does.
   function removeVia(r, legIndex, viaIndex) {
     const leg = state.routes[r] && state.routes[r].legs[legIndex];
     if (!leg || !leg.viaPoints || !leg.viaPoints[viaIndex]) return;
@@ -1888,9 +1683,8 @@
       computeLeg(r, legIndex);
       renderMarkers();
       markDirty();
-      // No renderRouteList: the row says nothing about WHERE a shaping point is,
-      // so moving one changes no text — and rebuilding the list would cost the
-      // rider whatever field they had focused. #188, reached from the map.
+      // No renderRouteList: the row says nothing about WHERE a shaping point is, and
+      // rebuilding the list would cost the rider whatever field they had focused.
     });
     return { marker, el };
   }
@@ -1910,26 +1704,23 @@
     }
 
     beginEdit("shape route");
-    // Order is the route: appending one that belongs in the middle makes the
-    // leg double back on itself.
+    // Order is the route: appending one that belongs in the middle makes the leg
+    // double back on itself.
     const at = viaInsertIndex(track, spans[legIndex], vias, vertexIndex);
     vias.splice(at, 0, [+lngLat[0].toFixed(6), +lngLat[1].toFixed(6)]);
     computeLeg(r, legIndex);
     renderMarkers();
-    // The pane gains a row for it. Without this the drag reshaped the road and
-    // the list said nothing, which is exactly the report this row exists for.
+    // The pane gains a row for it. Without this the drag reshaped the road and the
+    // list said nothing, which is the report this row exists for.
     renderRouteList(r);
     markDirty();
   }
 
   // --- Stopping for the night ------------------------------------------------
-  //
-  // #220's other half, and the planner's own words: "I like to stop by four, so
-  // where should I be looking?" The pieces were already here — activeAt() says
-  // where the rider is at a moment, distanceAtMoment() turns that into a
-  // distance along the route, sliceBetween() cuts that stretch out of the track,
-  // and the corridor search covers a stretch. This is the wiring, not a new
-  // mechanism.
+    //
+    // #220's other half, and the planner's own words: "I like to stop by four, so
+    // where should I be looking?" Every piece already existed — this is the wiring,
+    // not a new mechanism.
 
   /** A track's own length. corridorRun() needs it to space its samples, and the
    *  bedtime stretch is a slice rather than a whole route, so nothing has already
@@ -1947,8 +1738,8 @@
    *  bedtime has, not a decision to be made afresh on every search. */
   const STOP_BY_WINDOW_MIN = 45;
 
-  /** "16:00" → 960. Empty, half-typed or nonsense → null, which is the same
-   *  thing the column means by null: the rider has not said. */
+  /** "16:00" → 960. Empty, half-typed or nonsense → null, which is what the
+   *  column means by null: the rider has not said. */
   function minutesFromTimeValue(v) {
     const m = /^(\d{1,2}):(\d{2})/.exec(String(v || ""));
     if (!m) return null;
@@ -1965,27 +1756,19 @@
   function renderStopBy() {
     setFieldValue("ride-stop-by", timeValueFromMinutes(state.meta.stopByMin));
     const clear = $("ride-stop-by-clear");
-    // Hidden rather than disabled when there is nothing to clear: a control that
-    // is always present and never works reads as a bug, the same rule the main
-    // group's missing × follows.
+    // Hidden rather than disabled when there is nothing to clear: a control that is
+    // always present and never works reads as a bug.
     if (clear) clear.hidden = state.meta.stopByMin == null;
   }
 
   /**
-   * Where each route will be when the clock reads the rider's bedtime.
-   *
-   * One entry per route that HAS an answer, and a route is allowed to have none: an
-   * undated route has no clock, and a route that finishes before the hour never
-   * reaches it. Both are ordinary and neither is worth reporting — the marker
-   * simply is not there.
+   * Where each route will be when the clock reads the rider's bedtime. One entry
+   * per route that HAS an answer: an undated route has no clock and a route that
+   * finishes before the hour never reaches it. Both are ordinary.
    */
-  // MEMOIZED, BECAUSE THE ROUTE LIST ASKS ONCE PER ROW. Each uncached call walks
-  // every route's whole track and rebuilds its cumulative distances — on a
-  // hundred-point route, a hundred full passes to place one button.
-  //
-  // Cleared from refreshDerived(), the pass every schedule change goes through,
-  // and from the setting's own handler. A render without either can read a stale
-  // answer, which at worst puts the offer one row out.
+  // MEMOIZED, BECAUSE THE ROUTE LIST ASKS ONCE PER ROW: each uncached call walks
+  // every route's whole track. Cleared from refreshDerived() and the setting's own
+  // handler; a stale answer at worst puts the offer one row out.
   let stopByCache = null;
 
   function stopByPoints() {
@@ -1997,9 +1780,8 @@
       if (ALT.isLosingAlt && ALT.isLosingAlt(route)) return;
       const moment = clockMoment(route, min);
       if (!moment || !moment.at) return;
-      // The same two the fuel overlay uses, and deliberately so: a marker
-      // placed by different arithmetic from the moment dot would drift from it
-      // on the same route.
+      // The same two the fuel overlay uses: a marker placed by different arithmetic
+      // from the moment dot would drift from it on the same route.
       const track = fullTrack(r);
       if (!track.length) return;
       const cum = DIST.cumulativeM(route);
@@ -2007,9 +1789,8 @@
       if (distM == null) return;
       const at = pointAtDistance(track, distM);
       if (!at) return;
-      // The last point the rider passes BEFORE the moment, which is the row the
-      // offer belongs on. `activeAt` reports either a point or a leg; on a leg,
-      // the point before it is the leg's own index.
+      // The last point the rider passes BEFORE the moment. `activeAt` reports either
+      // a point or a leg; on a leg, the point before it is the leg's own index.
       const atPoint = moment.at.pointIndex != null ? moment.at.pointIndex : moment.at.legIndex;
       out.push({ routeIndex: r, at, distM, offsetS: moment.offsetS, track, cum, atPoint });
     });
@@ -2025,10 +1806,9 @@
     return sliceBetween(entry.track, from, to);
   }
 
-  /** The distance along the route `deltaS` seconds either side of the bedtime,
-   *  clamped to the route. Time in, distance out — the two are not proportional on
-   *  a route with a two-hour lunch in it, which is why this walks the schedule
-   *  rather than scaling miles. */
+  /** The distance along the route `deltaS` seconds either side of bedtime. Time
+   *  in, distance out — not proportional on a route with a two-hour lunch in it,
+   *  which is why this walks the schedule rather than scaling miles. */
   function TIMEDIST(route, entry, deltaS) {
     const offset = Math.max(0, Math.min(routeElapsedS(route), entry.offsetS + deltaS));
     const at = activeAt(route, offset);
@@ -2036,8 +1816,7 @@
     return d == null ? entry.distM : d;
   }
 
-  /** Draw the bedtime markers, or clear them. Called from the setting's own
-   *  handler and from every repaint that could move them. */
+  /** Draw the bedtime markers, or clear them. */
   function paintStopBy() {
     if (!state.map) return;
     const spots = stopByPoints().map((e) => ({
@@ -2047,19 +1826,13 @@
     setBedtimeMarks(state.map, spots);
   }
 
-  /** 960 → "4:00 PM", in the rider's own date format and clock. The panel says
-   *  the time back to them in the form they read everywhere else, not the
-   *  24-hour string the input stores.
-   *
-   *  IT USED TO PASS `undefined` AND SO USED THE BROWSER'S LOCALE (#270), which
-   *  made the comment above false: a rider who chose day-first dates or a
-   *  24-hour clock got neither here. TBFmt reads both off <html>, where
-   *  layout.tsx stamps them. */
+  /** 960 → "4:00 PM", in the rider's own date format and clock rather than the
+   *  24-hour string the input stores. It used to pass `undefined` and so used the
+   *  browser's locale (#270); TBFmt reads both off <html>. */
   function fmtClockMin(min) {
     if (min == null) return "";
-    // An arbitrary UTC date carrying that time of day, formatted in UTC — the
-    // same trick every other clock in this app uses, and for the same reason: a
-    // wall clock must not be re-read in the browser's zone.
+    // An arbitrary UTC date carrying that time of day, formatted in UTC — a wall
+    // clock must not be re-read in the browser's zone.
     var pref = (window.TBFmt && window.TBFmt.timePrefs()) || {};
     return new Date(Date.UTC(2000, 0, 1, Math.floor(min / 60), min % 60)).toLocaleTimeString(pref.locale, {
       timeStyle: "short",
@@ -2080,21 +1853,16 @@
 
   // --- Mutations ------------------------------------------------------------
 
-  // `routeIndex` defaults to the active route, which is what a map click means;
-  // the per-route search rows pass their own. `prebuilt` is how a saved place
-  // enters the ride — stopFromPlace() has already made the point.
-  // THE ONE CREATION PATH. A map click, either search arm, a saved place, the home
-  // seed and a new route's inherited first point all land here, and all produce a
-  // POI. Ziad's call, 2026-08-23.
-  //
-  // EXCEPT THE FIRST POINT OF A ROUTE, promoted on the spot and tagged `start`, so
-  // a rider who drops one pin and saves gets a route rather than a validation
-  // error. The only implicit promotion in the app.
-  //
-  // EVERY POINT IS ROUTED TO, whatever its kind, which is what makes a start plus
-  // one POI draw a road — and is why adding a POI is a Routes request now.
-  // `at` defaults to the end, which makes wedging a stop between two the same code
-  // path as appending one.
+  // `routeIndex` defaults to the active route, which is what a map click means.
+    // `prebuilt` is how a saved place enters the ride.
+    // THE ONE CREATION PATH, and everything that reaches it produces a POI.
+    //
+    // EXCEPT THE FIRST POINT OF A ROUTE, promoted on the spot and tagged `start`, so
+    // a rider who drops one pin and saves gets a route rather than a validation
+    // error. The only implicit promotion in the app.
+    //
+    // EVERY POINT IS ROUTED TO, whatever its kind, which is why adding a POI is a
+    // Routes request. `at` defaults to the end.
   function addPoint(lng, lat, name, routeIndex, prebuilt, at) {
     const r = routeIndex == null ? editIndex() : routeIndex;
     if (r == null || !state.routes[r]) return noRouteYet();
@@ -2107,37 +1875,30 @@
     const first = oldLen === 0;
     if (first) {
       pt.kind = "stop";
-      // Only when the caller has not said otherwise — the home seed brings its
-      // own role and a saved place brings the ones the rider filed it under.
+      // Only when the caller has not said otherwise — the home seed and a saved place
+      // both bring their own.
       if (!(pt.roles || []).length) pt.roles = ["start"];
     } else {
-      // TAGGED MEANS STOPPING, the same rule the category picker follows. A point
-      // arriving with roles was found by searching for a kind of place — a Gas
-      // chip, a category query, a saved place filed under Lodging — and the rider
-      // was looking for somewhere to stop when they did it. Untagged still lands
-      // as a POI, which is every map click and every plain name search.
+      // TAGGED MEANS STOPPING, the same rule the category picker follows: a point
+      // arriving with roles was found by searching for a KIND of place. Untagged
+      // still lands as a POI, which is every map click and plain name search.
       pt.kind = (pt.roles || []).length ? "stop" : "poi";
     }
     route.points.splice(where, 0, pt);
 
     // ONE NEW LEG, wherever the point landed. A route with N points has N−1 legs, so
-    // splicing a placeholder in at `where` puts the two legs needing recomputation
-    // at `where - 1` and `where`.
-    //
-    // [A,B] with leg [AB], insert X at 1 → [AB, placeholder], recomputing 0 and 1
-    // gives [AX, XB]. Insert at 0 → [placeholder, AB], recomputing 0 gives [XA].
-    // Appending is the same operation with `where === oldLen`.
-    // ROUTED, and the promise is handed back for the one caller that waits: takeMeet
-    // syncs departures against an ARRIVAL time, and the straight placeholder is not
-    // the number to sync to.
+        // splicing a placeholder in at `where` puts the two legs needing recomputation
+        // at `where - 1` and `where`; appending is the same operation at `oldLen`.
+        // ROUTED, and the promise is handed back for takeMeet, which syncs departures
+        // against an ARRIVAL time and cannot use the straight placeholder.
     let routed = Promise.resolve();
     if (!first) {
       route.legs.splice(Math.min(where, route.legs.length), 0, straightLeg([pt.lng, pt.lat], [pt.lng, pt.lat]));
       state.legSeq[r] = [];
       routed = computeLegsAround(r, [where - 1, where]);
     }
-    // The slot has been used, so it closes. Left open, the next render would put
-    // a second field in the middle of the route the rider just finished with.
+    // The slot has been used, so it closes — left open, the next render would put a
+    // second field mid-route.
     state.insertAt = null;
     renderTrack(r);
     renderMarkers();
@@ -2150,26 +1911,21 @@
   }
 
   /**
-     * Swaps the PLACE under an existing point and keeps everything the rider has
-     * written on it.
-     *
-     * EVERY ROW'S NAME FIELD IS A SEARCH BOX, since 2026-09-15 — Ziad's call, after
-     * finding the only way to put a different place at stop 3 was to delete it and
-     * search again, losing its dwell, its notes and its place in the list.
-     *
-     * WHAT SURVIVES: the uid (so comments, votes and private details stay
-     * attached), the kind, the dwell, both notes boxes and the roles. Roles and
-     * details are FILLED FROM the pick only when the point has none — a Gas stop
-     * swapped for another station is still Gas. A roleless POI that takes a category
-     * IS promoted, per addPoint()'s "a category is a reason to stop".
-     *
-     * WHAT MOVES: name, address and coordinates — the marker-drag surgery. Both
-     * neighboring legs lose their shaping points, because one end of each pair just
-     * moved, and both are routed again. The leg count is unchanged.
-     *
-     * `key` is the typing step's coalesce key, so the typed text and the pick fold
-     * into ONE undo step rather than undoing to a stop named "chev".
-     */
+         * Swaps the PLACE under an existing point and keeps everything written on it.
+         * Every row's name field is a search box, because the only way to put a
+         * different place at stop 3 used to be deleting it.
+         *
+         * WHAT SURVIVES: the uid (so comments, votes and private details stay
+         * attached), the kind, the dwell, both notes boxes and the roles. Roles and
+         * details are FILLED FROM the pick only when the point has none; a roleless
+         * POI that takes a category IS promoted.
+         *
+         * WHAT MOVES: name, address and coordinates. Both neighboring legs lose their
+         * shaping points, one end of each pair having moved, and are routed again.
+         *
+         * `key` is the typing step's coalesce key, so the typed text and the pick fold
+         * into ONE undo step.
+         */
   function replacePoint(r, i, lng, lat, name, pt, key) {
     const route = state.routes[r];
     const point = route && route.points[i];
@@ -2195,17 +1951,13 @@
   }
 
   /**
-    * Promotes a POI to a stop, or demotes a stop back to a POI.
-    *
-    * A FLAG FLIP AND NOTHING ELSE, as of 2026-08-24. Every point anchors a leg
-    * whatever its kind, so no leg is rebuilt, no shaping point dropped and no
-    * Routes request made. What changes is the row's number, the marker's size and
-    * whether the ride counts it as a stop.
-    *
-    * It used to rebuild the legs either side and clear their vias, because the STOP
-    * SEQUENCE changed — two Routes calls and the rider's shaping work on both legs,
-    * thrown away. Promoting is free and exactly reversible now.
-    */
+        * Promotes a POI to a stop, or demotes a stop back to a POI.
+        *
+        * A FLAG FLIP AND NOTHING ELSE: every point anchors a leg whatever its kind, so
+        * no leg is rebuilt, no shaping point dropped and no Routes request made. It
+        * used to rebuild the legs either side and throw away the rider's shaping work
+        * on both, because the STOP SEQUENCE changed.
+        */
   function setPointKind(i, kind) {
     const r = editIndex();
     if (r == null) return;
@@ -2215,18 +1967,17 @@
     if (kind === "stop" && stopsOf(route).length >= MAX_STOPS) {
       return toast("Stop limit reached (" + MAX_STOPS + ")", true);
     }
-    // The last stop of a route cannot be demoted: the route would have none, the
-    // save would 400, and payload() would drop the route whole.
+    // The last stop of a route cannot be demoted: the save would 400 and payload()
+    // would drop the route whole.
     if (kind === "poi" && stopsOf(route).length <= 1) {
       return toast("A route needs at least one stop", true);
     }
     beginEdit(kind === "stop" ? "make a stop" : "make a POI");
     pt.kind = kind;
-    // DEMOTING CLEARS THE CATEGORIES, because a category is what says the rider
-    // means to stop. Left in place they would contradict the kind — a POI tagged
-    // Gas — and anything that re-derived one from the other would promote the
-    // point straight back. Promoting adds none: "make this a stop" is the path
-    // for a stop with no reason given, which is the whole point of keeping it.
+    // DEMOTING CLEARS THE CATEGORIES, because a category is what says the rider means
+    // to stop — left in place they would contradict the kind, and anything
+    // re-deriving one from the other would promote the point straight back.
+    // Promoting adds none: "make this a stop" is the path for a stop with no reason.
     if (kind === "poi") pt.roles = [];
     // No leg work and no renderTrack: the road is identical either side of this.
     renderMarkers();
@@ -2236,15 +1987,13 @@
   }
 
   // --- Arming a map click ---------------------------------------------------
-  //
-  // "+ Stop" cannot place anything on its own: a button in a list has no
-  // coordinates. It arms the NEXT map click for that route instead.
-  //
-  // The removed panel-wide + Stop / + POI pair had the same mechanism; what was
-  // wrong with it was that it read as "add something" while being a mode switch,
-  // sat nowhere near the route it affected, and never said it was on.
-  // True when THIS row is the armed one. Both halves matter: an insert row and the
-  // route's bottom row are different affordances on the same route.
+    //
+    // "+ Stop" cannot place anything on its own: a button in a list has no
+    // coordinates, so it arms the NEXT map click for that route. The removed
+    // panel-wide pair had the same mechanism and read as "add something" while being
+    // a mode switch, nowhere near the route it affected.
+    // True when THIS row is the armed one; an insert row and the route's bottom row
+    // are different affordances on the same route.
   function isArmed(r, at) {
     const slot = at == null ? null : at;
     return state.arm === r && state.armAt === slot;
@@ -2252,17 +2001,15 @@
 
   function armPlace(r, at) {
     const slot = at == null ? null : at;
-    // A second press on the armed button turns it off. The button is the only
-    // affordance that can be armed, so it has to be the one that disarms too —
-    // an escape key is not discoverable and a rider who pressed it by mistake
-    // should not have to click the map to get out.
+    // A second press disarms. The button is the only affordance that can be armed,
+    // so it has to be the one that disarms too — an escape key is not discoverable.
     if (isArmed(r, slot)) return disarmPlace();
     if (!state.routes[r]) return;
     if (state.routes[r].points.length >= MAX_POINTS) return toast("Point limit reached (" + MAX_POINTS + ")", true);
     state.arm = r;
     state.armAt = slot;
-    // The armed route becomes the working route, so everything else that keys off
-    // "where the rider is" agrees with the thing about to happen.
+    // The armed route becomes the working route, so everything keying off "where the
+    // rider is" agrees with what is about to happen.
     setActive(r);
     paintArm();
     toast(
@@ -2273,7 +2020,7 @@
   }
 
   // Returns whether it did anything, so the Escape chain can tell "I handled it"
-  // from "nothing was armed" without reading state a second time.
+  // from "nothing was armed" without reading state twice.
   function disarmPlace() {
     if (state.arm == null) return false;
     state.arm = null;
@@ -2282,10 +2029,9 @@
     return true;
   }
 
-  // Painted rather than re-rendered. renderRouteList() would rebuild the row and
-  // take the focus ring with it, and arming is not an edit — it must not touch
-  // the undo history or mark the ride dirty. addRowHtml() reads state.arm on its
-  // own, so a render that happens for some other reason still comes back armed.
+  // Painted rather than re-rendered: renderRouteList() would take the focus ring
+  // with it, and arming is not an edit — it must not touch the undo history or
+  // mark the ride dirty. addRowHtml() reads state.arm itself.
   function paintArm() {
     document.querySelectorAll(".add-place-btn").forEach((b) => {
       const on = Number(b.dataset.route) === state.arm;
@@ -2295,10 +2041,8 @@
     document.body.classList.toggle("is-arming", state.arm != null);
   }
 
-  // `i` indexes route.points, and EVERY kind leaves a hole in the route — a POI is
-  // ridden through, so removing one joins its neighbors the same way removing a
-  // stop does. The surgery used to be a stop-only path expressed in stop
-  // ordinals; there is one index space now and one code path.
+  // `i` indexes route.points, and EVERY kind leaves a hole — a POI is ridden
+  // through, so removing one joins its neighbors the same way a stop does.
   function deletePoint(i) {
     const r = editIndex();
     if (r == null) return;
@@ -2307,30 +2051,26 @@
     if (!pt) return;
     beginEdit(pt.kind === "stop" ? "delete stop" : "delete POI");
     route.points.splice(i, 1);
-    // A ROUTE MUST KEEP A STOP, AND THIS WAS THE ONE DELETE PATH WITHOUT THE GUARD.
-    // The bulk delete, the cross-route move and the drag all had it; this did not,
-    // so removing a route's last stop from the row menu left a route of nothing but
-    // POIs — refused by the API and unrepairable by further editing, because
-    // addPoint only promotes on an EMPTY route. #233 through the last door.
-    //
-    // A RIDE NEEDS A STARTING POINT AND NOTHING MORE — Ziad's call, 2026-09-03. The
-    // rule stays; what changes is that the rider can never be made to satisfy it by
-    // hand. The first surviving point becomes the anchor.
+    // A ROUTE MUST KEEP A STOP, AND THIS WAS THE ONE DELETE PATH WITHOUT THE GUARD:
+        // removing a route's last stop from the row menu left a route of nothing but
+        // POIs, refused by the API and unrepairable by further editing, because
+        // addPoint only promotes on an EMPTY route. #233 through the last door.
+        //
+        // The rule stays; what changed is that the rider can never be made to satisfy
+        // it by hand. The first surviving point becomes the anchor.
     ensureRouteHasStop(route);
 
     if (route.legs.length) {
       const pts = route.points;
-      // Remove the legs that touched point i, then bridge the gap (if any). One
-      // leg at either end of the route, two in the middle.
+      // Remove the legs that touched point i, then bridge the gap: one leg at either
+      // end of the route, two in the middle.
       const from = Math.max(0, i - 1);
       const bridging = i > 0 && i < pts.length;
-      // THE SHAPING POINTS SURVIVE THE POINT. A via belongs to the pair of points its
-      // leg joins, and deleting one in the MIDDLE merges two pairs into one whose ends
-      // both survive — so the vias are carried across in order and the road the rider
-      // drew by hand is still the road. The opposite of a MOVE, where one end has
-      // physically moved and the hint describes nothing.
-      //
-      // At either end of the route there is no merge, so those vias go with the point.
+      // THE SHAPING POINTS SURVIVE THE POINT. A via belongs to the pair its leg joins,
+            // and deleting one in the MIDDLE merges two pairs into one whose ends both
+            // survive, so the vias are carried across in order. The opposite of a MOVE,
+            // where one end has physically moved. At either end of the route there is no
+            // merge, so those vias go with the point.
       const carried = bridging
         ? [
             ...((route.legs[from] && route.legs[from].viaPoints) || []),
@@ -2340,9 +2080,8 @@
       route.legs.splice(from, bridging ? 2 : 1);
       state.legSeq[r] = [];
       if (bridging) {
-        // Two full legs can carry more vias than one leg may hold. Truncating is
-        // the only option that still deletes the point, and it is said out loud
-        // rather than silently reshaping the road.
+        // Two full legs can carry more vias than one leg may hold. Truncating is the
+        // only option that still deletes the point, and it is said out loud.
         if (carried.length > MAX_VIAS_PER_LEG) {
           carried.length = MAX_VIAS_PER_LEG;
           toast("Kept the first " + MAX_VIAS_PER_LEG + " shaping points on the joined leg", true);
@@ -2358,12 +2097,8 @@
     markDirty();
   }
 
-  // Copy a point, placed straight after the one it came from.
-  //
-  // The roles array is COPIED, not shared: sharing would make the two points one
-  // point wherever roles are concerned, and the aliasing would reach back through
-  // the undo stack — see builder-history.js, which records which fields may be
-  // shared by reference and warns that the set changes.
+  // Copy a point, placed straight after the one it came from. The roles array is
+  // COPIED, not shared: the aliasing would reach back through the undo stack.
   function duplicatePoint(kind, i) {
     const r = editIndex();
     if (r == null) return noRouteYet();
@@ -2375,10 +2110,9 @@
     if (list.length >= cap) return toast((kind === "stop" ? "Stop" : "POI") + " limit reached (" + cap + ")", true);
 
     beginEdit("duplicate " + kind);
-    // A FRESH uid and a deep copy of details. The uid because two points sharing
-    // one violates the per-route unique index — the server's ensureUids would break
-    // the tie, but then the client and the database would disagree about which
-    // copy owns the details until the next reload. The deep copy because a shared
+    // A FRESH uid and a deep copy of details. The uid because two points sharing one
+    // violates the per-route unique index, and the client and database would then
+    // disagree about which copy owns the details. The deep copy because a shared
     // details object means typing into one copy edits both.
     const copy = {
       ...src,
@@ -2389,12 +2123,9 @@
     list.splice(i + 1, 0, copy);
 
     // A point inserted at i+1 sits on top of its original, so the leg into it is
-    // zero length and the one out of it is the original's old leg. Both ends get
-    // recomputed rather than guessed.
-    //
-    // This used to be a stop-only branch, and it indexed the leg array with `i` —
-    // a points index — which was already wrong for any route with a POI ahead of the
-    // duplicated stop. One index space makes it right rather than papering over it.
+    // zero length and the one out is the original's old leg; both ends are
+    // recomputed rather than guessed. This used to index the LEG array with a
+    // points index, already wrong for any route with a POI ahead of the copy.
     route.legs.splice(i, 0, straightLeg([src.lng, src.lat], [src.lng, src.lat]));
     state.legSeq[r] = [];
     computeLegsAround(r, [i - 1, i, i + 1]);
@@ -2405,16 +2136,10 @@
     markDirty();
   }
 
-  // MOVE a point to an arbitrary index, which is what a drag produces. movePoint
-  // below steps one place at a time — dragging point 2 to position 5 with a swap
-  // would put point 5 at 2.
-  //
-  // A leg joins consecutive POINTS, so ANY move changes the road: every leg from
-  // the one before the earlier index through the one after the later is refilled.
-  // Recomputing the whole route would fire a routing request per leg.
-  //
-  // There used to be a short circuit for a move that left the STOP sequence
-  // untouched; a POI is on the route now, so dragging one is a real re-route.
+  // MOVE a point to an arbitrary index, which is what a drag produces; movePoint
+    // below steps one place at a time. A leg joins consecutive POINTS, so ANY move
+    // changes the road: every leg from the one before the earlier index through the
+    // one after the later is refilled, rather than recomputing the whole route.
   function reorderPoint(from, to) {
     if (from === to) return;
     const r = editIndex();
@@ -2430,8 +2155,8 @@
     const hi = Math.max(from, to) + 1;
     const idx = [];
     for (let k = lo; k <= hi; k++) {
-      // Shaping points belong to the pair of points the leg used to join, so
-      // they are meaningless once either end changes.
+      // Shaping points belong to the pair the leg used to join, so they are
+      // meaningless once either end changes.
       if (route.legs[k]) route.legs[k].viaPoints = [];
       idx.push(k);
     }
@@ -2443,10 +2168,8 @@
     markDirty();
   }
 
-  // The grip's arrow keys. It was also the row menu's Move up / Move down until
-  // those came off — the grip is a real <button> now and carries the keyboard
-  // path on its own. `i` indexes route.points and both kinds get it — a POI has
-  // an order to change.
+  // The grip's arrow keys, which replaced the row menu's Move up / Move down. `i`
+  // indexes route.points and both kinds get it — a POI has an order to change.
   function movePoint(i, dir) {
     const r = editIndex();
     if (r == null) return;
@@ -2459,13 +2182,9 @@
   // --- Routes -----------------------------------------------------------------
 
   // Makes a route active AND puts the timeline on its opening moment. setActive()
-  // above is the cheap version that every row handler calls; this is the one for
-  // a deliberate "work on this route now" — the rail's dots, a marker click, a
-  // freshly added route.
-  //
-  // The split matters: moving the timeline is a visible jump on the map, and
-  // doing it every time a rider clicked into a stop's name field would yank the
-  // view out from under them.
+    // is the cheap version every row handler calls; this is for a deliberate "work
+    // on this route now". The split matters: moving the timeline is a visible jump,
+    // and doing it whenever a rider clicked into a name field would yank the view.
   function goToRoute(r) {
     setActive(r);
     const route = state.routes[activeIndex()];
@@ -2477,40 +2196,33 @@
   function addRoute() {
     if (state.routes.length >= MAX_ROUTES) return toast("Route limit reached (" + MAX_ROUTES + ")", true);
     beginEdit("add route");
-    // THE LAST DAY THAT COUNTS, not the last section on screen. If the ride ends
+    // THE LAST ROUTE THAT COUNTS, not the last section on screen: if the ride ends
     // with a pair of alternates, the last row might be the one the rider decided
-    // against — seeding from it would start the new route at the wrong place and,
-    // via nextMorningAfter below, on the wrong evening.
+    // against, which would start the new route in the wrong place and evening.
     const counted = ALT.activeRoutes(state.routes);
     const prev = counted[counted.length - 1];
     const route = newRoute(ROUTE_COLORS[state.routes.length % ROUTE_COLORS.length]);
 
-    // A route begins where the last one ended. Without this every new route starts
-    // with a search for a place you already have on the map.
-    //
-    // The last POINT, not the last stop. Every point is somewhere the rider rides
-    // to, so the route physically ends at the last one in the list whatever its
-    // kind — a route finishing at a viewpoint ends at the viewpoint.
+    // A route begins where the last one ended, or every new route starts with a
+    // search for a place already on the map. The last POINT, not the last stop: a
+    // route finishing at a viewpoint ends at the viewpoint.
     const lastPts = prev ? prev.points : [];
     const last = lastPts[lastPts.length - 1];
     if (last) {
-      // THROUGH newPoint(), NOT AS A BARE OBJECT LITERAL. This was a hand-built
-      // object written on 2026-08-15, before points had a `kind` at all — so it
-      // was correct when it landed and became wrong silently on 2026-08-23 when
-      // the stop/POI split made `kind` default to `poi`. It also carried no
-      // `uid`, which ensureUids() then minted fresh on every save, so nothing
-      // could reference this point across one.
+      // THROUGH newPoint(), NOT A BARE OBJECT LITERAL. The hand-built version predated
+      // `kind` and so became wrong silently when the stop/POI split made it default
+      // to `poi`; it also carried no `uid`, which ensureUids() minted fresh on every
+      // save, so nothing could reference this point across one.
       route.points.push(newPoint(last.lng, last.lat, last.name));
-      // The route's first point is a stop, exactly as it is when a rider drops one
-      // on an empty route. Without this the seeded route has no stop, adding more
-      // points never promotes anything, and the ride cannot be saved at all.
+      // The route's first point is a stop, as it is when a rider drops one on an empty
+      // route. Without this the seeded route has no stop, adding more never promotes
+      // anything, and the ride cannot be saved at all.
       ensureRouteHasStop(route);
     }
 
-    // And it begins the morning after the last one finished. Syncing the
-    // previous route first because its end may be derived, and reading a stale
-    // cache here would seed off the wrong evening. A previous route with no times
-    // seeds nothing — nothing invents a date for a ride the rider never dated.
+    // And it begins the morning after the last one finished. The previous route is
+    // synced first because its end may be derived. A route with no times seeds
+    // nothing — nothing invents a date for a ride the rider never dated.
     if (prev) {
       syncEnd(prev);
       route.startAt = nextMorningAfter(prev.endAt);
@@ -2525,16 +2237,15 @@
   }
 
   /**
-    * Cut the route in two at point i, dropping the new route in right after it.
-    *
-    * #49, and #54's mechanic. The arithmetic is route-split.js; here is the part
-    * that needs the rest of the ride — a color that is not the one above it, a
-    * clock seeded off the route it now follows, and the layer rebuild a changed
-    * route count forces.
-    *
-    * MAX_ROUTES IS CHECKED BEFORE beginEdit, so a refused split pushes no undo
-    * step.
-    */
+        * Cut the route in two at point i, dropping the new route in right after it.
+        *
+        * The arithmetic is route-split.js; here is the part that needs the rest of the
+        * ride — a color that is not the one above it, a clock seeded off the route it
+        * now follows, and the layer rebuild a changed route count forces.
+        *
+        * MAX_ROUTES IS CHECKED BEFORE beginEdit, so a refused split pushes no undo
+        * step.
+        */
   function splitRouteHere(r, i) {
     const route = state.routes[r];
     if (!route) return;
@@ -2547,16 +2258,14 @@
     const cut = SPLIT.splitRouteAt(route, i, uid);
 
     // A COLOR THAT IS NOT ITS NEIGHBOR'S. Seeding off state.routes.length the way
-    // addRoute does would hand the new route the same hue as an existing one once
-    // routes have been deleted, and two adjacent routes in one color is the one case
-    // the palette exists to prevent.
+    // addRoute does would repeat a hue once routes have been deleted, and two
+    // adjacent routes in one color is the case the palette exists to prevent.
     const used = new Set(state.routes.map((d) => d.color));
     cut.second.color =
       ROUTE_COLORS.find((c) => !used.has(c)) || ROUTE_COLORS[state.routes.length % ROUTE_COLORS.length];
 
-    // The second route begins the morning after the first one ends, and the first
-    // one's end has just changed — it lost every leg past the cut — so it is
-    // resynced before being read. A route the rider never dated seeds nothing.
+    // The second route begins the morning after the first ends, and the first one's
+    // end has just changed, so it is resynced before being read.
     state.routes.splice(r, 1, cut.first, cut.second);
     syncEnd(cut.first);
     if (cut.first.startAt) cut.second.startAt = nextMorningAfter(cut.first.endAt);
@@ -2566,29 +2275,26 @@
     renderMarkers();
     refreshDerived();
     markDirty();
-    // The rider's attention is on the new route: they asked where one ended, and
-    // what they want to see is what now follows it.
+    // The rider's attention is on the new route: they asked where one ended.
     goToRoute(r + 1);
   }
 
   function deleteRoute() {
-    // GUARDS BEFORE beginEdit, not after. All four of these functions had it the
-    // other way round, so refusing to delete a ride's last route still pushed an
-    // undo step — the rider then pressed undo and nothing visible happened.
+    // GUARDS BEFORE beginEdit, not after. All four of these had it the other way
+    // round, so refusing to delete a ride's last route still pushed an undo step —
+    // the rider then pressed undo and nothing visible happened.
     if (state.routes.length <= 1) return toast(cap(an(W("journey"))) + " needs at least one " + W("route"), true);
     const r = editIndex();
     if (r == null) return noRouteYet();
     beginEdit("delete route");
     state.routes.splice(r, 1);
     state.legSeq.splice(r, 1);
-    // Deleting one of a pair leaves a group of one, which is not a group. The
-    // server would repair it on the next save anyway; doing it here means the
-    // panel and the map agree with the totals immediately rather than after a
-    // round trip.
+    // Deleting one of a pair leaves a group of one, which is not a group. The server
+    // would repair it on the next save; doing it here means the panel, the map and
+    // the totals agree immediately.
     ALT.resolveAltGroups(state.routes);
     // Clamped, not preserved: deleting the last route would leave the active index
-    // one past the end, and activeIndex() would quietly clamp it on every read
-    // while the highlight sat on nothing.
+    // one past the end, clamped on every read while the highlight sat on nothing.
     state.active = Math.min(r, state.routes.length - 1);
     renderRoutes();
     rebuildLayers();
@@ -2597,26 +2303,20 @@
     markDirty();
   }
 
-  // Ride the route backwards.
-  //
-  // Every leg has to be re-requested, not reversed in place: a leg's geometry is
-  // directional, and the way back is frequently not the way out drawn backwards.
-  // One-way streets, divided carriageways and turn restrictions all mean the
-  // router has to answer the question again.
-  //
-  // That costs one Routes call per leg, which is why a long route asks first.
+  // Ride the route backwards. Every leg has to be RE-REQUESTED, not reversed in
+  // place: geometry is directional, and one-way streets, divided carriageways and
+  // turn restrictions mean the way back is not the way out drawn backwards. That
+  // is one Routes call per leg, which is why a long route asks first.
   /**
-    * Toggle one routing preference on a route, and re-route it (#29).
-    *
-    * PATCHED IN PLACE, NEVER RE-RENDERED: renderRouteList() would destroy whatever
-    * the rider is typing and drop focus to <body> — #188 from a control with
-    * nothing to do with the route's contents.
-    *
-    * RE-ROUTES EVERY LEG, because that is what the toggle MEANS — the preference
-    * with the old roads drawn is a lie on the map and a wrong number in every
-    * total. It asks first at the same threshold .route-rev uses: this bills a
-    * Routes call per leg.
-    */
+        * Toggle one routing preference on a route, and re-route it (#29).
+        *
+        * PATCHED IN PLACE, NEVER RE-RENDERED: renderRouteList() would destroy whatever
+        * the rider is typing — #188 from a control with nothing to do with contents.
+        *
+        * RE-ROUTES EVERY LEG, because that is what the toggle MEANS: the preference
+        * with the old roads drawn is a lie on the map and a wrong number in every
+        * total. It bills a Routes call per leg, so it asks first.
+        */
   function togglePref(r, btn) {
     const route = state.routes[r];
     if (!route) return;
@@ -2636,8 +2336,8 @@
     const next = Object.assign({}, route.routePrefs);
     if (turningOn) next[key] = true;
     else delete next[key];
-    // Null rather than {} for an empty set, so the route matches what the server
-    // will store and the two cannot disagree about whether it changed.
+    // Null rather than {} for an empty set, so the route matches what the server will
+    // store and the two cannot disagree about whether it changed.
     route.routePrefs = prefsBody(next);
 
     btn.classList.toggle("is-on", turningOn);
@@ -2666,17 +2366,16 @@
     if (r == null) return noRouteYet();
     const route = state.routes[r];
     // POINTS, not stops. A route of three POIs draws a road and has something to
-    // reverse; counting stops would have told the rider there was nothing there.
+    // reverse; counting stops would say there was nothing there.
     if (route.points.length < 2) return toast("Nothing to reverse yet", true);
 
     const legCount = Math.max(0, route.points.length - 1);
-    // "re-routes", not "re-routes" — a find-and-replace during the 2026-08-09
-    // routes→routes rename caught this string, which a rider reads in a dialog.
+    // A rider reads this string in a dialog, so it is one a find-and-replace must
+    // not quietly rewrite.
     if (legCount > 12 && !window.confirm("Reversing re-routes all " + legCount + " legs of this route. Continue?"))
       return;
 
-    // Every guard and the confirm are behind us, so this is the first point at
-    // which the route is certainly going to change.
+    // Every guard and the confirm are behind us, so the route is certainly changing.
     beginEdit("reverse route");
     // REVERSE THE WHOLE LIST, both kinds. A POI has a place in the order now, and
     // a route ridden backwards passes its viewpoints in the opposite order too —
@@ -2708,13 +2407,10 @@
   }
 
   // --- Select mode ----------------------------------------------------------
-  //
-  // Checkboxes on every peer and a bar offering what can be done to the set. The
-  // alternative to "select four routes and delete them" is doing it four times,
-  // and grouping routes as alternates is inherently multi-route.
-  //
-  // TWO SCOPES, NEVER BOTH: "delete the selected" has to mean routes or points.
-  // Opening one closes the other.
+    //
+    // Checkboxes on every peer and a bar offering what can be done to the set. TWO
+    // SCOPES, NEVER BOTH: "delete the selected" has to mean routes or points, so
+    // opening one closes the other.
   const pointKey = (r, kind, i) => r + ":" + kind + ":" + i;
 
   function startSelect(scope) {
@@ -2733,9 +2429,8 @@
 
   const selectedRoutes = () => [...(state.select?.routes ?? [])].sort((a, b) => a - b);
 
-  // Grouped by route and sorted DESCENDING within each, which is the order a
-  // caller must splice in — ascending is off by one more with every removal and
-  // the bug is silent.
+  // Grouped by route and sorted DESCENDING within each, the order a caller must
+  // splice in — ascending is off by one more with every removal, silently.
   function selectedPointsByRoute() {
     const byRoute = new Map();
     for (const key of state.select?.points ?? []) {
@@ -2762,8 +2457,8 @@
     const isRoute = sel.scope === "route";
     const n = isRoute ? sel.routes.size : sel.points.size;
     const noun = isRoute ? (n === 1 ? "route" : "routes") : n === 1 ? "point" : "points";
-    // Buttons are disabled rather than hidden at n === 0, so the bar is the same
-    // shape the moment it opens as it is once something is ticked.
+    // Disabled rather than hidden at n === 0, so the bar is the same shape the
+    // moment it opens as once something is ticked.
     const off = n === 0 ? " disabled" : "";
     const routeBtns =
       '<button type="button" data-sel="group"' +
@@ -2795,21 +2490,18 @@
       '<button type="button" data-sel="done">Done</button>';
   }
 
-  // Group the selected routes as alternatives of one another. The entry point for
-  // the whole alternates feature — everything else about them (ghosting, the
-  // totals, the numbering) has been in place since they could only be created by
-  // hand-writing a payload.
+  // Group the selected routes as alternatives of one another — the entry point for
+  // the whole alternates feature.
   function groupSelectedAsAlts() {
     const rows = selectedRoutes();
     if (rows.length < 2) return toast("Pick at least two routes", true);
     if (rows.some((r) => state.routes[r].altGroup != null)) {
       return toast("One of those is already an alternative—ungroup it first", true);
     }
-    // A WARNING, NOT A REFUSAL. docs/ROADMAP.md defines an alternate as two paths
-    // that share a start and an end, and route-level grouping cannot enforce that:
-    // if two alternates finish in different towns, the following route starts with
-    // a hole in the ride and nothing else in the app would mention it. The rider
-    // may well know what they mean, so this says so and continues.
+    // A WARNING, NOT A REFUSAL. An alternate is two paths sharing a start and an
+    // end, which route-level grouping cannot enforce: alternates finishing in
+    // different towns leave the following route starting with a hole. The rider may
+    // know what they mean.
     const gap = endpointGap(rows);
     beginEdit("group as alternatives");
     const id = Math.max(-1, ...state.routes.map((d) => (d.altGroup == null ? -1 : d.altGroup))) + 1;
@@ -2827,13 +2519,11 @@
     else toast(rows.length + " routes are now alternatives—only the first counts");
   }
 
-  // The message for a group whose members do not start and end together, or null
-  // when they do. Compared against the first selected route, which is the one that
-  // becomes active.
+  // The message for a group whose members do not start and end together, or null.
+  // Compared against the first selected route, the one that becomes active.
   function endpointGap(rows) {
-    // The first and last POINTS of each candidate. Where a route starts and ends is
-    // where its road starts and ends, and both ends anchor a leg whatever kind
-    // they are.
+    // The first and last POINTS of each candidate: where a route starts and ends is
+    // where its road does, and both ends anchor a leg whatever kind they are.
     const ends = rows.map((r) => {
       const pts = state.routes[r].points;
       return pts.length ? { first: pts[0], last: pts[pts.length - 1] } : null;
@@ -2861,10 +2551,8 @@
   }
 
   // ONE beginEdit FOR THE WHOLE BATCH, in every one of these. Looping over
-  // deleteRoute() would push an undo step per route and leave the rider pressing
-  // undo four times to put back one action — which is why the single-item
-  // mutators had their guards moved ahead of their beginEdit in step 8 and why
-  // these do the splicing themselves rather than calling them.
+  // deleteRoute() would push an undo step per route, leaving the rider pressing
+  // undo four times to put back one action.
   function deleteSelectedRoutes() {
     const rows = selectedRoutes();
     if (!rows.length) return;
@@ -2891,15 +2579,15 @@
     if (!rows.length) return;
     if (state.routes.length + rows.length > MAX_ROUTES) return toast("Route limit reached (" + MAX_ROUTES + ")", true);
     beginEdit("duplicate routes");
-    // Descending again: each insertion shifts everything after it, and going
-    // backwards means the indices still to come are untouched.
+    // Descending again: each insertion shifts everything after it, so going
+    // backwards leaves the indices still to come untouched.
     [...rows].reverse().forEach((r) => {
       const src = state.routes[r];
       state.routes.splice(r + 1, 0, {
         ...src,
         title: src.title ? src.title + " (copy)" : "",
-        // A FRESH uid, or the spread above copies the original's and the save
-        // fails uq_route_ride_uid — the same reason a duplicated point gets one.
+        // A FRESH uid, or the spread copies the original's and the save fails
+        // uq_route_ride_uid.
         uid: uid(),
         altGroup: null,
         altActive: true,
@@ -2918,14 +2606,13 @@
   }
 
   // Rebuild a route's legs after some points have gone, keeping every leg the
-  // removal did not touch and carrying the shaping points of the ones it did onto
-  // the leg that replaces them. Call with the point count and leg array as they
-  // were BEFORE the splices; returns the leg indices now holding a placeholder.
-  //
-  // What this replaced: `route.legs = []` and a re-route of everything — correct,
-  // and why a rider who deleted one point out of thirty lost every shaping point
-  // they had drawn and paid for twenty-nine routing requests to be told the other
-  // roads had not changed.
+    // removal did not touch and carrying the shaping points of the ones it did onto
+    // the leg that replaces them. Call with the point count and leg array as they
+    // were BEFORE the splices; returns the leg indices now holding a placeholder.
+    //
+    // It replaced `route.legs = []` and a re-route of everything, which lost a
+    // rider's shaping work and paid for twenty-nine requests to be told the other
+    // roads had not changed.
   function rejoinRouteLegs(route, beforeLegs, beforePoints, removed) {
     const stale = [];
     let trimmed = false;
@@ -2952,10 +2639,9 @@
     const byRoute = selectedPointsByRoute();
     const n = selectedPointCount();
     if (!n) return;
-    // Every point removed drops the legs either side and re-requests one, so a
-    // big selection is real money and a visibly empty map while it runs. Same
-    // threshold and same reasoning as reverseRoute's confirm. Counted over both
-    // kinds now — a POI costs exactly what a stop costs.
+    // Every point removed drops the legs either side and re-requests one, so a big
+    // selection is real money and a visibly empty map while it runs. Same threshold
+    // as reverseRoute's confirm; a POI costs exactly what a stop costs.
     if (n > 12 && !window.confirm("Deleting " + n + " points re-routes the legs around each. Continue?")) return;
     beginEdit("delete points");
     const stale = new Map();
@@ -2967,11 +2653,9 @@
       const beforePoints = route.points.length;
       // Already sorted descending by selectedPointsByRoute().
       list.forEach((p) => route.points.splice(p.i, 1));
-      // A DAY MUST KEEP A STOP. A selection can take every stop and leave the
-      // POIs, which the API refuses and payload() drops the route for — so the
-      // first survivor is promoted, the same rule addPoint applies to a route's
-      // first point and the cross-route drag applies to a route that has just lost
-      // its only anchor.
+      // A ROUTE MUST KEEP A STOP. A selection can take every stop and leave the POIs,
+      // which the API refuses and payload() drops the route for, so the first
+      // survivor is promoted.
       ensureRouteHasStop(route);
       const out = rejoinRouteLegs(
         route,
@@ -3015,11 +2699,11 @@
         const [pt] = route.points.splice(p.i, 1);
         if (pt) moved.push({ kind: p.kind, pt });
       });
-      // Same rule as the bulk delete: moving every stop out of a route leaves one
-      // the save refuses, so the first point left behind becomes the anchor.
+      // Same rule as the bulk delete: moving every stop out of a route leaves one the
+      // save refuses, so the first point left behind becomes the anchor.
       ensureRouteHasStop(route);
-      // And the same re-join: a leg between two points that both stayed behind
-      // is the same road, shaping points and all.
+      // And the same re-join: a leg between two points that both stayed behind is the
+      // same road, shaping points and all.
       const out = rejoinRouteLegs(
         route,
         beforeLegs,
@@ -3030,17 +2714,15 @@
       trimmed = trimmed || out.trimmed;
       state.legSeq[r] = [];
     }
-    // Reversed, because each route's list was spliced descending and the points
-    // came off in the opposite order to the one they were in.
+    // Reversed, because each route's list was spliced descending.
     const dstBase = dst.points.length;
     moved.reverse().forEach(({ pt }) => dst.points.push(pt));
     // And the destination, which can be a route whose points all arrived as POIs.
     ensureRouteHasStop(dst);
-    // The arrivals land on the END of the destination, so every leg it already
-    // had still joins the two points it always joined — only the leg that
-    // reaches the first arrival and the legs among the arrivals are new. Keeping
-    // the rest keeps the destination's own shaping points, and spends no routing
-    // request on a road that has not changed.
+    // The arrivals land on the END of the destination, so every leg it already had
+    // still joins the two points it always joined — only the leg reaching the first
+    // arrival and the legs among them are new. That keeps the destination's own
+    // shaping points and spends no request on a road that has not changed.
     dst.legs.length = Math.min(dst.legs.length, Math.max(0, dstBase - 1));
     fillMissingLegs(dst);
     state.legSeq[toRoute] = [];
@@ -3062,15 +2744,11 @@
     toast(moved.length + " points moved to " + routeLabel(toRoute));
   }
 
-  // Copy a whole route, inserted straight after the original.
-  //
-  // The legs come across as they are: the copy has the same stops in the same
-  // order, so asking the router again costs one call per leg to be told so. Every
-  // array is copied rather than shared — a shared `roles` array would have a role
-  // added to the copy appear on the original.
-  //
-  // This is what "make an alternate" is built on: duplicate, change the copy,
-  // group the two.
+  // Copy a whole route, inserted straight after the original. The legs come across
+    // as they are: same stops in the same order, so asking the router again costs a
+    // call per leg to be told so. Every array is COPIED — a shared `roles` would
+    // have a role added to the copy appear on the original. This is what "make an
+    // alternate" is built on.
   function duplicateRoute(r) {
     if (state.routes.length >= MAX_ROUTES) return toast("Route limit reached (" + MAX_ROUTES + ")", true);
     const src = state.routes[r];
@@ -3079,13 +2757,11 @@
     const copy = {
       ...src,
       title: src.title ? src.title + " (copy)" : "",
-      // A FRESH uid, for the same reason the multi-route duplicate above mints
-      // one: the spread would otherwise carry the original's and the save would
-      // fail uq_route_ride_uid.
+      // A FRESH uid, or the spread carries the original's and the save fails
+      // uq_route_ride_uid.
       uid: uid(),
-      // The copy is NOT part of its original's group. A duplicate of one
-      // alternate would otherwise silently become a third member of a group the
-      // rider has not been asked about.
+      // The copy is NOT part of its original's group, or duplicating one alternate
+      // would silently make a third member of a group nobody was asked about.
       altGroup: null,
       altActive: true,
       points: src.points.map((pt) => ({ ...pt, roles: (pt.roles || []).slice() })),
@@ -3103,11 +2779,9 @@
     toast("Duplicated to " + routeLabel(r + 1));
   }
 
-  // Choose a different member of a group as the one being ridden. This is the
-  // resolution step — the point at which a rider stops weighing two roads and
-  // picks one — and it is why altActive exists as a flag rather than the group's
-  // first route simply winning: promoting must not reorder the ride and renumber
-  // every route after it.
+  // Choose a different member of a group as the one being ridden. `altActive` is a
+  // flag rather than the group's first route simply winning, because promoting
+  // must not reorder the ride and renumber every route after it.
   function promoteAlt(r) {
     const route = state.routes[r];
     if (!route || route.altGroup == null || route.altActive) return;
@@ -3124,9 +2798,8 @@
     toast("Now " + W("travel") + " " + routeLabel(r));
   }
 
-  // Break a group apart: every member becomes an ordinary route again and all of
-  // them start counting toward the ride. The way out of a grouping, without
-  // which the feature is a trap.
+  // Break a group apart: every member becomes an ordinary route again and starts
+  // counting toward the ride. Without it the feature is a trap.
   function ungroupAlts(r) {
     const route = state.routes[r];
     if (!route || route.altGroup == null) return;
@@ -3151,8 +2824,8 @@
     const r = editIndex();
     if (r == null) return noRouteYet();
     const j = r + dir;
-    // At either end there is nothing to do, and pushing an undo step for it
-    // means the rider's next undo silently spends itself on a no-op.
+    // At either end there is nothing to do, and an undo step for it means the
+    // rider's next undo silently spends itself on a no-op.
     if (j < 0 || j >= state.routes.length) return;
     beginEdit("move route");
     const a = state.routes;
@@ -3167,47 +2840,36 @@
   }
 
   // THE NUMBER IS THE POSITION AND THE NAME IS THE NAME. They used to be one
-  // field, so naming a route REPLACED its number — which reads fine until routes
-  // can be reordered, where a route called "Route 2" dragged into third place is
-  // wrong and cannot be corrected, because the text is the title.
-  // NOT `r + 1`, which it was until alternates: a ride whose routes 3 and 4 are
-  // two ways to do one Thursday has four sections and is a three-route ride, so
-  // active routes number 1..N and a losing alternate takes its group's number with
-  // a letter — 3, 3b, 3c.
-  //
-  // Recomputed per call rather than cached, because it depends on every other
-  // route. TBAlt.routeOrdinals does the whole array in one pass.
+    // field, so naming a route REPLACED its number — and a route called "Route 2"
+    // dragged into third place cannot be corrected, the text being the title.
+    // NOT `r + 1`: a ride whose routes 3 and 4 are two ways to do one Thursday has
+    // four sections and is a three-route ride, so active routes number 1..N and a
+    // losing alternate takes its group's number with a letter — 3, 3b, 3c.
+    // Recomputed per call, because it depends on every other route.
   const routeNumber = (r) => ALT.routeOrdinal(state.routes, r);
   const routeName = (r) => (state.routes[r] && state.routes[r].title) || "";
 
-  // For prose — toasts, the timeline readout, the totals line. Both parts when
-  // there is a name, the number alone when there is not.
+  // For prose — toasts, the timeline readout, the totals line.
   function routeLabel(r) {
     const name = routeName(r);
     return name ? Wc("route") + " " + routeNumber(r) + SEP + name : Wc("route") + " " + routeNumber(r);
   }
 
-  // EVERY ROUTE, RENDERED AT ONCE. This replaced renderSlider +
-  // renderRouteEditing + renderRouteHead, which showed one route and hid the rest
-  // behind a slider at the bottom of the drawer.
-  //
-  // Structure is rebuilt here; VALUES are not written back on every keystroke,
-  // which is why typing in a route title does not lose the caret. So this is
-  // called only when the SET of routes changes.
+  // EVERY ROUTE, RENDERED AT ONCE, replacing the slider that showed one and hid
+  // the rest. Structure is rebuilt here; VALUES are not written back on every
+  // keystroke, which is why typing in a route title does not lose the caret — so
+  // this is called only when the SET of routes changes.
   function renderRoutes() {
     const host = $("route-list");
     if (!host) return;
-    // AN OPEN SLOT DOES NOT SURVIVE A STRUCTURAL REBUILD. This runs when points
-    // are deleted, reordered, moved between routes or a route is added — all of which
-    // shift the indices the slot is expressed in, so "before points[3]" stops
-    // meaning the gap the rider was looking at. Closing it is honest; silently
-    // pointing somewhere else is not.
-    //
-    // renderRouteList() deliberately does NOT do this, which is what lets opening a
-    // slot render itself.
+    // AN OPEN SLOT DOES NOT SURVIVE A STRUCTURAL REBUILD. This runs when points are
+        // deleted, reordered, moved between routes or a route is added, all of which
+        // shift the indices the slot is expressed in. Closing it is honest; silently
+        // pointing somewhere else is not. renderRouteList() deliberately does NOT do
+        // this, which is what lets opening a slot render itself.
     state.insertAt = null;
     // Same reasoning: {route, i} stops meaning the row the rider was looking at the
-    // moment a delete or a reorder shifts the indices.
+    // moment a delete or reorder shifts the indices.
     state.rolesOpen = null;
     const open = openSections();
     host.innerHTML = state.routes.map((route, r) => routeSectionHtml(route, r, open)).join("");
@@ -3216,27 +2878,24 @@
     renderRailRoutes();
     $("route-empty-hint").hidden = state.routes.length > 0;
     // One Sortable per route list, all in the same group, so a stop can be dragged
-    // from one route into another. See initDragToReorder.
+    // from one route into another.
     host.querySelectorAll(".point-list").forEach((el) => initDragToReorder(el));
     initRouteDrag(host);
-    // Here rather than on its own, because the two disagree the moment they are
-    // separate: a route's picker lists the subgroups and the editor renames them,
-    // so a rename that redrew only the editor would leave every picker showing
-    // the old name until something else happened to re-render.
+    // Here rather than on its own: a route's picker lists the subgroups and the
+    // editor renames them, so a rename that redrew only the editor would leave every
+    // picker showing the old name.
     renderSubgroups();
     applyReadOnly();
   }
 
   /**
-    * Turn the panel's controls off for a rider who may look but not write.
-    *
-    * Runs after every render because the route list is rebuilt wholesale.
-    *
-    * It disables FIELDS, not buttons wholesale: the tab strip, the route rail and
-    * the row menus are how a reader moves around, and a panel whose every button is
-    * dead is not read-only, it is broken. `.builder-readonly` on the body hides the
-    * controls that only make sense for an editor.
-    */
+        * Turn the panel's controls off for a rider who may look but not write. Runs
+        * after every render because the route list is rebuilt wholesale.
+        *
+        * It disables FIELDS, not buttons wholesale: the tab strip, the route rail and
+        * the row menus are how a reader moves around, and a panel whose every button
+        * is dead is not read-only, it is broken.
+        */
   function applyReadOnly() {
     if (CAN_EDIT) return;
     document.body.classList.add("builder-readonly");
@@ -3246,48 +2905,41 @@
   }
 
   // --- The panel's three tabs -----------------------------------------------
-  //
-  // Routes, Groups and Riders. Adding the rider and group layers to the densest
-  // surface in the app turned it into one long scroll, with the route being edited
-  // pushed below the fold by a feature about people.
-  //
-  // THE BEHAVIOR IS public/js/tabs.js, shared with the ride lists. What is left
-  // here is the one thing this strip does that a generic one does not: fetch the
-  // roster when the Riders tab opens. init() is called directly rather than
-  // through `data-tabs`, which is why this function exists.
+    //
+    // Routes, Groups and Riders. Without them the rider and group layers pushed the
+    // route being edited below the fold.
+    //
+    // THE BEHAVIOR IS public/js/tabs.js, shared with the ride lists. What is left
+    // here is the one thing a generic strip does not do: fetch the roster when the
+    // Riders tab opens.
 
   function initTabs() {
     const strip = document.querySelector(".panel-tabs");
     if (!strip || !window.TBTabs) return;
     window.TBTabs.init(strip, (tab) => {
-      // The Riders tab is the only one whose contents come from the server, and
-      // it is fetched on open rather than on load: most sessions never open it,
-      // and the roster can change while the builder is sitting there. loadRiders
-      // caches, so flipping between tabs does not re-fetch.
+      // The Riders tab is the only one whose contents come from the server, fetched on
+      // open rather than on load: most sessions never open it, and the roster can
+      // change while the builder sits there. loadRiders caches.
       if (tab.id === "tab-riders") loadRiders();
     });
   }
 
   // --- The Riders tab --------------------------------------------------------
-  //
-  // Who is coming, what they are bringing, and which approach they are on. The
-  // read is /api/rides/:id/riders — see the foot of src/routes/roster.tsx for why
-  // only two verbs are here.
-  //
-  // NOT A SECOND ROSTER: RSVP, bike, invite and the vote are statements BY a rider
-  // and stay on the roster page. What is here is the part about the plan.
-  //
-  // THE GROUP PICKER IS THE ONE PLACE ids AND uids MEET. Everything else holds a
-  // subgroup by uid; `ride_members.subgroup_id` is a numeric id that does not
-  // exist until the first save. So the options come from the SERVER's list, and a
-  // group just added is missing until the autosave lands — which `unsavedGroups`
-  // says out loud rather than leaving it silently unpickable.
+    //
+    // Who is coming, what they are bringing, and which approach they are on.
+    //
+    // NOT A SECOND ROSTER: RSVP, bike, invite and the vote are statements BY a rider
+    // and stay on the roster page. What is here is the part about the plan.
+    //
+    // THE GROUP PICKER IS THE ONE PLACE ids AND uids MEET. Everything else holds a
+    // subgroup by uid; `ride_members.subgroup_id` is a numeric id that does not
+    // exist until the first save. So the options come from the SERVER's list, and a
+    // group just added is missing until the autosave lands — which `unsavedGroups`
+    // says out loud.
 
-  // The last response, so flipping between tabs does not re-fetch.
-  //
-  // IT EXPIRES RATHER THAN LIVING FOR THE SESSION: the roster is also editable
-  // from /m/:slug/riders in another window, and a cache with no clock would show
-  // this session's opening snapshot an hour later.
+  // The last response, so flipping between tabs does not re-fetch. IT EXPIRES: the
+  // roster is also editable from /m/:slug/riders in another window, and a cache
+  // with no clock would show this session's opening snapshot an hour later.
   const RIDERS_TTL_MS = 15000;
   let ridersCache = null;
   let ridersAt = 0;
@@ -3295,8 +2947,8 @@
 
   const RSVP_LABELS = { going: "coming", maybe: "maybe", declined: "not coming" };
 
-  /** The roster may have changed underneath us—drop the cache so the next open
-   *  re-reads, and re-read now if the tab is on screen. */
+  /** The roster may have changed underneath us — drop the cache, and re-read now
+   *  if the tab is on screen. */
   function ridersStale() {
     ridersCache = null;
     ridersAt = 0;
@@ -3306,11 +2958,10 @@
   async function loadRiders() {
     const host = $("riders-body");
     if (!host) return;
-    // NOTHING TO READ UNTIL THE FIRST SAVE. A ride that has never been saved has
-    // no row and therefore no roster; seedOwner() puts the owner on it inside the
-    // same transaction that inserts the ride, so the moment there is one this is
-    // never empty again. The autosave makes that a few seconds, which is why this
-    // says "once it saves" rather than asking the rider to do anything.
+    // NOTHING TO READ UNTIL THE FIRST SAVE: a ride with no row has no roster, and
+    // seedOwner() puts the owner on it in the same transaction that inserts the
+    // ride. The autosave makes that a few seconds, which is why this says "once it
+    // saves" rather than asking the rider to do anything.
     if (!state.rideId) {
       host.innerHTML =
         '<p class="riders-empty">' +
@@ -3340,15 +2991,14 @@
   }
 
   // --- Comments -------------------------------------------------------------
-  //
-  // TWO ANCHORS, ONE LIST. A comment hangs off a POINT by uid, or off the RIDE
-  // when it has none — "is this hotel actually walkable" versus "can we leave an
-  // hour earlier". Read in one place below the tabs, because a fourth tab would
-  // undo the three-tab decision; WRITTEN from two.
-  //
-  // A COMMENT WHOSE POINT IS DELETED IS NOT DELETED WITH IT — the server clears
-  // its anchor and it carries on at ride level, still labeled with the stop it was
-  // about (demoteOrphanComments). Nothing here handles that specially.
+    //
+    // TWO ANCHORS, ONE LIST. A comment hangs off a POINT by uid, or off the RIDE
+    // when it has none. Read in one place below the tabs, because a fourth tab would
+    // undo the three-tab decision; WRITTEN from two.
+    //
+    // A COMMENT WHOSE POINT IS DELETED IS NOT DELETED WITH IT — the server clears
+    // its anchor and it carries on at ride level, still labeled with the stop it was
+    // about. Nothing here handles that specially.
   let commentsCache = null;
   let commentsLoading = false;
   // What the composer is anchored to: a point uid, or null for the ride.
@@ -3373,9 +3023,9 @@
     }
   }
 
-  /** The name to file a new comment under. Copied from what the commenter is
-   *  LOOKING AT rather than resolved later: the point may not be saved yet, and
-   *  once it is deleted there is nothing left to read a name off. */
+  /** The name to file a new comment under, copied from what the commenter is
+   *  LOOKING AT: the point may not be saved yet, and once deleted there is
+   *  nothing left to read a name off. */
   function labelForUid(uid) {
     for (const route of state.routes) {
       for (const pt of route.points) if (pt.uid === uid) return pt.name || pt.label || "";
@@ -3434,9 +3084,8 @@
     const list = all.length
       ? '<ul class="comment-list">' + all.map(commentRowHtml).join("") + "</ul>"
       : '<p class="comments-empty">Nothing said yet.</p>';
-    // The composer is only drawn for somebody who may actually post. A box that
-    // refuses on submit is worse than no box — see canPost, which the server
-    // re-checks whatever this page decided.
+    // Only drawn for somebody who may actually post. A box that refuses on submit is
+    // worse than no box; the server re-checks whatever this page decided.
     const composer = commentsCache.canPost
       ? '<form class="comment-new" id="comment-new">' +
         '<label class="visually-hidden" for="comment-body">Your comment</label>' +
@@ -3480,8 +3129,7 @@
     await loadComments(true);
   }
 
-  /** Point the composer at one stop and scroll it into view. What the row menu's
-   *  "Comment on this stop" does. */
+  /** Point the composer at one stop and scroll it into view. */
   function commentOnPoint(uid) {
     commentAnchor = uid;
     renderComments();
@@ -3493,15 +3141,13 @@
   }
 
   // --- Suggestions ----------------------------------------------------------
-  //
-  // A SUGGESTION IS A WHOLE ROUTE, PROPOSED AGAINST THAT ROUTE AS IT WAS. A rider
-  // below `edit` still edits the panel normally — markDirty keeps their work in
-  // `state` and files nothing — and Suggest posts what they are looking at.
-  //
-  // STALENESS IS THE SERVER'S ANSWER AND IS NEVER COMPUTED HERE: it compares the
-  // route's fingerprint now against the one taken when the proposal was made, and
-  // re-checks on accept. Applying a proposal made against a route that has since
-  // moved is the one real hazard the feature has.
+    //
+    // A SUGGESTION IS A WHOLE ROUTE, PROPOSED AGAINST THAT ROUTE AS IT WAS. A rider
+    // below `edit` still edits the panel normally — markDirty keeps their work in
+    // `state` and files nothing — and Suggest posts what they are looking at.
+    //
+    // STALENESS IS THE SERVER'S ANSWER AND IS NEVER COMPUTED HERE: it compares the
+    // route's fingerprint now against the one taken when the proposal was made.
   let suggestionsCache = null;
   let suggestionsLoading = false;
 
@@ -3535,9 +3181,8 @@
     const mine = suggestionsCache && sg.authorId === suggestionsCache.viewerId;
     const owner = suggestionsCache && suggestionsCache.isOwner;
     const live = sg.state === "pending";
-    // ACCEPT IS OWNER-ONLY AND ONLY WHILE PENDING. Discard stays available on a
-    // stale one — clearing a proposal that can no longer be applied is exactly
-    // what an owner wants to be able to do with it.
+    // ACCEPT IS OWNER-ONLY AND ONLY WHILE PENDING. Discard stays available on a stale
+    // one — clearing a proposal that can no longer be applied is what an owner wants.
     const acts = [];
     if (owner && live) acts.push('<button type="button" class="linkbtn" data-sact="accept">Accept</button>');
     if (owner && !sg.state.match(/^(accepted|discarded|withdrawn)$/)) {
@@ -3587,8 +3232,7 @@
   }
 
   /** The propose control, for a rider who may suggest but not save. It names the
-   *  route being edited, because a suggestion is one route and picking the wrong one
-   *  is the easy mistake. */
+   *  route being edited, because picking the wrong one is the easy mistake. */
   function renderSuggestBar() {
     const host = $("suggestions-body");
     if (!host || CAN_EDIT || !CAN_SUGGEST || !state.rideId) return;
@@ -3628,8 +3272,7 @@
       headers: { "Content-Type": "application/json" },
     });
     if (!res.ok) {
-      // 409 is the stale case and is the one worth naming: the route moved under
-      // the proposal, so there is nothing safe to apply.
+      // 409 is the stale case and is worth naming: the route moved under the proposal.
       throw new Error(
         res.status === 409 ? "that route has changed since—the suggestion needs redoing" : "that did not work",
       );
@@ -3691,9 +3334,9 @@
     const count = $("riders-count");
     if (count) count.textContent = data.riders.length ? String(data.riders.length) : "";
 
-    // Groups the rider has added since the last save. They have no id yet, so
-    // they cannot be assigned to anybody — said out loud, because a picker
-    // quietly missing the group you just made reads as a bug.
+    // Groups added since the last save have no id yet, so they cannot be assigned to
+    // anybody — said out loud, because a picker quietly missing the group you just
+    // made reads as a bug.
     const savedUids = new Set(data.groups.map((g) => g.uid));
     const unsaved = state.meta.subgroups.filter((g) => !savedUids.has(g.uid));
 
@@ -3708,11 +3351,10 @@
       '<ul class="riders-list">' +
       data.riders.map((r) => riderRowHtml(r, data.groups)).join("") +
       "</ul>" +
-      // A BUTTON, NOT JUST A SENTENCE. Ziad's call, 2026-09-06: the line was accurate
-      // and left the rider with nothing to do about it, since the ride saves on its
-      // own timer. Pressing this saves and re-reads. It is a plain save — the same one
-      // the timer runs — because a second write path is a second thing to keep in step
-      // with conflicts, merges and the recovery draft.
+      // A BUTTON, NOT JUST A SENTENCE: the line was accurate and left the rider with
+      // nothing to do about it. It is a plain save — the same one the timer runs —
+      // because a second write path is a second thing to keep in step with
+      // conflicts, merges and the recovery draft.
       (unsaved.length
         ? '<p class="riders-note">' +
           esc(unsaved.map((g) => g.name).join(", ")) +
@@ -3730,10 +3372,9 @@
       "</div>";
   }
 
-  // The same claim the roster page makes, in one line. `null` miles means nobody
-  // coming has a range on file — a real answer and not a failure, and the reason
-  // this never invents a number: a fuel plan built on a guess is worse than none
-  // because it looks like one.
+  // The same claim the roster page makes. `null` miles means nobody coming has a
+  // range on file — a real answer, and the reason this never invents a number: a
+  // fuel plan built on a guess is worse than none because it looks like one.
   function fuelHtml(range) {
     if (!range || range.riders === 0) return "";
     if (range.miles === null) {
@@ -3778,7 +3419,7 @@
       (RSVP_LABELS[r.rsvp] || r.rsvp) +
       "</span>" +
       (r.bike ? '<span class="rider-bike">' + esc(r.bike) + "</span>" : "") +
-      // NO PICKER WHEN THE RIDE HAS NO GROUPS. A select whose only option is
+      // NO PICKER WHEN THE RIDE HAS NO GROUPS: a select whose only option is
       // "Everyone" is a control that cannot do anything, on every row.
       (groups.length
         ? '<select class="rider-group" aria-label="Group for ' +
@@ -3824,8 +3465,8 @@
       const raw = e.target.value;
       const ok = await riderPost("group", {
         rider: Number(row.dataset.rider),
-        // JSON null rather than "", so the server does not have to guess whether
-        // an empty string meant "no group" or a missing field.
+        // JSON null rather than "", so the server need not guess whether an empty
+        // string meant "no group" or a missing field.
         group: raw === "" ? null : Number(raw),
       });
       // Re-read rather than patching the cache: the answer is the server's, and
