@@ -1,15 +1,12 @@
 // PROPOSING A MEETING POINT: given a trunk route and a subgroup's origin, find
 // somewhere sensible for them to join. @epim's idea, in #143 and now #67.
 //
-// PURE GEOMETRY, AND IT CALLS NO ROUTER. Ranking a few dozen candidates through
-// the Routes API would be a Routes bill per keystroke on a per-request SKU — and
-// the proposal is a SUGGESTION the planner accepts, at which point the ordinary
-// routing path draws the real road and every number here is replaced by a
-// measured one. Straight-line distance is the right precision for "is this a sane
-// place to meet" and the wrong one for "how long will it take"; this module never
-// claims the second.
-//
-// Everything here is therefore testable with no database and no network.
+// PURE GEOMETRY, AND IT CALLS NO ROUTER. Ranking a few dozen candidates through the
+// Routes API would be a Routes bill per keystroke on a per-request SKU — and the
+// proposal is a SUGGESTION the planner accepts, at which point the ordinary routing
+// path draws the real road and every number here is replaced by a measured one.
+// Straight-line distance is the right precision for "is this a sane place to meet"
+// and the wrong one for "how long will it take"; this module never claims the second.
 
 import { haversineM, METERS_PER_MILE, type Track } from '../maps/kml'
 import { bearing, turn } from '../maps/twist'
@@ -40,15 +37,14 @@ export type Rendezvous = {
 
 export type RendezvousOptions = {
   /**
-   * How much FURTHER out of their way than necessary a joining group may be sent,
-   * in miles. A candidate costing more is not offered at all rather than ranked
-   * last: #67's constraint is that neither group *significantly* diverts.
+   * How much FURTHER out of their way than necessary a joining group may be sent, in
+   * miles. A candidate costing more is not offered at all rather than ranked last:
+   * #67's constraint is that neither group *significantly* diverts.
    *
-   * MEASURED FROM EACH GROUP'S CHEAPEST VIABLE MEET, NOT FROM ZERO, since
-   * 2026-09-19 (#370). An absolute cap answered "nowhere works" for any group whose
-   * road never came within it of the main group's, which is a fact about the two
-   * roads and not about the meet. The older `proposeRendezvous` still reads it as
-   * an absolute cap.
+   * MEASURED FROM EACH GROUP'S CHEAPEST VIABLE MEET, NOT FROM ZERO (#370). An
+   * absolute cap answered "nowhere works" for any group whose road never came within
+   * it of the main group's, which is a fact about the two roads and not about the
+   * meet. The older `proposeRendezvous` still reads it as an absolute cap.
    */
   maxDivertMi?: number
   /**
@@ -60,10 +56,9 @@ export type RendezvousOptions = {
   /**
    * How much of the trunk must be left AFTER the meet, as a fraction.
    *
-   * WITHOUT THIS THE PROPOSER CHEATS, and it took a failing test to notice: a group
-   * a long way off the trunk gets its smallest divert by meeting near the trunk's
-   * END, where the two ride together for twenty minutes and the exercise was
-   * pointless. This is the floor that says otherwise, and the ranking prefers more.
+   * WITHOUT THIS THE PROPOSER CHEATS, and it took a failing test to notice: a group a
+   * long way off the trunk gets its smallest divert by meeting near the trunk's END,
+   * where the two ride together for twenty minutes and the exercise was pointless.
    */
   minSharedFraction?: number
   /** How finely to sample the trunk. 2 km is well under any sane meeting-point
@@ -74,32 +69,29 @@ export type RendezvousOptions = {
    * candidate: `PLACE_NUDGE_MI` down for avoid and up for favor, and a station on
    * both is favored.
    *
-   * REVERSES THE 2026-09-07 CALL that these lists must never reach the proposer.
-   * Ziad's call, 2026-09-19, after being handed a Costco as the meeting point with
-   * Costco Gas on his avoid list and a Shell four miles on. What the old rule
-   * protected survives as the SHAPE of this one — a nudge and never a filter.
+   * REVERSES THE 2026-09-07 CALL that these lists must never reach the proposer,
+   * after a Costco was handed over as the meeting point with Costco Gas on the avoid
+   * list and a Shell four miles on. What the old rule protected survives as the SHAPE
+   * of this one — a nudge and never a filter.
    */
   favor?: string[]
   avoid?: string[]
   /**
    * Offer ONLY fuel candidates, never a bare point on the road.
    *
-   * THE FILTER HAS TO BE HERE AND NOT AT THE CALL SITE, which is the whole
-   * reason this option exists. Scoring everything and keeping the fuel ones
-   * afterwards does not work: the ranking prefers the EARLIEST viable point and
-   * only the best few survive, so a station a little further along is crowded
-   * out by plain vertices before a caller ever sees it — and "no station on this
-   * road" would be reported for a road with several.
+   * THE FILTER HAS TO BE HERE AND NOT AT THE CALL SITE, which is the whole reason
+   * this option exists: the ranking prefers the EARLIEST viable point and only the
+   * best few survive, so a station a little further along is crowded out by plain
+   * vertices before a caller ever sees it — and "no station on this road" would be
+   * reported for a road with several.
    */
   fuelOnly?: boolean
 }
 
-// TEN MILES OF EXTRA DETOUR BY DEFAULT, down from twenty-five. Ziad's call,
-// 2026-09-19 (#370): twenty-five was aggressive as an absolute cap and is more
-// so as an allowance over the cheapest meet. A rider's own default lives in
-// `user_profiles.meet_divert_mi` and the builder seeds its dial from it; this
-// is what a rider who never set one gets, and what an old client sending
-// nothing gets.
+// TEN MILES OF EXTRA DETOUR BY DEFAULT, down from twenty-five (#370): twenty-five
+// was aggressive as an absolute cap and more so as an allowance over the cheapest
+// meet. A rider's own default lives in `user_profiles.meet_divert_mi`; this is what
+// a rider who never set one gets.
 export const DEFAULT_DIVERT_MI = 10
 const DEFAULTS = {
   maxDivertMi: DEFAULT_DIVERT_MI,
@@ -112,15 +104,12 @@ const DEFAULTS = {
 }
 
 /**
- * What a place on the rider's avoid list costs a candidate, and what one on the
- * favor list buys it, in miles of score.
+ * What a place on the rider's avoid list costs a candidate, and what one on the favor
+ * list buys it, in miles of score.
  *
- * EIGHT, WHICH IS ABOUT FIVE MILES OF DETOUR OR EIGHT FURTHER ALONG. An avoided
- * station loses to an unavoided one that is up to eight miles further down the
- * shared road, or costs a joining group up to about five extra miles to reach
- * (eight over DIVERT_WEIGHT) — and wins past that, because "I would rather not
- * stop there" is worth a few miles and not a county. Chosen so a Costco at a
- * junction loses to the Shell six miles on, which is the case it was set by.
+ * EIGHT, WHICH IS ABOUT FIVE MILES OF DETOUR OR EIGHT FURTHER ALONG — "I would
+ * rather not stop there" is worth a few miles and not a county. Chosen so a Costco at
+ * a junction loses to the Shell six miles on, which is the case it was set by.
  */
 export const PLACE_NUDGE_MI = 8
 
@@ -138,17 +127,14 @@ export function placeNudgeMi(name: string | undefined, favor: string[], avoid: s
  * What a divert budget may be, when it comes from outside.
  *
  * THE DIAL IS A RIDER-FACING NUMBER NOW, so it arrives over HTTP and cannot be
- * trusted. It lives here rather than in the route for the reason every rule does:
- * a route is a query and a rule is a rule, and this one is testable with no
- * database.
+ * trusted. It lives here rather than in the route for the reason every rule does: a
+ * route is a query and a rule is a rule, and this one is testable with no database.
  *
- * THE FLOOR IS A MILE — below that nothing but a group's own doorstep qualifies.
- * THE CEILING IS 200, which is what keeps the word "divert" meaning something:
- * past that every point on the road passes, indistinguishable from no proposal.
+ * THE FLOOR IS A MILE. THE CEILING IS 200, which is what keeps the word "divert"
+ * meaning something: past that every point on the road passes.
  *
- * UNDEFINED FOR ANYTHING UNUSABLE rather than a fallback number, so it spreads
- * into an options object as a no-op and a caller that sends nonsense gets
- * DEFAULTS rather than this function's opinion.
+ * UNDEFINED FOR ANYTHING UNUSABLE rather than a fallback number, so it spreads into
+ * an options object as a no-op and a caller that sends nonsense gets DEFAULTS.
  */
 export const MIN_DIVERT_MI = 1
 export const MAX_DIVERT_MI = 200
@@ -157,12 +143,10 @@ export const MAX_DIVERT_MI = 200
  * The caller's options over DEFAULTS, with an EXPLICIT `undefined` ignored.
  *
  * A plain spread does not do that: `{ ...DEFAULTS, ...{ maxDivertMi: undefined } }`
- * carries the undefined through, the cap becomes `undefined * METERS_PER_MILE`,
- * and `worst > NaN` is false for every candidate — so the cap was silently OFF
- * for exactly the shape the route builds when a client sends nothing. The test
- * that claimed to pin this passed on a fixture where the cap never bit. Found
- * 2026-09-19 while reworking the scoring, and fixed here rather than at the
- * call site so the rule is testable with no route.
+ * carries the undefined through, the cap becomes NaN, and `worst > NaN` is false for
+ * every candidate — so the cap was silently OFF for exactly the shape the route
+ * builds when a client sends nothing. The test that claimed to pin this passed on a
+ * fixture where the cap never bit.
  */
 function withDefaults(options: RendezvousOptions): Required<RendezvousOptions> {
   const opts: Record<string, unknown> = { ...DEFAULTS }
@@ -171,11 +155,10 @@ function withDefaults(options: RendezvousOptions): Required<RendezvousOptions> {
 }
 
 export function clampDivert(v: unknown): number | undefined {
-  // AN EMPTY STRING IS NOT ZERO, and this is the one case that has to be written
-  // out. `Number('')` is 0 and 0 is finite, so a rider who CLEARED the number box
-  // would post "" and be clamped up to the one-mile floor — which refuses every
-  // candidate on the ride and reads as the feature being broken rather than as a
-  // field left empty. Caught by its own test, having shipped wrong for an hour.
+  // AN EMPTY STRING IS NOT ZERO, and this is the one case that has to be written out.
+  // `Number('')` is 0 and 0 is finite, so a rider who CLEARED the number box would
+  // post "" and be clamped up to the one-mile floor — refusing every candidate on the
+  // ride and reading as the feature being broken rather than a field left empty.
   const str = typeof v === 'string' ? v.trim() : null
   if (str === '') return undefined
   const n = typeof v === 'number' ? v : str !== null ? Number(str) : NaN
@@ -217,19 +200,18 @@ function prefix(track: Track): number[] {
  * Score one candidate on the trunk. `null` means "not offerable" — a backtrack or
  * too big a divert — which the caller drops rather than ranks.
  *
- * THE DIVERT IS MEASURED AGAINST GOING DIRECT TO THE TRUNK'S END, not against
- * zero: a group joining a route is going to that destination either way, so what
- * the meeting point costs them is the difference between (ride to the meet, then
- * follow the trunk) and (ride straight there). Measuring against zero ranks the
- * trunk's own start best every time, which is the whole ride rather than a meet.
+ * THE DIVERT IS MEASURED AGAINST GOING DIRECT TO THE TRUNK'S END, not against zero:
+ * a group joining a route is going to that destination either way, so the meeting
+ * point costs them the difference between (ride to the meet, then follow the trunk)
+ * and (ride straight there). Measuring against zero ranks the trunk's own start best
+ * every time.
  *
  * ALL THREE LEGS OF THAT COMPARISON ARE STRAIGHT LINES, AND MIXING IN THE ROAD
- * DISTANCE IS THE BUG #239 WAS HALF OF. The remainder used to be measured ALONG
- * THE TRUNK while `directM` was a straight line, so every bend after the candidate
- * was charged to the joining group: on Los Gatos → Shasta Lake, sinuosity 1.15,
- * that invented 13 miles of divert at Tracy against a 25-mile budget — the
- * module's own `minSharedFraction` cheat reintroduced by arithmetic.
- * `sharedFraction` below is the one term that genuinely wants the road distance.
+ * DISTANCE IS THE BUG #239 WAS HALF OF. The remainder used to be measured ALONG THE
+ * TRUNK while `directM` was a straight line, so every bend after the candidate was
+ * charged to the joining group — on a sinuosity of 1.15 that invented 13 miles of
+ * divert against a 25-mile budget. `sharedFraction` below is the one term that
+ * genuinely wants the road distance.
  */
 function scoreCandidate(
   at: [number, number],
@@ -271,14 +253,14 @@ function scoreCandidate(
   // point and turn around, or sit waiting facing the wrong way.
   if (approachDeg > opts.maxApproachDeg) return null
 
-  // Divert dominates, because miles are what a rider actually pays. Everything else
-  // is a nudge measured in miles-equivalent so the weights are readable:
+  // Divert dominates, because miles are what a rider actually pays. Everything else is
+  // a nudge measured in miles-equivalent so the weights are readable:
   //
-  //   approach angle   up to 1 mile at ninety degrees — enough to prefer a
-  //                    parallel join between two similar candidates, not enough to
-  //                    send anybody the long way round.
-  //   shared road      up to 5 miles beyond the floor, pulling a proposal back
-  //                    from the destination toward road ridden together.
+  //   approach angle   up to 1 mile at ninety degrees — enough to prefer a parallel
+  //                    join between two similar candidates, not enough to send
+  //                    anybody the long way round.
+  //   shared road      up to 5 miles beyond the floor, pulling a proposal back from
+  //                    the destination toward road ridden together.
   //   fuel             2 miles. A fuel stop is where a group wants to regather
   //                    anyway, and #67 is explicit that it is a thumb on the scale.
   const score = divertM / METERS_PER_MILE + (approachDeg / 90) * 1 - sharedFraction * 5 - (isFuel ? 2 : 0)
@@ -289,15 +271,13 @@ function scoreCandidate(
 /**
  * Propose meeting points along a trunk for one joining group.
  *
- * Returns the best few, ordered, or an empty list when nothing clears the
- * constraints — which is a real answer and has to be rendered as one. Two
- * origins on opposite sides of a trunk running away from both of them have no
- * sensible rendezvous, and offering the least bad one would be worse than
- * saying so.
+ * Returns the best few, ordered, or an empty list when nothing clears the constraints
+ * — a real answer that has to be rendered as one. Two origins on opposite sides of a
+ * trunk running away from both of them have no sensible rendezvous, and offering the
+ * least bad one would be worse than saying so.
  *
- * The trunk's own endpoints are excluded as candidates. Its start is not a
- * meeting point, it is the whole ride; its end is not one either, it is
- * everybody arriving separately.
+ * The trunk's own endpoints are excluded: its start is not a meeting point, it is the
+ * whole ride; its end is everybody arriving separately.
  */
 export function proposeRendezvous(
   trunk: Track,
@@ -369,17 +349,17 @@ export const divertMi = (r: Rendezvous): number => Math.round((r.divertM / METER
 // QUESTION A PLANNER ACTUALLY HAS: everyone is going to the same place from
 // different ones, where should they meet?
 //
-// THE MAIN GROUP'S ROUTE IS THE ROUTE, AND EVERY OTHER GROUP JOINS IT. Ziad's
-// call, 2026-09-03. `rides.primary_subgroup_id` already defaults to the first
-// group created, so there is nothing to nominate and no loop to break.
+// THE MAIN GROUP'S ROUTE IS THE ROUTE, AND EVERY OTHER GROUP JOINS IT.
+// `rides.primary_subgroup_id` already defaults to the first group created, so there
+// is nothing to nominate and no loop to break.
 //
-// THE MAIN GROUP CAN NEVER BE THE ONE JOINING, which the signature says rather
-// than the body checking: a single list plus an id is one typo away from
-// proposing that the main group ride out of its way to meet a feeder.
+// THE MAIN GROUP CAN NEVER BE THE ONE JOINING, which the signature says rather than
+// the body checking: a single list plus an id is one typo away from proposing that
+// the main group ride out of its way to meet a feeder.
 //
-// The rejected version is recorded because it read well and was worse: taking
-// every group symmetrically and trying each road as a spine is fairer in the
-// abstract and moves the answer depending on which groups exist.
+// The rejected version is recorded because it read well and was worse: taking every
+// group symmetrically and trying each road as a spine is fairer in the abstract and
+// moves the answer depending on which groups exist.
 
 /** One group's planned run to the shared destination. */
 export type GroupRoute = {
@@ -445,46 +425,35 @@ export type GroupMeet = {
  * How close a group's own track has to pass for the meet to cost them nothing.
  *
  * Measured to the nearest VERTEX rather than the nearest segment, which is
- * approximate on a sparsely sampled import — and gracefully so: a group whose
- * road genuinely passes through the point but whose nearest vertex is further
- * off than this is scored by the dogleg formula instead, which for a point
- * essentially on their line returns nearly zero anyway. The failure is a small
- * number where zero was right, not a rejection.
+ * approximate on a sparsely sampled import — and gracefully so: a group scored by the
+ * dogleg formula instead gets nearly zero anyway for a point essentially on their
+ * line. The failure is a small number where zero was right, not a rejection.
  */
 const ON_ROUTE_M = 1000
 
 /**
  * A mile out of somebody's way has to buy this many miles of riding together.
  *
- * THE EXCHANGE RATE IS THE RULE, AND THE CAP IS BACK TO BEING A GUARD. #370,
- * 2026-09-19, REVERSING the 2026-09-03 weighting rather than leaving it to be
- * rediscovered. That version led with `alongM` and let the divert survive at a
- * tenth, on the argument that a group ride minimizes distance ridden apart —
- * true, and it made the earliest point under the cap win every time, so the
- * answer was always AT the cap. On epim's ride the joining group was sent a dozen
- * miles down 880 to meet and a dozen back, when their own road onto 580 met the
- * main group's at Castro Valley for nothing.
+ * THE EXCHANGE RATE IS THE RULE, AND THE CAP IS BACK TO BEING A GUARD (#370),
+ * REVERSING the 2026-09-03 weighting rather than leaving it to be rediscovered. That
+ * version led with `alongM` and let the divert survive at a tenth, on the argument
+ * that a group ride minimizes distance ridden apart — true, and it made the earliest
+ * point under the cap win every time, so the answer was always AT the cap.
  *
- * SCORED AS A TRADE INSTEAD: moving a meet a mile earlier gains a mile together
- * and costs whatever extra divert the geometry charges, weighted at 1.5 — "a mile
- * out of the way has to buy a mile and a half together". Three straight-road
- * shapes bound the number:
- *
- *   A GROUP ON THE ROAD, asked to meet behind where they join it, pays TWO miles
- *   per mile gained, so any weight above 0.5 keeps them at their junction.
- *
- *   A GROUP WELL OFF TO ONE SIDE of a road heading away from them (ride 34) pays
- *   about HALF, so any weight under 2 sends them earlier, to the cap.
- *
- *   A GROUP A FEW MILES TO ONE SIDE pays one per mile at the foot of the
- *   perpendicular and lands a little past it.
+ * SCORED AS A TRADE INSTEAD: moving a meet a mile earlier gains a mile together and
+ * costs whatever extra divert the geometry charges, weighted at 1.5. Three
+ * straight-road shapes bound the number: a group ON the road pays TWO miles per mile
+ * gained (any weight above 0.5 keeps them at their junction), a group WELL OFF to one
+ * side of a road heading away pays about HALF (any weight under 2 sends them to the
+ * cap), and a group A FEW MILES to one side pays one and lands a little past the foot
+ * of the perpendicular.
  *
  * 1.5 rather than 1 because indifference is the wrong default: a rule that sends
  * somebody a mile out of their way to gain exactly a mile has no opinion.
  *
- * THE KNIFE EDGE IS GEOMETRY, NOT A DEFECT. On a straight road there is no elbow,
- * so the answer is the cheapest meet or the cap — which is why the cap survives,
- * and why it is measured from each group's cheapest rather than from zero.
+ * THE KNIFE EDGE IS GEOMETRY, NOT A DEFECT. On a straight road there is no elbow, so
+ * the answer is the cheapest meet or the cap — which is why the cap survives, and why
+ * it is measured from each group's cheapest rather than from zero.
  */
 const DIVERT_WEIGHT = 1.5
 
@@ -503,16 +472,14 @@ type Measured = {
 }
 
 /**
- * Propose where the joining groups should meet the main group, on the main
- * group's own road to the destination everybody shares.
+ * Propose where the joining groups should meet the main group, on the main group's
+ * own road to the destination everybody shares.
  *
- * Returns the best few, or an empty list, which is a real answer: groups
- * approaching a destination from opposite sides have no sensible meeting point
- * short of it, and offering the least bad one would be worse than saying so.
+ * Returns the best few, or an empty list, which is a real answer: groups approaching
+ * a destination from opposite sides have no sensible meeting point short of it.
  *
- * NOTHING IS RE-ROUTED AND NO ROUTER IS CALLED. What the others ride to reach the
- * candidate is measured straight-line, and is replaced by a real routed number
- * the moment the planner accepts.
+ * NOTHING IS RE-ROUTED AND NO ROUTER IS CALLED. What the others ride is measured
+ * straight-line, and is replaced by a real routed number when the planner accepts.
  */
 export function proposeGroupMeet(
   primary: GroupRoute,
@@ -533,28 +500,26 @@ export function proposeGroupMeet(
   const totalM = pre[pre.length - 1]
   if (totalM <= 0) return []
 
-  // THE DESTINATION IS WHERE THE MAIN GROUP'S ROUTE ENDS, which is why no column
-  // was added for it: their route already says where they are going.
+  // THE DESTINATION IS WHERE THE MAIN GROUP'S ROUTE ENDS, which is why no column was
+  // added for it: their route already says where they are going.
   //
-  // A JOINING GROUP CONTRIBUTES A STARTING POINT AND NOTHING ELSE. Ziad's call,
-  // 2026-09-03. Only `origin` is read, and where a joining group's own track ends
-  // is not consulted — that is usually the last place they have got round to
-  // planning rather than a statement about where they are going.
+  // A JOINING GROUP CONTRIBUTES A STARTING POINT AND NOTHING ELSE. Only `origin` is
+  // read, and where a joining group's own track ends is not consulted — that is
+  // usually the last place they have got round to planning.
   //
-  // A filter dropping groups whose route ended elsewhere was written and removed
-  // the same hour. It is recorded because it reads as careful and is not: the
-  // second group's route ended at a coffee shop in their own town, so they were
-  // dropped and the ride answered "nowhere works". A group genuinely starting a
-  // long way off gets a large divert the panel prints beside every candidate.
+  // A filter dropping groups whose route ended elsewhere was written and removed the
+  // same hour. It is recorded because it reads as careful and is not: the second
+  // group's route ended at a coffee shop in their own town, so they were dropped and
+  // the ride answered "nowhere works".
   const dest = primary.track[primary.track.length - 1]
 
-  // TWO PASSES, BECAUSE THE CAP IS MEASURED FROM EACH GROUP'S CHEAPEST MEET AND
-  // THAT IS NOT KNOWN UNTIL EVERY CANDIDATE HAS BEEN MEASURED. The first pass
-  // measures what every group would pay at every candidate and keeps the least
-  // any of them pays anywhere viable; the second applies the cap against that
-  // floor and scores. `place` is the fuel candidate a vertex stands for, or null
-  // for a bare point on the road — when it is set, the candidate IS the place,
-  // its own coordinates, its name and its address, and the vertex only supplies
+  // TWO PASSES, BECAUSE THE CAP IS MEASURED FROM EACH GROUP'S CHEAPEST MEET AND THAT
+  // IS NOT KNOWN UNTIL EVERY CANDIDATE HAS BEEN MEASURED. The first pass measures what
+  // every group would pay at every candidate and keeps the least any of them pays
+  // anywhere viable; the second applies the cap against that floor and scores.
+  //
+  // `place` is the fuel candidate a vertex stands for, or null for a bare point on the
+  // road — when it is set, the candidate IS the place and the vertex only supplies
   // `alongM`.
   const measured: Measured[] = []
   const consider = (i: number, place: FuelCandidate | null, offer: boolean) => {
@@ -613,13 +578,12 @@ export function proposeGroupMeet(
   found.sort((a, b) => a.score - b.score)
 
   // NEAR-DUPLICATES DROPPED, because a 2 km sampler offers five candidates within a
-  // mile of each other and a planner reads that as the app having nothing to say.
-  // One per ten kilometers, by `alongM`.
+  // mile of each other and a planner reads that as the app having nothing to say. One
+  // per ten kilometers, by `alongM`.
   //
-  // STATIONS ARE SPREAD AT THREE KILOMETERS, NOT TEN: a station is a named place,
-  // and two four miles apart are a real choice where two bare vertices are the same
-  // stretch of highway twice. On #370's ride the ten-kilometer rule collapsed the
-  // Costco, the Chevron and the Shell around the Livermore junction into one row.
+  // STATIONS ARE SPREAD AT THREE KILOMETERS, NOT TEN: a station is a named place, and
+  // two four miles apart are a real choice where two bare vertices are the same
+  // stretch of highway twice.
   const spreadM = opts.fuelOnly ? 3_000 : 10_000
   const kept: GroupMeet[] = []
   for (const c of found) {
@@ -711,13 +675,12 @@ function scoreGroupMeet(
   const worstDivertM = diverts.reduce((n, d) => Math.max(n, d.divertM), 0)
   const worstExtraM = diverts.reduce((n, d) => Math.max(n, d.extraM), 0)
   // THE CAP IS ON THE WORST GROUP, NOT ON THE TOTAL: a budget spent in total lets
-  // three groups' convenience be paid for by a fourth, which is the silent
-  // unfairness #67 asks the app not to commit on the planner's behalf. The main
-  // group is never the one it protects.
+  // three groups' convenience be paid for by a fourth, which is the silent unfairness
+  // #67 asks the app not to commit on the planner's behalf.
   //
-  // AND IT IS MEASURED FROM THAT GROUP'S CHEAPEST MEET, NOT FROM ZERO. Ziad's call,
-  // 2026-09-19 (#370): a group whose road never comes within thirty miles of the
-  // main group's was answered "nowhere works" under an absolute cap of twenty-five.
+  // AND IT IS MEASURED FROM THAT GROUP'S CHEAPEST MEET, NOT FROM ZERO (#370): a group
+  // whose road never comes within thirty miles of the main group's was answered
+  // "nowhere works" under an absolute cap of twenty-five.
   if (worstExtraM > opts.maxDivertMi * METERS_PER_MILE) return null
 
   // THE TRADE. Miles along the road, because every mile earlier is a mile ridden
@@ -756,37 +719,27 @@ export const worstDivertMi = (m: GroupMeet): number => Math.round((m.worstDivert
 // --- Ranking by the road, once the road is known ----------------------------
 //
 // EVERYTHING ABOVE IS STRAIGHT LINES, AND THE STRAIGHT LINE CANNOT SEE A BAY.
-// #370's own repro is the case: a group leaving San Francisco to join a ride
-// running up 680 from San Jose to 580. On paper the dogleg to a station in
-// Fremont is under ten miles, because the straight line crosses the water; by
-// road it is 880 south to Fremont and 680 north again, and the extra over just
-// taking 580 to Dublin — where their road meets the main group's for nothing —
-// is fifteen to twenty-five miles. The trade above weighed the paper number,
-// so it kept sending them to Fremont, and the module's own header had said
-// why: straight-line is the right precision for "is this a sane place to meet"
-// and the wrong precision for "how far", and the ranking is a how-far question.
+// #370's repro: a group leaving San Francisco to join a ride running up 680. On
+// paper the dogleg to a station in Fremont is under ten miles, because the straight
+// line crosses the water; by road it is 880 south and 680 north again, fifteen to
+// twenty-five miles more than taking 580 to Dublin, where their road meets the main
+// group's for nothing. The trade above weighed the paper number.
 //
 // THE ROADS ARE ALREADY BOUGHT. The route fetches every shortlisted candidate's
-// approach to check it against the group's tank and to draw it, and a group
-// with a starting point and no route of its own now has its direct road fetched
-// once so the on-route test can find where it joins. So the road miles exist for
-// the few candidates a rider is about to be shown, and this is the re-rank that
-// uses them. It costs nothing the press was not already spending.
+// approach to check it against the group's tank and to draw it, so the road miles
+// exist for the few candidates a rider is about to be shown. This re-rank costs
+// nothing the press was not already spending.
 //
-// THIS IS NOT THE MIXING #239 WARNS ABOUT. That bug measured the remainder ALONG
-// THE TRUNK against a STRAIGHT direct, so every bend after a candidate was billed
-// to the joining group. Here every leg is road, and the trunk is billed only
-// BETWEEN candidates: what meeting at M rather than at N costs a group is their
-// road to M plus the trunk from M to N, less their road to N — which is the
-// stretch they would genuinely ride that they otherwise would not. The rest of
-// the trunk cancels out of every comparison.
+// THIS IS NOT THE MIXING #239 WARNS ABOUT. That bug measured the remainder ALONG THE
+// TRUNK against a STRAIGHT direct. Here every leg is road, and the trunk is billed
+// only BETWEEN candidates: what meeting at M rather than N costs a group is their
+// road to M plus the trunk from M to N, less their road to N. The rest of the trunk
+// cancels out of every comparison.
 
 /** One candidate with each JOINING group's road to it, in meters — the routed
- *  approach, or the distance along their own track when it passes through the
- *  point, or null when nothing measured it (a Routes failure, or a candidate
- *  outside the routed budget). The main group is not in the map: they ride the
- *  whole trunk whatever is chosen, so they have no road to a candidate and no
- *  extra to measure, and an entry for them would bill them the trunk. */
+ *  approach, or the distance along their own track when it passes through the point,
+ *  or null when nothing measured it. The main group is not in the map: they ride the
+ *  whole trunk whatever is chosen, so an entry for them would bill them the trunk. */
 export type RoadMeasure = { meet: GroupMeet; toMeetM: Map<string, number | null> }
 
 /**
@@ -818,20 +771,17 @@ export function nearestVertex(track: Track, at: [number, number]): number {
 /**
  * Re-rank the shortlist by the roads actually ridden.
  *
- * For each joining group and each measured candidate, what they ride if they
- * meet there is their road to it plus the main group's road from there to the
- * end. The cheapest of those is that group's floor, the extra over it is what
- * the cap is applied to and what the trade weighs, and — because the min is
- * taken over the same list — THE CHEAPEST CANDIDATE ALWAYS SURVIVES THE CAP.
- * The rider is never handed "nowhere works" by this pass.
+ * For each joining group and each measured candidate, what they ride if they meet
+ * there is their road to it plus the main group's road from there to the end. The
+ * cheapest of those is that group's floor, the extra over it is what the cap is
+ * applied to — and because the min is taken over the same list, THE CHEAPEST
+ * CANDIDATE ALWAYS SURVIVES THE CAP.
  *
- * A candidate any group has no road for is not measured against the others: it
- * keeps its straight-line numbers and goes to the back, in the order it came,
- * because a guess ranked beside a measurement reads as a measurement.
+ * A candidate any group has no road for keeps its straight-line numbers and goes to
+ * the back, because a guess ranked beside a measurement reads as a measurement.
  *
- * `extraM` on every measured divert becomes the ROAD extra, which is the number
- * a rider is shown beside a group's name: how far out of their way, in miles
- * they would ride, beyond the cheapest way of joining this ride.
+ * `extraM` on every measured divert becomes the ROAD extra, which is the number a
+ * rider is shown beside a group's name.
  */
 export function rankByRoad(
   measured: RoadMeasure[],
@@ -880,11 +830,10 @@ export function rankByRoad(
   }
   ranked.sort((a, b) => a.score - b.score)
   // WITH SEVERAL JOINING GROUPS THE FLOORS CAN DISAGREE — one group's cheapest
-  // candidate can be past the cap for another — and then nothing above
-  // survives. The least bad measured candidate is kept rather than nothing,
-  // because this pass re-orders a list the rider was already going to be shown
-  // and must not be the thing that empties it. The route only ever asks about
-  // one group, so this is a guarantee rather than a path anything takes today.
+  // candidate can be past the cap for another — and then nothing above survives. The
+  // least bad measured candidate is kept rather than nothing, because this pass
+  // re-orders a list the rider was already going to be shown and must not be the thing
+  // that empties it.
   if (ranked.length === 0 && complete.length > 0) {
     const least = complete
       .map(({ meet, toMeetM }) => {
