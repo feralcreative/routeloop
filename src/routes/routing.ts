@@ -176,12 +176,9 @@ export type RouteResult = { ok: true; leg: RouteLeg } | { ok: false; error: Rout
 /**
  * One routed leg, from the cache or from Google.
  *
- * EXPORTED ON 2026-09-03 because the meeting-point proposer became a second
- * caller: it routes each joining group to each candidate, both to draw the
- * approach and to check the distance against the group's fuel range. Sharing
- * this rather than writing a second fetch shares the CACHE, which is the part
- * that matters — the builder asks for the same approach the moment it draws it,
- * and a second implementation would pay for the same road twice.
+ * EXPORTED ON 2026-09-03 because the meeting-point proposer became a second caller.
+ * Sharing this rather than writing a second fetch shares the CACHE, which is the part
+ * that matters — the builder asks for the same approach the moment it draws it.
  *
  * Never throws: every failure is `{ ok: false, error }`.
  */
@@ -223,16 +220,13 @@ export async function fetchRouteLeg(
         // request it sent before this existed — with no `routeModifiers` key at
         // all rather than one holding an object of falses.
         ...(modifiers ? { routeModifiers: modifiers } : {}),
-        // #28. Ask for the alternates Google already computes, then score them
-        // and keep the twistiest — the router has no notion of a fun road, so
-        // this is the only honest way to bias toward one without building a
-        // second router.
+        // #28. Ask for the alternates Google already computes, then score them and keep
+        // the twistiest — the router has no notion of a fun road, so this is the only
+        // honest way to bias toward one without building a second router.
         //
-        // ONLY WITH NO INTERMEDIATES. Routes does not return alternatives for a
-        // request carrying waypoints, so asking for them on a shaped leg spends
-        // nothing and gets one route back. Guarded here rather than trusted,
-        // because a flag that is silently ignored is one nobody notices is doing
-        // nothing.
+        // ONLY WITH NO INTERMEDIATES: Routes does not return alternatives for a request
+        // carrying waypoints. Guarded here rather than trusted, because a flag that is
+        // silently ignored is one nobody notices is doing nothing.
         ...(twisty && vias.length === 0 ? { computeAlternativeRoutes: true } : {}),
       }),
       signal: AbortSignal.timeout(10_000),
@@ -260,18 +254,15 @@ export async function fetchRouteLeg(
   } | null
 
   // THE TWISTIEST OF WHAT CAME BACK, or simply the first when nothing asked for
-  // alternates and when only one arrived.
+  // alternates.
   //
-  // SCORED ON dpm RATHER THAN bestDpm, deliberately. bestDpm is the twistiest
-  // 20-mile window, which is the right number to SHOW a rider deciding whether a
-  // route is worth riding — and the wrong one to pick a leg by, because a route
-  // that is superb for five miles and slab for forty would beat one that is good
-  // throughout. Choosing a road is a question about the whole road.
+  // SCORED ON dpm RATHER THAN bestDpm, deliberately: bestDpm is the twistiest 20-mile
+  // window, which is the right number to SHOW a rider and the wrong one to pick a leg
+  // by, because a route that is superb for five miles and slab for forty would beat one
+  // that is good throughout.
   //
-  // A ROUTE THAT CANNOT BE SCORED IS NOT DISQUALIFIED, it just cannot win: null
-  // means nothing measured it rather than that the road is straight, and Google
-  // ordered these by its own preference, so falling back to that order is the
-  // honest answer when the scoring has nothing to say.
+  // A ROUTE THAT CANNOT BE SCORED IS NOT DISQUALIFIED, it just cannot win: null means
+  // nothing measured it, and Google ordered these by its own preference.
   const route = twisty ? twistiest(data?.routes ?? []) : data?.routes?.[0]
   const rawCoords = route?.polyline?.geoJsonLinestring?.coordinates
 
@@ -392,26 +383,15 @@ routingRoutes.post('/api/geocode', requireAuthApi, requireActiveApi, requireSame
 
   // **A FAILURE IS NOT A MISS, AND IT MUST NOT BE CACHED AS ONE.**
   //
-  // Geocoding reports "found nothing" as HTTP 200 with ZERO_RESULTS, the same
-  // way Routes reports "no path" as 200 with an empty array. It also reports
-  // OVER_QUERY_LIMIT, REQUEST_DENIED and INVALID_REQUEST as HTTP 200 — so a
-  // handler that treats every non-OK status the same way tells a rider their
-  // address does not exist when the truth is that the key is out of quota or was
-  // never authorized for this API.
+  // Geocoding reports "found nothing" as HTTP 200 with ZERO_RESULTS, and also reports
+  // OVER_QUERY_LIMIT, REQUEST_DENIED and INVALID_REQUEST as HTTP 200 — so a handler
+  // that treats every non-OK status the same way tells a rider their address does not
+  // exist when the truth is that the key is out of quota.
   //
-  // Observed 2026-08-27, which is what prompted this: every local lookup came
-  // back "no match for that address" and the API was actually answering
-  // OVER_QUERY_LIMIT with "verify your project has an active billing account".
-  // The rider-facing message was wrong and the failure was invisible.
-  //
-  // Worse, the old code called rememberGeo(key, null) on it — so a quota blip
-  // POISONED THE CACHE for that address for the life of the process, and the
-  // address kept reading as nonexistent long after the quota reset. Only a real
-  // ZERO_RESULTS is cached now.
-  //
-  // Same shape as the Places 403 handling this file already does: a 503 naming
-  // the reason, because "the service is unavailable" is a different thing for a
-  // rider to be told than "we looked and it is not there".
+  // Observed 2026-08-27: every local lookup came back "no match for that address" while
+  // the API was answering OVER_QUERY_LIMIT. Worse, the old code called
+  // rememberGeo(key, null) on it, so a quota blip POISONED THE CACHE for that address
+  // for the life of the process. Only a real ZERO_RESULTS is cached now.
   const status = data?.status
   if (status && status !== 'OK' && status !== 'ZERO_RESULTS') {
     console.error(`[geocode] Geocoding API status ${status}: ${data?.error_message ?? ''}`)
@@ -458,23 +438,13 @@ routingRoutes.post('/api/geocode', requireAuthApi, requireActiveApi, requireSame
 // "Find me a gas station in Oakdale", which Autocomplete cannot answer.
 //
 // Autocomplete matches NAMES and ADDRESSES. Asked for a category it returns the
-// businesses literally called that — searching "gas station in oakdale ca"
-// returned exactly one result, a place named "76 Gas Station", while the ARCO,
-// the Shell and the other 76 in the same town went unmentioned. Enumerating a
-// kind of place is Text Search's job, which is a different endpoint on a
-// different SKU.
+// businesses literally called that — "gas station in oakdale ca" returned exactly one
+// result, a place named "76 Gas Station", while the ARCO and the Shell in the same
+// town went unmentioned. Enumerating a kind of place is Text Search's job.
 //
-// THE PLACE IN THE QUERY IS NOT GEOCODED SEPARATELY. Text Search reads "X in Y"
-// itself — the API's own documented example is "Spicy Vegetarian Food in Sydney,
-// Australia" — so the whole phrase goes through as `textQuery` and the extra
-// Geocoding call that would otherwise be needed never happens. `near` is for the
-// case with no place in the text at all: a category chip, which anchors to the
-// route's last point or the map viewport.
-//
-// Here rather than in the browser for the cache. Text Search bills per call and
-// costs materially more than the Autocomplete session it sits beside, and a
-// rider tapping the same chip twice or retyping a query must not pay twice. Same
-// argument, and the same bounded-Map shape, as the leg cache above.
+// THE PLACE IN THE QUERY IS NOT GEOCODED SEPARATELY. Text Search reads "X in Y" itself,
+// so the whole phrase goes through as `textQuery` and the extra Geocoding call never
+// happens. `near` is for the
 const placeSearchRequest = z.object({
   // Bounded for the same reason the geocode query is: this endpoint spends our
   // key, so it cannot be a pipe for arbitrary volume.

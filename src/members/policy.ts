@@ -1,14 +1,11 @@
-// Who is on a ride, what they may do about it, and what the owner may do to
-// them.
+// Who is on a ride, what they may do about it, and what the owner may do to them.
 //
-// Pure — a function of the roster row plus who is asking — so it is testable
-// under the house rule that governs test/. The queries live in ./service.ts,
-// the same split as invites/policy.ts vs service.ts.
+// Pure — a function of the roster row plus who is asking — so it is testable under the
+// house rule that governs test/. The queries live in ./service.ts.
 //
-// THE OWNER IS A MEMBER, with role `owner`, from the moment a ride is created
-// and backfilled for every ride that predates this. That is not bookkeeping: it
-// is what makes "the roster" one question instead of two, and it is why nothing
-// below has to special-case `ride.ownerId` alongside the rows.
+// THE OWNER IS A MEMBER, with role `owner`, from the moment a ride is created and
+// backfilled for every ride that predates this. That is not bookkeeping: it is what
+// makes "the roster" one question instead of two.
 import type { RidePerm, RideRole, Rsvp } from '../db/schema'
 
 /** Only the fields the rules read, so a test does not have to build a whole row. */
@@ -23,12 +20,11 @@ export type MemberFields = {
 //
 // #190. Four rungs, least to most, and an owner above all four.
 //
-// THE RANK LIVES HERE AND NOWHERE ELSE. ride_perm's member order is not its
-// rank and cannot be reordered later — `ALTER TYPE ... ADD VALUE` appends — so
-// nothing may compare two enum members directly. Every gate goes through
-// atLeast(), which goes through this record. Adding a rung is one line here and
-// one enum member; inserting one in the middle is a renumbering of this record
-// and no migration at all, which is the whole reason the ordering is in code.
+// THE RANK LIVES HERE AND NOWHERE ELSE. ride_perm's member order is not its rank and
+// cannot be reordered later — `ALTER TYPE ... ADD VALUE` appends — so nothing may
+// compare two enum members directly. Every gate goes through atLeast(). Inserting a
+// rung in the middle is a renumbering of this record and no migration at all, which is
+// the whole reason the ordering is in code.
 
 /** How the rungs rank. The numbers are ordinals and nothing reads their value —
  *  only their order — so renumbering is free. */
@@ -49,14 +45,12 @@ const NOT_A_MEMBER = -1
 /**
  * What an invitation grants on its own.
  *
- * `suggest` — look, discuss, and propose changes. **Edit is never handed out by
- * an invitation** and is always a deliberate promotion by an owner, which is the
- * entire shape of #190. An owner can also go the other way and hand out `view`
- * alone.
+ * `suggest` — look, discuss, and propose changes. **Edit is never handed out by an
+ * invitation** and is always a deliberate promotion by an owner, which is the entire
+ * shape of #190.
  *
- * Mirrored by the column default in schema.ts. Both spellings exist because the
- * database default is what protects a row inserted by a path that forgets, and
- * this constant is what the invite form shows before anything is inserted.
+ * Mirrored by the column default in schema.ts: the database default protects a row
+ * inserted by a path that forgets, and this constant is what the invite form shows.
  */
 export const DEFAULT_PERM: RidePerm = 'suggest'
 
@@ -123,36 +117,29 @@ export const canSuggest = (m: MemberFields | null): boolean => atLeast(m, 'sugge
  * Whether `m` may write to the ride itself — routes, points, legs, alts.
  *
  * Named for the membership question rather than called `canEditRide`, because
- * src/routes/maps.ts already exports that name for the OWNERSHIP question the
- * viewer's edit button reads. Two predicates with one name is how a gate ends up
- * answering a question nobody asked.
+ * src/routes/maps.ts already exports that name for the OWNERSHIP question. Two
+ * predicates with one name is how a gate ends up answering a question nobody asked.
  *
- * **THE BUILDER AND NOTHING MORE.** Deleting the ride, changing its visibility
- * and administering its roster are owner powers and stay owner powers; see
- * canAdminister. An editor who can delete the ride is a co-owner, and
- * co-ownership is a role you are given, not a rung you climb to.
+ * **THE BUILDER AND NOTHING MORE.** Deleting the ride, changing its visibility and
+ * administering its roster are owner powers; see canAdminister. An editor who can
+ * delete the ride is a co-owner, and co-ownership is a role you are given.
  */
 export const canEditAsMember = (m: MemberFields | null): boolean => atLeast(m, 'edit')
 
 /**
  * What the viewer's link into the builder should SAY, or null for a non-member.
  *
- * **THE LABEL IS DERIVED FROM THE RUNG BECAUSE THE BUILDER IS ONE PAGE FOR ALL
- * OF THEM.** `/builder/:id` admits anyone from `view` upward and turns its
- * writes off below `edit` — comments and suggestions both hang off the row list
- * and the stop details, so a below-edit rider genuinely belongs there. But a
- * link that says "Edit this ride" to a `suggest`-level rider offers an action
- * the page then refuses, which is exactly the disagreement canEditRide's own
- * comment warns about: the viewer's button and the builder's gate must never
- * answer differently.
+ * **THE LABEL IS DERIVED FROM THE RUNG BECAUSE THE BUILDER IS ONE PAGE FOR ALL OF
+ * THEM.** `/builder/:id` admits anyone from `view` upward and turns its writes off
+ * below `edit`. But a link that says "Edit this ride" to a `suggest`-level rider offers
+ * an action the page then refuses: the viewer's button and the builder's gate must
+ * never answer differently.
  *
- * It lives here rather than in a view because the ORDER is here. A label picked
- * by comparing enum members somewhere else is a second ranking of ride_perm,
- * and there may only be one — see PERM_RANK.
+ * It lives here rather than in a view because the ORDER is here. A label picked by
+ * comparing enum members somewhere else is a second ranking of ride_perm.
  *
- * Deliberately not a lookup keyed on RidePerm: an owner has no rung, and the
- * ladder is walked top-down so a rung added in the middle inherits the nearest
- * label below it rather than falling through to "Open this ride".
+ * Deliberately not a lookup keyed on RidePerm: an owner has no rung, and the ladder is
+ * walked top-down so a rung added in the middle inherits the nearest label below it.
  */
 export function builderLabel(m: MemberFields | null): string | null {
   if (m === null) return null
@@ -189,11 +176,10 @@ export function canSetPerm(viewer: MemberFields | null, target: MemberFields): b
 /**
  * Whether a member's rung is shown to `viewer`.
  *
- * **OWNERS ONLY.** The roster answers "who is coming", and that is a fact about
- * people the whole ride shares. A rung is administration, and showing it
- * publishes a ranking of the riders to the riders — somebody learns they were
- * trusted less than the person above them, from a page they opened to check who
- * was going. The same instinct as the silent friendship refusal one level up.
+ * **OWNERS ONLY.** The roster answers "who is coming", which is a fact the whole ride
+ * shares. A rung is administration, and showing it publishes a ranking of the riders
+ * to the riders — somebody learns they were trusted less than the person above them,
+ * from a page they opened to check who was going.
  *
  * A rider always knows their OWN level, which is what the builder's banner says.
  */
@@ -207,7 +193,7 @@ export const RSVP_LABELS: Record<Rsvp, string> = {
   invited: 'Not answered',
   going: 'Going',
   maybe: 'Maybe',
-  declined: "Can’t make it",
+  declined: 'Can’t make it',
 }
 
 /**
@@ -235,39 +221,30 @@ export const canInvite = (viewerRole: RideRole | null): boolean => viewerRole ==
  * Whether somebody may be put on a ride WITHOUT a friendship.
  *
  * The friends-only rule above is the whole invite mechanism and this is its one
- * exception: a GUIDE RIDER — one of the seeded accounts the guided tour invites
- * onto its demo ride — has no friends and can have none (nothing can friend or
- * follow one), so the tour's roster beat would be a form that refuses. A guide
- * already satisfies everything the friendship stood for: it is active, it was
- * never pending, and it is reachable by nobody because it reads nothing. Pure,
- * so the exception is one line a test can pin rather than a branch in a query.
+ * exception: a GUIDE RIDER has no friends and can have none, so the tour's roster beat
+ * would be a form that refuses. A guide already satisfies everything the friendship
+ * stood for: it is active, it was never pending, and it reads nothing.
  */
 export const mayInviteWithoutFriendship = (target: { isGuide: boolean }): boolean => target.isGuide
 
 /**
  * Whether `viewer` may take `target` off the roster.
  *
- * Two paths, and they are one rule rather than two endpoints: an owner may
- * remove anybody, and anybody may remove themselves. The second is leaving,
- * which a rider must always be able to do without asking.
+ * Two paths, and they are one rule rather than two endpoints: an owner may remove
+ * anybody, and anybody may remove themselves.
  *
- * **THE LAST OWNER MAY NOT LEAVE.** This used to be the stronger "an owner may
- * not leave at all", which was right while a ride had exactly one; #190 makes
- * `owner` a role more than one member can hold, so the rule narrows to what it
- * was always protecting. A ride with no owner has nobody who can invite,
- * resolve a vote or delete it, and the row would have to be recreated by hand.
- * With a second owner standing there, none of that is true and stepping down is
- * an ordinary thing to want. Leaving as the last owner is deleting the ride,
- * and that button is elsewhere.
+ * **THE LAST OWNER MAY NOT LEAVE.** This used to be the stronger "an owner may not
+ * leave at all", which was right while a ride had exactly one; #190 makes `owner` a
+ * role more than one member can hold, so the rule narrows to what it was always
+ * protecting. A ride with no owner has nobody who can invite, resolve a vote or delete
+ * it. Leaving as the last owner is deleting the ride, and that button is elsewhere.
  *
- * **NO OWNER MAY REMOVE ANOTHER OWNER**, whatever `ownerCount` says. Co-owners
- * hold equal power, so allowing it makes the ride belong to whoever presses the
- * button first — and the loser cannot undo it, because they are no longer on
- * the roster. An owner leaves under their own hand or not at all.
+ * **NO OWNER MAY REMOVE ANOTHER OWNER**, whatever `ownerCount` says. Co-owners hold
+ * equal power, so allowing it makes the ride belong to whoever presses the button
+ * first — and the loser cannot undo it, being no longer on the roster.
  *
  * @param ownerCount how many members currently hold `role = 'owner'`, this one
- *   included. Counted by the caller against the same roster read, because a
- *   rule that has to ask the database is not a rule this file can hold.
+ *   included. Counted by the caller against the same roster read.
  */
 export function canRemove(
   viewerId: number,
