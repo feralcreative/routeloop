@@ -1,41 +1,29 @@
 // Show me around — the tooltip layer. #133.
 //
 // **THE TABLE HOLDS THE BODY AND NOT THE HEADLINE, WHICH IS WHAT MAKES DRIFT
-// IMPOSSIBLE.** The obvious shape is `{headline, body}` per control, and it is
-// wrong here: the headline already exists, in the markup, as the `title` this
-// layer replaces. Storing it twice means two strings that have to agree, in two
-// files, one of which is assembled as a JavaScript string ten thousand lines
-// into builder.js — so they would agree until the first time somebody reworded
-// a button. The headline is READ OFF THE ELEMENT at hover time instead, and the
-// only thing written down here is the sentence the native tooltip had nowhere
-// to put.
+// IMPOSSIBLE.** The obvious shape is `{headline, body}` per control, and it is wrong
+// here: the headline already exists, in the markup, as the `title` this layer replaces.
+// Storing it twice means two strings that have to agree in two files, one of which is
+// assembled ten thousand lines into builder.js. The headline is READ OFF THE ELEMENT at
+// hover time instead.
 //
-// **WHICH IS ALSO WHY `off` IS LITERALLY THE NATIVE TOOLTIP.** With the mode off
-// this file installs nothing and touches no attribute: `title` is still in the
-// markup, the browser still shows it, and a page with no JavaScript at all
-// behaves the same way. There is no second rendering path to keep in step, and
-// nothing to go wrong on the surface a rider chose because they wanted less.
+// **WHICH IS ALSO WHY `off` IS LITERALLY THE NATIVE TOOLTIP.** With the mode off this
+// file installs nothing and touches no attribute, so there is no second rendering path
+// to keep in step on the surface a rider chose because they wanted less.
 //
-// **A `data-tip` KEY IS A LABEL, NEVER OVERFLOW.** Half the `title` attributes
-// in this app are a place to put dynamic text that would not fit — a stop's
-// note, a rider's twistiness figure, who is holding a route. Those stay native
-// and get no key: they are already the whole content, and a headline-plus-body
-// treatment of a truncated note is furniture around a string.
+// **A `data-tip` KEY IS A LABEL, NEVER OVERFLOW.** Half the `title` attributes in this
+// app are a place to put dynamic text that would not fit. Those stay native and get no
+// key: they are already the whole content.
 //
-// **THE STRIP RUNS ON HOVER, NOT ON LOAD, BECAUSE THE BUILDER RE-RENDERS.**
-// `renderRoutes()` replaces innerHTML on every edit, so any attribute this file
-// removed at init would be back a keystroke later. Delegating at the document
-// and stripping when a control is actually pointed at means a re-render needs
-// no re-init and there is nothing to subscribe to. It wins the race with the
-// native tooltip comfortably — `pointerover` fires on entry and the browser
-// waits about a second before drawing.
+// **THE STRIP RUNS ON HOVER, NOT ON LOAD, BECAUSE THE BUILDER RE-RENDERS.** Any
+// attribute this file removed at init would be back a keystroke later. Delegating at the
+// document means a re-render needs no re-init, and it wins the race with the native
+// tooltip comfortably.
 //
-// **REMOVING `title` CAN REMOVE AN ACCESSIBLE NAME, AND THAT IS THE ONE TRAP
-// HERE.** `title` is the last fallback in the accessible name computation, so a
-// control whose only name was its `title` becomes an unnamed button the moment
-// this file takes it away — silently, and only for the riders who can least
-// afford it. `nameless()` is the check and the stashed headline goes back on as
-// an `aria-label` when it fires.
+// **REMOVING `title` CAN REMOVE AN ACCESSIBLE NAME, AND THAT IS THE ONE TRAP HERE.**
+// `title` is the last fallback in the name computation, so a control whose only name it
+// was becomes an unnamed button the moment this file takes it away. `nameless()` is the
+// check and the stashed headline goes back on as an `aria-label`.
 (function () {
   "use strict";
 
@@ -308,24 +296,19 @@
     // as long as one is up; a card is already explaining the control, and a
     // bubble beside it is a second voice. Ziad's call, 2026-09-12.
     if (document.documentElement.classList.contains("tour-active")) return;
-    // TWO FORMS. A keyed control (`data-tip`) has a headline in its `title`
-    // and a body in the table. An INLINE one (`data-tip-inline`) has no key: its
-    // `title` IS the body, one sentence with no headline, because the words are
-    // authored beside the control rather than here — the settings page's
-    // choice cards, where half the sentences are a formatter's live output and
-    // a table entry would be a second copy that goes stale. Ziad's call,
-    // 2026-09-21. Both share the delay, the placement, the bubble and the
-    // native-title fallback for tips off.
+    // TWO FORMS. A keyed control (`data-tip`) has a headline in its `title` and a body
+        // in the table. An INLINE one (`data-tip-inline`) has no key: its `title` IS the
+        // body, because the words are authored beside the control — the settings page's
+        // choice cards, where half the sentences are a formatter's live output and a table
+        // entry would be a second copy that goes stale.
     var inline = node.hasAttribute("data-tip-inline");
     var body = inline ? "" : fill(BODY[node.getAttribute("data-tip")]);
     if (!inline && !body) return; // an unknown key keeps its native title—see wire()
 
-    // A CONTROL WITH NO BOX GETS NOTHING. The timeline is `display: none` on an
-    // undated ride and the scope button hides on a one-route ride, so the tree
-    // routinely holds a marked control that is not on screen — and `place()`
-    // would put its bubble in the top-left corner of the window, pointing at
-    // nothing. A real pointer cannot reach a hidden element, but a synthetic
-    // event can and so, one refactor from now, could a focus call.
+    // A CONTROL WITH NO BOX GETS NOTHING. The timeline is `display: none` on an undated
+        // ride and the scope button hides on a one-route ride, so the tree routinely holds a
+        // marked control that is not on screen — and `place()` would put its bubble in the
+        // top-left corner of the window, pointing at nothing.
     var box = node.getBoundingClientRect();
     if (!box.width && !box.height) return;
 
@@ -369,14 +352,10 @@
   }
 
   function wire() {
-    // A KEY WITH NO COPY KEEPS ITS NATIVE TOOLTIP, which is the deliberate
-    // fallback rather than an oversight: `armed()` refuses a control the table
-    // does not know, so nothing is stripped and nothing is drawn, and the
-    // control behaves exactly as it did before this file existed. An empty
-    // bubble would be a worse answer than the browser's own.
-    //
-    // test/tips.test.ts is what stops that fallback becoming permanent — it
-    // fails on a `data-tip` in the tree with no entry here.
+    // A KEY WITH NO COPY KEEPS ITS NATIVE TOOLTIP, the deliberate fallback rather than
+        // an oversight: `armed()` refuses a control the table does not know, so nothing is
+        // stripped and nothing is drawn. test/tips.test.ts is what stops that fallback
+        // becoming permanent — it fails on a `data-tip` in the tree with no entry here.
     document.addEventListener(
       "pointerover",
       function (e) {
@@ -438,18 +417,14 @@
     window.addEventListener("resize", hide);
   }
 
-  // **READ ONCE, AT LOAD, AND `autosave.js` DELIBERATELY DOES NOT RE-STAMP IT.**
-  // The appearance preference had to be re-stamped when /settings started
-  // autosaving, because the palette IS the page and storing a choice that
-  // changed nothing on screen is a page lying about what it holds. This one is
-  // the opposite case: the only tips on /settings are the choice cards' own
-  // sentences (`data-tip-inline`, since 2026-09-21), and switching those off
-  // hands the same sentence back to the browser's native tooltip — so nothing a
-  // rider can see changes until the next page load, and on the builder, where
-  // the keyed tips are, the setting applies on the next page they open.
-  //
-  // Making it live would mean checking the attribute per event AND putting every
-  // stripped `title` back, which is real machinery for a state nobody can see.
+  // **READ ONCE, AT LOAD, AND `autosave.js` DELIBERATELY DOES NOT RE-STAMP IT.** The
+    // appearance preference had to be re-stamped when /settings started autosaving,
+    // because the palette IS the page. This is the opposite case: the only tips on
+    // /settings are the choice cards' own sentences, and switching those off hands the
+    // same sentence back to the browser's native tooltip.
+    //
+    // Making it live would mean checking the attribute per event AND putting every
+    // stripped `title` back, which is real machinery for a state nobody can see.
   if (on()) {
     if (document.readyState === "loading") document.addEventListener("DOMContentLoaded", wire);
     else wire();
