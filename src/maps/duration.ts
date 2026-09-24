@@ -1,47 +1,32 @@
 // How a stop's dwell time is written down, and read back.
 //
-// Storage does not change and this file does not touch it: `points.duration_min`
-// is minutes, an integer, everywhere — in the database, in `ride.json`, in every
-// export. This is a display layer over that one number, and that is the whole
-// reason issue #96 is small. The roadbook, the timeline and the six export
-// formats are untouched by anything here.
+// Storage does not change and this file does not touch it: `points.duration_min` is
+// minutes, an integer, everywhere. This is a display layer over that one number, which
+// is the whole reason issue #96 is small.
 //
-// WHY IT NEEDED WRITING AT ALL. The builder's duration field was raw minutes in
-// a `type="number"`, and raw minutes stop being readable somewhere around an
-// hour. The roadbook had already found this and fixed it locally — see the
-// comment on fmtDuration() in src/routes/roadbook.tsx, which records an
-// overnight camp stop printing "658m". The builder never got the same treatment,
-// so the same stop was 658 in the panel and "10h 58m" on the printout.
+// WHY IT NEEDED WRITING AT ALL. The builder's duration field was raw minutes in a
+// `type="number"`, and raw minutes stop being readable somewhere around an hour. The
+// roadbook had already found this and fixed it locally, so the same stop was 658 in the
+// panel and "10h 58m" on the printout.
 //
-// THREE FORMATS, NOT ONE, because the argument for each is real and they do not
-// settle it between them:
+// THREE FORMATS, NOT ONE, because the argument for each is real:
 //
-//   'hours'   — 1.50. Ziad's default. It sorts, it does arithmetic in your head,
-//               and it matches how riders talk about a route. TWO decimal places,
-//               not one, and that is #189: at one place the smallest stop the
-//               format could hold was six minutes, every value off that grid was
-//               silently rewritten on the way out, and a quarter-hour stop was
-//               not expressible at all. Two places holds every stored minute
-//               exactly — see decimalHours().
-//   'hm'      — 1h 30m. Exact to the minute and the same shape the roadbook
-//               prints, which is the one place a rider sees these numbers
-//               outside the builder. hoursMinutes() below is what both use.
-//   'minutes' — 90. What the field has always been. Exact, unreadable past an
-//               hour, and the right answer for someone entering a lot of short
-//               stops.
+//   'hours'   — 1.50. It sorts, it does arithmetic in your head, and it matches how
+//               riders talk about a route. TWO decimal places, not one, and that is
+//               #189: at one place the smallest stop the format could hold was six
+//               minutes and a quarter-hour stop was not expressible at all.
+//   'hm'      — 1h 30m. Exact to the minute and the same shape the roadbook prints.
+//   'minutes' — 90. Exact, unreadable past an hour, and the right answer for someone
+//               entering a lot of short stops.
 //
-// PARSING IS THE HALF WITH THE BUGS, so the rule is stated once here: an
-// explicit unit always wins, and a bare number is read in the format's own unit.
-// "90" is ninety minutes under 'hm' and 'minutes' and ninety HOURS under
-// 'hours', which sounds alarming until you notice that under 'hours' the field
-// is showing "1.50" and a rider typing there means hours. Anyone who means
-// minutes can type "90m" in any format and be understood.
+// PARSING IS THE HALF WITH THE BUGS, so the rule is stated once: an explicit unit
+// always wins, and a bare number is read in the format's own unit. "90" is ninety
+// minutes under 'hm' and ninety HOURS under 'hours', which sounds alarming until you
+// notice that under 'hours' the field is showing "1.50".
 //
-// A NUMBER MAY OPEN WITH ITS DECIMAL POINT. ".25" is a quarter of an hour and it
-// used to parse as nothing at all — the field simply cleared, in every format,
-// on the one input a rider reaches for when they want a short stop. That is the
-// other half of #189 and it is why every numeric group below is NUM rather than
-// a hand-written \d+ with an optional tail.
+// A NUMBER MAY OPEN WITH ITS DECIMAL POINT. ".25" used to parse as nothing at all — the
+// field simply cleared, on the one input a rider reaches for when they want a short
+// stop. That is the other half of #189 and why every numeric group below is NUM.
 
 export const DURATION_FORMATS = ['hours', 'hm', 'minutes'] as const
 export type DurationFormat = (typeof DURATION_FORMATS)[number]
@@ -80,21 +65,15 @@ export function hoursMinutes(minutes: number): string {
   return h > 0 ? `${h}h ${m}m` : `${m}m`
 }
 
-// TWO decimals, and the trailing zeros are kept: "2.00" rather than "2".
+// TWO decimals, and the trailing zeros are kept: "2.00" rather than "2". Holding the
+// decimal places is what makes the column scannable — a mixture of "2" and "1.5" down
+// that column reads as two different units.
 //
-// Holding the decimal places is what makes the column scannable — the field is
-// an editable heading of sorts, one per stop, and a mixture of "2" and "1.5"
-// down that column reads as two different units. That argument has not changed.
-// What changed is HOW MANY places, and the number is not a matter of taste:
-//
-// TWO IS THE SMALLEST PRECISION THAT ROUND-TRIPS EVERY STORED VALUE. At one
-// place the format could only express six-minute boundaries, so blurring the
-// field REWROTE the stop: 15 minutes came back "0.3", which reads as 18 the next
-// time anything parses it, and a rider watched a quarter-hour coffee stop grow
-// every time they touched the row. At two places `round(Number(v) * 60)` returns
-// the original for all 43,201 storable minutes, which test/duration.test.ts
-// asserts exhaustively rather than by sampling. Do not trim this back to one
-// place to tidy the column up.
+// TWO IS THE SMALLEST PRECISION THAT ROUND-TRIPS EVERY STORED VALUE. At one place the
+// format could only express six-minute boundaries, so blurring the field REWROTE the
+// stop: 15 minutes came back "0.3", which reads as 18 the next time anything parses it,
+// and a rider watched a quarter-hour coffee stop grow every time they touched the row.
+// test/duration.test.ts asserts all 43,201 storable minutes exhaustively.
 export function decimalHours(minutes: number): string {
   return (Math.max(0, minutes) / 60).toFixed(2)
 }

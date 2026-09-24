@@ -40,19 +40,15 @@ import { sanitizeText } from '../maps/kml'
 export const authRoutes = new Hono<AuthEnv>()
 
 /**
- * Where a rider lands once they are signed in.
+ * Where a rider lands once they are signed in: home, unless they arrived holding an
+ * invitation — in which case back to the invite page, signed in, where a button
+ * finishes the job.
  *
- * Home, unless they arrived holding an invitation — in which case back to the
- * invite page, signed in, where a button finishes the job.
+ * Note what this does NOT do: it does not redeem. The cookie is a redirect hint and
+ * nothing more, so a stale one costs a rider one extra page and can never spend a seat.
  *
- * Note what this does NOT do: it does not redeem. The cookie is a redirect hint
- * and nothing more, so a stale one costs a rider one extra page and can never
- * spend a seat on its own. Redemption is a POST the rider makes deliberately,
- * for the reasons routes/invites.tsx opens with.
- *
- * The token is checked against the token charset before it is put in a URL. It
- * comes from a cookie, which is attacker-supplied like any other header, and
- * this value is about to be interpolated into a Location.
+ * The token is checked against the token charset before it is put in a URL: it comes
+ * from a cookie, which is attacker-supplied like any other header.
  */
 function afterSignIn(c: Context<AuthEnv>): string {
   const token = normalizeInviteToken(readInviteCookie(c))
@@ -61,23 +57,18 @@ function afterSignIn(c: Context<AuthEnv>): string {
 
 // --- Sign in, and the beta waiting list -------------------------------------
 
-// Joining the list and signing in are the same request, and the copy is the
-// only thing that distinguishes them. An address either already has an account
-// or gets one created as 'pending' — and 'pending' *is* the waiting list, read
-// by /admin, so there is no second store to reconcile against users.
+// Joining the list and signing in are the same request, and the copy is the only thing
+// that distinguishes them. An address either already has an account or gets one created
+// as 'pending' — and 'pending' *is* the waiting list, read by /admin, so there is no
+// second store to reconcile.
 //
-// The page has to be honest with a visitor about something the mechanism cannot
-// express on its own: **nobody can sign themselves in**. Alpha is developers
-// only; beta is invite-only and approved by hand. Before this the page said
-// "Not a member yet? Signing in creates your account", which is true in the
-// narrow technical sense and reads as an open door — so riders signed in,
-// expected the app, and hit /welcome instead. The gate belongs on the way in,
-// not after it.
+// The page has to be honest about something the mechanism cannot express on its own:
+// **nobody can sign themselves in**. Before this the page said "Not a member yet?
+// Signing in creates your account", which is true in the narrow technical sense and
+// reads as an open door — so riders signed in, expected the app, and hit /welcome.
 //
-// Sign-in is deliberately not removed or hidden behind a second page. Approved
-// riders and the owner arrive here too, every one of them through the same two
-// controls, and a page that only offered a waiting list would lock out everyone
-// who already has an account.
+// Sign-in is deliberately not removed or hidden behind a second page: approved riders
+// and the owner arrive here too, through the same two controls.
 authRoutes.get('/login', (c) => {
   if (c.get('user')) return c.redirect('/', 302)
 
@@ -465,20 +456,16 @@ authRoutes.post('/logout', async (c) => {
 
 // --- Dev sign-in ------------------------------------------------------------
 //
-// GET /dev/login signs in as the account named by DEV_LOGIN_EMAIL, no password
-// and no mail round-trip. It exists because checking /builder, /welcome or a
-// profile page otherwise means minting a session token from a script and pasting
-// a cookie by hand, several times an hour.
+// GET /dev/login signs in as the account named by DEV_LOGIN_EMAIL, no password and no
+// mail round-trip. It exists because checking /builder or a profile page otherwise
+// means minting a session token from a script and pasting a cookie by hand.
 //
 // Three of the four gates are environmental and are checked once, at import, by
-// DEV_LOGIN_ENABLED. They decide whether this route is *registered at all* —
-// absent from the routing table beats present-and-refusing, because a route that
-// refuses still tells a prober it is there. The fourth gate is per-request and
-// lives in the handler.
+// DEV_LOGIN_ENABLED: they decide whether this route is *registered at all*, because
+// absent from the routing table beats present-and-refusing. The fourth is per-request.
 //
-// It mints a session through the same createSession/setSessionCookie pair the
-// Google and magic-link callbacks use. A parallel path would be free to drift
-// from the real one and then this would be testing something nobody ships.
+// It mints a session through the same createSession/setSessionCookie pair the Google
+// and magic-link callbacks use, so it cannot drift from the real one.
 if (DEV_LOGIN_ENABLED) {
   console.warn(`[auth] DEV SIGN-IN IS ON: GET /dev/login signs in as ${DEV_LOGIN_EMAIL}`)
 
