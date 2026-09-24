@@ -2,26 +2,24 @@
 
 // Design tokens: the PUBLIC NAMES. Every value lives in _palette.scss.
 //
-// Each token is a `var(--x)` rather than a color, which is what made a runtime
-// theme possible without touching the ~950 rules that use one.
+// Each token is a `var(--x)` rather than a color, which is what made a runtime theme
+// possible without touching the ~950 rules that use one.
 //
-// THE ONE RULE WHEN ADDING A TOKEN: it has to exist in _palette.scss too, or
-// this emits a `var()` that resolves to nothing and the property silently
-// drops. There is no build error — the name is a string on both sides.
-//
-// Non-color tokens ($font, the $z-* stack) stay real Sass values.
+// THE ONE RULE WHEN ADDING A TOKEN: it has to exist in _palette.scss too, or this
+// emits a `var()` that resolves to nothing and the property silently drops. There is
+// no build error — the name is a string on both sides.
 
 // Color Variables
 
-// THE NEUTRAL SCALE. Greys are not road-sign colors and do not belong in the
-// palette below; a sign has exactly one gray, the post it stands on.
+// THE NEUTRAL SCALE. Greys are not road-sign colors and do not belong in the palette
+// below; a sign has exactly one gray, the post it stands on.
 //
-// **The number is CIE L\*, perceptual lightness**, rather than 50–900: the gap
-// between two steps IS the perceived difference, and contrast against white or
-// black follows from the number without a lookup table.
+// **The number is CIE L\*, perceptual lightness**, rather than 50–900: the gap between
+// two steps IS the perceived difference, and contrast against white or black follows
+// from the number without a lookup table.
 //
-// The step from -76 to -88 is 12, double the rest, and that gap is real — the
-// app has text greys and surface greys and nothing between them.
+// The step from -76 to -88 is double the rest, and that gap is real — the app has text
+// greys and surface greys and nothing between them.
 $neutral-21: var(--neutral-21);
 $neutral-29: var(--neutral-29);
 $neutral-36: var(--neutral-36);
@@ -39,25 +37,22 @@ $neutral-94: var(--neutral-94);
 $neutral-96: var(--neutral-96);
 $neutral-98: var(--neutral-98);
 
-// The road-sign palette. Named for what each color is on a road rather than for
-// where it is used, so a name stays true when a component moves.
+// The road-sign palette. Named for what each color is on a road rather than for where
+// it is used, so a name stays true when a component moves.
 //
-// These are stylized, NOT conversions of the federal spec, which matters before
-// anyone "corrects" one toward a published value: 23 CFR 655 defines
-// chromaticity for retroreflective SHEETING, engineered to be read under
-// headlights, so a faithful conversion lands far darker — spec green is about
-// #004b37, spec red about #9d001d. These are those colors in daylight memory.
+// These are stylized, NOT conversions of the federal spec, which matters before anyone
+// "corrects" one toward a published value: 23 CFR 655 defines chromaticity for
+// retroreflective SHEETING, so a faithful conversion lands far darker — spec green is
+// about #004b37. These are those colors in daylight memory.
 //
-// Three names to read carefully. `$yield` and `$warning` are two different
-// yellows: $warning is a warning diamond's amber, $yield a signal head's
-// brighter yellow. `$disabled` is the accessible-parking blue and is the app's
-// generic accent through `$url`, not an accessibility signal. `$tarmac` is the
-// palette's black — a black sign field like ONE WAY.
+// Three names to read carefully. `$yield` and `$warning` are two different yellows:
+// $warning is a warning diamond's amber, $yield a signal head's brighter yellow.
+// `$disabled` is the accessible-parking blue and is the app's generic accent, not an
+// accessibility signal. `$tarmac` is the palette's black.
 //
-// `$concrete` is a fixed #888888 in every palette since 2026-09-17. It came off
-// the neutral ramp because it PINNED it: the roster mark paints a white glyph
-// on it at a 3:1 bar, so the dark ramp's -57 could not be lifted with the muted
-// text around it while the two were one token.
+// `$concrete` is a fixed #888888 in every palette since 2026-09-17. It came off the
+// neutral ramp because it PINNED it: the roster mark paints a white glyph on it at a
+// 3:1 bar, so the dark ramp's -57 could not be lifted while the two were one token.
 $interstate: var(--interstate);
 $speed: var(--speed);
 $stop: var(--stop);
@@ -79,24 +74,21 @@ $black: var(--black);
 $page: var(--page);
 $card-edge: var(--card-edge);
 
-// WHICH INK GOES ON WHICH FIELD. Not a style preference and not derived from
-// the contrast numbers — copied off the signs the palette was sampled from, and
-// the numbers happen to agree.
+// WHICH INK GOES ON WHICH FIELD. Not a style preference and not derived from the
+// contrast numbers — copied off the signs the palette was sampled from, and the numbers
+// happen to agree.
 //
 //   WHITE legend    $stop, $interstate, $disabled, $tarmac, $recreation
 //   BLACK legend    $warning, $yield, $detour, $speed
 //
-// Measured both directions: every white-legend field clears 4.5:1 on $white and
-// every black-legend field clears 4.5:1 on $black, and every one FAILS on the
-// other ink ($yield is 1.4:1 behind white, $interstate 2.9:1 behind black).
-//
-// $go and $concrete carry no legend on a real sign and are too light for white
-// (2.8:1, 3.8:1), so they follow the black-legend rule when they carry text.
+// Measured both directions: every white-legend field clears 4.5:1 on $white and every
+// black-legend field clears 4.5:1 on $black, and every one FAILS on the other ink.
+// $go and $concrete carry no legend on a real sign and are too light for white, so they
+// follow the black-legend rule when they carry text.
 //
 // THE TRAP: a black-legend field must get LIGHTER on hover. `.btn`'s reflex is
-// `color.adjust(..., $lightness: -8%)`, which raises contrast under white ink
-// and lowers it under black — on $go that is 6.1:1 down to 4.3:1, and the map
-// buttons' -15% lands on 3.1:1. +8% takes $go to 7.6:1.
+// `color.adjust(..., $lightness: -8%)`, which raises contrast under white ink and lowers
+// it under black — on $go that is 6.1:1 down to 4.3:1.
 
 // The semantic tokens below take their value from the road-sign palette. Where
 // a token is only ever a fill it points straight at a palette entry; where it
@@ -128,21 +120,16 @@ $ink-dark: var(--ink-dark);
 $pending: var(--pending);
 $panel-bg: var(--panel-bg);
 $panel-shadow: var(--panel-shadow);
-// Unquoted to match every other token here; CSS family names are case-
-// insensitive identifiers.
+// Unquoted to match every other token here; CSS family names are case-insensitive
+// identifiers.
 //
-// Overpass is drawn from Highway Gothic, the US road-sign face, which is why it
-// is here rather than a neutral UI grotesque. Two things before touching type:
+// Overpass is drawn from Highway Gothic, the US road-sign face, which is why it is here
+// rather than a neutral UI grotesque. Two things before touching type: any weight is a
+// real cut, the face being variable across 100–900; and there is no width axis, so
+// `font-stretch` does nothing and letter-spacing is the substitute.
 //
-// Any weight is a real cut — the face is variable across 100–900, so 340 or 550
-// interpolate rather than rounding to a static instance.
-//
-// There is no width axis, so `font-stretch` does nothing; letter-spacing is the
-// substitute.
-//
-// `sep-dot` leads the stack and covers one codepoint, U+00B7 — see _fonts.scss.
-// It carries no file and exists to take the interpunct away from Overpass,
-// whose copy of it has an advance width of zero.
+// `sep-dot` leads the stack and covers one codepoint, U+00B7. It carries no file and
+// exists to take the interpunct away from Overpass, whose copy has a zero advance.
 $font: sep-dot, overpass;
 
 // THE LINK BLUE, and the only name for it since 2026-09-07 — `$url` and `$ride`
@@ -152,48 +139,42 @@ $font: sep-dot, overpass;
 // dark palette; see _palette.scss for the measurement.
 $brand: var(--brand);
 
-// The four variable parts of a structured route filename, on /import: each
-// carries its color from the example line down to the definition, so the
-// pairing is visible rather than positional.
+// The four variable parts of a structured route filename, on /import: each carries its
+// color from the example line down to the definition, so the pairing is visible rather
+// than positional.
 //
-// $route and $kml were deliberately two different reds — one means a filename
-// field, the other error and bad format. The palette has one red, so they are
-// the same color now; if they ever need to differ, that is a second red in the
-// palette, not a hex here.
+// $route and $kml were deliberately two different reds — one means a filename field,
+// the other error and bad format. The palette has one red, so they are the same color
+// now; if they ever need to differ, that is a second red in the palette, not a hex here.
 //
-// $label derives from $warning for the reason $pending does: it is text on a
-// tint, and no yellow survives there undarkened. -22% lands on 5.5:1; against
-// the brighter $yield the same expression gives 4.2:1 and fails.
+// $label derives from $warning for the reason $pending does: it is text on a tint, and
+// no yellow survives there undarkened.
 //
-// All four clear 4.5:1 on that tint, and each names its field in words — color
-// cannot be the only cue, since red and amber converge under protanopia.
+// All four clear 4.5:1 on that tint, and each names its field in words — color cannot
+// be the only cue, since red and amber converge under protanopia.
 $route: var(--route);
 $date: var(--date);
 $label: var(--label);
 
-// THE FOUR "YOUR RECORDS" FIGURE COLORS (#177), each the hue of the accent it
-// is named for at an absolute lightness that survives as text.
+// THE FOUR "YOUR RECORDS" FIGURE COLORS (#177), each the hue of the accent it is named
+// for at an absolute lightness that survives as text.
 //
-// A SIGN FIELD IS NOT A TEXT COLOR. All four accents are fields, authored to be
-// sat on: $detour is 2.46:1 on $white by default and 1.98:1 in contrast, and on
-// the DARK schemes all four fail against a near-black surface.
-//
-// So the mark keeps the field color — it is a filled glyph — and only the
-// numeral takes these. test/palette-contrast.test.ts holds all eight pairs.
+// A SIGN FIELD IS NOT A TEXT COLOR. All four accents are fields, authored to be sat on:
+// $detour is 2.46:1 on $white by default, and on the DARK schemes all four fail against
+// a near-black surface. So the mark keeps the field color — it is a filled glyph — and
+// only the numeral takes these.
 $interstate-text: var(--interstate-text);
 $disabled-text: var(--disabled-text);
 $detour-text: var(--detour-text);
 $recreation-text: var(--recreation-text);
 
-// NO BUILD-TIME COLOR FUNCTIONS ON A TOKEN. `rgba($brand, 0.06)` appeared in
-// eighteen places and every one broke silently when tokens became `var()`
-// references: Sass passes the call through, so it compiles to
-// `rgba(var(--brand), 0.06)`, which is invalid and drops the declaration.
-// Nothing warns.
+// NO BUILD-TIME COLOR FUNCTIONS ON A TOKEN. `rgba($brand, 0.06)` appeared in eighteen
+// places and every one broke silently when tokens became `var()` references: Sass
+// passes the call through, so it compiles to `rgba(var(--brand), 0.06)`, which is
+// invalid and drops the declaration. Nothing warns.
 //
-// Write `color-mix(in srgb, $brand 6%, transparent)` instead. The same rule
-// covers any mix, fade or adjust: if Sass has to compute it, it needs a real
-// color, and the only real colors left are in _palette.scss.
+// Write `color-mix(in srgb, $brand 6%, transparent)` instead. The same rule covers any
+// mix, fade or adjust: if Sass has to compute it, it needs a real color.
 
 // --- THE DERIVED SET --------------------------------------------------------
 //
