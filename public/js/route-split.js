@@ -1,30 +1,22 @@
 // Cutting one route into two.
 //
-// ONE MECHANIC SERVING TWO ISSUES. #49 asks for it explicitly — "pick a stop and
-// split there, or split by distance or riding time" — and #54 asks for it by
-// another name: marking where you are sleeping ends the route there and starts the
-// next one from it. They are the same operation with two different triggers, so
-// they are one function rather than two that would drift about what a boundary
-// means.
+// ONE MECHANIC SERVING TWO ISSUES. #49 asks for it explicitly, and #54 asks for it by
+// another name: marking where you are sleeping ends the route there and starts the next
+// one from it. They are the same operation with two triggers, so they are one function
+// rather than two that would drift about what a boundary means.
 //
-// **THE SPLIT POINT BELONGS TO BOTH DAYS.** You ride TO the hotel and you set off
-// FROM the hotel, so it is the last point of the first route and the first point of
-// the second. That is what makes the result look like a ride somebody planned
-// rather than two halves of a line — and it is the same shape addRoute() already
-// produces, which seeds a new route from the previous route's last point.
+// **THE SPLIT POINT BELONGS TO BOTH ROUTES.** You ride TO the hotel and you set off
+// FROM the hotel, so it is the last point of the first and the first point of the
+// second — the same shape addRoute() already produces.
 //
-// NOTHING IS RE-ROUTED. `legs[i]` joins `points[i]` to `points[i+1]`, so cutting
-// at point i hands legs 0..i-1 to the first route and i.. to the second and every
-// leg keeps the road it was already drawn on. #49 says this outright and it is
-// the reason the whole operation is free: a split that re-routed would spend a
-// Routes call per leg and could come back with a different road than the rider
-// drew.
+// NOTHING IS RE-ROUTED. `legs[i]` joins `points[i]` to `points[i+1]`, so cutting at
+// point i hands legs 0..i-1 to the first route and i.. to the second, and every leg
+// keeps the road it was drawn on. A split that re-routed would spend a Routes call per
+// leg and could come back with a different road than the rider drew.
 //
-// PURE, AND THE uid MINTER IS AN ARGUMENT. The copy of the split point needs an
-// identity of its own — `points.uid` is what survives the delete-and-reinsert of
-// every save, and two points sharing one would collide — but minting it here
-// would drag crypto into a module whose whole job is arithmetic and make the
-// result untestable.
+// PURE, AND THE uid MINTER IS AN ARGUMENT: the copy of the split point needs an
+// identity of its own, but minting it here would drag crypto into a module whose whole
+// job is arithmetic.
 (function (window) {
   "use strict";
 
@@ -53,26 +45,20 @@
   }
 
   /**
-   * Cut `route` in two at point `i`. Returns `{ first, second }`, or null when the
-   * cut is not a legal one.
-   *
-   * Both halves are new objects; the input is not touched. Everything that is a
-   * fact about the DAY rather than about its shape — color, subgroup, alt
-   * grouping, the clock — is left for the caller, because those answers need the
-   * rest of the ride to decide and this module can only see one route.
-   *
-   * THE COPY CARRIES NO ROLES, and that is deliberate rather than an omission.
-   * The hotel you slept at is a fact recorded once, on the route that rode to it;
-   * duplicating the tag would double-count it everywhere roles are summed — the
-   * dashboard's category chart, the roadbook's numbered rows, the fuel math in
-   * route-distance.js, which would read the copy as a second refuelling stop. What
-   * the copy keeps is where it is and what it is called, which is what a rider
-   * needs to recognize where their morning starts.
-   *
-   * `kind` is forced to "stop" on the copy. Every route needs at least one, the
-   * schema refuses a route of nothing but POIs, and the first point of a route is a
-   * place you are by definition setting off from.
-   */
+      * Cut `route` in two at point `i`. Returns `{ first, second }`, or null when the cut
+      * is not a legal one. Both halves are new objects; the input is not touched.
+      * Everything that is a fact about the ROUTE rather than its shape — color, subgroup,
+      * alt grouping, the clock — is left for the caller, because those answers need the
+      * rest of the ride.
+      *
+      * THE COPY CARRIES NO ROLES, deliberately. The hotel you slept at is a fact recorded
+      * once, on the route that rode to it; duplicating the tag would double-count it
+      * everywhere roles are summed, including the fuel math, which would read the copy as
+      * a second refuelling stop.
+      *
+      * `kind` is forced to "stop" on the copy: every route needs at least one, and the
+      * first point of a route is a place you are by definition setting off from.
+      */
   function splitRouteAt(route, i, mintUid) {
     if (!canSplitAt(route, i)) return null;
     var points = pointsOf(route);
@@ -141,17 +127,13 @@
     var bestGap = Math.abs(cum[best] - targetM);
     for (var k = 1; k < legal.length; k++) {
       var gap = Math.abs(cum[legal[k]] - targetM);
-      // A METER OF SLACK, so a tie keeps the EARLIER point. A bare `<` reads as
-      // doing that and does not: every distance here is a float sum of leg
-      // meters, so two points genuinely equidistant from the target come out
-      // differing in the twelfth decimal and whichever way that noise falls
-      // decides it. Measured — 100mi and 200mi against a 150mi target picked the
-      // LATER point. A meter is far below anything a rider could mean by "about
-      // 300 miles" and makes the rule real.
-      //
-      // Earlier, because a shorter first route is the recoverable mistake: the
-      // rider adds to it. The longer one means riding past where they meant to
-      // stop.
+      // A METER OF SLACK, so a tie keeps the EARLIER point. A bare `<` reads as doing
+            // that and does not: every distance here is a float sum of leg meters, so two
+            // points genuinely equidistant come out differing in the twelfth decimal. Measured
+            // — 100mi and 200mi against a 150mi target picked the LATER point.
+            //
+            // Earlier, because a shorter first route is the recoverable mistake: the rider adds
+            // to it, where the longer one means riding past where they meant to stop.
       if (gap < bestGap - 1) {
         best = legal[k];
         bestGap = gap;
