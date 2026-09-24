@@ -1,45 +1,34 @@
 // A ride's picture of itself: geometry and route colors in, a Google Static Maps
-// request out. Pure — no Postgres, no fetch, no environment beyond the key
-// handed to the one function that needs it — which is what lets
-// test/thumbnail.test.ts assert the URL limit without a database. Same shape of
-// module as twist.ts, and it sits here for the same reason.
+// request out. Pure — no Postgres, no fetch, no environment beyond the key handed to
+// the one function that needs it.
 //
-// A Static Maps image and not an SVG drawn from the geometry. Both were
-// considered on 2026-08-16 and the SVG was prototyped first — it works, costs
-// nothing and themes for free — but a bare squiggle falls flat, and the SKU is
-// inside its free tier at beta scale. See item 28 in docs/ROADMAP.md.
+// A Static Maps image and not an SVG drawn from the geometry. Both were considered and
+// the SVG was prototyped first — it works, costs nothing and themes for free — but a
+// bare squiggle falls flat, and the SKU is inside its free tier at beta scale.
 import { createHash } from 'node:crypto'
 import { activeRoutes, type AltRoute } from './alts'
 
-// What Google renders: 320x200 at scale 2 is 640x400 actual pixels, which is
-// exactly the 640 cap on the Essentials tier — going wider silently drops to the
-// cap rather than erroring.
+// What Google renders: 320x200 at scale 2 is 640x400 actual pixels, which is exactly
+// the 640 cap on the Essentials tier — going wider silently drops to the cap.
 //
-// Deliberately larger than the box it is displayed in, and not only for retina.
-// The mandatory Google attribution is drawn at a fixed pixel size, so requesting
-// a small image makes the attribution proportionally BIGGER. Rendering at 640x400
-// and letting the browser scale down is what keeps it a footnote instead of a
-// third of the frame.
+// Deliberately larger than the box it is displayed in, and not only for retina: the
+// mandatory Google attribution is drawn at a fixed pixel size, so requesting a small
+// image makes the attribution proportionally BIGGER.
 //
-// `center` and `zoom` are deliberately never sent. Omitting both is what makes
-// Static Maps auto-fit the paths, which is the whole requirement: fitted as
-// tightly to the route as it can be while still showing all of it. A route's
-// bounding box is whatever shape the road took, so the box is fixed and the
-// route is fitted inside it.
+// `center` and `zoom` are deliberately never sent. Omitting both is what makes Static
+// Maps auto-fit the paths, which is the whole requirement.
 export const THUMB_WIDTH = 320
 export const THUMB_HEIGHT = 200
 export const THUMB_SCALE = 2
 
-// Static Maps is GET-only and its URLs are capped at 8192 characters. This is
-// the real constraint on the whole design, and the reason simplification below
-// targets a POINT BUDGET rather than a distance tolerance: a tolerance chosen to
-// look right on a short ride blows the limit on a dense 8-route import, and the
-// failure is a 4xx at fetch time rather than anything a test would have seen.
+// Static Maps is GET-only and its URLs are capped at 8192 characters. This is the real
+// constraint on the whole design, and the reason simplification below targets a POINT
+// BUDGET rather than a distance tolerance: a tolerance chosen to look right on a short
+// ride blows the limit on a dense 8-route import, and the failure is a 4xx at fetch
+// time rather than anything a test would have seen.
 //
-// ~330 points encodes to roughly 2 KB, measured against the dev corpus during
-// the prototype. The cap below is the hard ceiling; the budget is what we aim
-// for, and the headroom between them is where the style and size parameters
-// live.
+// ~330 points encodes to roughly 2 KB, measured against the dev corpus. The cap below
+// is the hard ceiling; the budget is what we aim for.
 export const URL_MAX_CHARS = 8192
 export const POINT_BUDGET = 330
 
@@ -47,21 +36,16 @@ export const POINT_BUDGET = 330
 // into a blob; the route color carries the meaning.
 const PATH_WEIGHT = 3
 
-// One desaturated style for every theme, not one per theme. Item 20 brings three
-// themes across light and dark, and rendering a variant per combination
-// multiplies calls by six for terrain that is the same terrain. A style change
-// is one URL parameter, so this is cheap to revisit by eye once the themes
-// exist.
+// One desaturated style for every theme, not one per theme: rendering a variant per
+// combination multiplies calls by six for terrain that is the same terrain. A style
+// change is one URL parameter, so this is cheap to revisit by eye.
 //
-// Also worth knowing: because the style is in the URL, changing it changes every
-// hash, so the next sweep regenerates every thumbnail by itself — no migration
-// and no backfill script.
+// Because the style is in the URL, changing it changes every hash, so the next sweep
+// regenerates every thumbnail by itself — no migration and no backfill script.
 //
 // Note what is NOT removable: the Google wordmark and the "Map data ©" line are
-// required by the Maps Platform terms and no style rule takes them off. They are
-// drawn at a FIXED pixel size, so they are the reason the display box below has a
-// floor — rendered into a 64px-wide card they were most of the picture, which
-// read as "the styling is not applying" and was not.
+// required by the Maps Platform terms and are drawn at a FIXED pixel size, which is
+// why the display box has a floor.
 const MAP_STYLES = [
   'feature:all|element:labels|visibility:off',
   // POI, transit and administrative off together: pins, rail lines and the
@@ -251,21 +235,15 @@ function shareBudget(counts: number[], budget: number): number[] {
 }
 
 /**
- * The Static Maps request for a ride, WITHOUT the API key — path and query only,
- * ready to be hashed and to have a key appended at fetch time.
+ * The Static Maps request for a ride, WITHOUT the API key — path and query only, ready
+ * to be hashed and to have a key appended at fetch time.
  *
- * Keyless on purpose, and it is the detail the rest of the design leans on:
+ * Keyless on purpose, and it is the detail the rest of the design leans on: the stored
+ * hash stays stable across a key rotation, and nothing ever stores or logs a string
+ * containing GMAPS_SERVER_KEY, which is IP-restricted and must never reach a client.
  *
- *   - The stored hash stays stable across a key rotation. Hash a URL with the
- *     key in it and rotating the key silently invalidates every thumbnail in the
- *     database and re-fetches the lot.
- *   - Nothing ever stores or logs a string containing GMAPS_SERVER_KEY. That key
- *     is IP-restricted and must never reach a client; a URL in a row, a log line
- *     or an error message is exactly how it would.
- *
- * Returns null when there is nothing to draw — a ride with stops but no legs is
- * a real state, and so is one whose only routes are losing alternates. The caller
- * shows the color swatch instead.
+ * Returns null when there is nothing to draw — a ride with stops but no legs is a real
+ * state, and so is one whose only routes are losing alternates.
  */
 export function thumbnailRequest(routes: ThumbRoute[]): string | null {
   // Losing alternates are excluded here rather than by the caller filtering the

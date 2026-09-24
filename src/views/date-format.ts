@@ -1,55 +1,37 @@
 // How a date and a clock are written down, per rider.
 //
 // The problem this fixes: five server-rendered surfaces formatted dates with a
-// hardcoded `'en-US'` — the roadbook's date and clock, the account page, and the
-// dashboard's month labels and number grouping. The BUILDER was already correct
-// and always has been, because `<input type="datetime-local">` renders in the
-// viewer's own locale and hands back an ISO string regardless. So a rider outside
-// the US planned a route in `24/08/2026` and printed a roadbook that said
-// `08/24/2026` — the same product disagreeing with itself.
+// hardcoded `'en-US'`. The BUILDER was always correct, because
+// `<input type="datetime-local">` renders in the viewer's own locale — so a rider
+// outside the US planned a route in `24/08/2026` and printed a roadbook that said
+// `08/24/2026`.
 //
-// A DISPLAY LAYER ONLY, exactly like src/maps/duration.ts, whose shape this
-// follows. Nothing here touches storage: `routes.start_at` stays a timestamp with
-// an offset, `ride.json` stays ISO, and every export is untouched.
+// A DISPLAY LAYER ONLY, exactly like src/maps/duration.ts. Nothing here touches
+// storage.
 //
-// THE MEMBERS ARE REAL LOCALE TAGS, and that is the one judgment call worth
-// stating. The alternative was an abstract `mdy` / `dmy` / `ymd` enum, which
-// would have fixed the digit order and left me formatting by hand. Passing a real
-// tag to Intl means:
+// THE MEMBERS ARE REAL LOCALE TAGS, and that is the one judgment call worth stating.
+// The alternative was an abstract `mdy`/`dmy`/`ymd` enum, which would have fixed the
+// digit order and left the rest to be formatted by hand. Passing a real tag to Intl
+// means the clock follows too, month and weekday names come from the same source, and
+// adding a locale later is one enum member and no formatter changes.
 //
-//   - the clock follows too, which an order-only enum cannot do: en-GB is a
-//     24-hour locale, so a British rider gets 09:05 rather than 9:05 AM;
-//   - month and weekday names come from the same source as the numbers;
-//   - number grouping COULD come along, via fmtNumber below;
-//   - adding a locale later is one enum member and no formatter changes.
+// THE CLOCK HAS ITS OWN CONTROL SINCE #270, AND THAT IS STILL TRUE: it is the DEFAULT
+// that follows the locale. What the arrangement could not express was an American who
+// wants twenty-four-hour time — the only way to get one was en-GB, and 24/08/2026 with
+// it. `fmtClock` overrides `hour12` ALONE.
 //
-// THE CLOCK HAS ITS OWN CONTROL SINCE 2026-09-07 (#270), AND THE BULLET ABOVE IS
-// STILL TRUE. It is the DEFAULT that follows the locale, not the only thing
-// available: `clock: 'locale'` is what every rider has until they say otherwise
-// and is what that bullet describes. What the arrangement could not express was
-// an American who wants twenty-four-hour time — the only way to get one was
-// en-GB, and 24/08/2026 with it. `fmtClock` takes an optional Clock and
-// overrides `hour12` ALONE; every other consequence of the locale tag, this
-// bullet list included, is untouched. See ./clock.ts.
+// NUMBER GROUPING IS NOT WIRED UP YET, deliberately: all three members are English and
+// group identically as 1,234. `fmtNumber` exists for the day a member like `de-DE`
+// lands.
 //
-// NUMBER GROUPING IS NOT WIRED UP YET, and deliberately. `fmtMiles` and
-// `fmtCount` in src/stats/shape.ts still carry a hardcoded 'en-US', because all
-// three members shipped here are English and group identically as 1,234 — so
-// threading a format through ten call sites in a pure module would change nothing
-// anyone can see. `fmtNumber` exists for the route a member like `de-DE` (1.234)
-// lands, which is when that churn starts buying something.
-//
-// THREE MEMBERS, ONE PER DIGIT ORDER, not a catalog of locales. Verified
-// against Intl rather than assumed:
+// THREE MEMBERS, ONE PER DIGIT ORDER, not a catalog of locales:
 //
 //   en-US  8/24/2026    Monday, August 24    9:05 AM
 //   en-GB  24/08/2026   Monday 24 August     09:05
 //   en-CA  2026-08-24   Monday, August 24    9:05 a.m.
 //
-// TRANSLATION IS NOT IN SCOPE and this does not pretend otherwise. All three
-// members render English words, because the app has no i18n framework and a date
-// preference is not one. A rider in Berlin gets their date order and the word
-// "August".
+// TRANSLATION IS NOT IN SCOPE. All three members render English words, because the app
+// has no i18n framework and a date preference is not one.
 
 import { DEFAULT_CLOCK, hour12For, type Clock } from './clock'
 
@@ -77,30 +59,23 @@ const DATE_FORMAT_ORDERS: { id: DateFormat; order: string; pattern: string }[] =
 ]
 
 /**
- * The settings page's radio set: TODAY, written each of the three ways, which is
- * the same date in all three because the order is the whole question.
+ * The settings page's radio set: TODAY, written each of the three ways, which is the
+ * same date in all three because the order is the whole question.
  *
- * **THE LABEL IS THE FORMATTER'S OWN OUTPUT, NOT A HAND-WRITTEN EXAMPLE.** Ziad's
- * call, 2026-09-22, over "Month first" and then over the bare pattern: a rider
- * picking a date format wants to see a date. Computing it removes the whole class
- * of drift the old test existed to catch — a page showing one shape and printing
- * another — and it is the same call `fmtDateNumeric` makes everywhere else, so
- * the two cannot disagree by construction. `tip` carries the order in words.
+ * **THE LABEL IS THE FORMATTER'S OWN OUTPUT, NOT A HAND-WRITTEN EXAMPLE.** A rider
+ * picking a date format wants to see a date, and computing it removes the whole class
+ * of drift the old test existed to catch. `tip` carries the order in words.
  *
- * **IT IS A FUNCTION BECAUSE TODAY MOVES.** A module-level constant would be
- * frozen at boot and a long-running container would show the day it started on.
+ * **IT IS A FUNCTION BECAUSE TODAY MOVES.** A module-level constant would be frozen at
+ * boot and a long-running container would show the day it started on.
  *
- * **THE DATE IS UTC, like every other date this module prints**, so a rider west
- * of Greenwich late in the evening sees tomorrow's — which is a sample of a
- * SHAPE rather than a claim about what day it is, and the alternative is a zone
- * the server does not have.
+ * **THE DATE IS UTC, like every other date this module prints**, so a rider west of
+ * Greenwich late in the evening sees tomorrow's — a sample of a SHAPE rather than a
+ * claim about what day it is.
  *
- * THE CLOCK CAME OUT OF THESE ON 2026-09-07 (#270). They read
- * "8/24/2026, 9:05 AM" while the clock was decided here and nowhere else — true
- * then, and a lie the moment the clock got its own control: a rider who has
- * asked for twenty-four-hour time would be shown "9:05 AM" beside the date order
- * they were choosing. The Clock control carries the time examples now, and each
- * setting shows only what it decides.
+ * THE CLOCK CAME OUT OF THESE ON #270: they read "8/24/2026, 9:05 AM" while the clock
+ * was decided here and nowhere else, which became a lie the moment it got its own
+ * control. Each setting shows only what it decides.
  */
 export const dateFormatChoices = (now: Date = new Date()): { id: DateFormat; label: string; tip: string }[] =>
   DATE_FORMAT_ORDERS.map((o) => ({
@@ -109,44 +84,34 @@ export const dateFormatChoices = (now: Date = new Date()): { id: DateFormat; lab
     tip: `${o.order}, as ${o.pattern}`,
   }))
 
-// UTC, EVERYWHERE IN THIS FILE, and it is the CORRECT reading rather than a
-// workaround — which is what it used to be.
+// UTC, EVERYWHERE IN THIS FILE, and it is the CORRECT reading rather than a workaround.
 //
-// A DAY'S CLOCK IS A WALL CLOCK AT THE DEPARTURE POINT. Ziad's call, 2026-08-24:
-// a time is a time is a time at the departure point. A rider who plans a 9am
-// departure means 9am where the bike is, whether they planned it from home or
-// from London two weeks before flying out — so nothing converts it into anyone's
-// local time, ever. The value rides in as though it were UTC (see the header of
-// public/js/route-clock.js, which is the only place that conversion happens), so
-// reading it back as UTC returns the digits the rider typed.
+// A ROUTE'S CLOCK IS A WALL CLOCK AT THE DEPARTURE POINT: a rider who plans a 9am
+// departure means 9am where the bike is, so nothing converts it into anyone's local
+// time. The value rides in as though it were UTC — see public/js/route-clock.js, the
+// only place that conversion happens — so reading it back as UTC returns the digits
+// the rider typed.
 //
-// Until that call this file rendered UTC over a value the builder had stored in
-// the BROWSER's zone, which is why 9am Pacific printed as 4:00 PM. The formatters
-// did not change; what they are handed did.
+// Until that call this file rendered UTC over a value the builder had stored in the
+// BROWSER's zone, which is why 9am Pacific printed as 4:00 PM.
 const UTC = { timeZone: 'UTC' } as const
 
 /**
- * 08-24-2026 · 24-08-2026 · 2026-08-24 — dashes and two digits, in the rider's
- * own order.
+ * 08-24-2026 · 24-08-2026 · 2026-08-24 — dashes and two digits, in the rider's own
+ * order.
  *
- * **THE LOCALE DECIDES THE ORDER AND NOTHING ELSE HERE.** Ziad's call,
- * 2026-09-07. It used to hand the whole decision to Intl, which meant three
- * different separators and three different paddings as well as three orders:
- * `8/24/2026`, `24/08/2026`, `2026-08-24`. The order is the thing a rider chose;
- * the rest was just what each locale happens to do, and reading a column of
- * dates that change shape as well as sequence is harder than reading one that
- * does not.
+ * **THE LOCALE DECIDES THE ORDER AND NOTHING ELSE HERE.** It used to hand the whole
+ * decision to Intl, which meant three different separators and three different
+ * paddings as well as three orders. The order is the thing a rider chose; reading a
+ * column of dates that change shape as well as sequence is harder than one that does
+ * not.
  *
- * **THIS IS THE OPPOSITE CALL TO `fmtClock`'s AND BOTH ARE RIGHT.** That one
- * refuses to spell out `hour`/`minute` precisely so the locale keeps its own
- * padding, because a 24-hour locale pads and a 12-hour one does not and neither
- * is our business. Here the padding IS the point: two digits always, so the
- * fields line up.
+ * **THIS IS THE OPPOSITE CALL TO `fmtClock`'s AND BOTH ARE RIGHT.** That one refuses to
+ * spell out `hour`/`minute` precisely so the locale keeps its own padding. Here the
+ * padding IS the point: two digits always, so the fields line up.
  *
- * **JOINED FROM PARTS RATHER THAN STRING-REPLACING THE SEPARATOR.** A `/` swap
- * works on the three locales shipped today and silently would not on a fourth —
- * `de-DE` separates with `.` — so the parts are read and the literals are
- * replaced rather than patched.
+ * **JOINED FROM PARTS RATHER THAN STRING-REPLACING THE SEPARATOR.** A `/` swap works on
+ * the three locales shipped today and silently would not on a fourth.
  */
 export const fmtDateNumeric = (d: Date, f: DateFormat): string =>
   new Intl.DateTimeFormat(f, { year: 'numeric', month: '2-digit', day: '2-digit', ...UTC })
@@ -167,21 +132,17 @@ export const fmtDateFull = (d: Date, f: DateFormat): string =>
 export const fmtMonthShort = (d: Date, f: DateFormat): string => d.toLocaleDateString(f, { month: 'short', ...UTC })
 
 /**
- * 9:05 AM · 09:05 · 9:05 a.m. — the clock follows the locale unless the rider
- * has said otherwise.
+ * 9:05 AM · 09:05 · 9:05 a.m. — the clock follows the locale unless the rider has said
+ * otherwise.
  *
- * `timeStyle: 'short'` rather than `hour`/`minute` options, and the difference is
- * real: spelling the parts out imposes OUR padding on every locale, so en-GB came
- * out "9:05" where a 24-hour locale pads to "09:05". Handing the whole decision to
- * Intl gets the AM/PM, the separator and the padding each locale actually uses.
- * The roadbook's original used the explicit options, which was invisible while
- * the only locale was en-US.
+ * `timeStyle: 'short'` rather than `hour`/`minute` options, and the difference is real:
+ * spelling the parts out imposes OUR padding on every locale, so en-GB came out "9:05"
+ * where a 24-hour locale pads to "09:05".
  *
- * `clock` OVERRIDES `hour12` AND NOTHING ELSE (#270). It defaults to `locale`,
- * which resolves to `undefined` and spreads into the options as a no-op — so a
- * caller that does not pass one gets exactly the string this returned before the
- * preference existed. `timeStyle: 'short'` stays either way, which is what keeps
- * the padding, the separator and the AM/PM spelling with the locale.
+ * `clock` OVERRIDES `hour12` AND NOTHING ELSE (#270). It defaults to `locale`, which
+ * resolves to `undefined` and spreads into the options as a no-op, so a caller that
+ * does not pass one gets exactly the string this returned before the preference
+ * existed.
  */
 export const fmtClock = (d: Date, f: DateFormat, clock: Clock = DEFAULT_CLOCK): string =>
   d.toLocaleTimeString(f, { timeStyle: 'short', hour12: hour12For(clock), ...UTC })
