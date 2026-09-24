@@ -1,13 +1,10 @@
-// Import API: bring routes in from other apps (KML today, +GPX-only/KMZ/CSV
-// later), plus meta edit and delete. The upload pipeline runs its checks
-// cheapest-first (auth → origin → Turnstile → size caps → parse/sanitize →
-// transactional quota → file writes named only from integer ids), per the
-// security spec carried over from the PHP-era plan.
+// Import API: bring routes in from other apps, plus meta edit and delete. The upload
+// pipeline runs its checks cheapest-first (auth → origin → Turnstile → size caps →
+// parse/sanitize → transactional quota → file writes named only from integer ids).
 //
-// An import lands as: one rides row (source 'imported') + one route + the
-// file's placemarks as ordered stops + a single leg holding the whole track —
-// the same structured shape the builder produces, so every viewer renders
-// from one model.
+// An import lands as: one rides row (source 'imported') + one route + the file's
+// placemarks as ordered stops + legs cut from the track — the same structured shape
+// the builder produces, so every viewer renders from one model.
 import { Hono } from 'hono'
 import type { ContentfulStatusCode } from 'hono/utils/http-status'
 import { bodyLimit } from 'hono/body-limit'
@@ -107,13 +104,10 @@ function routeTitle(fileName: string, index: number): string {
   return base || `Route ${index + 1}`
 }
 
-// A zip is a container, not a route format: it is expanded before anything asks
-// what format a file is, so nothing downstream ever sees one.
-//
-// It exists because the per-route export writes one, and a rider who downloads an
-// archive should be able to drag it straight back in. Caps are the point of the
-// options rather than an afterthought — a per-entry cap alone does not bound an
-// archive, so maxTotalBytes bounds the sum as it accumulates.
+// A zip is a container, not a route format: it is expanded before anything asks what
+// format a file is, so nothing downstream ever sees one. It exists because the
+// per-route export writes one. Caps are the point of the options rather than an
+// afterthought — a per-entry cap alone does not bound an archive.
 const ZIP_UPLOAD_MAX_TOTAL = 32 * MB
 
 const zipReadOptions = {
@@ -170,26 +164,22 @@ mapsRoutes.post(
     if (!parsed.success) return fail(firstIssue(parsed.error), 400)
     const meta = parsed.data
 
-    // `route` is the field the import page posts, and the name every format
-    // arrives under. `kml` is still read so anything already posting to this
-    // endpoint keeps working — the two are the same field, differently named.
+    // `route` is the field the import page posts, and the name every format arrives
+    // under. `kml` is still read so anything already posting to this endpoint keeps
+    // working.
     //
-    // Several files become several routes of one ride, in the order given. That
-    // is what a rider with a folder of per-route GPX files actually has, and
-    // importing them one at a time would make a separate ride per route rather than one ride with routes.
+    // Several files become several routes of one ride, in the order given: that is what
+    // a rider with a folder of per-route GPX files actually has.
     const asFiles = (v: unknown): File[] =>
       (Array.isArray(v) ? v : [v]).filter((f): f is File => f instanceof File && f.size > 0)
     const posted = asFiles(body.route).length > 0 ? asFiles(body.route) : asFiles(body.kml)
     if (posted.length === 0) return fail('a route file is required', 400)
 
-    // A zip becomes the files inside it, before anything asks what format
-    // anything is. This is the other half of the per-route zip download: an
-    // archive this app wrote drags straight back in and comes out as the ride
-    // it left as.
-    // The rider's corrections, when the review table sent any. Absent for a
-    // plain form post, for an API client, and for anyone with JavaScript off —
-    // all three still get exactly the derived import they always got, which is
-    // what keeps this endpoint working without the page. See maps/manifest.ts.
+    // A zip becomes the files inside it, before anything asks what format anything is —
+    // the other half of the per-route zip download.
+    // The rider's corrections, when the review table sent any. Absent for a plain form
+    // post, for an API client, and for anyone with JavaScript off, all three of which
+    // still get exactly the derived import they always got.
     let review: ReviewEntry[] | null = null
     if (typeof body.manifest === 'string' && body.manifest.length > 0) {
       const read = readManifest(
@@ -209,14 +199,12 @@ mapsRoutes.post(
         }
         const entries = readZipEntries(Buffer.from(await f.arrayBuffer()), zipReadOptions)
         if (entries.length === 0) return fail(`${f.name}: no route files in that zip`, 400)
-        // The entry name is used for its extension and its route fields and for
-        // nothing else — it never becomes a path. readZipEntries has already
-        // reduced it to a basename.
+        // The entry name is used for its extension and its route fields and for nothing
+        // else — it never becomes a path, and readZipEntries has already reduced it to a
+        // basename.
         //
-        // No review: the browser cannot read inside an archive, so these are the
-        // one kind of file the rider was never shown. They keep everything
-        // planImport() derives, and the archive's own manifest row carries
-        // nothing — see maps/manifest.ts.
+        // No review: the browser cannot read inside an archive, so these are the one kind
+        // of file the rider was never shown.
         for (const e of entries) uploads.push({ file: new File([e.data], e.name), review: null })
       }
     } catch (e) {
@@ -242,20 +230,13 @@ mapsRoutes.post(
       sources.push({ file, ext: e, planned: parseExportName(file.name), review: entry })
     }
 
-    // Route order comes from the filenames when every one of them carries a route,
-    // and from the upload order otherwise. Partial is deliberately not handled:
-    // interleaving numbered and unnumbered files needs a rule nobody asked for,
-    // and the upload order is the answer this endpoint has always given.
+    // Route order comes from the filenames when every one of them carries a route, and
+    // from the upload order otherwise. Partial is deliberately not handled: interleaving
+    // numbered and unnumbered files needs a rule nobody asked for.
     //
-    // This matters most for a zip, where entry order is whatever the archive
-    // happened to store, and for a folder selection on a browser that does not
-    // sort. A d01/d02/d03 set comes out right either way.
-    //
-    // A REVIEWED IMPORT IS NEVER RE-SORTED. The rider dragged the rows into the
-    // order they meant, the page rebuilt its file input to match, and re-deriving
-    // an order from the route fields here would silently undo exactly the
-    // correction they came to make. The manifest check in maps/manifest.ts is
-    // what proves the posted order IS the reviewed order.
+    // A REVIEWED IMPORT IS NEVER RE-SORTED. The rider dragged the rows into the order
+    // they meant and the page rebuilt its file input to match, so re-deriving an order
+    // here would silently undo the correction they came to make.
     if (!review && sources.length > 1 && sources.every((s) => s.planned?.route != null)) {
       sources.sort((a, b) => a.planned!.route! - b.planned!.route!)
     }
@@ -338,29 +319,23 @@ mapsRoutes.post(
       if (companionGpx.size > GPX_MAX_BYTES) return fail(`GPX exceeds ${GPX_MAX_BYTES / MB} MB`, 413)
     }
 
-    // Parse, sanitize, extract structure. A RouteFileError is the user's
-    // problem (400); anything else is ours (500).
+    // Parse, sanitize, extract structure. A RouteFileError is the user's problem (400);
+    // anything else is ours (500).
     //
-    // Every branch yields the same ExtractedRoute plus the bytes to keep, and
-    // every format keeps its original. That last part was not always true:
-    // GeoJSON and CSV briefly stored nothing on the theory that the rows were a
-    // complete record of the upload. They are not — import flattens a multi-route
-    // file to one route, so the route structure would have existed in the upload
-    // and then existed nowhere. The file is the only copy of what was actually
-    // sent, which is the whole reason to keep one.
+    // Every branch yields the same ExtractedRoute plus the bytes to keep, and every
+    // format keeps its original. That was not always true: GeoJSON and CSV briefly
+    // stored nothing on the theory that the rows were a complete record. They are not —
+    // import flattens a multi-route file to one route, so the route structure would have
+    // existed in the upload and then existed nowhere.
     //
-    // KML is stored re-serialized after sanitizing (processKml returns
-    // storedKml); everything else is stored as uploaded. All of it streams back
-    // with an explicit non-HTML content type and nosniff, so none of it can be
-    // coaxed into rendering.
-    // One route per *track*, not per file. A file holding several — a GPX with a
-    // <trk> per route, a KML with a Placemark per route — becomes that many routes,
-    // because the alternative is keeping one and discarding the rest, which is
-    // the data loss this pipeline used to ship (#70).
+    // KML is stored re-serialized after sanitizing; everything else as uploaded. All of
+    // it streams back with an explicit non-HTML content type and nosniff.
+    // One route per *track*, not per file: a file holding several becomes that many
+    // routes, because the alternative is keeping one and discarding the rest (#70).
     //
-    // `buf` is the stored original and belongs to the file, so only the first
-    // route out of a file carries it. Every route counting the same bytes would
-    // charge a rider's quota three times for one upload.
+    // `buf` is the stored original and belongs to the file, so only the first route out
+    // of a file carries it — every route counting the same bytes would charge a rider's
+    // quota three times for one upload.
     type Route = {
       points: ExtractedPoint[]
       track: Track
@@ -398,20 +373,16 @@ mapsRoutes.post(
       planned: ParsedName | null,
       entry: ReviewEntry | null,
     ) => {
-      // THE TWO FIELDS ANSWER TO DIFFERENT RULES, and the difference is what the
-      // review table actually SHOWS.
+      // THE TWO FIELDS ANSWER TO DIFFERENT RULES, and the difference is what the review
+      // table actually SHOWS.
       //
-      // The date is on the table in full, so clearing it means undated and the
-      // review wins including its null. Going back to the filename's date there
-      // would make clearing the box impossible.
+      // The date is on the table in full, so clearing it means undated and the review
+      // wins including its null.
       //
-      // The NAME is only ever shown as what the FILENAME said — nothing in the
-      // browser opens a GPX, so a file whose <trk><name> is "Lost Coast" shows
-      // an empty box with the filename as its placeholder. So an empty name is
-      // "I did not answer", not "this route has no name": what the rider typed
-      // outranks everything, and typing nothing leaves the file's own name to
-      // win as it always did. Clearing a name the table DID show still works —
-      // that value was the filename's, and it is dropped with the box.
+      // The NAME is only ever shown as what the FILENAME said — nothing in the browser
+      // opens a GPX — so an empty name is "I did not answer", not "this route has no
+      // name": what the rider typed outranks everything, and typing nothing leaves the
+      // file's own name to win.
       const typedTitle = entry ? entry.title : null
       const fileTitle = entry ? null : planned?.title ? titleFromSlug(planned.title) : null
       const startAt = entry ? entry.startAt : (planned?.date ?? null)
@@ -495,12 +466,10 @@ mapsRoutes.post(
       throw e
     }
 
-    // A file can now produce more routes than files were uploaded, so the ride's
-    // route cap has to be checked here rather than being implied by
-    // MAX_SOURCE_FILES. Refused rather than truncated: dropping routes 32+ is the
-    // silent data loss this whole change exists to remove, and a rider who is
-    // told the number can split the file themselves. A merge step in the
-    // importer is the real answer (#70) and this is what holds until then.
+    // A file can produce more routes than files were uploaded, so the ride's route cap
+    // has to be checked here rather than implied by MAX_SOURCE_FILES. Refused rather
+    // than truncated: dropping routes 32+ is the silent data loss this whole change
+    // exists to remove.
     if (routes.length > MAX_ROUTES) {
       return fail(
         `that import comes to ${routes.length} routes and the limit is ${MAX_ROUTES} — split it and import the parts as separate rides`,
@@ -601,19 +570,13 @@ mapsRoutes.post(
               // useless, so a multi-file import walks the palette the builder
               // uses. A single file keeps exactly the color that was asked for.
               color: routes.length > 1 ? routeColor(i) : meta.color,
-              // '' is this column's no-title value (notNull, default ''),
-              // and the viewer already falls back to "Route N" when it is empty.
+              // '' is this column's no-title value, and the viewer falls back to "Route N".
               //
-              // Precedence, and the reason for it: WHAT THE RIDER TYPED IN THE
-              // REVIEW TABLE WINS, because it is the only one of these they
-              // actually chose — and a correction that loses to a value the
-              // table never showed them is #129 not working. Then the file's own
-              // name for the route — a GPX <trk><name>Route 2</name> is also
-              // something a rider typed, where a filename title survived a trip
-              // through slugField and comes back capitalised by guess. A
-              // conforming filename is next, since it at least meant to say
-              // something. Mangling the raw filename is last and only for a
-              // multi-route import.
+              // Precedence: WHAT THE RIDER TYPED IN THE REVIEW TABLE WINS, because it is
+              // the only one they actually chose. Then the file's own name for the route
+              // — a GPX <trk><name> is also something a rider typed, where a filename
+              // title comes back capitalised by guess. A conforming filename is next.
+              // Mangling the raw filename is last and only for a multi-route import.
               title:
                 route.typedTitle ??
                 route.title ??
@@ -631,38 +594,28 @@ mapsRoutes.post(
 
           // ONE LEG PER PAIR OF POINTS, cut from the imported track.
           //
-          // This used to write a single leg holding the whole track, which is
-          // what made an imported ride impossible to open in the builder: the
-          // builder's model — and `routeSchema` in ride-graph.ts — is N points and
-          // exactly N−1 legs. An imported ride could not satisfy that, so
-          // /builder/:id answered 409 and the FAQ's promise of "an editable
-          // ride, not a picture of one" was false.
+          // This used to write a single leg holding the whole track, which is what made
+          // an imported ride impossible to open in the builder: the builder's model is N
+          // points and exactly N−1 legs, so /builder/:id answered 409 and the FAQ's
+          // promise of "an editable ride, not a picture of one" was false.
           //
-          // Nothing is re-routed and no coordinate is invented: the legs are
-          // slices of the geometry that arrived, sharing their joint vertices,
-          // so concatenating them gives the original track back exactly. Every
-          // reader concatenates, which is why the map line, all four
-          // track-based export formats and twistiness are unaffected. See
-          // src/maps/track-split.ts for the rules, including what happens at
-          // the ends and to a file with no waypoints at all.
+          // Nothing is re-routed and no coordinate is invented: the legs are slices of
+          // the geometry that arrived, sharing their joint vertices, so concatenating
+          // them gives the original track back exactly.
           //
-          // BOTH KINDS ARE PLACED as of 2026-08-24. The split used to pass POIs
-          // through untouched and this line appended them after the stops, which
-          // was right while a POI anchored no leg. It would now draw a road out
-          // to a viewpoint that sat halfway along the route and back again.
+          // BOTH KINDS ARE PLACED as of 2026-08-24. The split used to pass POIs through
+          // untouched and this line appended them after the stops, which would now draw
+          // a road out to a viewpoint halfway along the route and back again.
           const split = splitRouteTrack(route.track, route.points)
           const ordered = split.points
 
-          // Deliberately still measured against the whole track rather than
-          // summed from the legs. `routes.distance_m` and `rides.total_miles`
-          // have always been the haversine of the imported line and there is no
-          // reason for a change in how it is sliced to move a stored mileage.
+          // Deliberately still measured against the whole track rather than summed from the
+          // legs: `routes.distance_m` has always been the haversine of the imported line,
+          // and a change in how it is sliced should not move a stored mileage.
           //
-          // With no track to project onto, distFromStartAlongTrack answers 0
-          // for every point. That is a claim — "this stop is at the start" —
-          // and it is false for all but the first. A trackless import stores
-          // null instead, the same null-is-not-zero distinction twistiness
-          // makes: null means nothing measured it, 0 means it measured zero.
+          // With no track to project onto, distFromStartAlongTrack answers 0 for every
+          // point — a claim that is false for all but the first. A trackless import
+          // stores null instead.
           const stopDists: Array<number | null> =
             route.track.length > 0 ? distFromStartAlongTrack(route.track, ordered) : ordered.map(() => null)
 
