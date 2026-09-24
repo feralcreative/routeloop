@@ -1,25 +1,19 @@
 // TELL EVERY RIDER WHAT CHANGED, ONCE PER RELEASE, AND CARRY THE WHOLE HISTORY.
 //
-// #288. Removing the feedback shield took "What's new" with it, and the footer
-// does not render on a map page — `variant: 'map'` skips `.page-wrap`, which is
-// what wraps `siteFooter()` — so the builder and the viewer had no route to the
-// release notes at all. Ziad's call, 2026-09-08: rather than putting the link
-// back on a fourth surface, a release becomes an ordinary notification. The
-// account chip renders on EVERY page, so its unread badge is the affordance, and
-// the center mixes releases with everything else in one chronological list
-// because they are all rows in one table.
+// #288. Removing the feedback shield took "What's new" with it, and the footer does not
+// render on a map page, so the builder and the viewer had no route to the release notes
+// at all. Rather than putting the link back on a fourth surface, a release becomes an
+// ordinary notification: the account chip renders on EVERY page, so its unread badge is
+// the affordance.
 //
-// **THE PAGE KEEPS 100% OF THE NOTES AND EVERY RELEASE IS REFERENCED HERE.**
-// Ziad's call, 2026-09-09. A notification carries the heading, a sentence or two
-// derived from the release's own first bullet, and a link to that entry's anchor
-// on `/release-notes` — the page stays exactly as it was, and is now the archive
-// rather than the thing a rider has to remember to visit.
+// **THE PAGE KEEPS 100% OF THE NOTES AND EVERY RELEASE IS REFERENCED HERE.** A
+// notification carries the heading, a sentence derived from the release's own first
+// bullet, and a link to that entry's anchor.
 //
-// **THE FAN-OUT IS A ROW PER RIDER AND THAT IS THE POINT.** One announcement row
-// plus per-rider read markers would need two new tables, and the center would
-// then have to merge two sources to order them by time, the badge would be two
-// counts, and none of the existing preference or read machinery would apply. A
-// row each buys all of it for the price of N inserts.
+// **THE FAN-OUT IS A ROW PER RIDER AND THAT IS THE POINT.** One announcement row plus
+// per-rider read markers would need two new tables, the center would have to merge two
+// sources to order them, the badge would be two counts, and none of the existing
+// preference or read machinery would apply.
 import { and, eq, ne, notInArray, or } from 'drizzle-orm'
 import { db } from '../db/index'
 import { announcedReleases, notifications, users } from '../db/schema'
@@ -59,37 +53,28 @@ const bodyOf = (r: Release): string => r.summary
 /**
  * Announce every release the database has not seen, newest first.
  *
- * **ONE PASS RATHER THAN AN ANNOUNCE PLUS A SEPARATE BACKFILL SCRIPT.** The
- * claim is per release, so the first boot after this ships takes all forty-two
- * and every boot after that takes none — which is the same code path, and a
- * backfill that has to be remembered and run by hand is the class of data
- * migration AGENTS.md records as failing silently.
+ * **ONE PASS RATHER THAN AN ANNOUNCE PLUS A SEPARATE BACKFILL SCRIPT.** The claim is
+ * per release, so the first boot after this ships takes all forty-two and every boot
+ * after that takes none — the same code path, where a backfill that has to be
+ * remembered and run by hand is the class of data migration AGENTS.md records as
+ * failing silently.
  *
- * **ONLY THE NEWEST IS NEW.** Everything older is written straight in as READ
- * and never mailed: forty-two unread would put a badge on every rider that they
- * cannot clear in one sitting, which is the furniture problem `_nav.scss`
- * already warns about, and mailing a rider who had switched the channel on would
- * send forty-two messages at once. The history is there to scroll; the badge
- * stays honest.
+ * **ONLY THE NEWEST IS NEW.** Everything older is written straight in as READ and never
+ * mailed: forty-two unread would put a badge on every rider that they cannot clear in
+ * one sitting, and mailing a rider who had switched the channel on would send
+ * forty-two messages at once.
  *
- * **`created_at` IS THE RELEASE'S OWN DATE, NOT NOW.** The center orders by it,
- * so stamping the batch with the moment it ran would put the whole history in a
- * block at the top in file order — the opposite of mixing chronologically with
- * everything else, which is the whole point of putting them here.
+ * **`created_at` IS THE RELEASE'S OWN DATE, NOT NOW.** The center orders by it, so
+ * stamping the batch with the moment it ran would put the whole history in a block at
+ * the top in file order.
  *
- * **THE INSERT IS THE LOCK.** `onConflictDoNothing` on the primary key either
- * wins or reports nothing, atomically, so of the two containers a blue/green
- * deploy starts exactly one announces and the other returns. There is no lease
- * and no expiry, for the reason the deploy lock is a `mkdir`: test-then-write has
- * a window that hands it to both.
+ * **THE INSERT IS THE LOCK.** `onConflictDoNothing` on the primary key either wins or
+ * reports nothing, atomically, so of the two containers a blue/green deploy starts
+ * exactly one announces. No lease and no expiry, for the reason the deploy lock is a
+ * `mkdir`.
  *
- * **CLAIMED BEFORE THE SENDS, NEVER AFTER.** A crash midway leaves some riders
- * told and the release marked done, which loses a message. The other order
- * re-announces to EVERYBODY on the next boot, which is worse and is unbounded —
- * a container that crash-loops mails the roster on every restart.
- *
- * Returns how many releases were announced. Zero is the ordinary answer: every
- * boot after the first for a given set, which is most boots.
+ * **CLAIMED BEFORE THE SENDS, NEVER AFTER.** A crash midway loses a message; the other
+ * order re-announces to EVERYBODY on the next boot, which is unbounded.
  */
 export async function announceReleases(): Promise<number> {
   const releases = allReleases(content(NOTES_FILE))
@@ -97,27 +82,19 @@ export async function announceReleases(): Promise<number> {
   // announcing nothing is correct rather than an error.
   if (releases.length === 0) return 0
 
-  // **A RENAMED HEADING IS THE SAME RELEASE, AND ITS ROWS ARE RENAMED WITH IT.**
-  // The heading is the announcement's identity (see the file header), so a
-  // retitled entry has a new id and every rider's center holds rows under the
-  // old one. Those rows carry the rider's own state — read or not, and the
-  // moment the build came up for the newest — and the first version of this
-  // reconcile threw that away: it deleted the orphans and wrote the release
-  // again as read, which cleared an unread badge nobody had cleared. Ziad's
-  // call, 2026-09-13, on retitling all thirty-five: the center has to say
-  // what the page says, and it has to keep saying whether you have read it.
+  // **A RENAMED HEADING IS THE SAME RELEASE, AND ITS ROWS ARE RENAMED WITH IT.** The
+  // heading is the announcement's identity, so a retitled entry has a new id and every
+  // rider's center holds rows under the old one. Those rows carry the rider's own state,
+  // and the first version of this reconcile threw that away: it deleted the orphans and
+  // wrote the release again as read, which cleared an unread badge nobody had cleared.
   //
-  // One release per day is the rule the file follows, so the DATE that opens
-  // every id is what pairs an orphan with its live release. The rows move to
-  // the new url with the new title and body, and the claim moves with them,
-  // BEFORE the insert below — so the renamed release conflicts there and is
-  // not written a second time. Orphans with no live release on their day are
-  // the merge case, several old sections folded into one: one of them is
-  // renamed and the rest are deleted, so no rider holds the day twice.
+  // One release per day is the rule the file follows, so the DATE that opens every id is
+  // what pairs an orphan with its live release. The claim moves with the rows, BEFORE
+  // the insert below, so the renamed release conflicts there and is not written twice.
+  // Orphans with no live release on their day are the merge case.
   //
-  // Reconciled on every boot rather than by a one-off statement, because a
-  // data fix that runs nowhere is the class of migration AGENTS.md records as
-  // failing silently.
+  // Reconciled on every boot rather than by a one-off statement, because a data fix that
+  // runs nowhere is the class of migration AGENTS.md records as failing silently.
   const live = releases.map((r) => releaseUrl(r))
   const dayOf = releaseDay
   const liveIds = new Set(releases.map((r) => r.id))
@@ -218,14 +195,10 @@ export async function announceReleases(): Promise<number> {
     )
   }
 
-  // **THE NEW ONE KEEPS `now()` WHILE THE HISTORY TAKES ITS OWN DATE, AND THAT
-  // ASYMMETRY IS DELIBERATE.** `notify()` stamps the default, which is the moment
-  // the build came up. It is the row the unread badge is pointing at, so it has
-  // to be findable at the top of the list — and a release dated a few days back
-  // but deployed today would otherwise land mid-list, where a rider following
-  // the badge cannot see what it is for. In the ordinary case the two are the
-  // same day anyway, because a release note is written for the deploy that
-  // carries it. The history has no badge and belongs where it happened.
+  // **THE NEW ONE KEEPS `now()` WHILE THE HISTORY TAKES ITS OWN DATE, AND THAT ASYMMETRY
+  // IS DELIBERATE.** It is the row the unread badge is pointing at, so it has to be
+  // findable at the top of the list — a release dated a few days back but deployed today
+  // would otherwise land mid-list. In the ordinary case the two are the same day anyway.
   if (isNew) {
     for (const rider of riders) {
       notify(rider.id, {

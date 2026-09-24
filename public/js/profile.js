@@ -123,26 +123,16 @@
   BLOCKS.forEach(wire);
 
   // --- Address suggestions (#101) --------------------------------------------
-  //
-  // A dropdown ON the address line, replacing the status line below it as the
-  // primary feedback: help while typing rather than a report afterwards. Picking
-  // one fills the line, city, state, postal code and the coordinates in a single
-  // action, where a rider used to type five fields and hope.
-  //
-  // **IT COSTS NOTHING NEW, WHICH IS THE DESIGN.** The suggestions come from the
-  // same POST /api/geocode this page has always called — the Geocoding API
-  // already returned `address_components` and several results in that response
-  // and the endpoint threw them away. Places Autocomplete would give richer
-  // suggestions for half-typed input and is billed per keystroke on a new SKU;
-  // that is a spend decision rather than a code one, and this reaches for the
-  // call already being made instead. The trade-off is real and stated in
-  // src/routes/routing.ts.
-  //
-  // **THE ADDRESS FIELDS ARE NOT AUTOSAVED AND THIS IS WHY.** #100 excludes them
-  // from the idle timer because a rider stopped reading THIS list is exactly the
-  // state an idle timer fires in — "123 Ma" saved and geocoded underneath them.
-  // A pick is the only event that means "this is the address I want", so a pick
-  // is what commits.
+    //
+    // A dropdown ON the address line, replacing the status line below it as the primary
+    // feedback: help while typing rather than a report afterwards. Picking one fills the
+    // line, city, state, postal code and the coordinates in a single action.
+    //
+    // **IT COSTS NOTHING NEW, WHICH IS THE DESIGN.** The suggestions come from the same
+    // POST /api/geocode this page has always called — the Geocoding API already returned
+    // `address_components` and several results and the endpoint threw them away. Places
+    // Autocomplete would give richer suggestions for half-typed input and is billed per
+    // keystroke on a new SKU.
   function suggestions(block) {
     const line = document.getElementById("f-" + block.fields[0]);
     if (!line) return;
