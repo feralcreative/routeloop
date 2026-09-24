@@ -88,31 +88,22 @@
     // "which one is this?" — so while it lasts it outranks the timeline, and
     // releasing it puts the timeline's emphasis straight back.
     hover: null,
-    // The route a TAP singled out, since 2026-09-15 — the phone's answer to the
-    // same question. A hover cannot exist on a touch screen, and what a touch
-    // screen did with the mouseenter handler was worse than nothing: the
-    // browser fires an emulated mouseenter on the first tap and never a
-    // mouseleave, so the emphasis stuck to the last row tapped and the checkbox
-    // toggled underneath it at the same time. A pin is explicit — tap a row to
-    // light it, tap it again to let go — and it ranks between a hover and the
-    // timeline: a hover still wins while it lasts, and a pin outlasts it.
+    // The route a TAP singled out — the phone's answer to the same question. A hover
+        // cannot exist on a touch screen, and the mouseenter handler was worse than nothing
+        // there: the browser fires an emulated mouseenter on the first tap and never a
+        // mouseleave, so the emphasis stuck to the last row tapped. A pin is explicit, and
+        // it ranks between a hover and the timeline.
     pinned: null,
   };
 
   function allTrackPoints() {
     const pts = [];
     for (const r of state.ride.routes) {
-      // NOT `pts.push(...r.track)`. Spread passes every element as its own
-      // ARGUMENT, so a long track blows the engine's argument limit — roughly
-      // 65k in Safari and 125k in V8 — and throws
-      // `RangeError: Maximum call stack size exceeded`. That lands in the one
-      // try/catch wrapping the whole viewer, so the symptom is a map that draws
-      // correctly and a panel reading "Could not load this ride", with the real
-      // error only in the browser console.
-      //
-      // Measured 2026-08-27 on a 211,939-vertex import: 161,831 vertices in a
-      // single leg was enough. A dense GPS recording reaches that without being
-      // unusual, so this was never a synthetic-input problem.
+      // NOT `pts.push(...r.track)`. Spread passes every element as its own ARGUMENT, so a
+            // long track blows the engine's argument limit and throws `RangeError: Maximum call
+            // stack size exceeded`. That lands in the one try/catch wrapping the whole viewer,
+            // so the symptom is a map that draws correctly and a panel reading "Could not load
+            // this ride". Measured on a 211,939-vertex import, where one leg held 161,831.
       for (const p of r.track) pts.push(p);
       for (const s of r.points) pts.push([s.lng, s.lat]);
     }
@@ -167,16 +158,14 @@
     const lit = hovering ? singled : active && active.routeIndex;
     const dimming = hovering || active != null;
 
-    // WHOSE PATH THIS READER IS ON. `mySubgroup` is derived server-side from
-    // membership — #67's "highlight my path" without anybody being asked — and
-    // is null for a planner, a stranger with the link, and a rider in no group.
-    // A route belonging to somebody else's approach is dimmed the same way an
-    // unfocused route is, and STAYS dimmed while hovering or scrubbing: it is a
-    // fact about the route rather than about what is focused, like ghosting.
-    //
-    // The whole shape is still drawn. ride.json tags every route rather than
-    // filtering, for exactly this reason — feeders converging and the trunk
-    // drawn once is the picture, and a filtered payload could not make it.
+    // WHOSE PATH THIS READER IS ON. `mySubgroup` is derived server-side from membership —
+        // #67's "highlight my path" without anybody being asked — and is null for a planner,
+        // a stranger with the link, and a rider in no group. A route belonging to somebody
+        // else's approach is dimmed and STAYS dimmed while hovering or scrubbing: it is a
+        // fact about the route rather than about what is focused.
+        //
+        // The whole shape is still drawn: ride.json tags every route rather than filtering,
+        // because feeders converging and the trunk drawn once is the picture.
     const mine = state.ride.mySubgroup || null;
     const focusing = mine != null;
 
@@ -279,19 +268,16 @@
   }
 
   /**
-   * The ring itself, as a closed path: a circle around the rider whose radius
-   * is the straight line to the furthest point on the route their fuel reaches,
-   * so its edge is a PLACE rather than a number and it collapses to nothing as
-   * they arrive there.
-   *
-   * A PATH RATHER THAN A RADIUS because the edge is dotted, and a dotted edge
-   * has to be a polyline — google.maps.Circle has no dash support at all.
-   *
-   * MEASURED TO THE REACH POINT, NOT TO THE WALL. They are the same place on a
-   * route the rider runs dry on and they are not on a route they do not — see
-   * fuelReachM(), and note that drawing this from the wall is what made the
-   * ring disappear for good after a rider's last refuel.
-   */
+      * The ring itself, as a closed path: a circle around the rider whose radius is the
+      * straight line to the furthest point on the route their fuel reaches, so its edge is
+      * a PLACE rather than a number and collapses as they arrive.
+      *
+      * A PATH RATHER THAN A RADIUS because the edge is dotted, and google.maps.Circle has
+      * no dash support at all.
+      *
+      * MEASURED TO THE REACH POINT, NOT TO THE WALL: drawing it from the wall is what made
+      * the ring disappear for good after a rider's last refuel.
+      */
   function ringPath(here, track, distM, reachM) {
     // No `state.ringOn` check here: `reachM` is already null when the overlay is
     // off, and one switch read in two places is one that can be half-flipped.
@@ -305,16 +291,12 @@
     paintFocus();
   }
 
-  // WHERE THE MAP CAN ACTUALLY BE SEEN, for the fit. On a desk the drawer takes
-  // its own column and #map is sized to what is left, so fitTo's even padding
-  // is right. On a phone the sheet is DRAWN OVER the bottom 62% of the map and
-  // the timeline bar floats above that, so an even fit put the whole ride
-  // under the sheet — a rider opening a ride on a phone saw Alberta and no
-  // route (seen 2026-09-15 on ride 2021 Colorado at 390px). MEASURED, not read
-  // off --sheet-height: the sheet may be collapsed, the bar may be absent on
-  // an undated ride, and a declared number is how --timeline-height came to
-  // be three pixels short for two weeks. Undefined on a desk, which hands
-  // fitTo its own default.
+  // WHERE THE MAP CAN ACTUALLY BE SEEN, for the fit. On a desk the drawer takes its own
+    // column and fitTo's even padding is right. On a phone the sheet is DRAWN OVER the
+    // bottom 62% of the map, so an even fit put the whole ride under it — a rider opening
+    // a ride on a phone saw Alberta and no route. MEASURED, not read off --sheet-height:
+    // the sheet may be collapsed, the bar may be absent, and a declared number is how
+    // --timeline-height came to be three pixels short.
   function fitPadding() {
     const map = document.getElementById("map");
     const panel = document.getElementById("info-panel");
@@ -358,13 +340,10 @@
 
     const slider = document.getElementById("time-slider");
     const readout = document.getElementById("time-readout");
-    // THE SLIDER TRAVELS RIDING HOURS, NOT WALL CLOCK. rideSpan() is
-    // first-departure to last-arrival, so on a multi-route ride most of the
-    // travel was nights in hotels — the reader spent more of the drag in
-    // "between routes", with nothing on the map, than on the road. The value is
-    // an OFFSET into the concatenated route spans; `state.moment` stays an epoch
-    // second, because everything downstream reads wall clock. See
-    // rideSegments() in ride-time.js.
+    // THE SLIDER TRAVELS RIDING HOURS, NOT WALL CLOCK. rideSpan() is first-departure to
+        // last-arrival, so on a multi-route ride the reader spent more of the drag in
+        // "between routes", with nothing on the map, than on the road. The value is an OFFSET
+        // into the concatenated route spans; `state.moment` stays an epoch second.
     const segs = rideSegments(state.ride.routes);
     slider.min = "0";
     slider.max = String(segmentsTotalS(segs));
@@ -424,18 +403,14 @@
     });
   }
 
-  // #229's fuel ring toggle. Mirrors renderRingToggle() in builder.js; the two
-  // surfaces hold the flag in their own state and there is nothing to share but
-  // four lines of labeling.
-  //
-  // HIDDEN WHEN THERE IS NO RING TO TALK ABOUT — a reader who is not on the
-  // roster gets no range at all, and neither does a member whose group has no
-  // bike on file. A control that switches nothing on is worse than no control.
-  //
-  // Note this makes the button's presence a signal, unlike the ring's absence,
-  // which is deliberately not one. Both states it distinguishes are "we have a
-  // range for this ride", so it still says nothing about who is on the roster
-  // beyond what the reader already knows by being on it or not.
+  // #229's fuel ring toggle. Mirrors renderRingToggle() in builder.js.
+    //
+    // HIDDEN WHEN THERE IS NO RING TO TALK ABOUT — a reader who is not on the roster gets
+    // no range at all, and neither does a member whose group has no bike on file.
+    //
+    // Note this makes the button's presence a signal, unlike the ring's absence. Both
+    // states it distinguishes are "we have a range for this ride", so it still says
+    // nothing about who is on the roster beyond what the reader already knows.
   function renderRingToggle() {
     const btn = document.getElementById("range-ring");
     if (!btn) return;
@@ -519,16 +494,12 @@
               '">' +
               (ghost ? "alternative" : "on this one") +
               "</span>";
-        // Read from the ride rather than recomputed: a published ride is not
-        // being edited, so the stored figure is current by definition. The
-        // builder does the opposite, and twist.js says why.
-        //
-        // Null means nothing has measured this route — a row stored before the
-        // column existed, or one with no geometry. Rendering null as "Straight"
-        // would be a claim the data does not support, so it says nothing.
-        //
-        // The band's line and word, the number on hover — the same rating the
-        // dashboard draws, from the same module.
+        // Read from the ride rather than recomputed: a published ride is not being edited,
+                // so the stored figure is current by definition. The builder does the opposite,
+                // and twist.js says why.
+                //
+                // Null means nothing has measured this route. Rendering null as "Straight" would
+                // be a claim the data does not support, so it says nothing.
         const twist = twistLabel(r.twistinessDpm)
           ? '<span class="route-twist">' +
             twistScale(twistRank(r.twistinessDpm), twistLabel(r.twistinessDpm), twistDetail(r)) +
