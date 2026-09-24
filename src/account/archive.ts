@@ -1,15 +1,12 @@
 // The account archive format — the "Download Me" package.
 //
-// Pure, and deliberately so: everything here is arithmetic over plain rows, no
-// database and no filesystem, which is what lets it be tested under the
-// pure-logic rule that governs test/. The queries live in ./export.ts and the
-// reader in ./restore.ts, the same rule-from-query split as invites/policy.ts
-// vs service.ts.
+// Pure, and deliberately so: everything here is arithmetic over plain rows, which is
+// what lets it be tested under the pure-logic rule that governs test/. The queries live
+// in ./export.ts and the reader in ./restore.ts.
 //
-// The manifest is the source of truth for where every file sits. buildAccountJson
-// computes each path once and the writer puts the bytes exactly where the
-// manifest says, so a manifest that disagrees with the archive is not a bug that
-// can happen — there is only one place the path is decided.
+// The manifest is the source of truth for where every file sits: buildAccountJson
+// computes each path once and the writer puts the bytes exactly where the manifest
+// says, so a manifest that disagrees with the archive is not a bug that can happen.
 import type { BikeRow, RideRow, UserIdentityRow, UserProfileRow, UserRow, UsernameHistoryRow } from '../db/schema'
 import { buildExportName, NATIVE_EXT, slugField } from '../maps/filename'
 import { DOWNLOAD_FORMATS, type DownloadFormat } from '../maps/downloads'
@@ -87,7 +84,13 @@ export type AccountArchiveInput = {
   exportedAt: Date
 }
 
-export type ArchivePlaceGroupInput = { id: number; name: string; position: number; deletedAt: Date | null; createdAt: Date }
+export type ArchivePlaceGroupInput = {
+  id: number
+  name: string
+  position: number
+  deletedAt: Date | null
+  createdAt: Date
+}
 export type ArchivePlaceInput = {
   id: number
   groupId: number | null
@@ -222,7 +225,13 @@ export type AccountArchive = {
   notificationPrefs: Array<{ event: string; channel: string; enabled: boolean; updatedAt: string | null }>
   placeGroups: Array<{ id: number; name: string; position: number; inBin: boolean; createdAt: string | null }>
   places: Array<Record<string, unknown>>
-  friends: Array<{ displayName: string; username: string | null; status: string; direction: string; since: string | null }>
+  friends: Array<{
+    displayName: string
+    username: string | null
+    status: string
+    direction: string
+    since: string | null
+  }>
   following: ArchivePerson[]
   followers: ArchivePerson[]
   memberships: Array<{ ride: string; slug: string; role: string; perm: string; rsvp: string; joinedAt: string | null }>
@@ -236,12 +245,10 @@ export type AccountArchive = {
 /**
  * Where a bike's picture sits in the zip.
  *
- * KEYED BY ID RATHER THAN BY NICKNAME, unlike a ride's directory, and for the
- * opposite reason: a ride has `uq_slug` and a bike has nothing unique about it
- * at all — every field is optional, so two bikes can be identically nameless and
- * `bikeLabel()` answers "Untitled bike" for both. The id is the only thing that
- * cannot collide. It matches the on-disk name too, which is what makes the
- * writer a lookup rather than a second naming rule.
+ * KEYED BY ID RATHER THAN BY NICKNAME, unlike a ride's directory, and for the opposite
+ * reason: a ride has `uq_slug` and a bike has nothing unique about it at all — every
+ * field is optional, so two bikes can be identically nameless. The id is the only thing
+ * that cannot collide, and it matches the on-disk name.
  */
 export const bikePhotoEntry = (bikeId: number): string => `bikes/bike-${bikeId}.webp`
 
@@ -251,16 +258,13 @@ const iso = (d: Date | null | undefined): string | null => (d ? d.toISOString() 
  * The manifest.
  *
  * Note what the `account` block carries: status, canManageRiders, quotaBytes and
- * viewCount are all in here, and restore.ts refuses every one of them. That is
- * deliberate. Portability means telling a rider everything the app holds about
- * them; the safety property belongs in the reader, where it can be tested as a
- * deny-list, not in the writer, where an omission looks the same as an oversight.
+ * viewCount are all in here, and restore.ts refuses every one of them. Portability
+ * means telling a rider everything the app holds about them; the safety property
+ * belongs in the reader, where it can be tested as a deny-list.
  *
- * Two things are absent for a different reason. `provider_user_id` — Google's
- * `sub` — is left out because it is the exact key resolveUser() matches on, and
- * a file that gets emailed around is a poor place for it. Session and login
- * token hashes are left out because they are live credentials and worthless to
- * the rider besides.
+ * Two things are absent for a different reason. `provider_user_id` is the exact key
+ * resolveUser() matches on, and a file that gets emailed around is a poor place for it.
+ * Session and login token hashes are live credentials and worthless to the rider.
  */
 export function buildAccountJson(input: AccountArchiveInput): AccountArchive {
   const { user, profile } = input

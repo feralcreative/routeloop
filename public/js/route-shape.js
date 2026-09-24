@@ -1,34 +1,27 @@
 // The arithmetic behind drag-to-shape.
 //
-// A route is drawn as ONE polyline — the concatenated geometry of all its legs —
-// so a drag gives back a vertex index into that flat path and nothing else. The
-// map layer has no idea where one leg ends and the next begins. Turning that
+// A route is drawn as ONE polyline — the concatenated geometry of all its legs — so a
+// drag gives back a vertex index into that flat path and nothing else. Turning that
 // index back into "leg 3, between via 1 and via 2" is this file's whole job.
 //
-// Kept separate from map-common.js and builder.js because it is pure: no DOM,
-// no google.maps, no state. test/route-shape.test.ts drives window.TBShape the
-// same way twist-client.test.ts drives window.TBTwist. Getting an off-by-one
-// wrong here bends a route around the wrong corner, which is exactly the kind
-// of thing that should fail in a test rather than on a map.
+// Kept separate from map-common.js and builder.js because it is pure: no DOM, no
+// google.maps, no state. Getting an off-by-one wrong here bends a route around the
+// wrong corner, which should fail in a test rather than on a map.
 (function (window) {
   "use strict";
 
   // Which leg owns a vertex of the route's flat track?
-  //
-  // `spans` comes from trackAndSpans() and is index-aligned with legs: spans[i]
-  // is {startIndex, endIndex} for legs[i], or null when that leg has no
-  // geometry yet. Two properties of that array make this less obvious than it
-  // looks:
-  //
-  //   Legs SHARE their joint vertex — spans[i].endIndex === spans[i+1]
-  //   .startIndex — because the concatenation drops the duplicate point where
-  //   one leg's last coordinate meets the next leg's first. So a vertex sitting
-  //   exactly on a joint belongs to both, and which one the rider meant depends
-  //   on the segment they grabbed, not the vertex. `edgeForward` says they
-  //   grabbed the segment leaving that vertex, which is the later leg.
-  //
-  //   A leg with no geometry has a null span and consumes no indices, so it
-  //   must be skipped without shifting everything after it.
+    //
+    // `spans` comes from trackAndSpans() and is index-aligned with legs. Two properties
+    // of that array make this less obvious than it looks:
+    //
+    //   Legs SHARE their joint vertex, because the concatenation drops the duplicate
+    //   point where one leg's last coordinate meets the next leg's first. So a vertex on
+    //   a joint belongs to both, and which one the rider meant depends on the segment
+    //   they grabbed: `edgeForward` says they grabbed the segment LEAVING it.
+    //
+    //   A leg with no geometry has a null span and consumes no indices, so it must be
+    //   skipped without shifting everything after it.
   function legAtVertex(spans, vertexIndex, edgeForward) {
     if (!Array.isArray(spans) || vertexIndex == null || vertexIndex < 0) return null;
     let joint = null;
@@ -49,14 +42,13 @@
     return joint;
   }
 
-  // Nearest vertex to a point, searched only within [from, to] so a via on one
-  // leg cannot match a vertex on another that happens to be closer as the crow
-  // flies — a switchback can bring two legs within meters of each other.
-  //
-  // Squared degrees with a cosine correction on longitude: this only ever ranks
-  // candidates against each other over a few miles, so the accuracy of a real
-  // haversine buys nothing and costs a trig call per vertex on a path that can
-  // run to thousands of points.
+  // Nearest vertex to a point, searched only within [from, to] so a via on one leg
+    // cannot match a vertex on another that happens to be closer as the crow flies — a
+    // switchback can bring two legs within meters of each other.
+    //
+    // Squared degrees with a cosine correction on longitude: this only ranks candidates
+    // against each other over a few miles, so a real haversine buys nothing and costs a
+    // trig call per vertex on a path that can run to thousands of points.
   function nearestVertexIndex(track, lngLat, from, to) {
     if (!track || track.length === 0) return -1;
     const lo = Math.max(0, from == null ? 0 : from);
@@ -79,36 +71,24 @@
   }
 
   // Where on a routed road does a shaping point actually sit?
-  //
-  // A shaping point is dropped wherever the rider's pointer lands, which is a
-  // coordinate in a field, on a river, or fifty meters into the wrong side of a
-  // divided highway. Routes then snaps it to WHATEVER road is nearest and routes
-  // through that — so the road that comes back can be a frontage road, the
-  // opposite side of a divided highway, or an entirely different street, and the handle left
-  // sitting in the field says nothing about which. The rider sees a route that
-  // does not match the hint they gave and has no way to tell why.
-  //
-  // The fix is free, because the answer is already in hand: the routed geometry
-  // IS the road Google chose, so projecting the dropped point onto it gives the
-  // coordinate the router actually used. Nothing new is requested and no second
-  // API is spoken — see the note in builder.js's computeLeg for why this runs
-  // after the response rather than before the request.
-  //
-  // PROJECTED ONTO THE NEAREST SEGMENT, NOT SNAPPED TO THE NEAREST VERTEX. A
-  // routed polyline is sparse on a long straight — vertices can be miles apart
-  // on an interstate — so a vertex snap can move a handle further than the
-  // original error and put it past an interchange the rider was aiming at. The
-  // perpendicular foot is on the road either way and is the nearest such point.
-  //
-  // `fromSegment` is the order floor. Vias are sent to the router in array order
-  // and the order IS the route, so two of them that snap out of order make the
-  // leg double back — the bow tie viaInsertIndex exists to prevent, arriving by
-  // another door. Snapping each in turn from where the last one landed keeps the
-  // list monotonic along the road.
-  //
-  // Squared degrees with a cosine correction, for the reason nearestVertexIndex
-  // uses them: this ranks candidate segments against each other over a few
-  // miles, where a real haversine buys nothing and costs a trig call per vertex.
+    //
+    // A shaping point is dropped wherever the rider's pointer lands, which is regularly
+    // not on a road at all. Routes then snaps it to WHATEVER road is nearest and routes
+    // through that — so the road that comes back can be a frontage road or the opposite
+    // side of a divided highway, and the handle left sitting in the field says nothing
+    // about which.
+    //
+    // The fix is free, because the answer is already in hand: the routed geometry IS the
+    // road Google chose, so projecting the dropped point onto it gives the coordinate the
+    // router actually used. Nothing new is requested.
+    //
+    // PROJECTED ONTO THE NEAREST SEGMENT, NOT SNAPPED TO THE NEAREST VERTEX. A routed
+    // polyline is sparse on a long straight, so a vertex snap can move a handle further
+    // than the original error. The perpendicular foot is on the road either way.
+    //
+    // `fromSegment` is the order floor. Vias are sent to the router in array order and
+    // the order IS the route, so two that snap out of order make the leg double back —
+    // the bow tie viaInsertIndex exists to prevent, arriving by another door.
   function snapToTrack(track, lngLat, fromSegment) {
     if (!track || track.length < 2) return null;
     const [lng, lat] = lngLat;
@@ -146,15 +126,12 @@
   }
 
   // Where in a leg's existing via list does a newly dropped one belong?
-  //
-  // Vias are sent to the router in array order, so the order IS the route. Drop
-  // a point between two existing vias and append it, and the leg doubles back
-  // on itself — out to via 2, back to the new one, forward again. The rider
-  // sees a bow tie and has no idea why.
-  //
-  // Position is judged along the track rather than by distance between vias: a
-  // route that loops can put two vias close together in space and far apart in
-  // travel, and the track order is the one that matches how the leg is ridden.
+    //
+    // Vias are sent to the router in array order, so the order IS the route. Drop a point
+    // between two existing vias and append it, and the leg doubles back on itself.
+    //
+    // Position is judged along the track rather than by distance between vias: a route
+    // that loops can put two vias close together in space and far apart in travel.
   function viaInsertIndex(track, span, vias, dropVertexIndex) {
     if (!vias || vias.length === 0) return 0;
     if (!span) return vias.length;
