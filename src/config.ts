@@ -31,43 +31,35 @@ export const IS_HTTPS_ORIGIN = APP_ORIGIN.startsWith('https://')
 // snippet that talks to it (src/dev/livereload.ts).
 export const IS_DEV = !IS_HTTPS_ORIGIN
 
-// Which deployed environment this is, written by utils/deploy/deploy.sh from its
-// own DEPLOY_ENV. It is an OPTIONAL key — in the printf block and both compose
-// color blocks, deliberately NOT in REMOTE_ENV_KEYS — because promoting it there
-// makes its absence a hard failure, and the next CI deploy would refuse until
-// `deploy-utils.sh push-env` had put the value on every server.
+// Which deployed environment this is, written by utils/deploy/deploy.sh. It is an
+// OPTIONAL key — in the printf block and both compose color blocks, deliberately NOT in
+// REMOTE_ENV_KEYS — because promoting it there makes its absence a hard failure.
 //
-// So it arrives empty on any server whose .env predates it, and the APP_ORIGIN
-// fallback is what covers that gap: stage is the only environment whose origin
-// is a `stage.` host, and APP_ORIGIN is already required, verified and shipped to
-// both colors. The variable states the answer; the origin infers it. Having both
-// means the banner is correct on the deploy that introduces the key, not the one
-// after it.
+// So it arrives empty on any server whose .env predates it, and the APP_ORIGIN fallback
+// covers that gap: stage is the only environment whose origin is a `stage.` host. The
+// variable states the answer; the origin infers it. Having both means the banner is
+// correct on the deploy that introduces the key, not the one after it.
 export const APP_ENV = env('APP_ENV', '')
 export const IS_STAGE = APP_ENV === 'stage' || (APP_ENV === '' && APP_ORIGIN.startsWith('https://stage.'))
 
-// "Is this the real site?" — an https origin that is not stage. The same two
-// signals the stage banner and the background timers already trust; there is
-// deliberately no third variable to set, because a PROD flag that had to be
-// pushed to a server is a flag that is wrong on the deploy that introduces it.
-// Gates the analytics scripts (src/views/analytics.ts), which must not count a
-// laptop and must not count stage — stage shares prod's database and is not
-// prod, and a stage visit in the production numbers is a number nobody meant.
+// "Is this the real site?" — an https origin that is not stage. The same two signals
+// the stage banner and the background timers already trust; there is deliberately no
+// third variable, because a PROD flag that had to be pushed to a server is a flag that
+// is wrong on the deploy that introduces it. Gates the analytics scripts, which must
+// not count a laptop and must not count stage.
 export const IS_PROD = !IS_DEV && !IS_STAGE
 
 // --- Analytics ---------------------------------------------------------------
 //
 // Two OPTIONAL keys, the TURNSTILE_* shape: in the deploy's printf block and both
-// compose color blocks, never in REMOTE_ENV_KEYS, so a server without them runs
-// with analytics off and a deploy is never refused over a counter.
+// compose color blocks, never in REMOTE_ENV_KEYS, so a server without them runs with
+// analytics off and a deploy is never refused over a counter.
 //
-// VALIDATION IS THE ESCAPING. Both values are interpolated into page markup — a
-// <script src>, a data-cf-beacon JSON attribute, a window.TBConsent literal —
-// and nothing downstream escapes them. That is safe only because a value has to
-// match these character classes to get past this file: neither class admits `<`,
-// a quote, `&` or whitespace, so a value that reaches a template cannot close a
-// tag or an attribute. A malformed value is dropped here, at boot, with a warning
-// that names the key and never the value.
+// VALIDATION IS THE ESCAPING. Both values are interpolated into page markup and nothing
+// downstream escapes them. That is safe only because a value has to match these
+// character classes to get past this file: neither admits `<`, a quote, `&` or
+// whitespace. A malformed value is dropped at boot, with a warning that names the key
+// and never the value.
 export const isGaMeasurementId = (v: string): boolean => /^G-[A-Z0-9]{4,}$/.test(v)
 export const isCfBeaconToken = (v: string): boolean => /^[a-f0-9]{32}$/.test(v)
 
@@ -82,12 +74,10 @@ export const GA_MEASUREMENT_ID = validated('GA_MEASUREMENT_ID', isGaMeasurementI
 export const CF_BEACON_TOKEN = validated('CF_BEACON_TOKEN', isCfBeaconToken)
 
 // Render the analytics locally as though this were prod, for a visitor from this
-// country — the only way to see the EU consent bar push a header down before a
-// deploy, since stage can never render it (IS_PROD is false there by design) and
-// a unit test cannot measure a header. Dev-only BY CONSTRUCTION: it is read only
-// when IS_DEV, which is `!IS_HTTPS_ORIGIN`, the same gate DEV_LOGIN_ENABLED
-// trusts; and it is in the deploy's FORBIDDEN list, so it cannot reach a server
-// even by accident. A real CF-IPCountry header still outranks it.
+// country — the only way to see the EU consent bar before a deploy, since stage can
+// never render it and a unit test cannot measure a header. Dev-only BY CONSTRUCTION:
+// read only when IS_DEV, and in the deploy's FORBIDDEN list. A real CF-IPCountry header
+// still outranks it.
 export const ANALYTICS_DEV_COUNTRY = IS_DEV ? env('ANALYTICS_DEV_COUNTRY', '').trim().toUpperCase() : ''
 
 // Production is strict. In development the map libraries want localhost while
@@ -133,18 +123,12 @@ export function isLocalDatabaseUrl(url: string): boolean {
 export const IS_LOCAL_DATABASE = isLocalDatabaseUrl(process.env.DATABASE_URL ?? '')
 
 /**
- * A connection string safe to print. Used by the guards that refuse to run
- * against a non-local database and need to say *which* database they refused.
+ * A connection string safe to print. Used by the guards that refuse to run against a
+ * non-local database and need to say *which* database they refused.
  *
- * Was `url.replace(/:\/\/[^@]*@/, '://***@')`, copy-pasted into two scripts, and
- * wrong in both directions:
- *
- *   - **It leaked.** A password in the query string — `?password=…`, which libpq
- *     accepts and some hosted providers hand out — printed in full.
- *   - **It over-redacted.** `[^@]*` crosses the path, so a URL with an `@`
- *     anywhere later (`postgres://host/db?opt=a@b`) had its *host* swallowed:
- *     `postgres://***@b`. That defeats the whole point of printing it, which is
- *     to show you which database you just pointed at.
+ * Was `url.replace(/:\/\/[^@]*@/, '://***@')`, copy-pasted into two scripts, and wrong
+ * in both directions: a password in the QUERY STRING printed in full, and `[^@]*`
+ * crosses the path, so a URL with an `@` anywhere later had its *host* swallowed.
  */
 export function redactDatabaseUrl(url: string): string {
   return (
@@ -158,20 +142,17 @@ export function redactDatabaseUrl(url: string): string {
 
 // --- Dev sign-in -------------------------------------------------------------
 //
-// A way into a signed-in page without a password. This is a loaded gun, so it is
-// gated four ways and every gate has to hold before the route is even registered
-// — see src/routes/auth.ts. Note that this codebase had something like it before
-// (DEV_AUTH_EMAIL, deleted along with Cloudflare Access) and its removal was
-// deliberate; this is a considered re-add, not a restoration.
+// A way into a signed-in page without a password. This is a loaded gun, so it is gated
+// four ways and every gate has to hold before the route is even registered. This
+// codebase had something like it before and its removal was deliberate; this is a
+// considered re-add.
 //
 // The gates, weakest to strongest:
 //
-//   1. DEV_LOGIN_EMAIL names an existing account. Read through env(), so an
-//      empty value from a deploy counts as unset.
+//   1. DEV_LOGIN_EMAIL names an existing account, read through env().
 //   2. The database is local.
-//   3. APP_ORIGIN is not https. This is the strongest of the four: stage and
-//      prod must set it correctly or OAuth redirects and the cookie Secure flag
-//      break, so it cannot be quietly wrong without sign-in failing loudly.
+//   3. APP_ORIGIN is not https — the strongest of the four: stage and prod must set it
+//      correctly or OAuth redirects and the cookie Secure flag break.
 //   4. The request itself came from localhost — checked per request, not here.
 export const DEV_LOGIN_EMAIL = env('DEV_LOGIN_EMAIL', '').trim().toLowerCase()
 
@@ -179,33 +160,23 @@ export const DEV_LOGIN_ENABLED = Boolean(DEV_LOGIN_EMAIL) && IS_LOCAL_DATABASE &
 
 // Whether the account purge actually destroys accounts, OFF unless set.
 //
-// Every other background job in this app is safe to run unattended. That one
-// deletes a person's account and everything they own, and it ships into a
-// database where riders have been sitting past their promised deletion date for
-// as long as the runner was missing — so its first unattended pass would take
-// all of them at once. The flag is the pause between "the code exists" and "it
-// is running", and `utils/purge-accounts.ts --dry-run` is what fills it.
+// Every other background job in this app is safe to run unattended. That one deletes a
+// person's account and everything they own, and it ships into a database where riders
+// have been sitting past their promised deletion date for as long as the runner was
+// missing — so its first unattended pass would take all of them at once.
 //
-// Opt-in by exact value rather than truthiness: PURGE_ACCOUNTS=false must not
-// enable it, which is what a bare Boolean() on the string would do.
+// Opt-in by exact value rather than truthiness: PURGE_ACCOUNTS=false must not enable it.
 //
-// **AND NEVER ON STAGE, WHICH IS BELT AND BRACES ON PURPOSE.** Since 2026-09-09
-// (#305) stage runs on production's database, so a `PURGE_ACCOUNTS=on` that
-// found its way into the stage .env — copied from prod's, most likely, since
-// they are now nearly identical files — would destroy real accounts from an
-// environment nobody watches. index.tsx also declines to start any background
-// job on stage, so this is the second of two guards; the first is the one that
-// would be quietly removed by somebody refactoring the timer block.
+// **AND NEVER ON STAGE, WHICH IS BELT AND BRACES ON PURPOSE.** Stage runs on
+// production's database, so a `PURGE_ACCOUNTS=on` copied from prod's .env would destroy
+// real accounts from an environment nobody watches. index.tsx also declines to start any
+// background job on stage; this is the second of two guards.
 export const PURGE_ACCOUNTS = !IS_STAGE && env('PURGE_ACCOUNTS', '').trim().toLowerCase() === 'on'
 
-// How long a container that has been told to stop will wait for the requests it
-// already has before cutting them off. See src/shutdown.ts.
-//
-// Ten seconds because that is what Docker's own default SIGKILL timeout is, and
-// a grace period longer than the runtime's patience is a number that never gets
-// used — the process is killed mid-drain and the setting reads as though it did
-// something. `stop_grace_period` in docker-compose.prod.yml raises the runtime
-// side to 30s so this can be tuned up to about 25 without hitting that wall.
+// How long a container that has been told to stop will wait for the requests it already
+// has. Ten seconds because that is Docker's own default SIGKILL timeout, and a grace
+// period longer than the runtime's patience is a number that never gets used.
+// `stop_grace_period` in docker-compose.prod.yml raises the runtime side to 30s.
 export const DRAIN_GRACE_MS = Number(env('DRAIN_GRACE_MS', '10000'))
 
 // Which half of a blue/green pair this container is, blank everywhere today.

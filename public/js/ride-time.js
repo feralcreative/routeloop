@@ -1,18 +1,16 @@
-// The ride's time model, shared by the builder and the viewer. Exposes
-// window.TBTime.
+// The ride's time model, shared by the builder and the viewer. Exposes window.TBTime.
 //
-// It lives apart from both because they have to agree: the builder decides what
-// is active at a moment from the legs it holds in memory, the viewer decides it
-// from the legs ride.json sends, and the same ride must resolve identically in
-// each. Two copies of this walk would drift, and the drift would show up as a
-// map highlighting a different road than the one the planner saw.
+// It lives apart from both because they have to agree: the builder decides what is
+// active at a moment from the legs it holds in memory, the viewer from the legs
+// ride.json sends, and the same ride must resolve identically in each. Two copies of
+// this walk would drift, and the drift would show up as a map highlighting a different
+// road than the one the planner saw.
 //
-// ONE DAY SHAPE REACHES THIS MODULE: an ordered `points` array with a `kind` on
-// each element, and `legs[i]` joining `points[i]` to `points[i+1]`. It used to
-// accept a second shape as well, because `ride.json` sent `stops` and `pois` as
-// two separate arrays — that split was fine while a POI was beside the route and
-// took no part in the schedule. A POI is ON the route now (2026-08-24), so the
-// walk below needs the interleaved order and two arrays cannot supply it.
+// ONE ROUTE SHAPE REACHES THIS MODULE: an ordered `points` array with a `kind` on each
+// element, and `legs[i]` joining `points[i]` to `points[i+1]`. It used to accept a
+// second shape as well, because `ride.json` sent `stops` and `pois` as two arrays —
+// fine while a POI took no part in the schedule, and impossible now that it is ON the
+// route and the walk needs the interleaved order.
 (function () {
   "use strict";
 
@@ -55,17 +53,15 @@
 
   const routeStartS = (route) => (route.startAt ? Math.floor(new Date(route.startAt).getTime() / 1000) : null);
 
-  // A route that lost its alternate group. It is not on the schedule: two
-  // alternates for the same Thursday cover the same hours, and without this the
-  // timeline puts the rider on both at once and picks whichever comes first in
-  // the array.
-  //
-  // SKIPPED INSIDE THIS FILE, NEVER BY FILTERING THE ARRAY AT A CALL SITE, and
-  // the distinction is the whole reason it is here. `activeAtMoment` returns
-  // `routeIndex`, which both clients feed straight back into `state.routes[i]`,
-  // `setLegHighlight(map, i, …)` and `setActive(i)` — those are indices into the
-  // FULL array. Hand it a filtered array and every index past the first ghost is
-  // off by one, silently, and the map highlights the wrong road.
+  // A route that lost its alternate group. It is not on the schedule: two alternates
+    // for the same Thursday cover the same hours, and without this the timeline puts the
+    // rider on both at once.
+    //
+    // SKIPPED INSIDE THIS FILE, NEVER BY FILTERING THE ARRAY AT A CALL SITE.
+    // `activeAtMoment` returns `routeIndex`, which both clients feed straight back into
+    // `state.routes[i]` and `setLegHighlight(map, i, …)` — indices into the FULL array.
+    // Hand it a filtered array and every index past the first ghost is off by one,
+    // silently, and the map highlights the wrong road.
   const isLosingAlt = (route) => route.altGroup != null && !route.altActive;
 
   // endAt is normally kept in step by the builder, but a route can carry a start
@@ -80,17 +76,14 @@
   }
 
   // One route's extent, which is what the builder's timeline scrubs by default.
-  //
-  // A LOSING ALTERNATE HAS ONE HERE AND HAS NONE IN rideSpan, and the difference
-  // is deliberate. rideSpan answers "how long is this ride", so a route the rider
-  // decided against must not stretch it. This answers "what am I looking at",
-  // and a rider who has clicked into an alternate to work on it is looking at
-  // exactly that route — refusing it a span would hide the timeline on the one route
-  // they are editing.
-  //
-  // Same null contract as rideSpan: an undated route, or one whose end does not
-  // come after its start, has no span rather than a zero-width one. A slider
-  // whose min equals its max is a control that cannot move.
+    //
+    // A LOSING ALTERNATE HAS ONE HERE AND HAS NONE IN rideSpan, deliberately. rideSpan
+    // answers "how long is this ride", so a route the rider decided against must not
+    // stretch it. This answers "what am I looking at", and a rider who clicked into an
+    // alternate to work on it is looking at exactly that route.
+    //
+    // Same null contract as rideSpan: an undated route has no span rather than a
+    // zero-width one, because a slider whose min equals its max cannot move.
   function routeSpan(route) {
     const from = routeStartS(route);
     if (from == null) return null;
@@ -114,18 +107,14 @@
     return from == null || to == null || to <= from ? null : { from, to };
   }
 
-  // The route as an ordered list of segments: parked at a point, riding the leg
-  // out of it, parked at the next, and so on.
-  //
-  // A PLAIN WALK, because every point is on the road now. This used to project
-  // each POI onto the concatenated track, sort the POIs by that distance, and
-  // emit a leg in pieces so a pause could fall *inside* it at whatever fraction
-  // of the way along the POI sat. All of that existed because a POI anchored no
-  // leg and so had no place of its own in the sequence. It has one now —
-  // `legs[i]` runs from `points[i]` to `points[i+1]` whatever kind either end is
-  // — so a pause at a POI lands on a leg boundary like every other pause, and
-  // the projection, the sort and the `poiDistsM` argument every caller had to
-  // thread through are all gone with it.
+  // The route as an ordered list of segments: parked at a point, riding the leg out of
+    // it, parked at the next, and so on.
+    //
+    // A PLAIN WALK, because every point is on the road now. This used to project each POI
+    // onto the concatenated track, sort by that distance, and emit a leg in pieces so a
+    // pause could fall *inside* it — all of it because a POI anchored no leg and had no
+    // place of its own in the sequence. The projection, the sort and the `poiDistsM`
+    // argument every caller had to thread through are gone with it.
   function routeSchedule(route) {
     const segs = [];
     const points = pointsOf(route);
@@ -137,17 +126,15 @@
         t += dwell;
       }
 
-      // A MISSING LEG IS ABSORBED, not treated as the end of the route. This used
-      // to `break`, which silently abandoned every remaining point — their dwell
-      // vanished from the schedule while routeElapsedS, which sums the points
-      // independently, went on counting it. The two then disagreed, and the
-      // invariant that the last segment's end equals routeElapsedS — the one this
-      // file's tests call the one that matters most — was quietly false.
-      //
-      // Every route should arrive here with exactly points-1 legs: fillMissingLegs
-      // supplies them in the builder and routeSchema refuses a payload without
-      // them. So this guards a malformed shape rather than a real one, but a
-      // schedule that simply stops early is the kind of wrong nothing reports.
+      // A MISSING LEG IS ABSORBED, not treated as the end of the route. This used to
+            // `break`, which silently abandoned every remaining point — their dwell vanished
+            // from the schedule while routeElapsedS, which sums the points independently, went
+            // on counting it, so the invariant that the last segment's end equals
+            // routeElapsedS was quietly false.
+            //
+            // Every route should arrive with exactly points-1 legs, so this guards a malformed
+            // shape rather than a real one — but a schedule that stops early is the kind of
+            // wrong nothing reports.
       const leg = route.legs[i];
       if (!leg) continue;
       const riding = legDurationS(leg);
@@ -160,23 +147,17 @@
   }
 
   /**
-   * Seconds from a route's departure until the rider ARRIVES at point `i`.
-   *
-   * The dwell of every point before it plus the riding time of every leg before
-   * it — and deliberately NOT the dwell of `i` itself, because arriving is the
-   * moment the group is there and what a meeting point is agreed on. Including
-   * it would answer "when do they leave the meeting point", which nobody is
-   * synchronizing.
-   *
-   * IT IS A WALK, NOT A LOOKUP INTO routeSchedule(). That function omits a
-   * zero-length segment entirely — a point with no dwell, a leg with no duration
-   * — so its indices are not point indices, and finding "the segment for point
-   * i" in it is the same off-by-one this file already warns about twice.
-   *
-   * Null when `i` is out of range, which is a real answer rather than a guard: a
-   * caller asking about a point that is not there is holding a stale index, and
-   * returning 0 would read as "they arrive at the moment they set off".
-   */
+      * Seconds from a route's departure until the rider ARRIVES at point `i`: the dwell of
+      * every point before it plus the riding time of every leg before it, and deliberately
+      * NOT the dwell of `i` itself, because arriving is the moment the group is there.
+      *
+      * IT IS A WALK, NOT A LOOKUP INTO routeSchedule(). That function omits a zero-length
+      * segment entirely, so its indices are not point indices.
+      *
+      * Null when `i` is out of range, which is a real answer rather than a guard: a caller
+      * asking about a point that is not there is holding a stale index, and returning 0
+      * would read as "they arrive at the moment they set off".
+      */
   function elapsedToPointS(route, i) {
     const points = pointsOf(route);
     if (!Number.isInteger(i) || i < 0 || i >= points.length) return null;
@@ -190,23 +171,18 @@
   }
 
   /**
-   * Seconds into a route at which the clock next reads `minuteOfDay`.
-   *
-   * WALL CLOCK THROUGHOUT, with no zone anywhere: `startAt` is a time at the
-   * departure point carried as UTC, and `minuteOfDay` is "four in the afternoon"
-   * meaning four where the bike is. Reading either in the browser's zone is the
-   * bug route-clock.js exists to prevent.
-   *
-   * WRAPS TO THE NEXT DAY when the target has already passed at departure — a
-   * route setting off at 6pm reaches 4pm twenty-two hours later, not two hours
-   * ago. That matters less for a bed than it looks: the caller checks the answer
-   * against the route's own length, and a twenty-two-hour offset simply falls off
-   * the end of every real route, which is the correct outcome rather than a
-   * special case.
-   *
-   * Null when the route has no departure time, because there is nothing to count
-   * from — not zero, which would read as "at the moment they set off".
-   */
+      * Seconds into a route at which the clock next reads `minuteOfDay`.
+      *
+      * WALL CLOCK THROUGHOUT, with no zone anywhere: `startAt` is a time at the departure
+      * point carried as UTC, and `minuteOfDay` is four where the bike is.
+      *
+      * WRAPS TO THE NEXT DAY when the target has already passed at departure. That matters
+      * less than it looks: the caller checks the answer against the route's own length, and
+      * a twenty-two-hour offset falls off the end of every real route.
+      *
+      * Null when the route has no departure time — not zero, which would read as "at the
+      * moment they set off".
+      */
   function offsetAtClock(route, minuteOfDay) {
     var start = routeStartS(route);
     if (start == null) return null;
@@ -233,30 +209,22 @@
     return { offsetS: offset, at: activeAt(route, offset) };
   }
 
-  // Where the rider is at a given offset into the route.
-  //
-  // A moment spent at a point is on no leg at all, and says so. Highlighting the
-  // leg just ridden (or the one about to be) would put a line on the map
-  // claiming the rider is somewhere they are not.
-  //
-  // ONE INDEX INTO `route.points`, where this used to return a `stopIndex` and a
-  // `poiIndex` that each indexed their own FILTERED array. That is the same
-  // off-by-one trap the isLosingAlt comment above warns about, one level down: a
-  // caller holding the ordered list had to filter it the same way to read the
-  // answer, and a single index into the list they already have cannot drift.
-  //
-  // `legFraction` is HOW FAR THROUGH THAT LEG, 0..1, and null at a point. It is
-  // what lets a caller put the rider somewhere on the road rather than only on
-  // one of its ends: distance into the route is the legs before this one plus
-  // this fraction of it, which is a coordinate through pointAtDistance(). A
-  // caller that only wants the leg ignores it and reads the same shape it read
-  // before, which is why it is an added field rather than a new function.
-  //
-  // Fraction of TIME, not of distance, and the two differ on a leg whose speed
-  // is not constant — which is every real one. Time is the axis the scrubber
-  // moves along, so it is the honest one here: an hour into a two-hour leg puts
-  // the dot at the halfway mark, and the alternative would have the dot lag or
-  // race the clock the rider is reading beside it.
+  // Where the rider is at a given offset into the route. A moment spent at a point is
+    // on no leg at all, and says so: highlighting the leg just ridden would put a line on
+    // the map claiming the rider is somewhere they are not.
+    //
+    // ONE INDEX INTO `route.points`, where this used to return a `stopIndex` and a
+    // `poiIndex` that each indexed their own FILTERED array — the same off-by-one trap
+    // the isLosingAlt comment warns about, one level down.
+    //
+    // `legFraction` is HOW FAR THROUGH THAT LEG, 0..1, and null at a point: it is what
+    // lets a caller put the rider somewhere on the road rather than only on one of its
+    // ends. A caller that only wants the leg ignores it, which is why it is an added
+    // field rather than a new function.
+    //
+    // Fraction of TIME, not of distance, and the two differ on every real leg. Time is
+    // the axis the scrubber moves along, so it is the honest one: the alternative would
+    // have the dot lag or race the clock the rider is reading beside it.
   function activeAt(route, offsetS) {
     const none = { legIndex: null, pointIndex: null, legFraction: null };
     for (const seg of routeSchedule(route)) {
