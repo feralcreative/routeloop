@@ -143,21 +143,19 @@ pageRoutes.get('/explore', async (c) => {
 
 // Public rider profile at /@handle.
 //
-// What appears here is the whole privacy decision made visible, so the rule is
-// written as one list rather than scattered through the template:
+// What appears here is the whole privacy decision made visible, so the rule is written
+// as one list rather than scattered through the template:
 //
 //   shown        username, display name, public rides
 //   opt-in       last name, and only via share_last_name
 //   never        first name, email, home address, coordinates, payment handles
 //
-// Payment handles are "never" rather than "opt-in" on purpose. They are for
-// settling up with people you are actually riding with, which is a relationship
-// this app does not model yet (#12). A handle on a public page is a payment
+// Payment handles are "never" rather than "opt-in" on purpose: they are for settling up
+// with people you are actually riding with, and a handle on a public page is a payment
 // request open to strangers.
-// Hono does not match `/@:username` — a literal prefix in front of a param is
-// not something its router handles, and the route simply never fires. A regex
-// param does work, and pinning the charset to the username rule means a bad
-// handle 404s at the router instead of reaching a query.
+// Hono does not match `/@:username` — a literal prefix in front of a param is not
+// something its router handles — so this is a regex param, and pinning the charset to
+// the username rule means a bad handle 404s at the router instead of reaching a query.
 pageRoutes.get('/:handle{@[A-Za-z0-9_]{3,30}}', async (c) => {
   const handle = c.req.param('handle').slice(1) // drop the @
   const [row] = await db
@@ -301,16 +299,12 @@ function SocialLinks({
 }
 
 pageRoutes.get('/faq', (c) => render(c, 'Questions', content('faq.html', faqTokens()), 'content-page faq-page'))
-// The same copy in two places, from one file. The page is the no-JavaScript
-// path and the linkable URL; the fragment is what the modal fetches on first
-// open, so the notes are not on every HTML response for a dialog most riders
-// never open.
+// The same copy in two places, from one file. The page is the no-JavaScript path and
+// the linkable URL; the fragment is what the modal fetches on first open.
 // **THE ANCHORS ARE INJECTED, NOT AUTHORED.** #288's notifications link to
-// `/release-notes#<id>`, and that id has to equal `releaseId(heading)` exactly or
-// the link lands nowhere — an id typed by hand is one transposed character from
-// that, which is the argument `stamp-release.ts` makes about the commit. Doing it
-// here also leaves the authoring contract at the top of the file true as written:
-// copy the block, fill it in, and the anchor exists.
+// `/release-notes#<id>`, and that id has to equal `releaseId(heading)` exactly or the
+// link lands nowhere. Doing it here also leaves the authoring contract at the top of
+// the file true as written.
 pageRoutes.get('/release-notes', (c) =>
   render(c, 'What’s new', withAnchors(content('release-notes.html')), 'content-page release-notes-page'),
 )

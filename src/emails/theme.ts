@@ -1,17 +1,13 @@
 // The email palette.
 //
-// These values are DUPLICATED from style/_tokens.scss rather than imported,
-// because SCSS is not importable from TypeScript and the two alternatives are
-// both worse: parsing _tokens.scss at runtime puts a file read and a regex on
-// the send path (and `$brand: $url` is an alias and `$panel-bg` is an rgba(),
-// so the parse is not trivial), while generating this file at build time adds a
-// step to a repo whose only build is `npm run sass` — and generated files get
-// hand-edited and drift.
+// These values are DUPLICATED from style/_tokens.scss rather than imported, because
+// SCSS is not importable from TypeScript and the two alternatives are both worse:
+// parsing _tokens.scss at runtime puts a file read and a regex on the send path, while
+// generating this file at build time adds a step to a repo whose only build is
+// `npm run sass` — and generated files get hand-edited and drift.
 //
-// The duplication is made safe by test/email-theme.test.ts, which reads
-// _tokens.scss as text and fails the moment the two disagree. That is the same
-// arrangement test/content.test.ts uses to pin the FAQ id contract: hold the
-// contract in a test rather than in machinery.
+// The duplication is made safe by test/email-theme.test.ts, which reads _tokens.scss as
+// text and fails the moment the two disagree.
 
 /**
  * Colors mirrored from `style/_tokens.scss`. The key is the SCSS variable name
@@ -45,15 +41,13 @@ export const TOKEN_COLORS = {
 /**
  * Values with no token behind them, so the pinning test deliberately skips them.
  *
- * `muted` is the one real gap: the site uses a bare `#666` in _splash.scss and
- * _forms.scss without ever naming it, so there is no token to mirror. It is
- * defined here rather than inlined for the same reason the others are — the
- * "every hex in a rendered template is a member of the palette" assertion only
- * works if there is exactly one place a color can come from.
+ * `muted` is the one real gap: the site uses a bare `#666` in two partials without ever
+ * naming it. It is defined here rather than inlined because the "every hex in a
+ * rendered template is a member of the palette" assertion only works if there is
+ * exactly one place a color can come from.
  *
- * `pageBg` is email-only by nature. The site has no equivalent because a web
- * page's body is the canvas; an email's canvas is the client's, and the near-
- * white sits behind the 600px card to give it an edge in clients that show one.
+ * `pageBg` is email-only by nature: a web page's body is the canvas, an email's canvas
+ * is the client's.
  */
 export const EMAIL_ONLY_COLORS = {
   muted: '#666',
