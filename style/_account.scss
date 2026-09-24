@@ -2,12 +2,10 @@
 @use "tokens" as *;
 @use "controls";
 @use "fold";
-// For `sign-arrow`. A THIRD literal copy of that path is what this avoids: the
-// mixin's own comment is that there should be exactly one shape to correct if it
-// is ever revised, and `_feedback.scss` already keeps a second (with a mask, for
-// a stated reason). Namespaced rather than `as *` so nothing in this file can
-// collide with chrome's own names, and the CSS is emitted once at main.scss's
-// first `@use` either way.
+// For `sign-arrow`. A THIRD literal copy of that path is what this avoids: there
+// should be exactly one shape to correct if it is ever revised, and `_feedback.scss`
+// already keeps a second. Namespaced rather than `as *` so nothing here can collide
+// with chrome's own names.
 @use "chrome";
 
 // A settings section. Same shape as .gtfo below but without its border, because
@@ -55,16 +53,12 @@
 
 // A TOPIC: a heading, a sentence, and a row of related settings under it (#178).
 //
-// The page was four peer sections in a two-column grid and read as a ragged
-// list. It is two topics now — Appearance, and How things read — each a
-// full-width block whose settings sit in a `.three-col` row. The topic owns the
-// vertical rhythm; the settings inside it own none, which is what keeps the rows
-// aligned.
+// The page was four peer sections in a two-column grid and read as a ragged list. It
+// is two topics now, each a full-width block whose settings sit in a `.three-col`
+// row: the topic owns the vertical rhythm and the settings inside it own none.
 //
-// Its own measure cap rather than `.setting`'s 60ch, and only on the prose: the
-// intro sentence wants the same reading width every other explanation here has,
-// while the row of settings underneath must span the full width or the columns
-// have nowhere to go.
+// Its own measure cap rather than `.setting`'s 60ch, and only on the prose — the row
+// of settings underneath must span the full width.
 .setting-topic {
   margin-top: 3rem;
 
@@ -73,14 +67,10 @@
   }
 
   > p {
-    // 85ch, NOT the 60ch every other explanation on this page takes. Ziad's
-    // call, 2026-09-07: at 60ch this was wrapping at about half the width and
-    // read as a narrow column stranded under a full-width heading, which is a
-    // different thing from a comfortable measure. 85ch lands near three quarters
-    // of the wrap at its cap and simply fills the width below it.
-    //
-    // It is the TOPIC lede alone. `.setting`'s own 60ch stays, because those sit
-    // in a column half this wide and are the case that cap was written for.
+    // 85ch, NOT the 60ch every other explanation on this page takes: at 60ch this was
+        // wrapping at about half the width and read as a narrow column stranded under a
+        // full-width heading. It is the TOPIC lede alone — `.setting`'s own 60ch stays,
+        // because those sit in a column half this wide.
     max-width: 85ch;
     margin-top: 0;
   }
@@ -89,36 +79,31 @@
   // down. Sized between the topic's h2 and body text — it is a label for a
   // column, not a section heading competing with the topic above it.
   h3 {
-    // TIGHT UNDER, LARGER OVER. Ziad's call, 2026-09-07, and the two halves are
-    // one change: a subhead earns its space by being legible as a heading, not
-    // by having a gap under it. At 1rem it was the same size as the body text
-    // beside it and needed the 0.5rem to read as a heading at all — so making it
-    // bigger is what PAID for taking the gap away, and doing either alone would
-    // have been worse than leaving it.
+    // TIGHT UNDER, LARGER OVER, and the two halves are one change: a subhead earns its
+        // space by being legible as a heading, not by having a gap under it. At 1rem it was
+        // the same size as the body text beside it, so making it bigger is what PAID for
+        // taking the gap away.
     margin: 0 0 0.15rem;
     font-size: 1.15rem;
   }
 }
 
-// THE PALETTE, SHOWN AS ITSELF. Ziad's call, 2026-09-07.
-//
-// Every chip is a `var()` on a token the theme redefines, so the bar follows the
-// choice with no script and cannot drift — it is not a picture OF the palette, it
-// is the palette.
+// THE PALETTE, SHOWN AS ITSELF. Every chip is a `var()` on a token the theme
+// redefines, so the bar follows the choice with no script and cannot drift — it is
+// not a picture OF the palette, it is the palette.
 //
 // ONE ROW THAT WRAPS RATHER THAN A GRID: nine chips is a strip on any width the
 // settings column takes, and a grid would leave a ragged last row on a phone.
-// FULL WIDTH, AGAINST THE 85ch ITS SIBLING PARAGRAPHS TAKE — the bar is a `<p>`,
-// so it caught `.setting-topic > p`'s measure, and a measure is for prose.
+// FULL WIDTH, AGAINST THE 85ch ITS SIBLING PARAGRAPHS TAKE — the bar is a `<p>`, so
+// it caught `.setting-topic > p`'s measure, and a measure is for prose.
 //
-// **SCOPED, BECAUSE A BARE `.palette-bar` LOSES.** `.setting-topic > p` is a
-// class AND a type selector, which outranks a single class however far down the
-// file it sits, so `max-width: none` alone was simply discarded.
-// SHOW ME AROUND IS A FOLDING CARD AT THE TOP OF PROFILE (#339). The card, the
-// eased fold and the disc are `_fold.scss`'s; what is decided here is the bar.
-// Open, the summary is the heading with its lead under it; closed, the same
-// summary IS the one-line bar, because a folded <details> shows nothing but its
-// summary — so there is no second drawing to keep in step.
+// **SCOPED, BECAUSE A BARE `.palette-bar` LOSES.** `.setting-topic > p` is a class
+// AND a type selector, which outranks a single class however far down the file it
+// sits, so `max-width: none` alone was simply discarded.
+// SHOW ME AROUND IS A FOLDING CARD AT THE TOP OF PROFILE (#339). The card, the eased
+// fold and the disc are `_fold.scss`'s; what is decided here is the bar. Open, the
+// summary is the heading with its lead under it; closed, the same summary IS the
+// one-line bar, so there is no second drawing to keep in step.
 .fold-card.setting-topic {
   @include fold.fold-card;
 
@@ -246,19 +231,19 @@
   border: 1px solid $grey;
 }
 
-// THE SAVE STATE IS A BORDER ON THE GROUP, since 2026-09-07. Ziad's call: every
-// option saves itself and the Save buttons go, so what used to be a button plus a
-// "Saved" chip is now the edge of the group it belongs to.
+// THE SAVE STATE IS A BORDER ON THE GROUP: every option saves itself and the Save
+// buttons go, so what used to be a button plus a "Saved" chip is now the edge of the
+// group it belongs to.
 //
-// **AMBER IS UNSAVED, NOT RED**, which is the one place this departs from how it
-// was asked for: `error` already owns red, and in this app's vocabulary red is a
-// verdict and amber is advice.
+// **AMBER IS UNSAVED, NOT RED**, which is the one place this departs from how it was
+// asked for: `error` already owns red, and in this app's vocabulary red is a verdict
+// and amber is advice.
 //
-// A BORDER THAT IS ALWAYS THERE, transparent at rest rather than absent — adding
-// one on the first keystroke would move every control down by two pixels.
+// A BORDER THAT IS ALWAYS THERE, transparent at rest rather than absent — adding one
+// on the first keystroke would move every control down by two pixels.
 //
-// `$pending` and not `$warning` for the amber: `$warning` is a black-legend field
-// tuned to carry type, and as a hairline on white it measures about 2.2:1.
+// `$pending` and not `$warning`: `$warning` is a black-legend field tuned to carry
+// type, and as a hairline on white it measures about 2.2:1.
 .setting-form,
 .profile-form fieldset {
   border: 2px solid transparent;
@@ -285,14 +270,13 @@
 // A GROUP THAT SHOWS ITS EDGE AT REST.
 //
 // `.setting` is deliberately unboxed — boxing every section makes a settings page
-// read as a run of warnings. The notification groups are the case that does not
-// hold for: five tables of checkboxes with nothing between them, where a heading
-// alone does not say which set a row belongs to once they sit two-abreast.
+// read as a run of warnings. The notification groups are the case that does not hold
+// for: five tables of checkboxes where a heading alone does not say which set a row
+// belongs to once they sit two-abreast.
 //
-// **IT ONLY PAINTS A BORDER THAT WAS ALREADY RESERVED**, so the box costs no
-// layout at all. The `[data-save]` rules above outrank this by construction, so
-// the sequence is gray, amber, green, gray rather than a border appearing out of
-// nothing.
+// **IT ONLY PAINTS A BORDER THAT WAS ALREADY RESERVED**, so the box costs no layout.
+// The `[data-save]` rules above outrank this by construction, so the sequence is
+// gray, amber, green, gray rather than a border appearing out of nothing.
 .setting-form--boxed {
   border-color: $grey;
 }
@@ -325,14 +309,11 @@
   }
 }
 
-// PLACES TO AVOID (#271). The one setting on this page that is free text rather
-// than a radio group, so it is the one that needs a measure of its own — a box
-// running the full page width invites a paragraph, and what is wanted is a short
-// list. 60ch matches the prose cap directly above it, so the field, the label
-// and the explanation all share one edge.
-// The two place lists, side by side. Full width each inside their own half —
-// the 60ch measure the single box carried was about a lone field on a wide page,
-// and half a column is already narrower than that.
+// PLACES TO AVOID (#271). The one setting on this page that is free text rather than
+// a radio group, so it is the one that needs a measure of its own — a box running the
+// full page width invites a paragraph, and what is wanted is a short list.
+// The two place lists, side by side. Full width each inside their own half: the 60ch
+// measure was about a lone field on a wide page, and half a column is narrower.
 #favor,
 #avoid {
   .field {
@@ -348,12 +329,12 @@
   }
 }
 
-// A radio group drawn as a stack of rows: each choice carries its own worked
-// example, because the labels alone ("Hours", "Minutes") do not tell a rider what
-// they are about to see. The example is the formatter's actual output, so it
-// cannot go stale. **IT IS A TOOLTIP SINCE 2026-09-21, NOT A LINE UNDER THE
-// LABEL**: a sentence under every option made a three-option group 270px tall.
-// `.choice-example` survives only as hidden text, for the accessible name.
+// A radio group drawn as a stack of rows: each choice carries its own worked example,
+// because the labels alone ("Hours", "Minutes") do not tell a rider what they are
+// about to see. The example is the formatter's actual output, so it cannot go stale.
+// **IT IS A TOOLTIP SINCE 2026-09-21, NOT A LINE UNDER THE LABEL**: a sentence under
+// every option made a three-option group 270px tall. `.choice-example` survives only
+// as hidden text, for the accessible name.
 .choice-set {
   margin: 0 0 1rem;
   padding: 0;
@@ -372,16 +353,12 @@
   color: $neutral-43;
 }
 
-// THE GROUP'S KEY, in a `?` bubble beside its heading or legend: every option's
-// label in bold with its sentence after it, one per row — the `.twist-key`
-// arrangement on the dashboard. The bubble's own type size applies; the rows
-// only need to stack.
+// THE GROUP'S KEY, in a `?` bubble beside its heading or legend: every option's label
+// in bold with its sentence after it, one per row — the `.twist-key` arrangement.
 //
-// **THE DOT SITS IN THE HEADING'S OWN TYPE and takes its size from it**, so it
-// is a little bigger beside an <h3> than beside a legend. Held to the row's
-// baseline rather than the row's middle — `.field-help` raises itself 0.15em
-// against a label's line box, and against a heading's taller one that reads as
-// floating, so the lift comes off here.
+// **THE DOT SITS IN THE HEADING'S OWN TYPE and takes its size from it.** Held to the
+// row's baseline rather than its middle — `.field-help` raises itself 0.15em against
+// a label's line box, and against a heading's taller one that reads as floating.
 .setting h3 .field-help,
 .choice-legend .field-help {
   top: 0;
@@ -455,13 +432,11 @@
   gap: 1rem;
 }
 
-// EMPTY ONCE THE BUTTON IS HIDDEN, which is the ordinary state with script on:
-// the group's border says saved and this row has nothing left in it. `:empty`
-// will not match — it still holds whitespace and the hidden button — so the
-// collapse is keyed on having no VISIBLE child, which is what `:has()` can ask.
-// Declared after the rule above so it wins on order at equal specificity... it
-// is not equal: `:not(:has(…))` adds nothing, so the selector is one class and
-// this has to come second. Keep them adjacent.
+// EMPTY ONCE THE BUTTON IS HIDDEN, which is the ordinary state with script on: the
+// group's border says saved and this row has nothing left in it. `:empty` will not
+// match — it still holds whitespace and the hidden button — so the collapse is keyed
+// on having no VISIBLE child, which is what `:has()` can ask. `:not(:has(…))` adds no
+// specificity, so this has to come second. Keep them adjacent.
 .setting-actions:not(:has(> *:not([hidden]))) {
   display: none;
 }
@@ -471,14 +446,13 @@
   opacity: 0.8;
 }
 
-// THE AUTOSAVE'S OWN WORDS, beside the border that carries the same state as a
-// color. Built by autosave.js, so it is absent with script off — see that file.
+// THE AUTOSAVE'S OWN WORDS, beside the border that carries the same state as a color.
+// Built by autosave.js, so it is absent with script off.
 //
-// It takes its color from the group's `data-save`, which means the border and
-// the text cannot disagree about what just happened. Muted at rest and for the
-// two routine states, because a settings page where every group shouts its own
-// status is a page of noise; only `error` takes weight, which is the one state a
-// rider has to do something about.
+// It takes its color from the group's `data-save`, which means the border and the
+// text cannot disagree. Muted at rest and for the two routine states, because a
+// settings page where every group shouts its own status is a page of noise; only
+// `error` takes weight.
 .save-note {
   font-size: 0.85rem;
   color: $neutral-50;
@@ -501,15 +475,14 @@
 
 // NOTIFICATIONS — thirteen events across two channels, as a real <table>.
 //
-// **A TABLE AND NOT A GRID OF DIVS, BECAUSE IT IS ONE.** Two column headers
-// govern every row, and a screen reader saying "Email, checkbox, checked" while
-// moving down the column is doing something no `display: grid` over a list of
-// labels can. The visible column heads are the only labels those checkboxes would
-// otherwise have — the per-box text is `.visually-hidden` because repeating it
-// beside a two-letter header would make the table unreadable for everyone else.
+// **A TABLE AND NOT A GRID OF DIVS, BECAUSE IT IS ONE.** Two column headers govern
+// every row, and a screen reader saying "Email, checkbox, checked" while moving down
+// the column is doing something no `display: grid` over a list of labels can. The
+// visible column heads are the only labels those checkboxes would otherwise have —
+// the per-box text is `.visually-hidden` because repeating it beside a two-letter
+// header would make the table unreadable for everyone else.
 //
-// It scrolls inside its own container rather than letting the page scroll
-// sideways, which is the house rule for every wide thing.
+// It scrolls inside its own container rather than letting the page scroll sideways.
 .notif-table {
   width: 100%;
   border-collapse: collapse;
@@ -526,12 +499,11 @@
     vertical-align: top;
   }
 
-  // **DIMMED WITH A COLOR, NEVER WITH `opacity`, AND THAT IS NOT A PREFERENCE.**
-  // The group name is an <h3> INSIDE one of these cells, and opacity applies to
-  // an element and everything under it as one composited layer — a child cannot
-  // be more opaque than its parent, so `opacity: 1` on the h3 did nothing at all
-  // and the heading rendered as gray as the channel labels. A color is
-  // inherited and therefore overridable, which is what the h3 below needs.
+  // **DIMMED WITH A COLOR, NEVER WITH `opacity`, AND THAT IS NOT A PREFERENCE.** The
+    // group name is an <h3> INSIDE one of these cells, and opacity applies to an element
+    // and everything under it as one composited layer — a child cannot be more opaque
+    // than its parent, so `opacity: 1` on the h3 did nothing at all. A color is
+    // inherited and therefore overridable.
   thead th {
     font-size: 0.85rem;
     text-transform: uppercase;
@@ -627,11 +599,10 @@
 
 // GTFO — the account exits on /settings.
 //
-// One row per action: what it does on the left, the button on the right. The
-// rows are deliberately uniform even though they are not equally reversible,
-// because the difference belongs in the copy and in the confirmation screen, not
-// in a button that looks scarier than its neighbor. A rider leaving is doing
-// something legitimate and the page should not editorialize about it.
+// One row per action: what it does on the left, the button on the right. The rows are
+// deliberately uniform even though they are not equally reversible, because the
+// difference belongs in the copy and in the confirmation screen, not in a button that
+// looks scarier than its neighbor.
 .gtfo {
   margin-top: 3rem;
   border: 1px solid $grey;
@@ -647,15 +618,12 @@
   }
 }
 
-// A grid rather than a flex row, so every control sits in ONE shared column and
-// their centers line up. `space-between` lined up their right EDGES, and the
-// three controls are three different widths — a guide sign, an octagon, and a
-// line of text — so three different centers came down a section that reads as a
-// stack of signs.
+// A grid rather than a flex row, so every control sits in ONE shared column and their
+// centers line up. `space-between` lined up their right EDGES, and the three controls
+// are three different widths — a guide sign, an octagon, and a line of text.
 //
-// The track is a fixed width and not `max-content` because each row is its own
-// grid: sizing to content would put the centers straight back where they were. A
-// control wider than the track overflows evenly and stays centered.
+// The track is a fixed width and not `max-content` because each row is its own grid:
+// sizing to content would put the centers straight back where they were.
 .gtfo-item {
   display: grid;
   grid-template-columns: minmax(0, 1fr) 12rem;
