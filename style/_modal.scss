@@ -31,15 +31,12 @@ body.modal-open {
   overflow-y: auto;
   padding: 1.75rem;
   background: $white;
-  // A BOX THAT PAINTS ITS OWN GROUND MUST PAINT ITS OWN INK, and on a <dialog>
-  // that is not a tidy-up — inheritance does not reach it. The UA stylesheet
-  // gives `dialog` its own `color: CanvasText`, which beats what <body> passes
-  // down, and nothing in style/ declares `color-scheme`, so CanvasText stays
-  // black while $white resolves to the page's near-black under a dark palette.
-  // The heading of every dialog-based modal was therefore black on black: the
-  // save-failure one (#290, reported), and the split-riders one, which nobody
-  // had got to yet. `.modal-error-msg` sets its own $text, which is why the
-  // message read fine and only the <h2> vanished.
+  // A BOX THAT PAINTS ITS OWN GROUND MUST PAINT ITS OWN INK, and on a <dialog> that is
+    // not a tidy-up — inheritance does not reach it. The UA stylesheet gives `dialog` its
+    // own `color: CanvasText`, which beats what <body> passes down, and nothing in style/
+    // declares `color-scheme`, so CanvasText stays black while $white resolves to the
+    // page's near-black under a dark palette. The heading of every dialog-based modal was
+    // therefore black on black (#290).
   color: $text;
   border-radius: 14px;
   box-shadow: 0 12px 40px rgba(0, 0, 0, 0.3);
@@ -84,28 +81,21 @@ body.modal-open {
   }
 }
 
-// The four contact links: a row of circular marks with a caption under each.
-// They were full-width gray pills carrying the whole sentence until 2026-08-21;
-// the sentence is still there as the accessible name and the tooltip, and only
-// the visible caption shortened.
+// The four contact links: a row of circular marks with a caption under each. They were
+// full-width gray pills carrying the whole sentence until 2026-08-21; the sentence is
+// still the accessible name and the tooltip.
 //
-// Two embed mechanisms, decided by the artwork and not by taste — see the note
-// on `embed` in src/views/splash.tsx. The first three marks are INLINE <svg>
-// because each is a disc in `currentColor` with the glyph knocked out in white:
-// an external image has no inherited color to resolve against and paints the
-// disc black, and a mask flattens the knockout into a solid silhouette.
-// src/views/icon.ts is what puts those in the document. The Vampires MC mark is
-// an <img> because it carries its own colors and is 64 KB — inlining it would
-// put that on every HTML response, since this modal is on every page.
+// Two embed mechanisms, decided by the artwork and not by taste. The first three marks
+// are INLINE <svg> because each is a disc in `currentColor` with the glyph knocked out
+// in white: an external image has no inherited color to resolve against and paints the
+// disc black, and a mask flattens the knockout into a silhouette. The Vampires MC mark
+// is an <img> because it carries its own colors and is 64 KB — inlining it would put
+// that on every HTML response.
 //
-// Both are sized and animated identically here, so the seam is invisible.
-//
-// The even spacing is between the MARKS, not between the boxes that hold them.
-// A flex row with a fixed gap spaces the ITEM BOXES evenly, and each box is as
-// wide as its own caption — so with captions running from "Signal" to
-// "Vampires MC" the discs end up at four different distances from each other
-// while the boxes look correctly spaced. Equal-width grid tracks put every disc
-// on the same center-to-center pitch no matter what is written under it.
+// The even spacing is between the MARKS, not between the boxes that hold them. A flex
+// row with a fixed gap spaces the ITEM BOXES evenly, and each box is as wide as its own
+// caption, so the discs end up at four different distances. Equal-width grid tracks put
+// every disc on the same center-to-center pitch.
 .modal-links {
   list-style: none;
   // Centered at a width that suits four marks rather than filling the modal, so
@@ -174,15 +164,12 @@ body.modal-open {
     filter: brightness(1.12);
   }
 
-  // Focus is shown ON the mark and not as a box around the link. A rectangle
-  // enclosing disc and caption was the first attempt and reads as a selected
-  // tile rather than a focused control — and it is the first focusable thing in
-  // the dialog, so it appeared unprompted every time the modal opened.
-  //
-  // The ring is a box-shadow with the element rounded to match the artwork,
-  // rather than an outline, because an outline draws the shape of the BOX and
-  // the mark inside it is a circle. `border-radius: 50%` is safe to set here:
-  // all four files are a disc that fills its own square viewBox.
+  // Focus is shown ON the mark and not as a box around the link. A rectangle enclosing
+    // disc and caption reads as a selected tile rather than a focused control — and it is
+    // the first focusable thing in the dialog, so it appeared every time the modal opened.
+    //
+    // The ring is a box-shadow with the element rounded to match the artwork rather than
+    // an outline, because an outline draws the shape of the BOX and the mark is a circle.
   &:focus-visible svg,
   &:focus-visible img {
     border-radius: 50%;
@@ -330,18 +317,13 @@ body.modal-open {
   }
 }
 
-// One release, drawn as a stop on a timeline.
+// One release, drawn as a stop on a timeline. This was twenty stacked hairlines, which
+// is what a list of separators looks like rather than a chronology: nothing said the
+// entries were in time order, and each rule drew as much ink as the heading above it.
 //
-// This was twenty stacked hairlines, which is what a list of separators looks
-// like rather than what a chronology looks like: nothing said the entries were
-// in time order, and each rule drew as much ink as the heading above it. One
-// continuous rail with a mark per release says "these happened in this order"
-// with less ink, and the space the rules were eating goes back into the copy.
-//
-// The rail is a border on each section rather than a line behind the list, so
-// it cannot drift out of step when a release is added — and the sections are
-// spaced with PADDING, not margin, because a margin would break the rail into
-// twenty separate segments.
+// The rail is a border on each section rather than a line behind the list, so it cannot
+// drift out of step when a release is added — and the sections are spaced with PADDING,
+// not margin, because a margin would break the rail into twenty segments.
 .rn-release {
   position: relative;
   padding: 0 0 1.2rem 1.3rem;
@@ -350,36 +332,24 @@ body.modal-open {
   scroll-margin-top: 1rem;
   border-left: 2px solid $neutral-94;
 
-  // EACH ENTRY IS A CARD (#325). Ziad's call, 2026-09-13: folded to a title
-  // and an eyebrow, thirty-five entries down a rail read as one column of
-  // text with nothing saying where one ends. A faint container per entry —
-  // hairline, soft corner, its own surface — does. $white is the page's own
-  // surface and follows the scheme, so the card stays a card under a dark
-  // palette; the hairline is what separates it from the standalone page's
-  // $neutral-96 ground, the same reason .rn-note carries one.
-  // The card, the eased fold and the disc are `_fold.scss`'s now (#339), so
-  // the Show me around card on the Profile tab draws the same thing.
+  // EACH ENTRY IS A CARD (#325): folded to a title and an eyebrow, thirty-five entries
+    // down a rail read as one column of text with nothing saying where one ends. $white is
+    // the page's own surface and follows the scheme; the hairline separates it from the
+    // standalone page's $neutral-96 ground.
+    // The card, the eased fold and the disc are `_fold.scss`'s now (#339).
   .rn-fold {
     @include fold.fold-card;
   }
 
   // The mark. box-sizing is declared because this stylesheet inherits no global
-  // border-box reset — see AGENTS.md — and a fixed-size box that forgets renders
-  // wider than it declares the moment anyone adds padding or a border to it.
-  //
-  // Deliberately NO ring around the dot. A ring has to be painted in the color
-  // of whatever is behind it, and there are two behinds: white in the dialog,
-  // $neutral-96 on the standalone page. It would be right on one and a halo on
-  // the other — the same trap .rn-note fell into. The dot is four steps darker
-  // than the rail instead, which separates them on any background.
-  // ON THE TITLE, NOT THE SECTION. The dot sat at the section's top until
-  // the date became an eyebrow above the title (#325), which left it beside
-  // the eyebrow; it hangs off the h3 now so it marks the title whether or not
-  // there is an eyebrow over it. `left` walks back across the section's
-  // 1.3rem padding and the card's 1.5rem to the rail: -6px against a 2px rail centers a 10px dot on
-  // it, since the padding box starts after the border, so the dot spans -4px
-  // to 6px and the rail spans 0 to 2px, both centered on 1px. `top` centers it
-  // on the first line of the title.
+    // border-box reset.
+    //
+    // Deliberately NO ring around the dot: a ring has to be painted in the color of
+    // whatever is behind it, and there are two behinds — white in the dialog, $neutral-96
+    // on the standalone page. The dot is four steps darker than the rail instead.
+    // ON THE TITLE, NOT THE SECTION, since the date became an eyebrow above the title
+    // (#325). `left` walks back across the section's padding and the card's to the rail:
+    // -6px against a 2px rail centers a 10px dot on it.
   h3::before {
     content: "";
     box-sizing: border-box;
@@ -427,30 +397,20 @@ body.modal-open {
     line-height: 1.3;
   }
 
-  // THE ACCORDION (#325). Every entry but the newest is a <details> whose
-  // summary is the title; they share a `name`, so the browser keeps one open.
-  // The summary's own marker is dropped — the timeline dot already marks the
-  // title — and a disc after the title says it folds. The title inside a
-  // summary is display: inline by the UA sheet, so it is put back to block
-  // and keeps the dot.
-  //
-  // THE DISC CARRIES THE SIGN ARROW, NOT A CHEVRON. Ziad's call, 2026-09-13:
-  // the border-drawn caret every other <details> here uses read as a stray
-  // bracket beside a 1.3rem title. The app's own arrow on a small $disabled
-  // disc is the same mark as the buttons and the Read more sign, pointing
-  // south for "opens down" and turning to north when open. $disabled and not
-  // $brand for the reason the Route | Ride pill records — $brand is a link
-  // color the dark scheme lifts, and the baked white in `sign-arrow`'s data
-  // URI needs a WHITE_LEGEND field under it. The mixin's flex and relative
-  // positioning are overridden because this one is absolutely placed off the
-  // title's right edge.
-  //
-  // A SIGN CARRIES THE INSET KEYLINE, ALWAYS. Ziad's call, 2026-09-13, and
-  // it is the rule rather than a preference for this disc: the two stacked
-  // inset shadows are what make a field read as signage rather than as a
-  // colored blob, on `.btn`, the kind badges and the Read more sign alike.
-  // The `.notif-more` widths, 2px/3px, because at 1.5rem the button's own
-  // 3px/5px is most of the disc.
+  // THE ACCORDION (#325). Every entry but the newest is a <details> whose summary is the
+    // title; they share a `name`, so the browser keeps one open. The summary's own marker
+    // is dropped — the timeline dot already marks the title — and a disc after the title
+    // says it folds.
+    //
+    // THE DISC CARRIES THE SIGN ARROW, NOT A CHEVRON: the border-drawn caret every other
+    // <details> here uses read as a stray bracket beside a 1.3rem title. $disabled and not
+    // $brand for the reason the Route | Ride pill records — $brand is a link color the
+    // dark scheme lifts, and the baked white in `sign-arrow`'s data URI needs a
+    // WHITE_LEGEND field under it.
+    //
+    // A SIGN CARRIES THE INSET KEYLINE, ALWAYS: the two stacked inset shadows are what
+    // make a field read as signage rather than as a colored blob. The `.notif-more`
+    // widths, 2px/3px, because at 1.5rem the button's own 3px/5px is most of the disc.
   .rn-fold {
     > summary {
       // No margin under the title in either state: the gap to the first item
@@ -492,16 +452,13 @@ body.modal-open {
 
   h3,
   .rn-date {
-    // The build stamp, demoted to a reference. It USED to lead the heading and
-    // that was the wrong way round: a rider scans this list by date and reaches
-    // for the version only when filing a report, so the date is the headline
-    // and this is the footnote that makes the entry quotable. Tracked out and
-    // small so it reads as a different kind of thing rather than a smaller
-    // heading — the same move the FAQ section labels make.
-    //
-    // `nowrap` is load-bearing: `2026-08-23-1834PT` is full of hyphens, a
-    // browser will happily break after one, and half a version on the next line
-    // is not a version anyone can quote.
+    // The build stamp, demoted to a reference. It USED to lead the heading and that was
+        // the wrong way round: a rider scans this list by date and reaches for the version
+        // only when filing a report. Tracked out and small so it reads as a different kind
+        // of thing rather than a smaller heading.
+        //
+        // `nowrap` is load-bearing: `2026-08-23-1834PT` is full of hyphens, a browser will
+        // happily break after one, and half a version is not a version anyone can quote.
     code {
       margin-left: 0.5rem;
       color: $neutral-57;
@@ -582,19 +539,14 @@ body.modal-open {
     }
   }
 
-  // The kind, as a small sign. Four of the road-sign fields, one per kind, so
-  // a column of badges reads as a legend without one: new is the guide-sign
-  // green, fixed the regulatory blue, changed the work-zone orange with its
-  // black legend, removed a neutral. Each field carries the legend the palette
-  // audit clears it for — see BLACK_LEGEND in test/palette-contrast.test.ts.
-  // ONE SIZE FOR ALL FOUR, AND THE SIGN'S INSET KEYLINE. Ziad's call,
-  // 2026-09-13: a column of badges only reads as a column when "New" and
-  // "Changed" are the same box, so the width is fixed to the widest word and
-  // the text is centered; and each carries the white keyline inside its
-  // field, the construction every sign here has, at 1px/2px because at this
-  // scale `.btn`'s 3px/5px would be most of the badge. The field is a custom
-  // property so the keyline's outer ring can restate it per kind without
-  // four copies of the shadow.
+  // The kind, as a small sign. Four of the road-sign fields, one per kind, so a column
+    // of badges reads as a legend without one. Each field carries the legend the palette
+    // audit clears it for — see BLACK_LEGEND in test/palette-contrast.test.ts.
+    // ONE SIZE FOR ALL FOUR, AND THE SIGN'S INSET KEYLINE: a column of badges only reads
+    // as a column when "New" and "Changed" are the same box, so the width is fixed to the
+    // widest word. 1px/2px because at this scale `.btn`'s 3px/5px would be most of the
+    // badge. The field is a custom property so the keyline's outer ring can restate it
+    // per kind without four copies of the shadow.
   .rn-kind {
     --rn-field: #{$interstate};
     display: inline-block;
@@ -648,19 +600,14 @@ body.modal-open {
 }
 
 // The one line of the fragment's own preamble that the dialog does NOT hide: it
-// explains why the list below is dated by route instead of by build, which the
-// dialog's heading and version line do not say. Set apart rather than sized down
-// — a rider reads it once and then never again, and it should not compete with
-// the first release for attention.
-// Set on its own surface rather than behind a rule. It sat on a left border
-// until the releases below it grew their own rail, at which point two stacked
-// left borders read as one broken line — and a tinted box says "aside" without
-// borrowing the timeline's vocabulary.
-// The hairline is what makes this legible on BOTH surfaces, and it is not
-// decoration: the fill is $neutral-96, which is also the page background, so on
-// the standalone /release-notes the tint alone renders an invisible box. In the
-// dialog the fill does the work and the border is a quiet edge; on the page the
-// border does the work and the fill matches its surroundings.
+// explains why the list below is dated by route instead of by build. Set apart rather
+// than sized down — a rider reads it once and then never again.
+// Set on its own surface rather than behind a rule: it sat on a left border until the
+// releases below grew their own rail, at which point two stacked left borders read as
+// one broken line.
+// The hairline is what makes this legible on BOTH surfaces, and it is not decoration:
+// the fill is $neutral-96, which is also the page background, so on the standalone page
+// the tint alone renders an invisible box.
 .rn-note {
   margin: 0 0 1.5rem;
   padding: 0.7rem 0.85rem;
@@ -685,23 +632,16 @@ body.modal-open {
   font-size: 0.85rem;
 }
 
-// A FAILURE, SAID PROPERLY (#233).
+// A FAILURE, SAID PROPERLY (#233). The save readout is a fixed box that ellipsizes, so
+// a server message longer than a few words reached the rider as its first fragment and
+// nothing else. This is where the whole thing goes.
 //
-// The save readout is a fixed box that ellipsizes, so a server message longer
-// than a few words reached the rider as its first fragment and nothing else —
-// reported as "a Costco sample of an error message", which is exactly what it
-// was. This is where the whole thing goes.
-//
-// A REAL <dialog>, AND IT WEARS THE HOUSE `.modal`. showModal() brings the focus
-// trap, Escape to close, inertness for the rest of the page and a ::backdrop,
-// none of which is worth reimplementing on a div — so this is the one modal in
-// the app that is not a `.modal-backdrop` wrapper driven by site.js. What it
-// must not also be is a second LOOK: it takes `.modal` for the box and adds only
-// what a dialog element needs on top, exactly the way `.modal--notes` does for
-// the release notes. It had its own width, its own radius, its own shadow and
-// its own padding until 2026-09-03, all of them close to the modal's and none of
-// them equal to it, which is the specific way a dialog reads as borrowed from
-// another site.
+// A REAL <dialog>, AND IT WEARS THE HOUSE `.modal`. showModal() brings the focus trap,
+// Escape to close, inertness for the rest of the page and a ::backdrop, none of which
+// is worth reimplementing on a div. What it must not also be is a second LOOK: it takes
+// `.modal` for the box and adds only what a dialog element needs. It had its own width,
+// radius, shadow and padding until 2026-09-03, all close to the modal's and none equal
+// to it, which is the specific way a dialog reads as borrowed from another site.
 .modal--error {
   // The UA stylesheet gives a dialog `border: solid` and centers it with
   // `margin: auto` against `inset: 0`. `.modal` supplies the whole rest of the
@@ -731,17 +671,13 @@ body:has(dialog.modal[open]) {
   overflow: hidden;
 }
 
-// THE MESSAGE ITSELF, AND IT MUST WRAP RATHER THAN TRUNCATE — the whole point of
-// the dialog. Same tinted-aside vocabulary as `.rn-note`, deliberately: that is
-// the app's existing "here is the detail" panel and a save failure did not need
-// a second one invented for it. The hairline is what keeps it legible, exactly
-// as it does there.
+// THE MESSAGE ITSELF, AND IT MUST WRAP RATHER THAN TRUNCATE — the whole point of the
+// dialog. Same tinted-aside vocabulary as `.rn-note`, deliberately: that is the app's
+// existing "here is the detail" panel.
 //
-// IT IS NOT MONOSPACED. firstIssue() hands this prose now — `route 2: a route needs
-// at least one stop` — and setting a rider's own sentence in a code face tells
-// them a program failed rather than that their ride needs a stop. A path with no
-// spaces in it still has to break somewhere, so it breaks anywhere rather than
-// pushing the box wider than the screen.
+// IT IS NOT MONOSPACED. firstIssue() hands this prose now — `route 2: a route needs at
+// least one stop` — and setting a rider's own sentence in a code face tells them a
+// program failed rather than that their ride needs a stop.
 .modal-error-msg {
   margin: 0 0 1rem;
   padding: 0.7rem 0.85rem;

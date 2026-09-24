@@ -1,39 +1,26 @@
-// THE DASHBOARD, at `/`. This is the page with the numbers on it: hero miles,
-// tiles, the storage meter, the twist rollup, role bars, the twelve-month chart
-// — and, since 2026-09-15, one link to the rides rather than the rides.
+// THE DASHBOARD, at `/`. This is the page with the numbers on it: hero miles, tiles,
+// the storage meter, the twist rollup, role bars, the twelve-month chart — and, since
+// 2026-09-15, one link to the rides rather than the rides.
 //
-// THE RIDES WERE HERE FROM 2026-08-24 TO 2026-09-15. That was the second time
-// this page held a list and the two were not the same mistake, so the history
-// matters. It was once the first ten of your rides beside the first ten popular
-// public ones — a ride list with a copy of /explore?sort=popular bolted on.
-// Splitting that out to /rides in August fixed the /explore half and left the
-// other: `/` kept a six-ride "picking up where you left off" strip, so the nav
-// still had two doors onto a rider's own rides. Ziad's call on 2026-08-24,
-// answering the third of #103's four open questions: one door, the full list
-// under the stats. Ziad's call on 2026-09-15 (#359), reversing it: the phone.
-// The job on a phone is to look up a planned ride and load it, and a list
-// under eight blocks of stats is not a page a thumb can use, so the list is
-// src/routes/rides.tsx again and this page ends with a count and a link. There
-// are two doors because there are two pages, and the nav labels both.
+// THE RIDES WERE HERE FROM 2026-08-24 TO 2026-09-15. That was the second time this page
+// held a list and the two were not the same mistake. Ziad's call on 2026-08-24: one
+// door, the full list under the stats. Ziad's call on 2026-09-15 (#359), reversing it:
+// the job on a phone is to look up a planned ride and load it, and a list under eight
+// blocks of stats is not a page a thumb can use. There are two doors because there are
+// two pages, and the nav labels both.
 //
-// Naming, because it has confused everyone including its own author: the file
-// is `home.tsx` and the route is `/`, but `public/js/dashboard.js` and
-// `style/_dashboard.scss` are BOTH THIS PAGE'S. They are named for what the page
-// is rather than for what the file is called, and they were the honest names even
-// while `src/routes/rides.tsx` held the list — and still are now that it does.
+// Naming, because it has confused everyone including its own author: the file is
+// `home.tsx` and the route is `/`, but `public/js/dashboard.js` and
+// `style/_dashboard.scss` are BOTH THIS PAGE'S — named for what the page is rather
+// than for what the file is called.
 //
 // EVERY NUMBER HERE IS RENDERED SERVER-SIDE AS TEXT. The one chart is progressive
-// enhancement over a table that is already correct without it — the roadbook and
-// the hand-off pages set that precedent deliberately, and a stats page that goes
-// blank without script would be the first thing in the app to do so.
+// enhancement over a table that is already correct without it.
 //
-// Saddle time IS reported here as of 2026-08-24, and it used to be the one thing
-// this page deliberately withheld: the import path writes no leg duration, so a
-// lifetime "hours in the saddle" undercounted by however much of the library was
-// imported — silently, and in the flattering direction. It is estimated from
-// distance now, the same way both clients estimate an unrouted leg, and the hero
-// calls the figure rough rather than flagging which part was. See
-// src/maps/ride-time.ts and src/stats/shape.ts.
+// Saddle time IS reported here, and it used to be the one thing this page deliberately
+// withheld: the import path writes no leg duration, so a lifetime figure undercounted
+// by however much of the library was imported — silently, and in the flattering
+// direction. It is estimated from distance now, and the hero calls the figure rough.
 import { Hono, type Context } from 'hono'
 import { raw } from 'hono/html'
 import { currentUser, requireActive, type AuthEnv } from '../auth/middleware'
@@ -65,43 +52,34 @@ function StatTile({ tile }: { tile: Tile }) {
         <span class="stat-label">{tile.label}</span>
       </span>
       {/*
-        The comparison columns (#137). A number alone says nothing about whether
-        it is a lot, so each tile carries what the average rider has and what the
-        highest anyone has.
-
-        A dl rather than two spans, because these ARE label/value pairs and the
-        markup should say so — "avg" beside "6.7" is not decoration, it is what
-        makes the figure mean anything. The pair is rendered only when the tile
-        carries one; the "roads you insisted on" tile has no cohort figure and
-        gets nothing rather than a zero it never measured.
-
-        No names anywhere, ever. The pool is every rider and every ride including
-        private ones, which is only acceptable because these are two anonymous
-        aggregates — see loadGlobalStats in src/stats/query.ts.
-      */}
+                The comparison columns (#137). A number alone says nothing about whether it is
+                a lot, so each tile carries what the average rider has and what the highest
+                anyone has.
+        
+                A dl rather than two spans, because these ARE label/value pairs. The pair is
+                rendered only when the tile carries one; the "roads you insisted on" tile has
+                no cohort figure and gets nothing rather than a zero it never measured.
+        
+                No names anywhere, ever. The pool is every rider and every ride including
+                private ones, which is only acceptable because these are two anonymous
+                aggregates.
+              */}
       {/*
-        THE LABELS SAY WHOSE NUMBERS THESE ARE (#342). Ziad's call, 2026-09-13:
-        "avg" and "top" said nothing about whom, so a rider could not tell the
-        small pair was everybody's and the big figure theirs. "Everyone" and
-        "most" do — a comparison reads without a heading — at the same size,
-        because the pair was deliberately held small when the tiles grew (#176)
-        and a clue that grows it undoes that.
-      */}
+                THE LABELS SAY WHOSE NUMBERS THESE ARE (#342): "avg" and "top" said nothing
+                about whom, so a rider could not tell the small pair was everybody's and the
+                big figure theirs. At the same size, because the pair was deliberately held
+                small when the tiles grew (#176).
+              */}
       {/*
-        THREE BARS, NOT TWO CAPTIONS (2026-09-14). Ziad's call, after #342's
-        labels: "everyone 29 · most 80" still read as two more numbers, and
-        what the tile is FOR is the comparison. Three rows in a fixed order —
-        you, the average rider, the top rider — each a bar scaled to the top
-        rider's figure with the number at its end, in three of the validated
-        categorical slots. The rider's own row repeats their figure, which is
-        deliberate: the bar has to carry a number to be read against the two
-        under it, and the headline above is the same number said louder.
-
-        Still a dl: three label/value pairs, and the width is data rather than
-        decoration, so it rides on the row as a custom property and the
-        stylesheet draws it. A row with a zero share draws an empty track,
-        which is the honest picture of a rider with none.
-      */}
+                THREE BARS, NOT TWO CAPTIONS: after #342's labels, "everyone 29 · most 80"
+                still read as two more numbers, and what the tile is FOR is the comparison.
+                Three rows in a fixed order — you, the average rider, the top rider — each a
+                bar scaled to the top rider's figure. The rider's own row repeats their figure
+                deliberately: the bar has to carry a number to be read against the two under it.
+        
+                Still a dl, and the width is data rather than decoration, so it rides on the row
+                as a custom property. A row with a zero share draws an empty track.
+              */}
       {tile.spread && (
         <dl class="stat-bars">
           <div class="stat-bar is-you" style={`--share:${tile.spread.youPct}%`}>
@@ -166,32 +144,27 @@ function RoleChart({ bars, exceeds }: { bars: RoleBar[]; exceeds: boolean }) {
           // in _dashboard.scss to paint a gray bar — see roleColor().
           <li class="role-bar" style={b.color ? `--role-color:${b.color}` : undefined}>
             {/*
-              INLINE SVG, and `<img src>` is the trap here. Each mark is a disc
-              filled `currentColor` with the glyph knocked out white, and
-              currentColor inside an externally-referenced SVG resolves against
-              that file's own context rather than this page's — an <img> renders
-              a black disc no matter what CSS surrounds it. icon() reads and
-              caches; see src/views/icon.ts.
-            */}
+                            INLINE SVG, and `<img src>` is the trap here. Each mark is a disc filled
+                            `currentColor` with the glyph knocked out white, and currentColor inside
+                            an externally-referenced SVG resolves against that file's own context —
+                            an <img> renders a black disc no matter what CSS surrounds it.
+                          */}
             <span class="role-mark">{raw(icon(b.role))}</span>
             <span class="role-label">{b.label}</span>
             {/*
-              The bar is a div, not a chart. Magnitude is carried by length, and
-              the color carries WHICH CATEGORY rather than how much of it.
-
-              This row used to be one hue for all seventeen, on the argument that
-              "a ramp across seventeen rows would imply an ordering the categories
-              do not have". That reasoning is correct and it is not what is
-              happening here — a SEQUENTIAL ramp implies rank, and this is a
-              CATEGORICAL ring: seventeen hues at one fixed lightness, so no
-              member reads as larger or later than another. src/maps/role-colors.ts
-              is the derivation.
-
-              Color is redundant here, never load-bearing: every row also carries
-              its own mark and its own text label, which is what lets the ring
-              stay put under the colorblind theme instead of pretending seventeen
-              categories can be told apart by hue.
-            */}
+                            The bar is a div, not a chart. Magnitude is carried by length, and the
+                            color carries WHICH CATEGORY rather than how much of it.
+              
+                            This row used to be one hue for all seventeen, on the argument that a ramp
+                            would imply an ordering the categories do not have. That reasoning is
+                            correct and is not what is happening here — a SEQUENTIAL ramp implies
+                            rank, and this is a CATEGORICAL ring: seventeen hues at one fixed
+                            lightness.
+              
+                            Color is redundant here, never load-bearing: every row also carries its
+                            own mark and its own text label, which is what lets the ring stay put
+                            under the colorblind theme.
+                          */}
             <span class="role-track">
               <span class="role-fill" style={`width:${Math.max(2, b.share * 100).toFixed(1)}%`}></span>
             </span>
@@ -208,37 +181,25 @@ function RoleChart({ bars, exceeds }: { bars: RoleBar[]; exceeds: boolean }) {
   )
 }
 
-// "Your records" (#136), which is the most celebratory block on this page and
-// used to look like the least — four bordered boxes with the figure set at
-// 1.15rem, the same weight the app gives a form label.
+// "Your records" (#136), the most celebratory block on this page, which used to look
+// like the least — four bordered boxes with the figure at the weight the app gives a
+// form label.
 //
-// The markup was already right; what it lacked was emphasis. Four moves, and
-// each one is visible in the class names below: the numeral is set large, the
-// unit is split off it so the emphasis lands on the figure rather than on "mi",
-// each record carries its own mark, and the card gets an accent edge in the
-// mark's own color.
+// Four moves, each visible in the class names below: the numeral is set large, the unit
+// is split off it, each record carries its own mark, and the card gets an accent edge
+// in the mark's own color. `kind` picks both the mark and the accent, so a fifth record
+// cannot arrive with one and not the other.
 //
-// THE FOUR MARKS ARE PLACEHOLDERS. `icon-record-*.svg` are simple geometry in
-// the house shape — a currentColor disc with a white glyph — standing in until
-// Ziad draws the real ones, 2026-08-25. Replacing a file is the whole job:
-// nothing here reads the drawing, and the name follows from the record's kind.
+// THE FOUR MARKS ARE PLACEHOLDERS — simple geometry in the house shape, standing in
+// until Ziad draws the real ones. Replacing a file is the whole job.
 //
-// `kind` also picks the accent, in _dashboard.scss. One field drives the mark and
-// the color together, so a fifth record cannot arrive with one and not the other.
+// EACH RECORD SHOWS THE MAP OF THE RIDE THAT HOLDS IT, and links to it. The picture
+// goes ABOVE the content rather than behind the figure: a numeral over a dimmed map
+// puts text on an image in six palettes and two schemes, which
+// test/palette-contrast.test.ts cannot measure.
 //
-// EACH RECORD SHOWS THE MAP OF THE RIDE THAT HOLDS IT, and links to it, since
-// 2026-08-26. Two of the four had no ride to name before that — the longest route
-// and the twistiest stretch were `max()` aggregates — so shape.ts and query.ts
-// both changed to carry a slug for all four.
-//
-// The picture goes ABOVE the content rather than behind the figure. A numeral
-// over a dimmed map is the more celebratory of the two and it puts text on an
-// image in six palettes and two schemes, which test/palette-contrast.test.ts
-// cannot measure — every scrim that holds one palette's text color is guesswork
-// against the other five.
-//
-// `record-body` exists because the padding moved off the card: a face flush to
-// the top edge needs the card to have none, and the text below it still does.
+// `record-body` exists because the padding moved off the card: a face flush to the top
+// edge needs the card to have none, and the text below it still does.
 function Records({ records }: { records: RecordTile[] }) {
   return (
     <section class="stat-block">
@@ -273,16 +234,14 @@ function RecordCard({ r }: { r: RecordTile }) {
         <span class="record-mark">{raw(icon(`record-${r.kind}`))}</span>
         <span class="record-label">{r.label}</span>
         {/*
-              `numeric` picks the size, and it is not decoration. Two of these
-              four are not figures — the twistiness scale, a ride's title — and
-              a title set at the numeral's size is a headline running off its
-              own card.
-
-              data-count is what dashboard.js counts up to, and it is set only on
-              the figures. The rendered text is already the final value, so a
-              rider with script off, or one who asked for reduced motion, reads
-              the number rather than a zero waiting to be animated.
-            */}
+                            `numeric` picks the size, and it is not decoration. Two of these four are
+                            not figures — the twistiness scale, a ride's title — and a title set at
+                            the numeral's size is a headline running off its own card.
+              
+                            data-count is what dashboard.js counts up to, and it is set only on the
+                            figures. The rendered text is already the final value, so a rider with
+                            script off reads the number rather than a zero waiting to be animated.
+                          */}
         <span class={r.numeric ? 'record-value is-figure' : 'record-value is-text'}>
           <span class="record-figure" data-count={r.numeric ? r.value : undefined}>
             {/* The twist record draws its band's line beside the word. */}
@@ -304,34 +263,21 @@ function RecordCard({ r }: { r: RecordTile }) {
   )
 }
 
-// What `/` is before a rider has planned anything — #103's second open call,
-// answered 2026-08-25.
+// What `/` is before a rider has planned anything — #103's second open call.
 //
-// It was one line of copy and two links. That is the right SHAPE for an empty
-// list inside a page that has other things on it, and the wrong one here,
-// because on a first visit this is not an empty section — it is the ENTIRE page.
-// A rider who has just been let in sees no hero, no tiles, no chart and no
-// records, so the only thing this screen can do is say what the app is for and
-// point at the two doors in.
+// It was one line of copy and two links. That is the right SHAPE for an empty list
+// inside a page that has other things on it, and the wrong one here, because on a first
+// visit this is not an empty section — it is the ENTIRE page.
 //
-// THREE STEPS, NOT A FEATURE LIST. Each one names something the app actually
-// does and where it happens, in the order a ride goes through them, so the
-// sequence doubles as a map of the nav. No numbered ordinals in the markup —
-// they are an ol, and the numbers are the browser's.
+// THREE STEPS, NOT A FEATURE LIST. Each names something the app actually does and where
+// it happens, in the order a ride goes through them, so the sequence doubles as a map
+// of the nav. The numbers are the browser's.
 //
-// STILL PURE TEXT AND LINKS. Every other block on this page renders server-side
-// with the chart as the only enhancement, and a first-run panel that needed
-// script would be the first thing here to go blank without it.
+// STILL PURE TEXT AND LINKS: a first-run panel that needed script would be the first
+// thing here to go blank without it.
 //
-// No hand-placed &nbsp; anywhere below, deliberately. `text-wrap: pretty` is set
-// on p, li and .lede in style/_base.scss and covers every paragraph a browser
-// renders; the two surfaces that bind their own last two words are the emails,
-// where no client supports the property, and the printed roadbook. This is
-// neither.
-//
-// The third door is deliberately quieter than the other two: /explore is a real
-// way to start — clone someone else's route — but it is not what this app is
-// for, and giving it equal weight would suggest browsing is the point.
+// The third door is deliberately quieter than the other two: /explore is a real way to
+// start, but it is not what this app is for.
 function FirstRun({ w }: { w: Words }) {
   return (
     <section class="first-run">
@@ -449,20 +395,15 @@ function Sharing({ stats }: { stats: DashboardStats }) {
 
 // --- The page ----------------------------------------------------------------
 
-// TWO ADDRESSES, ONE PAGE, AND A PHONE IS SENT PAST THE FIRST. Ziad's call,
-// 2026-09-17: on a phone the job is to look up a planned ride and load it, so
-// /rides is home there and the dashboard is the numbers. `/` on a phone is a
-// 302 to /rides, decided by isPhone() from the client hint and the User-Agent;
-// `/dash` is the same dashboard with no redirect, and it is what the Dash item
-// in the menu links to, so the page stays one tap away on the phone that was
-// sent past it. Deterministic on purpose — a redirect that consulted the
-// Referer to tell "arrived" from "chose Dash" would trap any phone whose
-// privacy extension strips it. The wordmark keeps linking to `/`, which is
-// what makes it land on rides for a thumb and on the dashboard for a mouse.
+// TWO ADDRESSES, ONE PAGE, AND A PHONE IS SENT PAST THE FIRST (2026-09-17): on a phone
+// the job is to look up a planned ride and load it, so /rides is home there and the
+// dashboard is the numbers. `/` on a phone is a 302 to /rides, decided by isPhone();
+// `/dash` is the same dashboard with no redirect and is what the Dash item links to.
+// Deterministic on purpose — a redirect that consulted the Referer would trap any phone
+// whose privacy extension strips it.
 //
-// A 302 and not a 301: the answer depends on the device asking, and a cached
-// permanent redirect would follow a rider's bookmark from their phone onto
-// their laptop.
+// A 302 and not a 301: the answer depends on the device asking, and a cached permanent
+// redirect would follow a rider's bookmark from their phone onto their laptop.
 homeRoutes.get('/', requireActive, async (c) => {
   if (isPhone((name) => c.req.header(name))) return c.redirect('/rides', 302)
   return dashboard(c)
