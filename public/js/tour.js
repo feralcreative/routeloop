@@ -1,32 +1,27 @@
 // Show me around — the guided tour. #133, and the real one as of 2026-09-11.
 //
-// **AN INSTRUCTIONAL VIDEO ABOUT A PLANNING SESSION, THE SAME EVERY TIME.**
-// Ziad's call, 2026-09-11. A new rider watches one story — a coast run out of
-// Oakland with three friends — and the only thing they press is Next, Back or
-// Skip. Everything else is demonstrated. Five parts, about thirty cards.
+// **AN INSTRUCTIONAL VIDEO ABOUT A PLANNING SESSION, THE SAME EVERY TIME.** A new
+// rider watches one story — a coast run out of Oakland with three friends — and the
+// only thing they press is Next, Back or Skip. Five parts, about thirty cards.
 //
-// **EVERYTHING IS CANNED AND NOTHING IS ROUTED LIVE.** The ride was planned once
-// by utils/build-tour-ride.ts and the result is thirteen KEYFRAMES in
+// **EVERYTHING IS CANNED AND NOTHING IS ROUTED LIVE.** The ride was planned once by
+// utils/build-tour-ride.ts and the result is thirteen KEYFRAMES in
 // public/tour/coast-run.json, each a whole ride payload. Every demonstrating step
-// types for show and hands the next frame to `TBBuilder.apply()`. Zero Google
-// spend per run: the cursor types into the search box, but no `input` event is
-// dispatched into a box that would call Google on it.
+// types for show and hands the next frame to `TBBuilder.apply()`. Zero Google spend
+// per run: no `input` event is dispatched into a box that would call Google.
 //
 // **THE RIDE IS REAL AND IT IS BINNED AT THE END.** POST /api/tour/start makes it
-// and /api/tour/done bins it on Finish and on the X, so what the rider takes away
-// is the knowledge rather than a ride they never planned.
+// and /api/tour/done bins it on Finish and on the X.
 //
 // **IT FOLLOWS THE RIDER ACROSS PAGES.** A step carries a `page`, and showing one
-// that is not this page saves where the tour is in sessionStorage and navigates.
-// The saved position is trusted ONLY when `<html data-tour-ride>` names the same
-// ride, so a tour that ended on another tab is dropped rather than followed into
-// a 404.
+// that is not this page saves where the tour is in sessionStorage and navigates. The
+// saved position is trusted ONLY when `<html data-tour-ride>` names the same ride.
 //
 // **A DEMONSTRATION WATCHES THE DOM AND CALLS `TBBuilder`, NEVER `state`.**
 //
 // **SHEPHERD ARRIVES AS A MODULE AND THIS FILE IS NOT ONE**: a
-// `<link rel="modulepreload">` carries the integrity hash and this file
-// `import()`s its href after load. If the CDN fails the tour is absent.
+// `<link rel="modulepreload">` carries the integrity hash and this file `import()`s
+// its href after load. If the CDN fails the tour is absent.
 (function () {
   "use strict";
 
@@ -37,12 +32,10 @@
   // How far right an attached card is pushed on a desktop — see build().
   var DESKTOP_NUDGE_PX = 20;
 
-  // Typing rhythm: per character, the cursor blinking alone before the first
-  // one, and a beat after the last so the word is read before anything moves.
-  // TYPE_LEAD_MS is the pause before the first character; CARET_LEAD_MS is
-  // the pointer's, before a press, and stays longer because a press is one
-  // moment where typing is many. The first few cards were measured at 2.3s,
-  // 3.8s and 5.3s on 2026-09-13 and most of it was pauses, not letters.
+  // Typing rhythm: per character, the cursor blinking alone before the first one, and
+    // a beat after the last so the word is read before anything moves. CARET_LEAD_MS is
+    // the pointer's, before a press, and stays longer because a press is one moment
+    // where typing is many.
   var TYPE_MS = 45;
   var TYPE_LEAD_MS = 400;
   var CARET_LEAD_MS = 700;
@@ -54,13 +47,11 @@
   // anyway. A frame is one save; the split is a save and two writes.
   var DEMO_TIMEOUT_MS = 20000;
 
-  // The keyframes, in story order. A step names the one it lands on, and
-  // "done" for a demonstrating step is "that frame, or a later one, has been
-  // applied" — kept in the saved position rather than read off the DOM,
-  // because thirteen predicates over the route list would each be a second
-  // description of what a frame contains.
-  // What the ride is called before the first card names it — TOUR_SEED.title
-  // in src/tour/seed.ts, pinned by test/tips.test.ts.
+  // The keyframes, in story order. A step names the one it lands on, and "done" for a
+    // demonstrating step is "that frame, or a later one, has been applied" — kept in the
+    // saved position rather than read off the DOM, because thirteen predicates over the
+    // route list would each be a second description of what a frame contains.
+    // What the ride is called before the first card names it — TOUR_SEED.title.
   var SEED_TITLE = "Untitled ride";
 
   var FRAMES = [
@@ -93,14 +84,12 @@
   };
 
   // ——— The parts ———
-  //
-  // **FIVE PARTS A RIDER CAN TAKE IN ANY ORDER OR SKIP AT WILL.** Every card
-  // carries Skip this part beside Next, the welcome and closing cards offer the
-  // parts as buttons, and `jump()` is the one way between them. Fuel comes
-  // before the people (Ziad's call, 2026-09-12: the ring is already on the
-  // map by the clock, so it is explained next rather than two parts later)
-  // and before the meet on purpose: the proposer only offers a meeting point
-  // a group can reach on the tank it leaves with.
+    //
+    // **FIVE PARTS A RIDER CAN TAKE IN ANY ORDER OR SKIP AT WILL.** Every card carries
+    // Skip this part beside Next, and `jump()` is the one way between them. Fuel comes
+    // before the people — the ring is already on the map by the clock — and before the
+    // meet on purpose: the proposer only offers a meeting point a group can reach on
+    // the tank it leaves with.
   var PARTS = [
     {
       n: 1,
@@ -119,20 +108,17 @@
   ];
 
   // ——— The steps ———
-  //
-  // `at` is a data-tip key, a CSS selector, or a function returning the element;
-  // null centers the card. `nth` picks the nth visible match. `page` is which page
-  // the step lives on (builder when absent). `tab` is a panel tab to open first.
-  // `demo` does the step's thing in front of the rider; `frame` is the keyframe it
-  // lands on and doubles as its "already done" test; `running` is the status line
-  // shown in place of Next. `needs` is a frame applied silently before a card that
-  // assumes it. `then` is where the spotlight moves once the demonstration lands,
-  // or the rider is left looking at a lit search box under a row that appeared by
-  // itself. `press` is a control clicked before the anchor resolves. `open` is a
-  // list of <details> opened before the card and closed after. `prep` runs after
-  // the reset and before the anchor resolves. `replay` is copy for the sign-in
-  // page's recording, for the few cards whose live copy invites the rider to do
-  // something a recording cannot offer.
+    //
+    // `at` is a data-tip key, a CSS selector, or a function returning the element; null
+    // centers the card. `nth` picks the nth visible match. `page` is which page the step
+    // lives on (builder when absent). `tab` is a panel tab to open first. `demo` does
+    // the step's thing in front of the rider; `frame` is the keyframe it lands on and
+    // doubles as its "already done" test; `running` is the status line shown in place of
+    // Next. `needs` is a frame applied silently before a card that assumes it. `then` is
+    // where the spotlight moves once the demonstration lands. `press` is a control
+    // clicked before the anchor resolves. `open` is a list of <details> opened before
+    // the card and closed after. `prep` runs after the reset. `replay` is copy for the
+    // sign-in page's recording.
   var STEPS = [
     {
       id: "welcome",
@@ -353,14 +339,12 @@
     },
 
     // ——— Part 2: the clock ———
-    //
-    // **AN INTERSTITIAL OPENS EACH PART AFTER THE FIRST.** Ziad's call,
-    // 2026-09-11: a rider finishing one part is told the subject has changed
-    // before the next control is pointed at. The welcome card does this job
-    // for part 1. `intro` centers the card, drops the counter from the part
-    // line and labels Next "Start part N"; `jump()` lands on it too. `needs`
-    // is what a rider who skipped here sees: the ride as the previous part
-    // left it, applied silently.
+        //
+        // **AN INTERSTITIAL OPENS EACH PART AFTER THE FIRST**: a rider finishing one part
+        // is told the subject has changed before the next control is pointed at. `intro`
+        // centers the card, drops the counter from the part line and labels Next "Start
+        // part N". `needs` is what a rider who skipped here sees: the ride as the previous
+        // part left it, applied silently.
     {
       id: "intro-2",
       part: 2,
@@ -392,13 +376,10 @@
     {
       id: "timeline",
       part: 2,
-      // The whole map is the spotlight, the bar included, and it stays live:
-      // this is the one card where the rider is invited to touch the thing —
-      // after the demonstration has run it through once. Pinned to the map
-      // rather than the bar because the bar lies INSIDE the map's box, and
-      // two overlapping cut-outs paint the overlap dark. Ziad's call,
-      // 2026-09-12. The card sits at the bar's left end — `tour-over-bar` in
-      // _tour.scss — so it covers as little of the map as it can.
+      // The whole map is the spotlight, the bar included, and it stays live: this is the
+            // one card where the rider is invited to touch the thing. Pinned to the map rather
+            // than the bar because the bar lies INSIDE the map's box, and two overlapping
+            // cut-outs paint the overlap dark.
       at: "#map",
       clickable: true,
       classes: "tour-over-bar",
@@ -474,12 +455,9 @@
       title: "The paddock: your bikes and their range",
       text: "A name and a range is all a bike needs; that range is what the fuel planning reads. On this ride the guides’ bikes count: Sam’s KTM at 200 miles, Priya’s Triumph at 190, Diego’s Ducati at 120—the tank the ride is planned around.",
       running: "Adding a bike…",
-      // A REAL BIKE, FOR THE LENGTH OF THE CARD. The add goes through the
-      // paddock's own button, so the rider sees the row appear; the range is
-      // typed for show. The bike is deleted the moment the card is left —
-      // the paddock is theirs and the tour adds nothing to it that lasts.
-      // Ziad's call, 2026-09-12. `done` is never true, so Back re-runs it
-      // against whatever the page holds.
+      // A REAL BIKE, FOR THE LENGTH OF THE CARD. The add goes through the paddock's own
+            // button, so the rider sees the row appear, and the bike is deleted the moment the
+            // card is left — the paddock is theirs. `done` is never true, so Back re-runs it.
       done: function () {
         return false;
       },
@@ -737,13 +715,11 @@
     {
       id: "meet-result",
       part: 5,
-      // The whole list, which is the subject — and a node the re-renders
-      // that follow the meet's save never replace, so the card holds still.
-      // Pinned to the first route head it was rebuilt on every re-render and
-      // scrolled the panel each time. The routes are folded for the card so
-      // all three headers are in view — open, the third sat below the fold
-      // and the card said three over a panel showing two — and unfolded on
-      // the way out, since the split card needs a row in the third one.
+      // The whole list, which is the subject — and a node the re-renders that follow the
+            // meet's save never replace, so the card holds still. Pinned to the first route
+            // head it was rebuilt on every re-render and scrolled the panel each time. The
+            // routes are folded for the card so all three headers are in view, and unfolded on
+            // the way out, since the split card needs a row in the third one.
       at: "#route-list",
       side: "right",
       tab: "tab-routes",
@@ -925,13 +901,11 @@
   }
 
   // ——— The saved position ———
-  //
-  // `{ rideId, slug, stepId, frame, members }` in sessionStorage: the tab's
-  // own, gone when the tab closes, and trusted only against <html
-  // data-tour-ride>, which the server stamps from the session's record of
-  // which ride the tour is building. Wrapped in try/catch because storage can
-  // be absent or throw in a private window, and a tour that cannot save its
-  // position still runs on the page it is on.
+    //
+    // `{ rideId, slug, stepId, frame, members }` in sessionStorage: the tab's own, gone
+    // when the tab closes, and trusted only against <html data-tour-ride>. Wrapped in
+    // try/catch because storage can throw in a private window, and a tour that cannot
+    // save its position still runs on the page it is on.
   function progress() {
     try {
       var raw = window.sessionStorage.getItem(STORE_KEY);
@@ -1114,12 +1088,10 @@
     return "Skip to " + next.name;
   }
 
-  /** A thin red bar along the top edge of the card: how far through the tour
-   *  this step is, over every step that shows a card. It replaced "Part 2 of
-   *  5 · The Clock · 3 of 4", Ziad's call, 2026-09-12 — two counters on one
-   *  line was arithmetic the rider had to do, and a bar is read at a glance.
-   *  The chooser cards carry none: the welcome is before the tour and the
-   *  close is after it. */
+  /** A thin red bar along the top edge of the card: how far through the tour this
+      *  step is, over every step that shows a card. It replaced "Part 2 of 5 · The Clock
+      *  · 3 of 4" — two counters on one line was arithmetic the rider had to do. The
+      *  chooser cards carry none: the welcome is before the tour and the close after. */
   function progressBar(step) {
     if (step.chooser) return "";
     var shown = STEPS.filter(function (s) {
@@ -1267,13 +1239,10 @@
             }
           })
           .then(function () {
-            // A tab filled by a fetch (Riders) may not hold the anchor yet;
-            // give it a moment rather than showing a centered card. Only
-            // where a tab was opened: elsewhere a missing anchor is a state
-            // the demonstration is about to change, not a load in flight.
-            // Never on a re-pin after the demonstration: by then the anchor
-            // may be gone for good (a taken proposal), and the wait was a
-            // three-second hole between the meet landing and the next card.
+            // A tab filled by a fetch (Riders) may not hold the anchor yet; give it a
+                        // moment rather than showing a centered card. Only where a tab was opened:
+                        // elsewhere a missing anchor is a state the demonstration is about to
+                        // change. Never on a re-pin, where the anchor may be gone for good.
             return step.tab && !repinning && !stepDone(step) ? awaitAnchor(step, 3000) : undefined;
           });
       },
@@ -1396,13 +1365,12 @@
     return "seed";
   }
 
-  /** **A CARD DOES THE SAME THING ARRIVED AT FROM EITHER DIRECTION.** Ziad's call,
-    *  2026-09-12. Back used to land on a card already satisfied — the frame was
-    *  applied, so it offered Next and showed nothing — where the rider pressing Back
-    *  wants to see it again. So a card reached with a LATER frame applied puts the
-    *  ride back to its scene first; forward it is already there and this costs
-    *  nothing. `force` records the rollback, or hasFrame() would still say the later
-    *  frame holds and the anchors would resolve to rows no longer on the page. */
+  /** **A CARD DOES THE SAME THING ARRIVED AT FROM EITHER DIRECTION.** Back used to
+        *  land on a card already satisfied — the frame was applied, so it offered Next and
+        *  showed nothing — where the rider pressing Back wants to see it again. So a card
+        *  reached with a LATER frame applied puts the ride back to its scene first. `force`
+        *  records the rollback, or hasFrame() would still say the later frame holds and the
+        *  anchors would resolve to rows no longer on the page. */
   function resetFor(step) {
     if (currentPage() !== "builder") return Promise.resolve();
     var scene = sceneOf(step);
@@ -1454,22 +1422,18 @@
   }
 
   // ——— Re-pinning ———
-  //
-  // **A FRAME REPLACES THE ROUTE LIST'S CHILDREN, AND THE CARD IS PINNED TO ONE OF
-  // THEM.** renderRoutes() rewrites innerHTML on every edit, so the moment a frame
-  // lands the row a card points at is a detached node: the spotlight hole collapses
-  // and Floating UI positions the card against a 0×0 box at the top-left. Seen as
-  // "flashing and jumping" between cards 7 and 8.
-  //
-  // The observer watches the list and re-shows the card the instant it is rewritten
-  // — Shepherd resolves the target afresh — with the fade suppressed, all inside
-  // the same task.
-  // **COUNTED, NOT TIMED.** This was a boolean cleared on a setTimeout(0), and a
-  // beforeShowPromise longer than a task let when.show run with the flag already
-  // down: it took the re-pin for a fresh arrival, ran the demonstration again,
-  // which re-applied the frame, whose re-render re-pinned, forever. Seen live on
-  // "Take one", 2026-09-12. Step.show() settles after _show, so the count comes
-  // down exactly when the show it belongs to is over.
+    //
+    // **A FRAME REPLACES THE ROUTE LIST'S CHILDREN, AND THE CARD IS PINNED TO ONE OF
+    // THEM.** renderRoutes() rewrites innerHTML on every edit, so the moment a frame
+    // lands the row a card points at is a detached node: the spotlight hole collapses
+    // and Floating UI positions the card against a 0×0 box at the top-left.
+    //
+    // The observer watches the list and re-shows the card the instant it is rewritten,
+    // with the fade suppressed, all inside the same task.
+    // **COUNTED, NOT TIMED.** This was a boolean cleared on a setTimeout(0), and a
+    // beforeShowPromise longer than a task let when.show run with the flag already down:
+    // it took the re-pin for a fresh arrival, ran the demonstration again, which
+    // re-applied the frame, whose re-render re-pinned, forever.
   var repinning = 0;
 
   function repin(shepherdStep) {
