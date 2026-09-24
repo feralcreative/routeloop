@@ -1,26 +1,20 @@
-// EVERY RELEASE IN src/content/release-notes.html, AS SOMETHING THAT CAN BE
-// ANNOUNCED, PLUS THE ANCHORS THAT LET A NOTIFICATION LINK TO ONE.
+// EVERY RELEASE IN src/content/release-notes.html, AS SOMETHING THAT CAN BE ANNOUNCED,
+// PLUS THE ANCHORS THAT LET A NOTIFICATION LINK TO ONE.
 //
-// Pure — a function of the file's text and nothing else — so it is testable
-// under the house rule that governs test/. Reading the file and inserting rows
-// both live in ../notifications/announce.ts.
+// Pure — a function of the file's text and nothing else. Reading the file and inserting
+// rows both live in ../notifications/announce.ts.
 //
-// **THE PAGE KEEPS 100% OF THE NOTES AND A NOTIFICATION CARRIES A REFERENCE.**
-// Ziad's call, 2026-09-09. Thirty-one of the forty-two sections are longer than
-// the 400-character `body` column and the largest is over six thousand, so a
-// release cannot be stored whole in a row — and the two ways round that are both
-// worse than linking: one row per bullet scatters a release into a list of
-// unrelated lines, and widening the column puts authored HTML somewhere every
-// other consumer escapes it.
+// **THE PAGE KEEPS 100% OF THE NOTES AND A NOTIFICATION CARRIES A REFERENCE.** Thirty-
+// one of the forty-two sections are longer than the 400-character `body` column, so a
+// release cannot be stored whole in a row — and the two ways round that are both worse
+// than linking: one row per bullet scatters a release into unrelated lines, and
+// widening the column puts authored HTML somewhere every other consumer escapes it.
 //
-// **COMMENTS ARE MASKED BEFORE SEARCHING, AND THIS IS THE THIRD PLACE THAT TRAP
-// HAS BEEN HIT.** The file opens with its own authoring contract as an HTML
-// comment, and that contract contains a worked example of a stamped release
-// block — so a naive search finds the EXAMPLE and announces "24 August 2026" to
-// every rider. utils/stamp-release.ts masks for the same reason and would have
-// rewritten the documentation instead of the release; test/content.test.ts
-// strips comments for the same reason again. The mask preserves length so
-// indices into it stay valid in the original.
+// **COMMENTS ARE MASKED BEFORE SEARCHING, AND THIS IS THE THIRD PLACE THAT TRAP HAS
+// BEEN HIT.** The file opens with its own authoring contract as an HTML comment, and
+// that contract contains a worked example of a stamped release block — so a naive
+// search finds the EXAMPLE and announces it to every rider. The mask preserves length
+// so indices into it stay valid in the original.
 const maskComments = (html: string): string => html.replace(/<!--[^]*?-->/g, (c) => ' '.repeat(c.length))
 
 /** What a release looks like once it is something to tell riders about. */
@@ -37,23 +31,19 @@ export type Release = {
 }
 
 /**
- * The release's identity, its anchor, and the whole of what stops it being
- * announced twice.
+ * The release's identity, its anchor, and the whole of what stops it being announced
+ * twice.
  *
- * **THE HEADING, NOT THE BUILD.** `BUILD_SHA` is the identity of the running
- * CODE, and every deploy has a new one whether or not a release note was
- * written — so keying on it announces the same unchanged entry again on the next
- * unrelated deploy. The heading is the identity of the ENTRY, which is the thing
- * a rider is being told about.
+ * **THE HEADING, NOT THE BUILD.** `BUILD_SHA` is the identity of the running CODE, and
+ * every deploy has a new one whether or not a release note was written. The heading is
+ * the identity of the ENTRY, which is the thing a rider is being told about.
  *
- * **THE HEADING RATHER THAN THE WHOLE SECTION**, which would also be stable and
- * is the wrong sensitivity: fixing a typo in a bullet would re-announce a
- * release every rider has already read. A heading is edited rarely and
- * deliberately, so keying on it puts re-announcing behind an act that looks like
- * one.
+ * **THE HEADING RATHER THAN THE WHOLE SECTION**, which would also be stable and is the
+ * wrong sensitivity: fixing a typo in a bullet would re-announce a release every rider
+ * has already read.
  *
- * The stamp is stripped first, so running `stamp-release.ts` after a deploy —
- * which is the documented order — does not mint a second id for one release.
+ * The stamp is stripped first, so running `stamp-release.ts` after a deploy does not
+ * mint a second id for one release.
  */
 export function releaseId(title: string): string {
   return title
@@ -82,29 +72,21 @@ const MONTHS = [
 /**
  * When a release shipped, from its own heading.
  *
- * **THE DATE IS WHAT PUTS IT IN THE LIST, so this cannot fall back to "now".**
- * The center orders by `created_at`, and a backfill stamped with the moment it
- * ran would put forty-two releases in a block at the top in file order, which is
- * the opposite of mixing them chronologically with everything else.
+ * **THE DATE IS WHAT PUTS IT IN THE LIST, so this cannot fall back to "now".** The
+ * center orders by `created_at`, and a backfill stamped with the moment it ran would
+ * put forty-two releases in a block at the top in file order.
  *
- * Two shapes, because the file has two. "8 September 2026" is every entry the
- * house style has produced; "Before all that, July 2026" is the single oldest
- * catch-all, and a month with no day is taken as the FIRST of it — which puts it
- * before everything that names a day in the same month, and it is the earliest
- * entry in the file either way.
+ * Two shapes, because the file has two. A month with no day is taken as the FIRST of
+ * it, which puts it before everything that names a day in the same month.
  *
- * **MIDDAY UTC, NOT MIDNIGHT, AND THAT IS THE WHOLE OF WHY THE HOUR IS HERE.**
- * `notifications.created_at` is a real instant and the center renders it in the
- * RIDER'S zone — unlike `routes.start_at`, which is a wall clock read back with
- * `timeZone: 'UTC'`. Stamped at midnight a release dated 8 September renders as
- * the 7th to everybody west of Greenwich, which is what this file's own dev run
- * showed. Noon renders as the authored date from UTC-11 through UTC+11, which is
- * every rider there is.
+ * **MIDDAY UTC, NOT MIDNIGHT.** `notifications.created_at` is a real instant and the
+ * center renders it in the RIDER'S zone — unlike `routes.start_at`, which is a wall
+ * clock read back with `timeZone: 'UTC'`. Stamped at midnight a release dated
+ * 8 September renders as the 7th to everybody west of Greenwich. Noon holds the
+ * authored date from UTC-11 through UTC+11.
  *
- * Null when neither shape matches, which `test/releases.test.ts` asserts never
- * happens for the shipped file — and it is DROPPED rather than given a fallback,
- * because a release that cannot be placed chronologically would be ordered
- * wrongly and look like a data problem rather than an authoring one.
+ * Null when neither shape matches, and DROPPED rather than given a fallback, because a
+ * release that cannot be placed chronologically would be ordered wrongly.
  */
 export function releaseDate(title: string): number | null {
   const dmy = /(\d{1,2})\s+([A-Za-z]+)\s+(\d{4})/.exec(title)
@@ -199,14 +181,11 @@ const SUMMARY_MAX = 220
  * Give every release section the id its notification links to.
  *
  * **INJECTED AT RENDER, NOT WRITTEN INTO THE FILE.** The anchor has to equal
- * `releaseId(title)` exactly or a notification links to nothing, and an id
- * somebody types by hand is one transposed character from that — the same
- * argument `stamp-release.ts` makes about the commit. It also leaves the
- * authoring contract at the top of the file true as written: copy the block,
- * fill it in, and the anchor exists.
+ * `releaseId(title)` exactly or a notification links to nothing, and an id somebody
+ * types by hand is one transposed character from that. It also leaves the authoring
+ * contract at the top of the file true as written.
  *
- * A section that already carries an id is left alone, so this is safe to run
- * twice and safe if the file ever gains hand-written ones.
+ * A section that already carries an id is left alone, so this is safe to run twice.
  */
 export function withAnchors(html: string): string {
   const masked = maskComments(html)
@@ -231,26 +210,18 @@ export function withAnchors(html: string): string {
 }
 
 /**
- * The date as an eyebrow over the title, and the entry folded to those two
- * lines, at render (#325).
+ * The date as an eyebrow over the title, and the entry folded to those two lines, at
+ * render (#325).
  *
- * **THE FILE KEEPS "DATE — TITLE" IN ONE `<h3>`, and this is what makes that
- * safe to leave alone.** The heading is the announcement id and the thing the
- * date is read from, so moving the date out of it in the FILE would mint a new
- * id for every release — thirty-six quiet re-announcements — and leave the
- * date parser nothing to read. Splitting at render costs nothing and changes
- * no identity: `<h3>DATE — TITLE STAMP</h3>` renders as an eyebrow carrying
- * the date and the stamp, then an `<h3>` carrying the title alone. A heading
- * with no title (the early history) keeps the date as its heading.
+ * **THE FILE KEEPS "DATE — TITLE" IN ONE `<h3>`, and this is what makes that safe to
+ * leave alone.** The heading is the announcement id and the thing the date is read
+ * from, so moving the date out of it in the FILE would mint a new id for every release
+ * and leave the date parser nothing to read. Splitting at render changes no identity.
  *
- * **AN ACCORDION, WITH THE NEWEST ENTRY OPEN TO START.** Ziad's call,
- * 2026-09-13: thirty-six entries of bullets is a wall, and the title is what
- * a rider scans. Every entry is a `<details>` sharing one `name`, which is
- * the native exclusive accordion — opening one closes the other, with no
- * script — and the newest ships `open`, because it is the one the badge
- * points at; it folds like the rest once another is opened. site.js opens
- * the entry a notification's anchor names, which is the one thing the markup
- * cannot do.
+ * **AN ACCORDION, WITH THE NEWEST ENTRY OPEN TO START**: thirty-six entries of bullets
+ * is a wall, and the title is what a rider scans. Every entry is a `<details>` sharing
+ * one `name`, which is the native exclusive accordion. site.js opens the entry a
+ * notification's anchor names, which is the one thing the markup cannot do.
  */
 function splitHeadings(html: string): string {
   const masked = maskComments(html)

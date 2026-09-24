@@ -1,22 +1,17 @@
 // WHO IS ON WHICH STRETCH OF ROAD, and where the ride joins up or comes apart.
 //
-// Pure: no database, no Hono, no clock. `service.ts` is the query half, the same
-// split as invites, survey, stats, access, friends, members, votes, subgroups,
-// follows, comments and suggestions.
+// Pure: no database, no Hono, no clock. `service.ts` is the query half.
 //
 // THIS SUPERSEDES `routes.subgroup_id` AS THE ANSWER TO "WHO RIDES THIS", and the
-// reason is a shape subgroups could not hold. A route carried one subgroup or
-// none, and a rider belonged to one subgroup for the whole ride — so "three
-// riders join at Portland and one of them peels off at Eugene" had nowhere to
-// live: those three share a group, and the group is what the route is tagged
-// with. Ziad's call, 2026-09-06, after describing exactly that ride. The set of
-// people riding together changes for reasons that have nothing to do with where
-// anybody set off from, so the rider is the primitive and the group is not.
+// reason is a shape subgroups could not hold. A route carried one subgroup or none, and
+// a rider belonged to one subgroup for the whole ride — so "three riders join at
+// Portland and one of them peels off at Eugene" had nowhere to live. The set of people
+// riding together changes for reasons that have nothing to do with where anybody set
+// off from, so the rider is the primitive and the group is not.
 //
 // **A GROUP IS NOT GONE AND MUST NOT BE REMOVED.** It still answers a different
 // question — where does this lot set off from — which is what the meeting-point
 // proposer reads, and it is still how a planner assigns several riders at once.
-// What it stopped being is the thing that says who rides a route.
 /**
  * The minimum a route has to carry to be resolved: an identity that survives a
  * save, and its place in the order.
@@ -61,29 +56,21 @@ export type ResolvedRoute = {
 /**
  * Resolve every route's rider set.
  *
- * **ROWS ARE AN OVERRIDE AND THEIR ABSENCE IS NOT "NOBODY".** A route with no
- * rows inherits the set from the route before it; the first route of a ride with
- * no rows is ridden by the whole roster. Ziad's call, 2026-09-06, chosen over
- * "everyone unless removed" because it is how a ride actually reads: you say who
- * joins and who leaves, and it stays that way until you say otherwise. On the
- * worked example — ride to Portland, a friend joins to Seattle, they peel off,
- * you carry on to Vancouver — that is two answers instead of four, and the two
- * are exactly the two junctions.
+ * **ROWS ARE AN OVERRIDE AND THEIR ABSENCE IS NOT "NOBODY".** A route with no rows
+ * inherits the set from the route before it; the first route of a ride with no rows is
+ * ridden by the whole roster. Chosen over "everyone unless removed" because it is how a
+ * ride actually reads: you say who joins and who leaves, and it stays that way. On the
+ * worked example that is two answers instead of four, and the two are the two junctions.
  *
- * **A ROUTE RIDDEN BY NOBODY IS NOT A THING ANYONE MEANS**, which is what makes
- * the absence unambiguous: there is no state that an empty explicit set would
- * express and an inherited one would not. An explicit set that arrives empty is
- * therefore treated as no answer at all rather than as an empty route.
+ * **A ROUTE RIDDEN BY NOBODY IS NOT A THING ANYONE MEANS**, which is what makes the
+ * absence unambiguous. An explicit set that arrives empty is treated as no answer at
+ * all rather than as an empty route.
  *
- * **DERIVED, NEVER STORED.** The same argument `junctions()` makes about meets
- * and splits: the resolved set changes every time a route is added, removed or
- * reordered, and a stored copy would be wrong the first time anybody dragged
- * one. It is also why this takes the roster as an argument rather than reading
- * it — adding a rider to the ride changes the answer for every inherited route,
- * and that has to happen without a write.
+ * **DERIVED, NEVER STORED.** The resolved set changes every time a route is added,
+ * removed or reordered, and a stored copy would be wrong the first time anybody dragged
+ * one. It is also why this takes the roster as an argument rather than reading it.
  *
- * `routes` must be in position order; the caller owns that, the same way
- * `junctions()` does.
+ * `routes` must be in position order; the caller owns that.
  */
 export function resolveRouteRiders(routes: RouteRef[], explicit: RouteRiderRef[], roster: number[]): ResolvedRoute[] {
   const byRoute = new Map<string, RouteRider[]>()
@@ -133,16 +120,14 @@ export function resolveRouteRiders(routes: RouteRef[], explicit: RouteRiderRef[]
 /**
  * Which groups a route carries, for the checkbox list on its row.
  *
- * **DERIVED FROM WHO IS ON IT, BY THEIR HOME GROUP — NOT FROM WHAT IS STORED
- * HERE.** That distinction is the whole reason the control can be honest. Once
- * VMCSC joins the main group their stored group on that route is null, so
- * reading the stored value would tick nothing and the route would look like
- * everybody's — which is exactly the "Everyone" lie this replaces. Reading each
- * rider's HOME group instead ticks VMCSF and VMCSC on the shared stretch and
- * leaves VMCSLO unticked while they are still on their approach.
+ * **DERIVED FROM WHO IS ON IT, BY THEIR HOME GROUP — NOT FROM WHAT IS STORED HERE.**
+ * Once VMCSC joins the main group their stored group on that route is null, so reading
+ * the stored value would tick nothing and the route would look like everybody's, which
+ * is exactly the "Everyone" lie this replaces. Reading each rider's HOME group instead
+ * ticks VMCSF and VMCSC on the shared stretch and leaves VMCSLO unticked.
  *
- * `home` is `ride_members.subgroup_id` per rider: which group they belong to on
- * this ride, which never changes as they merge and split.
+ * `home` is `ride_members.subgroup_id` per rider: which group they belong to on this
+ * ride, which never changes as they merge and split.
  */
 export function groupsOnRoute(route: ResolvedRoute, home: Map<number, number | null>): Array<number | null> {
   const out = new Set<number | null>()
@@ -153,15 +138,11 @@ export function groupsOnRoute(route: ResolvedRoute, home: Map<number, number | n
 /**
  * Every group a rider has ridden as, most recent route first.
  *
- * **SCAFFOLDING FOR THE SPLIT PICKER**, which is its own branch. When VMCSC
- * peels off for home, the planner should be offered "split off as VMCSC again"
- * with those riders already ticked rather than having to rebuild the group by
- * hand — and the only record that VMCSC ever existed as a riding set is the
- * route they rode as it. Most recent first because the last grouping is the one
- * a planner is most likely to mean.
- *
- * Nulls are dropped: riding as the main group is not a grouping anybody splits
- * back into.
+ * **SCAFFOLDING FOR THE SPLIT PICKER.** When VMCSC peels off for home, the planner
+ * should be offered "split off as VMCSC again" with those riders already ticked — and
+ * the only record that VMCSC ever existed as a riding set is the route they rode as it.
+ * Most recent first because the last grouping is the one a planner is most likely to
+ * mean. Nulls are dropped.
  */
 export function groupsRiddenAs(resolved: ResolvedRoute[], riderId: number): number[] {
   const out: number[] = []
