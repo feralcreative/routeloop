@@ -7,14 +7,12 @@
 // fieldset, label or validation styling to inherit.
 
 .profile-form {
-  // No max-width. The 560px that used to be here was a LAYOUT cap and it left
-  // ~340px of a desktop viewport unused (#130). The form carries `.two-col` in
-  // the markup instead, so its fieldsets sit two-up and each one is ~430px —
-  // about what the old cap gave a single column, but two of them.
-  //
-  // `.invite-form` shares this class and does NOT get the grid: it is one
-  // fieldset, and a single-cell grid is just a narrower form. It keeps its own
-  // 34rem cap in _survey.scss, which lands after this file.
+  // No max-width. The 560px that used to be here was a LAYOUT cap and left ~340px of a
+    // desktop viewport unused (#130). The form carries `.two-col` in the markup instead,
+    // so its fieldsets sit two-up at ~430px each.
+    //
+    // `.invite-form` shares this class and does NOT get the grid: it is one fieldset,
+    // and a single-cell grid is just a narrower form.
 
   fieldset {
     margin: 0 0 2rem;
@@ -140,17 +138,14 @@
     font-size: 0.85rem;
   }
 
-  // THE IMPORT REVIEW TABLE (#129). It used to be a plain list, and the comment
-  // here used to argue that it should stay one — that the place to change a route
-  // order was the files or the builder. That was wrong in the way a shipped
-  // guess is always wrong: a rider who saw a misread date had to rename files on
-  // disk and drop them again. It reports AND corrects now.
-  //
-  // A grid rather than a flex line, because the columns have to line up DOWN the
-  // list: the route numbers, the name fields and the dates each form a column, and
-  // a flex row per <li> lines up nothing with its neighbors. `subgrid` is what
-  // lets each row keep its own hover and border while inheriting the parent's
-  // tracks.
+  // THE IMPORT REVIEW TABLE (#129). It used to be a plain list, under a comment arguing
+    // that the place to change a route order was the files or the builder — wrong in the
+    // way a shipped guess is always wrong: a rider who saw a misread date had to rename
+    // files on disk and drop them again.
+    //
+    // A grid rather than a flex line, because the columns have to line up DOWN the list
+    // and a flex row per <li> lines up nothing with its neighbors. `subgrid` is what lets
+    // each row keep its own hover and border while inheriting the parent's tracks.
   .import-plan {
     margin: 0 0 1.1rem;
     padding: 0.8rem 1rem;
@@ -506,14 +501,11 @@
     }
   }
 
-  // `select` and `textarea` joined `input` here when the survey arrived. Before
-  // that neither had any styling at all — the one `<select>` on /import rendered
-  // as the platform default beside inputs that did not.
-  //
-  // The selector is deliberately narrow: a bare `input` at 100% width would also
-  // catch a radio or a checkbox placed inside a .field, and stretch it across the
-  // row. Those belong in .check and .opt-list, which is why the type exclusions
-  // are here rather than left to whoever writes the next form.
+  // `select` and `textarea` joined `input` here when the survey arrived; before that
+    // neither had any styling at all.
+    //
+    // The selector is deliberately narrow: a bare `input` at 100% width would also catch
+    // a radio or a checkbox placed inside a .field and stretch it across the row.
   input:not([type="checkbox"]):not([type="radio"]),
   select,
   textarea {
@@ -536,19 +528,16 @@
   }
 
   // A SIGIL DRAWN INSIDE THE FIELD — `$` for a Cashtag, `@` for a Venmo handle.
-  //
-  // ABSOLUTELY POSITIONED OVER THE INPUT'S OWN LEFT PADDING, rather than the
-  // input being unbordered inside a bordered wrapper. That second shape is the
-  // usual one and it means restating the border, the radius and the focus ring
-  // on a second selector — three rules that then have to be kept in step with
-  // the input rule above forever, and the focus outline is the one that goes
-  // wrong quietly.
-  //
-  // NESTED IN `.field` RATHER THAN WRITTEN AT THE TOP LEVEL, and that is not
-  // tidiness: the padding below has to OUTRANK `.field input:not(…):not(…)`
-  // above, which carries two attribute selectors. A top-level `.field-prefixed
-  // input` loses to it silently — the sigil draws, the padding does not apply,
-  // and the first character a rider types lands underneath it.
+    //
+    // ABSOLUTELY POSITIONED OVER THE INPUT'S OWN LEFT PADDING, rather than the input
+    // being unbordered inside a bordered wrapper. That second shape means restating the
+    // border, the radius and the focus ring on a second selector — and the focus outline
+    // is the one that goes wrong quietly.
+    //
+    // NESTED IN `.field` RATHER THAN WRITTEN AT THE TOP LEVEL, and that is not tidiness:
+    // the padding below has to OUTRANK `.field input:not(…):not(…)`, which carries two
+    // attribute selectors. A top-level `.field-prefixed input` loses silently — the
+    // sigil draws, the padding does not apply, and the first character lands under it.
   .field-prefixed {
     position: relative;
     display: block;
@@ -580,13 +569,12 @@
   }
 }
 
-// TWO SHORT FIELDS SIDE BY SIDE — a display name and a username, a first name
-// and a last name. Generic rather than profile-specific, which is why it lives
-// here beside `.field` rather than in _account.scss.
+// TWO SHORT FIELDS SIDE BY SIDE — a display name and a username. Generic rather than
+// profile-specific, which is why it lives here beside `.field`.
 //
-// The children are `.field`s, which carry their own bottom margin, so the row
-// gap is 0 and the column gap is the only one declared. A row gap on top of that
-// margin double-spaces the stacked case, which is the one on every phone.
+// The children are `.field`s, which carry their own bottom margin, so the row gap is
+// 0 and the column gap is the only one declared: a row gap on top of that margin
+// double-spaces the stacked case, which is the one on every phone.
 .field-pair {
   display: grid;
   gap: 0 1.5rem;
@@ -604,77 +592,57 @@
   }
 }
 
-// A `?` BESIDE ONE FIELD, HOLDING THAT FIELD'S OWN INSTRUCTIONS (#268).
-//
-// Ziad's call, 2026-09-07: instructions for a specific field go in a bubble
-// rather than sitting under it as permanent gray text. Anything a rider needs to
-// read BEFORE they act — what a section does with their address, what is shared
-// with whom — stays visible as prose, because a disclosure behind a click is a
-// disclosure most people never see.
+// A `?` BESIDE ONE FIELD, HOLDING THAT FIELD'S OWN INSTRUCTIONS (#268): instructions
+// for a specific field go in a bubble rather than sitting under it as permanent gray
+// text. Anything a rider needs to read BEFORE they act stays visible as prose,
+// because a disclosure behind a click is one most people never see.
 //
 // The dot matches `.faq-link` in _builder.scss deliberately: two different `?`
-// affordances that looked different would read as two different kinds of thing,
-// when what they have in common — press this if you are stuck — is the point.
-// That one is scoped inside `.builder-panel` and this one is not, which is why
-// the declarations are repeated rather than shared.
+// affordances that looked different would read as two different kinds of thing. That
+// one is scoped inside `.builder-panel` and this one is not, which is why the
+// declarations are repeated rather than shared.
 .field-help {
   display: inline-flex;
   align-items: center;
-  // RAISED 0.15em OFF THE LABEL BESIDE IT. Ziad's call, 2026-09-07.
-  // The row centers the badge against the label's line box, and a line box is
-  // taller than the letters in it — so a circle centered in one sits low against
-  // the type it annotates, which reads as sagging rather than as centered.
-  //
-  // RELATIVE, NOT A MARGIN OR A TRANSFORM. A margin would change the row's
-  // height and push the field below it; `position: relative` moves the drawing
-  // and leaves the layout where it was, which is the whole point — the badge is
-  // being aligned to the type, not given room. A transform would do the same but
-  // creates a containing block, and this element sits between the anchor and its
-  // popover.
-  //
-  // ON THE WRAPPER RATHER THAN ON THE BUTTON, because an `em` resolves against
-  // the element's own font-size and the button's is 0.6 of this one — the same
-  // shift declared there would come out at 1.4px instead of 2.4. The wrapper
-  // sits in the row's own 16px context, which is the type "next to it".
+  // RAISED 0.15em OFF THE LABEL BESIDE IT. The row centers the badge against the
+    // label's line box, and a line box is taller than the letters in it — so a circle
+    // centered in one sits low against the type it annotates.
+    //
+    // RELATIVE, NOT A MARGIN OR A TRANSFORM. A margin would change the row's height and
+    // push the field below it; a transform creates a containing block, and this element
+    // sits between the anchor and its popover.
+    //
+    // ON THE WRAPPER RATHER THAN ON THE BUTTON, because an `em` resolves against the
+    // element's own font-size and the button's is 0.6 of this one — the same shift
+    // declared there would come out at 1.4px instead of 2.4.
   position: relative;
   top: -0.15em;
-  // 0.3em MORE AIR BETWEEN THE LABEL AND THE BADGE, and it is ON TOP OF the
-  // button's own 0.4em rather than replacing it. Ziad's call, 2026-09-07.
-  //
-  // The two are declared in different contexts on purpose and it is worth
-  // knowing which is which: the button's `em` is its own 0.6 font-size, so its
-  // 0.4em is 3.8px, and this one is the row's 16px, so 0.3em is 4.8px. The gap a
-  // reader sees is the sum, about 8.6px. Moving the whole gap here would be
-  // tidier and would silently change it, because the two ems are not the same
-  // size.
+  // 0.3em MORE AIR BETWEEN THE LABEL AND THE BADGE, and it is ON TOP OF the button's
+    // own 0.4em rather than replacing it. The two are declared in different contexts on
+    // purpose: the button's `em` is its own 0.6 font-size, so its 0.4em is 3.8px, and
+    // this one is the row's 16px. Moving the whole gap here would be tidier and would
+    // silently change it.
   margin-left: 0.3em;
 }
 
 .help-dot {
-  // A BLUE GUIDE SIGN AT BADGE SCALE. Ziad's call, 2026-09-07: blue field, white
-  // legend, keyline set in from the edge — the same construction `sign-field()`
-  // draws on a `.btn`, which is why this reads as part of the app rather than as
-  // a generic help icon.
-  //
-  // **$disabled IS THE APP'S BLUE SIGN FIELD AND IT IS NAMED FOR A SIGN, NOT FOR
-  // A STATE.** It is the disabled-parking blue, and US signage puts a white
-  // legend on blue for motorist services — which is what a help affordance is.
-  // It is already in WHITE_LEGEND in test/palette-contrast.test.ts, so white on
-  // it is measured across all six palettes rather than assumed. Do not reach for
-  // $brand or $signal here: neither is audited as a field carrying white.
-  //
-  // **THE KEYLINE IS 1px INSET BY 1px, NOT 3px BY 5px.** The guide sign's own
-  // numbers are for a button with 1.4rem of padding, and _chrome.scss records
-  // why `.btn-sm` opts out of the treatment entirely: a compact control is
-  // mostly keyline once those are set inside it. Scaled down, the construction
-  // survives; copied verbatim, the glyph disappears.
-  //
-  // **IT IS NO LONGER THE QUIET AFFORDANCE `.faq-link` IS**, and that is the
-  // trade. That one sits at 45% opacity on the reasoning that a `?` is something
-  // you look for when stuck rather than something competing with the controls
-  // around it. A filled blue badge competes on purpose — these carry the only
-  // instructions the field has now, so they have to be findable rather than
-  // discreet.
+  // A BLUE GUIDE SIGN AT BADGE SCALE: blue field, white legend, keyline set in from the
+    // edge — the same construction `sign-field()` draws on a `.btn`, which is why this
+    // reads as part of the app rather than as a generic help icon.
+    //
+    // **$disabled IS THE APP'S BLUE SIGN FIELD AND IT IS NAMED FOR A SIGN, NOT FOR A
+    // STATE.** US signage puts a white legend on blue for motorist services, which is
+    // what a help affordance is, and it is already in WHITE_LEGEND in
+    // test/palette-contrast.test.ts. Do not reach for $brand or $signal: neither is
+    // audited as a field carrying white.
+    //
+    // **THE KEYLINE IS 1px INSET BY 1px, NOT 3px BY 5px.** The guide sign's numbers are
+    // for a button with 1.4rem of padding; copied verbatim at this size the glyph
+    // disappears.
+    //
+    // **IT IS NO LONGER THE QUIET AFFORDANCE `.faq-link` IS**, and that is the trade: a
+    // filled blue badge competes on purpose, because these carry the only instructions
+    // the field has now.
   appearance: none;
   display: inline-flex;
   justify-content: center;
@@ -685,47 +653,35 @@
   // inside it now rather than a glyph alone.
   width: 1.45em;
   height: 1.45em;
-  // THE LEGEND SITS A TENTH OF AN EM LOW, the same correction `.btn-sign` makes
-  // to its own legend and for the same reason: a `?` centered by its line box
-  // reads high, because the glyph's ink sits above the baseline with the
-  // descender space still counted underneath it. Ziad's call, 2026-09-07.
-  //
-  // ASYMMETRIC PADDING RATHER THAN A TRANSFORM, because there is no element
-  // around the glyph to move — it is a bare text node, and giving it a wrapper
-  // would cost `fieldHelp()` the property worth having, that the badge is one
-  // button with a character in it. Flex centers within the CONTENT box, so
-  // 0.2em off the top shifts the center by half that. `box-sizing: border-box`
-  // keeps the circle 1.45em through it, and an inset shadow is drawn from the
-  // border box, so the keyline does not move either.
+  // THE LEGEND SITS A TENTH OF AN EM LOW, the same correction `.btn-sign` makes to its
+    // own legend: a `?` centered by its line box reads high, because the glyph's ink sits
+    // above the baseline with the descender space still counted underneath it.
+    //
+    // ASYMMETRIC PADDING RATHER THAN A TRANSFORM, because there is no element around the
+    // glyph to move — giving it a wrapper would cost `fieldHelp()` the property worth
+    // having, that the badge is one button with a character in it. Flex centers within
+    // the CONTENT box, so 0.2em off the top shifts the center by half that.
   padding: 0.2em 0 0;
   margin-left: 0.4em;
   background: $disabled;
   // **$ink-light AND NOT $white, AND THIS IS THE ONE TRAP IN THE WHOLE RULE.**
-  // `--white` is the PAGE SURFACE rather than the color white — under a dark
-  // scheme it is the page's own near-black — so `color: $white` here painted a
-  // near-black `?` on a blue field and measured 2.52, 1.71 and 2.30 in the three
-  // dark palettes. Nearly invisible, and it looked perfect in the light scheme
-  // it was built in. `$ink-light` is the literal legend white, scheme-invariant,
-  // which is what a sign's legend actually is: a yield sign takes black ink at
-  // night too. The `sign-field()` mixin in _chrome.scss records the same problem
-  // and leaves it, because changing it there means changing every button that
-  // reads it — that is not a reason to add a new instance of it here.
+    // `--white` is the PAGE SURFACE rather than the color white — under a dark scheme it
+    // is the page's own near-black — so `color: $white` here painted a near-black `?` on
+    // a blue field and measured 2.52, 1.71 and 2.30 in the three dark palettes. Nearly
+    // invisible, and it looked perfect in the light scheme it was built in.
   color: $ink-light;
   border: 0;
   border-radius: 50%;
   font: inherit;
-  // 20% down from 0.75em. Ziad's call, 2026-09-07 — the badge read as loud
-  // beside a label at the larger size.
-  //
-  // THE ONE DECLARATION SCALES THE WHOLE BADGE, which is why the size is not
-  // written into `width` as a rem: a non-font `em` resolves against the
-  // element's OWN font-size, so the 1.45em box and the 0.4em gap come down with
-  // the glyph and the proportions hold. Changing the box alone would leave a
-  // full-size `?` overflowing a smaller circle.
-  //
-  // The keyline stays at 1px and 2px and so reads slightly heavier here, which
-  // is deliberate rather than overlooked: a sub-pixel ring is not a ring, and at
-  // this size the inset border is most of what says "sign" rather than "icon".
+  // 20% down from 0.75em — the badge read as loud beside a label at the larger size.
+    //
+    // THE ONE DECLARATION SCALES THE WHOLE BADGE, which is why the size is not written
+    // into `width` as a rem: a non-font `em` resolves against the element's OWN
+    // font-size, so the 1.45em box and the 0.4em gap come down with the glyph.
+    //
+    // The keyline stays at 1px and 2px and so reads slightly heavier here, deliberately:
+    // a sub-pixel ring is not a ring, and at this size the inset border is most of what
+    // says "sign" rather than "icon".
   font-size: 0.6em;
   font-weight: 700;
   line-height: 1;
@@ -742,17 +698,13 @@
   // The containing block for the tap target below.
   position: relative;
 
-  // A TAP TARGET LARGER THAN THE BADGE, and it is what the 20% reduction cost.
-  // The circle is 13.9px; WCAG 2.2's Target Size (Minimum) asks for 24, and a
-  // 14px dot is a poor thing to aim a thumb at whatever the guideline says.
-  // Inset -5px puts a transparent 24px square around it.
-  //
-  // A PSEUDO-ELEMENT RATHER THAN PADDING, because padding would grow the circle
-  // — the border-radius and the inset keyline are both drawn on the border box,
-  // so the badge would stop being the size that was asked for. This leaves the
-  // drawing alone and only widens what a pointer hits.
-  //
-  // No `content` on a <button> would render nothing at all, so it is `""`.
+  // A TAP TARGET LARGER THAN THE BADGE, and it is what the 20% reduction cost. The
+    // circle is 13.9px; WCAG 2.2's Target Size (Minimum) asks for 24. Inset -5px puts a
+    // transparent 24px square around it.
+    //
+    // A PSEUDO-ELEMENT RATHER THAN PADDING, because padding would grow the circle — the
+    // border-radius and the inset keyline are both drawn on the border box. No `content`
+    // on a <button> would render nothing at all, so it is `""`.
   &::after {
     content: "";
     position: absolute;
@@ -820,11 +772,10 @@
 }
 
 //@ No anchor positioning — Firefox, as of September 2026, the same row
-//@ typography.md records for text-wrap: pretty. A top-layer element has no
-//@ natural relationship to its button, so rather than landing wherever the
-//@ viewport puts it, it is CENTERED NEAR THE TOP. Readable, dismissible, and
-//@ saying the right thing: degraded, not broken. Re-check this when Firefox
-//@ ships anchor positioning, at which point this block can go.
+//@ typography.md records for text-wrap: pretty. A top-layer element has no natural
+//@ relationship to its button, so rather than landing wherever the viewport puts it,
+//@ it is CENTERED NEAR THE TOP. Degraded, not broken; delete this block when Firefox
+//@ ships anchor positioning.
 @supports not (anchor-name: --x) {
   .help-bubble {
     top: 4rem;
@@ -864,13 +815,11 @@
   }
 }
 
-// The tint and the ink both come from the token, which sounds obvious and was
-// not true until 2026-08-15. These were written as `rgba(67, 160, 71, …)` —
-// $go's value at the time — so when the road-sign palette moved $go to $go,
-// the ink here followed and the tint behind it did not. The result was a green
-// notice whose background and text were two different greens, in nine places
-// across five partials, with nothing to fail. A tint of a token must name the
-// token; a literal is a copy that cannot be told it is out of date.
+// The tint and the ink both come from the token, which sounds obvious and was not
+// true until 2026-08-15. These were written as literal rgba of $go's value at the
+// time, so when the road-sign palette moved $go the ink followed and the tint did not
+// — a green notice whose background and text were two different greens, in nine
+// places, with nothing to fail. A tint of a token must name the token.
 .notice {
   padding: 0.7rem 0.9rem;
   border-radius: 8px;
@@ -1094,12 +1043,10 @@ h1 + .transfer-head {
   }
 }
 
-// THE COLUMNS SAY WHAT THEY ARE (#336). A place row is three bare boxes and a
-// Delete, and nothing on it said which box was the name and which the group;
-// one header line per list, on the same grid as the rows, does. Rendered by
-// places.js beside the list and `aria-hidden`, because every control in a row
-// already carries its own `aria-label` and a screen reader would hear each
-// heading twice.
+// THE COLUMNS SAY WHAT THEY ARE (#336). A place row is three bare boxes and a Delete,
+// and nothing on it said which box was the name and which the group. Rendered by
+// places.js beside the list and `aria-hidden`, because every control in a row already
+// carries its own `aria-label`.
 .place-cols {
   display: grid;
   grid-template-columns: minmax(0, 2fr) minmax(0, 1fr) minmax(0, 1.5fr) auto;

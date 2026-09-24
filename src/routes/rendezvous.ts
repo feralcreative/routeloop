@@ -1,37 +1,27 @@
 // Proposing a meeting point, over HTTP.
 //
-// The whole computation is `src/subgroups/rendezvous.ts`, which is pure and
-// calls no router. This file's only job is to work out WHICH routes to hand it,
-// from a ride that is being edited.
+// The whole computation is `src/subgroups/rendezvous.ts`, which is pure and calls no
+// router. This file's only job is to work out WHICH routes to hand it.
 //
-// ONE PRESS, ONE ANSWER PER JOINING GROUP. Ziad's call, 2026-09-04. The button
-// stays single — that half of #239 was right and is not being reopened — but a
-// press now answers the whole question rather than a blended version of it: each
-// satellite gets its own candidates on the main group's road, and the planner
-// knocks the decisions down one at a time, main + group 2, main + group 3, and
-// so on. A satellite JOINS the main ride and becomes part of it.
+// ONE PRESS, ONE ANSWER PER JOINING GROUP. The button stays single — that half of
+// #239 was right and is not being reopened — but a press answers the whole question
+// rather than a blended version of it: each satellite gets its own candidates on the
+// main group's road, and the planner knocks the decisions down one at a time. A
+// blended proposal was the part that did not survive contact with three groups: it
+// suited everybody on average and nobody in particular.
 //
-// What #239 actually settled is still settled and is what makes this possible:
-// the main group's road is THE road, so there is no spine to nominate and no
-// group can come back as the one asked to divert. A blended proposal was the
-// part that did not survive contact with three groups — it answered with points
-// that suited everybody on average and nobody in particular, and the panel could
-// not say which group any of it was for.
+// THE BILL IS A TOTAL, NOT A PER-GROUP RATE: every joining group costs its own Routes
+// requests, so an unbudgeted press on a nine-group ride is 36 of them. ROUTED_BUDGET
+// and ANCHOR_BUDGET are divided by the group count instead, so a big ride buys fewer
+// candidates each rather than a bigger bill.
 //
-// THE BILL IS A TOTAL, NOT A PER-GROUP RATE. Ziad's call, 2026-09-04: every
-// joining group costs its own Routes requests, so an unbudgeted press on a
-// nine-group ride is 36 of them. ROUTED_BUDGET and ANCHOR_BUDGET are divided by
-// the group count instead, so the spend is flat whatever the ride looks like and
-// a big ride buys fewer candidates each rather than a bigger bill.
+// THE MAIN GROUP'S ROAD IS THE ROAD. `rides.primary_subgroup_id` already means the
+// main group, and it is passed to the proposer as its own argument, so it can never
+// come back as the group being asked to divert.
 //
-// THE MAIN GROUP'S ROAD IS THE ROAD. `rides.primary_subgroup_id` already means
-// the main group and already defaults to the first one created, so there is
-// nothing to nominate — and the main group is passed to the proposer as its own
-// argument, so it can never come back as the group being asked to divert.
-//
-// A POST rather than a GET although it reads and writes nothing, and that is
-// deliberate: it is behind requireSameOrigin like every other write-shaped call
-// in the builder, and a GET would be cached by something.
+// A POST rather than a GET although it reads and writes nothing: it is behind
+// requireSameOrigin like every other write-shaped call in the builder, and a GET
+// would be cached by something.
 import { Hono } from 'hono'
 import { eq, inArray } from 'drizzle-orm'
 import { db } from '../db/index'
@@ -69,24 +59,18 @@ rendezvousRoutes.post('/api/rides/:id/rendezvous', requireActiveApi, requireSame
   const ride = await ownRide(user.id, c.req.param('id'))
   if (!ride) return c.json({ error: 'not found' }, 404)
 
-  // HOW MUCH FURTHER OUT OF THEIR WAY THAN NECESSARY A JOINING GROUP MAY BE
-  // SENT, from the planner rather than from a constant. Ziad's call, 2026-09-06,
-  // for the dial; 2026-09-19 (#370) for what it measures — the extra over each
-  // group's cheapest meet rather than an absolute cap, since the scoring became
-  // a trade and the cap went back to being a guard. See DIVERT_WEIGHT.
+  // HOW MUCH FURTHER OUT OF THEIR WAY THAN NECESSARY A JOINING GROUP MAY BE SENT, from
+  // the planner rather than from a constant. #370 changed what it measures — the extra
+  // over each group's cheapest meet rather than an absolute cap — since the scoring
+  // became a trade and the cap went back to being a guard.
   //
-  // THE PRESS WINS, THEN THE RIDER'S PREFERENCE, THEN THE APP'S DEFAULT. The
-  // builder sends the dial on every press, seeded from the preference, so the
-  // second step is for a client that sends nothing — and it is read here rather
-  // than trusted from the page, because the page is a form.
+  // THE PRESS WINS, THEN THE RIDER'S PREFERENCE, THEN THE APP'S DEFAULT. The builder
+  // sends the dial on every press, seeded from the preference, so the second step is
+  // for a client that sends nothing.
   //
-  // CLAMPED RATHER THAN REFUSED WITH A 400. The only ways to reach this with a
-  // bad value are a typo in a number box and a hand-written request; neither is
-  // worth losing the whole proposal over, and the clamp protects the sampling
-  // cost as well. Anything unparseable comes back undefined, which the proposer
-  // treats as "use the default" — an explicit undefined used to spread over the
-  // default and switch the cap OFF, which `withDefaults()` in the proposer now
-  // refuses.
+  // CLAMPED RATHER THAN REFUSED WITH A 400: the only ways to reach this with a bad
+  // value are a typo in a number box and a hand-written request. Anything unparseable
+  // comes back undefined, which the proposer treats as "use the default".
   const body = (await c.req.json().catch(() => ({}))) as { maxDivertMi?: unknown }
   const [prof] = await db
     .select({ meetDivertMi: userProfiles.meetDivertMi })
@@ -161,38 +145,34 @@ rendezvousRoutes.post('/api/rides/:id/rendezvous', requireActiveApi, requireSame
     fuel.push({ at: [p.lng, p.lat], roles: p.roles })
   }
 
-  // WHAT A GROUP RIDES IS THEIR STRAND — their own routes plus every shared one,
-  // in position order. `strandOf` is already the definition of that and is not
-  // restated here. It also means the two cases fall together: with no shared route
-  // a strand is that group's own route, and with one the strands genuinely
-  // overlap, which the proposer reads as a convergence costing nobody anything.
+  // WHAT A GROUP RIDES IS THEIR STRAND — their own routes plus every shared one, in
+  // position order. It also means the two cases fall together: with no shared route a
+  // strand is that group's own route, and with one the strands genuinely overlap,
+  // which the proposer reads as a convergence costing nobody anything.
   const routeFor = (g: (typeof groups)[number], isPrimary: boolean): GroupRoute | null => {
     const strand = strandOf(all, g.id)
     if (strand.length === 0) return null
-    // **A JOINING GROUP'S ROAD IS ITS OWN ROUTES, NOT ITS STRAND.** A strand is a
-    // group's own routes PLUS every shared one — and a shared route is precisely
-    // the road they have not ridden yet, the road they are joining. Building
-    // their track from the strand hands them the main group's entire road as
-    // though it were theirs, so every candidate on it falls within ON_ROUTE_M,
-    // every divert comes out at zero, and the earliest acceptable point wins:
-    // the start.
+    // **A JOINING GROUP'S ROAD IS ITS OWN ROUTES, NOT ITS STRAND.** A strand is a group's
+    // own routes PLUS every shared one — and a shared route is precisely the road they
+    // have not ridden yet. Building their track from the strand hands them the main
+    // group's entire road as though it were theirs, so every candidate on it falls
+    // within ON_ROUTE_M, every divert comes out at zero, and the earliest acceptable
+    // point wins: the start.
     //
-    // Seen on stage, 2026-09-06, on a ride from Oakland to Ensenada — both
-    // satellites were offered gas stations in Oakland, each labeled "on their
-    // way". The same ride shape worked when the main group's route happened to
-    // be TAGGED rather than shared, because then it was in nobody else's strand;
-    // that is what made this look like a data problem rather than a logic one.
+    // Seen on stage on a ride from Oakland to Ensenada — both satellites were offered
+    // gas stations in Oakland, each labeled "on their way". The same shape worked when
+    // the main group's route happened to be TAGGED rather than shared, which is what
+    // made this look like a data problem rather than a logic one.
     //
     // The primary keeps the strand, because for them the shared road IS theirs.
     const own = isPrimary ? strand : strand.filter((d) => d.subgroupId === g.id)
-    // WHERE THEY SET OFF IS THEIR OWN DAY, NOT `strand[0]` — see startRouteOf().
-    // A shared route sorting ahead of a group's own route used to become its origin,
-    // which handed every satellite the same starting point.
+    // WHERE THEY SET OFF IS THEIR OWN ROUTE, NOT `strand[0]` — see startRouteOf(). A
+    // shared route sorting ahead of a group's own used to become its origin, which
+    // handed every satellite the same starting point.
     //
-    // `isPrimary` reverses that, for the same reason it selects the strand above:
-    // the main group rides the shared road from position 0, and once a split has
-    // tagged their continuation the search would return that instead of the
-    // ride's actual origin.
+    // `isPrimary` reverses that: the main group rides the shared road from position 0,
+    // and once a split has tagged their continuation the search would return that
+    // instead of the ride's actual origin.
     const startRoute = startRouteOf(all, g.id, isPrimary)
     const origin = startRoute && originOf.get(startRoute.id)
     if (!origin) return null
@@ -212,16 +192,13 @@ rendezvousRoutes.post('/api/rides/:id/rendezvous', requireActiveApi, requireSame
   }
 
   /**
-   * How far along a group's strand they last filled up before `alongM`.
+   * How far along a group's strand they last filled up before `alongM`. Zero when
+   * there is no `gas` point before it, which is the right answer rather than a missing
+   * one: a group sets off with a full tank.
    *
-   * Zero when there is no `gas` point before it, which is the right answer
-   * rather than a missing one: a group sets off with a full tank, so the start
-   * of their strand IS a fill.
-   *
-   * A POINT WITH NO `dist_from_start_m` IS SKIPPED, not guessed at. That column
-   * is null on a trackless import, and skipping makes the walk think the tank is
-   * older than it is — which refuses a marginal station rather than sending
-   * somebody to one they cannot reach. Wrong in the safe direction.
+   * A POINT WITH NO `dist_from_start_m` IS SKIPPED, not guessed at. That column is null
+   * on a trackless import, and skipping makes the walk think the tank is older than it
+   * is — wrong in the safe direction.
    */
   const fillBeforeM = (g: { id: number }, alongM: number): number => {
     let offset = 0
@@ -251,19 +228,16 @@ rendezvousRoutes.post('/api/rides/:id/rendezvous', requireActiveApi, requireSame
     if (g.id === primaryGroup.id) continue
     const r = routeFor(g, false)
     if (!r) continue
-    // A GROUP WITH A STARTING POINT AND NO ROAD OF ITS OWN IS GIVEN ITS DIRECT
-    // ROAD, ONCE. #370, 2026-09-19. "A joining group contributes a starting
-    // point and nothing else" is the contract, and it left the on-route test
-    // with nothing to read: every candidate was a straight-line dogleg from
-    // their start, so a group leaving San Francisco to join a ride on 580 was
-    // never told that Dublin — where 580 meets the main group's road — is on
-    // their way. Their direct road to the ride's destination is the road they
-    // would take anyway; where it first touches the main group's road is the
-    // convergence the issue asked for, and everything on the shared road past
-    // it costs them nothing. ONE ROUTES REQUEST PER GROUP PER PRESS, cached on
-    // its endpoints like every other leg, so a second press is free. Only when
-    // they have no track: a group that drew its own route said which road they
-    // are riding, and that is not second-guessed.
+    // A GROUP WITH A STARTING POINT AND NO ROAD OF ITS OWN IS GIVEN ITS DIRECT ROAD,
+    // ONCE (#370). "A joining group contributes a starting point and nothing else" left
+    // the on-route test with nothing to read: every candidate was a straight-line dogleg
+    // from their start, so a group leaving San Francisco to join a ride on 580 was never
+    // told that Dublin is on their way. Their direct road to the destination is the road
+    // they would take anyway, and where it first touches the main group's is the
+    // convergence.
+    //
+    // ONE ROUTES REQUEST PER GROUP PER PRESS, cached on its endpoints. Only when they
+    // have no track: a group that drew its own route said which road they are riding.
     if (r.track.length < 2 && primary && primary.track.length >= 3) {
       const dest = primary.track[primary.track.length - 1]
       const road = await fetchRouteLeg(r.origin, dest)
@@ -278,12 +252,10 @@ rendezvousRoutes.post('/api/rides/:id/rendezvous', requireActiveApi, requireSame
   }
 
   if (!primary || joining.length === 0) return c.json({ candidates: [], reason: 'no-routes' })
-  // THE MAIN GROUP HAS NOT PLANNED A ROAD YET, said as its own reason rather
-  // than folded into "nowhere works". A meeting point is placed ON their road,
-  // so with no routed route there is nothing to place it on — and "nowhere works"
-  // would send the planner hunting for a geometry problem in a ride whose real
-  // state is that it has not been drawn yet. It names the group, because which
-  // one has to be planned first is the whole of what they need to know.
+  // THE MAIN GROUP HAS NOT PLANNED A ROAD YET, said as its own reason rather than
+  // folded into "nowhere works": a meeting point is placed ON their road, and "nowhere
+  // works" would send the planner hunting for a geometry problem in a ride whose real
+  // state is that it has not been drawn yet. It names the group.
   if (primary.track.length < 3) {
     return c.json({ candidates: [], reason: 'no-routes', group: primaryGroup.name })
   }
@@ -307,12 +279,10 @@ rendezvousRoutes.post('/api/rides/:id/rendezvous', requireActiveApi, requireSame
   // than per group: it is a fact about the roster, not about who is joining.
   const range = await groupRange(ride.id)
 
-  // SEQUENTIAL, NOT Promise.all, AND THAT IS DELIBERATE. Each group's pass
-  // spends billed requests, and `fetchRouteLeg` and `searchPlaces` both cache —
-  // so groups setting off from the same town, or meeting at the same forecourt,
-  // pay once between them only if the second pass runs after the first has
-  // filled the cache. Firing them in parallel throws that away for a wall-clock
-  // saving nobody is watching.
+  // SEQUENTIAL, NOT Promise.all, AND THAT IS DELIBERATE. Each group's pass spends
+  // billed requests, and `fetchRouteLeg` and `searchPlaces` both cache — so groups
+  // setting off from the same town pay once between them only if the second pass runs
+  // after the first has filled the cache.
   const out = []
   for (const g of joining) {
     out.push(await proposeFor(g, perGroup, anchors))
@@ -331,31 +301,25 @@ rendezvousRoutes.post('/api/rides/:id/rendezvous', requireActiveApi, requireSame
   async function proposeFor(g: GroupRoute, routed: number, searchAnchors: number) {
     const one = [g]
     const name = groups.find((x) => x.uid === g.id)?.name ?? ''
-    // `fuel` is every point in the ride; proposeGroupMeet keeps only the ones
-    // tagged `gas` AND lying on a candidate spine, so a station on a road nobody
-    // is riding is never offered. #67's thumb on the scale: a fuel stop is where
-    // a group wants to regather anyway.
-    // TWO PASSES, AND THE FIRST ONE IS FREE. The plain pass finds WHERE a meet
-    // is viable using nothing but geometry; the search then looks for gas
-    // stations in that window and the second pass re-scores with them. Searching
-    // first would mean guessing where to look, and looking along the whole route
-    // is a Text Search bill that scales with the length of the ride.
+    // `fuel` is every point in the ride; proposeGroupMeet keeps only the ones tagged
+    // `gas` AND lying on a candidate spine, so a station on a road nobody is riding is
+    // never offered.
+    // TWO PASSES, AND THE FIRST ONE IS FREE. The plain pass finds WHERE a meet is
+    // viable using nothing but geometry; the search then looks for gas stations in that
+    // window and the second pass re-scores. Searching first would mean guessing where
+    // to look, and looking along the whole route is a Text Search bill that scales.
     const plain = proposeGroupMeet(primary as GroupRoute, one, fuel, divertOpt)
-    // THE CONVERGENCE IS ALWAYS ONE OF THE SEARCH ANCHORS. The station search
-    // looks around the candidates the geometry liked, and the straight-line
-    // geometry can like a backwards point — so the least-extra candidate, which
-    // is where this group's road meets the main one, is searched first and the
-    // paper favorite second. That is #370's "find a meeting point near the
-    // convergence first", in the one place the search is anchored.
+    // THE CONVERGENCE IS ALWAYS ONE OF THE SEARCH ANCHORS. The station search looks
+    // around the candidates the geometry liked, and the straight-line geometry can like
+    // a backwards point — so the least-extra candidate is searched first and the paper
+    // favorite second.
     const stations = plain.length ? await gasAlong(frontLoadCheapest(plain), searchAnchors) : []
-    // `fuelOnly` and NOT a filter over the ordinary result: the ranking prefers
-    // the earliest viable point and keeps only the best few, so a station a
-    // little further along is crowded out by plain vertices before this line
-    // could see it — and a road with several stations would report having none.
+    // `fuelOnly` and NOT a filter over the ordinary result: the ranking prefers the
+    // earliest viable point and keeps only the best few, so a station a little further
+    // along is crowded out by plain vertices before this line could see it.
     //
-    // A WIDER SHORTLIST THAN WHAT IS SHOWN, because the fuel-range filter below
-    // removes some and the rider still wants a choice. It is what keeps the
-    // routing bounded: every survivor costs one Routes request.
+    // A WIDER SHORTLIST THAN WHAT IS SHOWN, because the fuel-range filter below removes
+    // some. It is what keeps the routing bounded: every survivor costs one request.
     const onlyGas = stations.length
       ? proposeGroupMeet(
           primary as GroupRoute,
@@ -366,46 +330,33 @@ rendezvousRoutes.post('/api/rides/:id/rendezvous', requireActiveApi, requireSame
         )
       : []
 
-    // A MEETING POINT SHOULD BE A GAS STATION — Ziad's call, 2026-09-03.
-    // Everyone arrives needing fuel and a forecourt is somewhere you can
-    // actually wait, so when the road offers one it is the answer and a bare
-    // point on the highway is not offered beside it.
+    // A MEETING POINT SHOULD BE A GAS STATION: everyone arrives needing fuel and a
+    // forecourt is somewhere you can actually wait, so when the road offers one it is
+    // the answer.
     //
-    // AND IT HAS TO BE WITHIN A TANK OF THE LAST FILL. Ziad's call, 2026-09-03,
-    // after a proposal landed just past the main group's empty marker: a meeting
-    // point nobody can reach without stopping for fuel first is not a meeting
-    // point, it is a second problem.
-    // THE CHEAPEST STATION IS ROUTED FIRST, WHATEVER THE STRAIGHT-LINE ORDER
-    // SAYS. The road re-rank below can only choose among candidates that were
-    // routed, and `reachable` stops once it has enough — so if the paper ranking
-    // put three backwards stations ahead of the one at the convergence, the
-    // convergence would never be measured and could never win. Front-loading
-    // the least-extra candidate costs nothing when it is on the group's own
-    // road, which at the convergence it is.
+    // AND IT HAS TO BE WITHIN A TANK OF THE LAST FILL, after a proposal landed just
+    // past the main group's empty marker: a meeting point nobody can reach without
+    // stopping for fuel first is not a meeting point, it is a second problem.
+    // THE CHEAPEST STATION IS ROUTED FIRST, WHATEVER THE STRAIGHT-LINE ORDER SAYS. The
+    // road re-rank below can only choose among candidates that were routed, and
+    // `reachable` stops once it has enough — so if the paper ranking put three backwards
+    // stations ahead of the one at the convergence, the convergence would never be
+    // measured and could never win.
     const shortlist = frontLoadCheapest(onlyGas)
     const reach = await reachable(shortlist, primaryGroup.uid, one, range.miles, fillBeforeM, primaryGroup, routed)
 
-    // BOTH FALLBACKS SAY WHICH COMPROMISE WAS MADE. A stretch with no station,
-    // or none within a tank, is an ordinary thing on a rural road — answering
-    // "nothing works" would be false, and a rider who asked for a reachable
-    // forecourt and got something else has to be told which. `note` is
-    // deliberately not `reason`: reason means there are no candidates at all.
-    // EVERY ROW'S ROAD COMES FROM `reach.routed`, keyed by candidate — the
-    // parallel `approaches` array that used to pair with `reach.keep` is gone,
-    // because the re-rank below reorders the list and a parallel array cannot
-    // survive a sort.
-    // A FALLBACK ROW GETS ITS ROAD TOO, AND IT COSTS NOTHING. `reachable()`
-    // routes a candidate to find out whether the group can reach it, so an
-    // out-of-range shortlist has ALREADY been routed and the paths were being
-    // thrown away — the rider was shown three dots with no roads at exactly the
-    // moment the roads are the point, since out-of-range means somebody has a
-    // long way to come. `routed` is every candidate it looked at, kept or not.
-    // A `no-gas` fallback is the one case that stays empty: those candidates are
-    // bare vertices the range filter never saw, so nothing has routed them.
-    // RANKED BY THE ROAD, NOW THAT THE ROAD IS KNOWN. Everything up to here
-    // ranked on straight lines, which cannot see a bay — see rankByRoad. The
-    // routed approaches and the group's own track supply real miles for the
-    // shortlist, and the order the rider sees is that one.
+    // BOTH FALLBACKS SAY WHICH COMPROMISE WAS MADE. A stretch with no station, or none
+    // within a tank, is ordinary on a rural road — answering "nothing works" would be
+    // false. `note` is deliberately not `reason`: reason means there are no candidates
+    // at all.
+    // EVERY ROW'S ROAD COMES FROM `reach.routed`, keyed by candidate — a parallel array
+    // cannot survive the sort the re-rank below does.
+    // A FALLBACK ROW GETS ITS ROAD TOO, AND IT COSTS NOTHING: `reachable()` routes a
+    // candidate to find out whether the group can reach it, so an out-of-range shortlist
+    // has ALREADY been routed and the paths were being thrown away — at exactly the
+    // moment the roads are the point. A `no-gas` fallback stays empty: those candidates
+    // are bare vertices the range filter never saw.
+    // RANKED BY THE ROAD, NOW THAT THE ROAD IS KNOWN — see rankByRoad.
     const list = reach.keep.length ? reach.keep : onlyGas.length ? onlyGas : plain
     const measures: RoadMeasure[] = list.map((m) => ({ meet: m, toMeetM: roadsTo(m, one, reach.routed.get(m) ?? []) }))
     // KEYED BY COORDINATE, NOT IDENTITY: the re-rank returns new objects, and a
