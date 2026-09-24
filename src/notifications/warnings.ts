@@ -1,30 +1,23 @@
 // The three notifications nothing a rider does can trigger.
 //
-// Every other event in the catalog has an actor pressing a button. These three
-// are about a DEADLINE arriving or a THRESHOLD being crossed, so the only thing
-// that can raise them is a sweep — which is why they live here rather than
-// beside a route, and why each one needs an anti-repeat stamp that the
+// Every other event in the catalog has an actor pressing a button. These three are
+// about a DEADLINE arriving or a THRESHOLD being crossed, so the only thing that can
+// raise them is a sweep — which is why each one needs an anti-repeat stamp that the
 // button-driven events do not.
 //
-// **THEY RIDE ON THE SWEEPS THAT ALREADY RUN AND ADD NO SIXTH TIMER.** There are
-// five `unref()`d intervals in src/index.tsx and they are named in AGENTS.md;
-// this adds none. `warnRidePurges` runs inside the hourly trash sweep, which
-// already selects on `purge_after`, and both account warnings run inside the
-// five-minutely quota sweep, which already walks every rider.
+// **THEY RIDE ON THE SWEEPS THAT ALREADY RUN AND ADD NO SIXTH TIMER.**
+// `warnRidePurges` runs inside the hourly trash sweep, which already selects on
+// `purge_after`, and both account warnings run inside the five-minutely quota sweep,
+// which already walks every rider.
 //
 // **THE ACCOUNT-DELETION WARNING IS DELIBERATELY NOT ON THE ACCOUNT PURGE'S OWN
-// SWEEP.** That one is gated behind `PURGE_ACCOUNTS`, which is off by default
-// because it destroys rider data — so a warning hung off it would never fire on
-// any environment where the destruction is not already armed, which is every
-// environment today. The warning has to run whether or not the purge does, and
-// the quota sweep is the one that always runs.
+// SWEEP.** That one is gated behind `PURGE_ACCOUNTS`, off by default because it
+// destroys rider data — so a warning hung off it would never fire on any environment
+// where the destruction is not already armed.
 //
 // **AN ANTI-REPEAT STAMP IS COMPARED, NOT TESTED FOR NULL.** A boolean cannot say
-// "warned about the LAST deadline" once a deadline has moved, and both of these
-// deadlines move: `purge_after` on a ride is recomputed from scratch every time
-// it is binned, and a rider who asks to leave twice gets a fresh one. So each
-// stamp is compared against the deadline it was supposedly about, and a stamp
-// older than the current hold began is a warning about a purge that never
+// "warned about the LAST deadline" once a deadline has moved, and both of these move.
+// A stamp older than the current hold began is a warning about a purge that never
 // happened.
 import { and, desc, eq, gt, inArray, isNotNull, lt, lte, ne, or, sql } from 'drizzle-orm'
 import { db } from '../db/index'
@@ -38,16 +31,12 @@ import { binDigest } from './bin-digest'
 /**
  * How much notice a rider gets before something is destroyed.
  *
- * **SEVEN DAYS, NOT ONE AND NOT TWENTY-NINE.** A day is not enough to act on
- * something you have forgotten about — a rider on a trip does not read their
- * mail for a week — and a warning most of a month early arrives while the
- * deadline is still abstract and is itself forgotten. Seven is a weekend plus
- * either side of it.
+ * **SEVEN DAYS, NOT ONE AND NOT TWENTY-NINE.** A day is not enough to act on something
+ * you have forgotten about, and a warning most of a month early arrives while the
+ * deadline is still abstract and is itself forgotten.
  *
- * It is deliberately the SAME number for both, although the two holds could
- * diverge: they are both thirty days for reasons that have nothing to do with
- * each other, and a rider being warned about one has no way to know the other is
- * on a different schedule.
+ * Deliberately the SAME number for both, although the two holds could diverge: a rider
+ * being warned about one has no way to know the other is on a different schedule.
  */
 export const WARN_LEAD_DAYS = 7
 const LEAD_MS = WARN_LEAD_DAYS * 86_400_000

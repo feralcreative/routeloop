@@ -1,28 +1,20 @@
-// EVERY NOTIFIABLE EVENT IN THE APP, IN ONE LIST, AND IT IS THE SOURCE OF TRUTH
-// FOR THE SETTINGS PAGE AS WELL AS FOR THE SENDERS.
+// EVERY NOTIFIABLE EVENT IN THE APP, IN ONE LIST, AND IT IS THE SOURCE OF TRUTH FOR THE
+// SETTINGS PAGE AS WELL AS FOR THE SENDERS.
 //
-// Pure — a table and a few lookups over it, no database and no environment — so
-// it is testable under the house rule that governs test/. The queries live in
-// ./service.ts and the send decision in ./policy.ts.
+// Pure — a table and a few lookups over it. The queries live in ./service.ts and the
+// send decision in ./policy.ts.
 //
-// **AN EVENT IS A `varchar`, NOT A pgEnum, AND THAT IS A DELIBERATE DEPARTURE
-// FROM THE REST OF THE SCHEMA.** Nearly every other closed set here is an enum,
-// correctly: `visibility`, `ride_perm`, `waypoint_role` are all fixed vocabulary
-// that a migration should have to touch. This one is the opposite by design —
-// the whole point of a catalog is that the fifteenth notification is a code
-// change and nothing else, and `ALTER TYPE … ADD VALUE` per event turns "we
-// should tell riders about X" into a migration, a deploy and an ordering trap
-// (`visibility`'s member order is not its openness, and this list would grow the
-// same scar tissue). `EVENTS` is the validator instead, and `isEvent()` is what
-// every reader of a stored string goes through — a row naming an event this
-// build has never heard of is ignored rather than trusted, which is what makes
-// removing an event safe too.
+// **AN EVENT IS A `varchar`, NOT A pgEnum, AND THAT IS A DELIBERATE DEPARTURE FROM THE
+// REST OF THE SCHEMA.** Nearly every other closed set here is an enum, correctly. This
+// one is the opposite by design: the whole point of a catalog is that the fifteenth
+// notification is a code change and nothing else, and `ALTER TYPE … ADD VALUE` per
+// event turns "we should tell riders about X" into a migration, a deploy and an
+// ordering trap. `isEvent()` is what every reader of a stored string goes through — a
+// row naming an event this build has never heard of is ignored rather than trusted.
 //
-// **THE CHANNELS ARE `varchar` FOR CONSISTENCY, NOT BECAUSE A THIRD IS
-// PLANNED.** Two channels genuinely is a closed set and an enum would be
-// defensible — but one column of each kind in one table is the arrangement that
-// invites somebody to "fix" the inconsistency in the wrong direction. Same
-// validator, same rule.
+// **THE CHANNELS ARE `varchar` FOR CONSISTENCY, NOT BECAUSE A THIRD IS PLANNED.** Two
+// channels genuinely is a closed set, but one column of each kind in one table invites
+// somebody to "fix" the inconsistency in the wrong direction.
 
 /** A notification's stable id. Stored in `notification_prefs.event` and in
  *  `notifications.event`, so renaming one orphans a rider's stored answer —
@@ -38,19 +30,16 @@ export const CHANNELS: readonly Channel[] = ['email', 'browser']
 /**
  * The groups the settings page renders as boxes, in the order it renders them.
  *
- * Broadest and most frequent first: what happens on a ride is what a rider gets
- * most of, and the account row is the one they will hopefully never see.
+ * Broadest and most frequent first: what happens on a ride is what a rider gets most
+ * of, and the account row is the one they will hopefully never see.
  *
- * **FOUR AND NOT FIVE — `reports` WAS FOLDED INTO `account`.** Ziad's call,
- * 2026-09-07. It held exactly one event, so it rendered as a box with a heading,
- * two column labels and a single row in it, which reads as something
- * half-finished rather than as a category. Four is also what lays out evenly two
- * abreast, which is what the page does with them.
+ * **FOUR AND NOT FIVE — `reports` WAS FOLDED INTO `account`.** It held exactly one
+ * event, so it rendered as a box with a heading, two column labels and a single row,
+ * which reads as something half-finished rather than as a category.
  *
- * The fold is honest rather than merely tidy: a report you filed is a thing of
- * YOURS the app is keeping you posted about, which is what every other row in
- * that group is. If reports ever grow a second and a third notification, they
- * earn their own group back.
+ * The fold is honest rather than merely tidy: a report you filed is a thing of YOURS
+ * the app is keeping you posted about. If reports ever grow a second and a third
+ * notification, they earn their own group back.
  */
 export const GROUPS = [
   { id: 'rides', label: 'Rides you are on' },
@@ -95,16 +84,13 @@ type EventDef = {
    * The mark shown beside this notification in the center, as
    * `public/img/icons/icon-<name>.svg`.
    *
-   * **REQUIRED, SO A NEW EVENT HAS TO CHOOSE ONE.** An event with no mark would
-   * render a row with a hole in it, which is the kind of thing that ships and is
-   * noticed a week later; a missing field is a type error on the day it is
-   * added. `test/notifications.test.ts` checks the file actually exists, because
-   * the name is a string and a typo in it is otherwise silent.
+   * **REQUIRED, SO A NEW EVENT HAS TO CHOOSE ONE.** An event with no mark would render
+   * a row with a hole in it; a missing field is a type error on the day it is added.
+   * `test/notifications.test.ts` checks the file actually exists.
    *
-   * **SEVERAL EVENTS SHARE ONE MARK, DELIBERATELY.** Fourteen distinguishable
-   * discs is not a vocabulary anybody learns, and the pairs that share one are
-   * the two halves of one object — a suggestion and its decision, a friend
-   * request and its acceptance. The LABEL under the row is what separates them.
+   * **SEVERAL EVENTS SHARE ONE MARK, DELIBERATELY.** Fourteen distinguishable discs is
+   * not a vocabulary anybody learns, and the pairs that share one are the two halves of
+   * one object. The LABEL under the row is what separates them.
    */
   readonly icon: string
   /**
