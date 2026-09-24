@@ -20,19 +20,16 @@ import {
   type AnyPgColumn,
 } from 'drizzle-orm/pg-core'
 
-// 'google' is the OAuth flow and 'email' is the magic link — the two ways a
-// rider can arrive. 'github' and 'cloudflare' are retained only so historical
-// identity rows stay valid; nothing issues them any more.
+// 'google' is the OAuth flow and 'email' is the magic link. 'github' and
+// 'cloudflare' are retained only so historical identity rows stay valid.
 export const providerEnum = pgEnum('provider', ['google', 'github', 'cloudflare', 'email'])
 // Cloudflare Access authenticates; this authorizes. Access admits any Google
 // account, so a new rider lands 'pending' and waits for approval.
 export const userStatusEnum = pgEnum('user_status', ['pending', 'active', 'blocked'])
-// FOUR LEVELS as of 2026-08-26, and the order here is not the order of openness
-// — a pgEnum's member order is fixed once created, and adding `friends` at the
-// end keeps the migration a plain ALTER TYPE ADD VALUE.
-//
-// `private` gains "and invited riders", a SUPERSET, so no existing row changed
-// meaning. See canView(); nothing should read this enum and decide for itself.
+// FOUR LEVELS, and the order here is not the order of openness — a pgEnum's member
+// order is fixed once created, and adding `friends` at the end keeps the migration a
+// plain ALTER TYPE ADD VALUE. `private` gains "and invited riders", a SUPERSET, so no
+// existing row changed meaning. Nothing should read this enum and decide for itself.
 export const visibilityEnum = pgEnum('visibility', ['public', 'unlisted', 'private', 'friends'])
 // WHICH EVENT IS PINNED when several subgroups' clocks are solved against each
 // other. A second axis from WHOSE clock is pinned (rides.primary_subgroup_id):
@@ -43,19 +40,16 @@ export const visibilityEnum = pgEnum('visibility', ['public', 'unlisted', 'priva
 //   meet       the first meet is fixed; every group solved backwards from it
 //   arrival    the primary group reaches the end at a fixed time
 export const timeAnchorEnum = pgEnum('time_anchor', ['departure', 'meet', 'arrival'])
-// Three ways to hand out access, and the difference is not only max_uses. An
-// 'email' invite is bound to an address and mailed; a 'link' is one URL handed
-// to one person; a 'group' is pasted into a channel and read by everyone in it.
-// Recorded rather than derived from max_uses, because a group link with one seat
-// left is still a group link and the admin page has to say so.
+// Three ways to hand out access, and the difference is not only max_uses: an 'email'
+// invite is bound to an address, a 'link' is one URL handed to one person, a 'group'
+// is pasted into a channel. Recorded rather than derived from max_uses, because a
+// group link with one seat left is still a group link.
 export const inviteKindEnum = pgEnum('invite_kind', ['email', 'link', 'group'])
 export const rideSourceEnum = pgEnum('ride_source', ['native', 'imported'])
 export const pointKindEnum = pgEnum('point_kind', ['stop', 'poi'])
-// How a stop's dwell time is WRITTEN, not how it is stored — points.duration_min
-// stays integer minutes whatever this says. Canonical metadata, the formatter and
-// the parser all live in src/maps/duration.ts, mirrored for the browser in
-// public/js/duration.js; keep the three members here in step with the array
-// there, which test/duration.test.ts also pins.
+// How a stop's dwell time is WRITTEN, not how it is stored — points.duration_min stays
+// integer minutes. The formatter and parser live in src/maps/duration.ts, mirrored in
+// public/js/duration.js; keep the three members in step with the array there.
 export const durationFormatEnum = pgEnum('duration_format', ['hours', 'hm', 'minutes'])
 // How a DATE and a clock are written, per rider — a display layer over storage.
 //
@@ -65,16 +59,15 @@ export const durationFormatEnum = pgEnum('duration_format', ['hours', 'hm', 'min
 // DEFAULT, and `clock` overrides `hour12` alone.
 export const dateFormatEnum = pgEnum('date_format', ['en-US', 'en-GB', 'en-CA'])
 // The two appearance axes. Deliberately two enums rather than one of six members:
-// theme is about which signals a rider can distinguish and scheme is about
-// ambient light, and only the scheme axis can follow the operating system. See
-// src/views/appearance.ts.
+// theme is about which signals a rider can distinguish and scheme is about ambient
+// light, and only the scheme axis can follow the operating system.
 export const themeEnum = pgEnum('theme', ['default', 'contrast', 'colorblind'])
 export const schemeEnum = pgEnum('scheme', ['system', 'light', 'dark'])
 
 // Whether this app animates. THREE STATES AND NOT A BOOLEAN — `system` means
-// "whatever prefers-reduced-motion says", which is the default, because a
-// two-state toggle defaulting to on would silently override the OS setting of
-// every rider who already asked for less motion. See src/views/motion.ts.
+// "whatever prefers-reduced-motion says", which is the default, because a two-state
+// toggle defaulting to on would silently override the OS setting of every rider who
+// already asked for less motion.
 export const motionEnum = pgEnum('motion', ['system', 'always', 'never'])
 // The map tiles' own light/dark, separate from the page's. A dark page with a
 // light map is a real preference — the tiles are what is being read and a dark
@@ -82,10 +75,9 @@ export const motionEnum = pgEnum('motion', ['system', 'always', 'never'])
 // a `data-map-scheme` stamp, the way `system` is for the page.
 export const mapSchemeEnum = pgEnum('map_scheme', ['follow', 'light', 'dark'])
 
-// Miles or kilometers. ITS OWN AXIS rather than derived from `date_format`,
-// although the two look like siblings: `en-GB` writes 24/08/2026 and measures
-// road distance in MILES, so deriving would hand every British rider kilometers
-// they never asked for. See src/views/units.ts.
+// Miles or kilometers. ITS OWN AXIS rather than derived from `date_format`: `en-GB`
+// writes 24/08/2026 and measures road distance in MILES, so deriving would hand every
+// British rider kilometers they never asked for.
 export const unitsEnum = pgEnum('units', ['imperial', 'metric'])
 
 // Twelve- or twenty-four-hour time. A THIRD MEMBER RATHER THAN A BOOLEAN, and
@@ -143,10 +135,10 @@ export const feedbackKindEnum = pgEnum('feedback_kind', ['bug', 'idea', 'questio
 // 'published'. Deliberately separate from feedback_status — a bug is routinely
 // 'fixed' while still 'pending' and there is nothing contradictory about that.
 export const feedbackStateEnum = pgEnum('feedback_state', ['pending', 'published', 'declined', 'duplicate', 'spam'])
-// The RIDER-FACING lifecycle, orthogonal to the gate above. Every member has a
-// label and a sub-line in STATUS_META in src/feedback/policy.ts, and
-// test/feedback-status-labels.test.ts fails the build if one is added here
-// without copy — a raw enum value rendered to a rider is the failure mode.
+// The RIDER-FACING lifecycle, orthogonal to the gate above. Every member has a label
+// and a sub-line in STATUS_META, and test/feedback-status-labels.test.ts fails the
+// build if one is added here without copy — a raw enum value rendered to a rider is
+// the failure mode.
 export const feedbackStatusEnum = pgEnum('feedback_status', [
   'new',
   'needs_info',
@@ -178,11 +170,9 @@ export const users = pgTable(
     // instant, so a name plus the minute it was claimed cannot collide.
     publicId: varchar('public_id', { length: 64 }).unique(),
     avatarUrl: varchar('avatar_url', { length: 512 }),
-    // Defaulting to 'active' is load-bearing, not an oversight: drizzle-kit push
-    // stamps the default onto every existing row, so a 'pending' default would
-    // flip the owner's own account to pending and lock them out of the app that
-    // does the approving. resolveUser() writes 'pending' explicitly on the
-    // insert path instead.
+    // Defaulting to 'active' is load-bearing, not an oversight: drizzle-kit push stamps
+    // the default onto every existing row, so a 'pending' default would flip the owner's
+    // own account to pending and lock them out of the app that does the approving.
     status: userStatusEnum('status').notNull().default('active'),
     // When the "you're approved" email went out — what makes it exactly-once for the
     // life of an account. /admin can toggle active → blocked → active freely, so "did
@@ -210,10 +200,9 @@ export const users = pgTable(
     // Changing this default does NOT touch existing rows — ALTER COLUMN SET DEFAULT
     // applies to new inserts only.
     quotaBytes: bigint('quota_bytes', { mode: 'number' }).notNull().default(104857600), // 100 MB
-    // Denormalized cache of sum(rides.size_bytes), incremented on import and
-    // decremented on delete, with no reconciler — so it drifts, and has. The
-    // dashboard computes the authoritative sum alongside it and reports the
-    // disagreement rather than trusting this.
+    // Denormalized cache of sum(rides.size_bytes), incremented on import and decremented
+    // on delete, with no reconciler — so it drifts, and has. The dashboard computes the
+    // authoritative sum alongside it and reports the disagreement.
     usedBytes: bigint('used_bytes', { mode: 'number' }).notNull().default(0),
     createdAt: timestamp('created_at').notNull().defaultNow(),
     updatedAt: timestamp('updated_at').notNull().defaultNow(),
@@ -228,9 +217,9 @@ export const users = pgTable(
     // Null means "has never asked to leave".
     deletionRequestedAt: timestamp('deletion_requested_at'),
     // The deadline, stored rather than derived from deletion_requested_at +
-    // DELETION_HOLD_DAYS. It is a promise made to a person on a date, and
-    // deriving it means changing that constant later retroactively moves a purge
-    // date a rider was already shown. Same reasoning as invites.expires_at.
+    // DELETION_HOLD_DAYS: it is a promise made to a person on a date, and deriving it
+    // means changing that constant later retroactively moves a purge date a rider was
+    // already shown.
     purgeAfter: timestamp('purge_after'),
     // Claimed by the purge before it starts, so a crash cannot wedge the row and
     // two triggers cannot both run it. See src/account/purge.ts.
@@ -242,9 +231,9 @@ export const users = pgTable(
     // clears. `quota_warned_at` is CLEARED when a rider drops back under the line.
     quotaWarnedAt: timestamp('quota_warned_at'),
     // The account-deletion warning. Never cleared by the sweep: Save Me clears
-    // `purge_after` itself, and a rider who asks to leave a second time gets a
-    // fresh `purge_after` — so the sweep's own "is this stamp older than the
-    // current request" test is what makes the second warning fire.
+    // `purge_after` itself, and a rider who asks to leave a second time gets a fresh one
+    // — so the sweep's "is this stamp older than the current request" test is what makes
+    // the second warning fire.
     purgeWarnedAt: timestamp('purge_warned_at'),
     // A GUIDE RIDER: one of the three seeded accounts the guided tour invites onto its
     // demo ride. They are REAL ROWS — a real membership, a real bike with a real range
@@ -268,11 +257,10 @@ export const users = pgTable(
   ],
 )
 
-// The profile record. Separate from `users` on purpose: withSession() selects
-// the whole users row on every request and jsonScript() serializes arbitrary
-// objects into page HTML, so keeping a street address and four payment handles
-// off that row means a careless `tb: { user }` can never leak them to a client.
-// Only the profile page loads this table.
+// The profile record. Separate from `users` on purpose: withSession() selects the whole
+// users row on every request and jsonScript() serializes arbitrary objects into page
+// HTML, so keeping a street address and four payment handles off that row means a
+// careless `tb: { user }` can never leak them to a client.
 export const userProfiles = pgTable('user_profiles', {
   // The FK is the PK — one profile per user, no surrogate id to keep in sync.
   userId: bigint('user_id', { mode: 'number' })
@@ -295,12 +283,12 @@ export const userProfiles = pgTable('user_profiles', {
   // whenever the address did not resolve; a failed lookup must not block a save.
   homeLat: doublePrecision('home_lat'),
   homeLng: doublePrecision('home_lng'),
-  // The public starting point: where a shared ride begins instead of the rider's
-  // front door. Mirrors the home block field for field.
+  // The public starting point: where a shared ride begins instead of the rider's front
+  // door. Mirrors the home block field for field.
   //
-  // Moving the *pin* is not enough — a route seeded from home is drawn from home,
-  // and the first leg points at the house whatever the marker says. Swapping the
-  // start has to happen while planning, not while rendering.
+  // Moving the *pin* is not enough — a route seeded from home is drawn from home, and
+  // the first leg points at the house whatever the marker says. Swapping the start has
+  // to happen while planning, not while rendering.
   startLabel: varchar('start_label', { length: 120 }),
   startAddressLine: varchar('start_address_line', { length: 255 }),
   startCity: varchar('start_city', { length: 120 }),
@@ -315,69 +303,61 @@ export const userProfiles = pgTable('user_profiles', {
   venmo: varchar('venmo', { length: 120 }),
   paypal: varchar('paypal', { length: 120 }),
   zelle: varchar('zelle', { length: 120 }),
-  // The first genuine preference on the profile. It changes how the builder's
-  // duration field reads and nothing else: the stored unit is minutes and every
-  // export, the roadbook and the timeline are untouched by it.
-  //
-  // Defaulted rather than nullable so there is no third state to handle.
+  // The first genuine preference on the profile. It changes how the builder's duration
+  // field reads and nothing else: the stored unit is minutes and every export, the
+  // roadbook and the timeline are untouched by it. Defaulted rather than nullable so
+  // there is no third state to handle.
   durationFormat: durationFormatEnum('duration_format').notNull().default('hours'),
-  // Defaulted rather than nullable for the same reason as durationFormat above:
-  // no third state for every reader to interpret differently. The signup path
-  // seeds it from Accept-Language, so the default is what a rider gets only when
-  // the header says nothing useful.
+  // Defaulted rather than nullable for the same reason as durationFormat above: no third
+  // state for every reader to interpret differently. The signup path seeds it from
+  // Accept-Language, so the default is what a rider gets only when the header says
+  // nothing useful.
   dateFormat: dateFormatEnum('date_format').notNull().default('en-US'),
-  // The palette and the light/dark scheme, defaulted for the same reason as the two
-  // above: no third state for a reader to interpret.
-  //
-  // UNLIKE dateFormat, NEITHER IS SEEDED FROM A HEADER, which is what makes them
-  // safe to add — there is no header for a palette, and 'system' already means "ask
-  // the browser" on the one axis where the browser has an opinion.
+  // The palette and the light/dark scheme, defaulted for the same reason. UNLIKE
+  // dateFormat, NEITHER IS SEEDED FROM A HEADER, which is what makes them safe to add —
+  // there is no header for a palette, and 'system' already means "ask the browser" on
+  // the one axis where the browser has an opinion.
   theme: themeEnum('theme').notNull().default('default'),
   scheme: schemeEnum('scheme').notNull().default('system'),
-  // Defaulted for the same reason as the four above: no third state for a reader
-  // to interpret. Neither is seeded from a header — `motion` delegates to the
-  // browser through its own `system` member rather than through a header, and
-  // there is no Accept-Units.
+  // Defaulted for the same reason as the four above. Neither is seeded from a header —
+  // `motion` delegates to the browser through its own `system` member, and there is no
+  // Accept-Units.
   motion: motionEnum('motion').notNull().default('system'),
   // Defaulted for the same reason as the three above. `follow` delegates to
   // `scheme`, so no reader ever has to answer "null means what?".
   mapScheme: mapSchemeEnum('map_scheme').notNull().default('follow'),
   units: unitsEnum('units').notNull().default('imperial'),
-  // Defaulted for the same reason as the five above: no third state for a reader
-  // to interpret. Neither is seeded from a header — `clock` delegates to the
-  // rider's date format through its own `locale` member, which is the same
-  // mechanism `motion` uses for the browser, and there is no Accept-Volume.
+  // Defaulted for the same reason as the five above. `clock` delegates to the rider's
+  // date format through its own `locale` member, the same mechanism `motion` uses for
+  // the browser, and there is no Accept-Volume.
   clock: clockEnum('clock').notNull().default('locale'),
   volumeUnits: volumeUnitsEnum('volume_units').notNull().default('auto'),
-  // Defaulted for the same reason as the six above: no third state for a reader
-  // to interpret. It is the one column here whose default is not "what a rider
-  // who said nothing would have wanted" but "what somebody seeing this for the
-  // first time needs" — see the enum's own note.
+  // Defaulted for the same reason as the six above. It is the one column here whose
+  // default is not "what a rider who said nothing would have wanted" but "what somebody
+  // seeing this for the first time needs" — see the enum's own note.
   tips: tipsEnum('tips').notNull().default('on'),
-  // WHEN THE GUIDED TOUR WAS FINISHED OR DISMISSED, deliberately NULLABLE rather
-  // than defaulted: "has never been offered the tour" decides whether it runs on its
-  // own, and is not the same as "ran it and dismissed it at step one". A TIMESTAMP
-  // RATHER THAN A BOOLEAN, because the next question is always "how long ago".
+  // WHEN THE GUIDED TOUR WAS FINISHED OR DISMISSED, deliberately NULLABLE rather than
+  // defaulted: "has never been offered the tour" decides whether it runs on its own,
+  // and is not the same as "ran it and dismissed it at step one". A TIMESTAMP rather
+  // than a boolean, because the next question is always "how long ago".
   tourDoneAt: timestamp('tour_done_at', { withTimezone: true }),
-  // WHETHER THE HEADER'S "Take the tour" SIGN IS HIDDEN. Ziad's call, 2026-09-11:
-  // right for a new rider and furniture for one who has taken it twice. A boolean
-  // and not a timestamp, unlike `tour_done_at`: nothing will ask how long ago it
-  // was hidden. The account menu's item survives either way, so this removes an
-  // affordance and never the feature.
+  // WHETHER THE HEADER'S "Take the tour" SIGN IS HIDDEN: right for a new rider and
+  // furniture for one who has taken it twice. A boolean and not a timestamp, unlike
+  // `tour_done_at`, because nothing will ask how long ago it was hidden. The account
+  // menu's item survives either way.
   hideTour: boolean('hide_tour').notNull().default(false),
-  // THE RIDE THE TOUR IS CURRENTLY BUILDING, OR THE ONE IT LEFT BEHIND. The tour
-  // creates a real ride and bins it on Finish and on Skip — but a tab closed mid-tour
-  // leaves it live, so the next start bins whatever this still names and the hourly
-  // trash sweep bins one older than a day. `set null` on delete so a ride purged by
-  // any other path leaves nothing dangling.
+  // THE RIDE THE TOUR IS CURRENTLY BUILDING, OR THE ONE IT LEFT BEHIND. The tour bins
+  // it on Finish and on Skip, but a tab closed mid-tour leaves it live, so the next
+  // start bins whatever this still names and the hourly trash sweep bins one older than
+  // a day. `set null` on delete so a ride purged by any other path leaves nothing
+  // dangling.
   tourRideId: bigint('tour_ride_id', { mode: 'number' }).references(() => rides.id, { onDelete: 'set null' }),
   // Places to push DOWN a place search (#271). FREE TEXT AND NOT A JOIN TABLE: the
-  // intended use is as loose as it sounds — a category and one chain by name in the
-  // same list — so there is nothing to normalize against.
+  // intended use is as loose as it sounds, so there is nothing to normalize against.
   //
-  // A WEIGHTING AND NEVER A FILTER, which is what makes free text safe: a false
-  // match costs one result ranked lower, and the one time a rider is out of fuel
-  // with an ARCO in front of them is the time this must not have hidden it.
+  // A WEIGHTING AND NEVER A FILTER, which is what makes free text safe: a false match
+  // costs one result ranked lower, and the one time a rider is out of fuel with an ARCO
+  // in front of them is the time this must not have hidden it.
   avoidPlaces: varchar('avoid_places', { length: 1000 }),
   // The mirror of the column above: places to push UP a place search.
   //
@@ -385,20 +365,19 @@ export const userProfiles = pgTable('user_profiles', {
   // learn, where the point is that a rider types "ARCO, Costco Gas" the way they
   // would say it. NOTHING STOPS A TERM APPEARING IN BOTH; the ranking resolves it.
   favorPlaces: varchar('favor_places', { length: 1000 }),
-  // HOW MUCH FURTHER OUT OF THEIR WAY THAN NECESSARY A JOINING GROUP MAY BE SENT to
-  // meet sooner, in miles (#370). The builder seeds its dial from this; the dial is
-  // still per press.
+  // HOW MUCH FURTHER OUT OF THEIR WAY THAN NECESSARY A JOINING GROUP MAY BE SENT (#370).
+  // The builder seeds its dial from this; the dial is still per press.
   //
-  // NULLABLE WITH THE DEFAULT IN CODE — the `home_label` arrangement: a rider who
-  // clears the box goes back to the app's default rather than carrying the number it
-  // was that day. Clamped on the way in and out, which is why there is no CHECK.
+  // NULLABLE WITH THE DEFAULT IN CODE — the `home_label` arrangement: a rider who clears
+  // the box goes back to the app's default rather than carrying the number it was that
+  // day. Clamped on the way in and out, which is why there is no CHECK.
   meetDivertMi: integer('meet_divert_mi'),
-  // WHAT THE APP CALLS THINGS (#321). The rider's default preset — a vehicle and
-  // what powers it — and their own words for any term set to Custom.
+  // WHAT THE APP CALLS THINGS (#321). The rider's default preset — a vehicle and what
+  // powers it — and their own words for any term set to Custom.
   //
-  // VARCHAR AND NOT pgEnum for the reason notifications.event is: a new vehicle is
-  // a code change and nothing else. Null means the default (motorcycle, gas). A
-  // ride carries its own pair and wins over these; `jargon` wins over both.
+  // VARCHAR AND NOT pgEnum for the reason notifications.event is: a new vehicle is a
+  // code change and nothing else. A ride carries its own pair and wins over these;
+  // `jargon` wins over both.
   vehicle: varchar('vehicle', { length: 20 }),
   power: varchar('power', { length: 20 }),
   // `{ journey: 'adventure', highway: 'motorway' }` — only the rows a rider
@@ -407,39 +386,33 @@ export const userProfiles = pgTable('user_profiles', {
   jargon: jsonb('jargon').$type<Record<string, string>>(),
   // Contact details, each behind its own share flag (#183).
   //
-  // TWO FLAGS AND NOT ONE, deliberately. `share_payment_handles` covers four
-  // fields because the four are the same kind of thing; a phone number is not
-  // the same kind of thing as an Instagram handle, and one flag over both would
-  // mean a rider who wants their socials seen has to publish their phone to do
-  // it. The phone's default matters more than any other on this table.
+  // TWO FLAGS AND NOT ONE, deliberately: `share_payment_handles` covers four fields
+  // because the four are the same kind of thing. A phone number is not the same kind of
+  // thing as an Instagram handle, and one flag over both would mean a rider who wants
+  // their socials seen has to publish their phone to do it.
   phone: varchar('phone', { length: 40 }),
   sharePhone: boolean('share_phone').notNull().default(false),
-  // HANDLES, NOT URLS, and that is a security decision rather than a storage
-  // preference. A rider-supplied `href` needs a scheme allow-list or
-  // `javascript:` is stored XSS, and JSX escaping does not save an attribute. A
-  // handle cannot carry a scheme, so composing the link at render time removes
-  // the class of bug instead of defending against it. Same shape as the four
-  // payment handles above.
+  // HANDLES, NOT URLS, and that is a security decision rather than a storage preference.
+  // A rider-supplied `href` needs a scheme allow-list or `javascript:` is stored XSS,
+  // and JSX escaping does not save an attribute. A handle cannot carry a scheme, so
+  // composing the link at render time removes the class of bug.
   instagram: varchar('instagram', { length: 120 }),
   facebook: varchar('facebook', { length: 120 }),
   youtube: varchar('youtube', { length: 120 }),
   strava: varchar('strava', { length: 120 }),
   shareSocials: boolean('share_socials').notNull().default(false),
-  // The rider's own avatar, counted HERE AND NOWHERE ELSE — never in
-  // `users.used_bytes` and never in `rides.size_bytes`'s generated expression. Same
-  // rule as `bikes.photo_bytes`: an avatar is not ride data, and a fourth byte
-  // column reaching that expression corrupts quota accounting on every delete.
-  //
-  // Zero means "no uploaded avatar", which makes this the flag as well as the size.
+  // The rider's own avatar, counted HERE AND NOWHERE ELSE — never in `users.used_bytes`
+  // and never in `rides.size_bytes`'s generated expression. Same rule as
+  // `bikes.photo_bytes`: a fourth byte column reaching that expression corrupts quota
+  // accounting on every delete. Zero means "no uploaded avatar".
   avatarBytes: integer('avatar_bytes').notNull().default(0),
   createdAt: timestamp('created_at').notNull().defaultNow(),
   updatedAt: timestamp('updated_at').notNull().defaultNow(),
 })
 
-// What a bike runs on. `gas`, not `petrol`: American English everywhere in code,
-// comments and copy, the same rule that keeps `color` spelled that way. It
-// shares a word with the `gas` waypoint role and that is not a collision — one
-// is a reason to stop, the other is what a machine drinks.
+// What a bike runs on. `gas`, not `petrol`: American English everywhere. It shares a
+// word with the `gas` waypoint role and that is not a collision — one is a reason to
+// stop, the other is what a machine drinks.
 export const fuelTypeEnum = pgEnum('fuel_type', ['gas', 'electric'])
 
 // THE PADDOCK — a rider's bikes. Owned by the rider and not by any ride: which
@@ -468,26 +441,22 @@ export const bikes = pgTable(
     year: smallint('year'),
     fuelType: fuelTypeEnum('fuel_type').notNull().default('gas'),
     usableRangeM: integer('usable_range_m'),
-    // How far this rider is good for on THIS bike before they want off it.
-    // On the bike rather than on the rider, deliberately: a tourer and a
-    // supermoto are not the same route, and the number a rider would give changes
-    // with which one is in the garage.
+    // How far this rider is good for on THIS bike before they want off it. On the bike
+    // rather than on the rider, deliberately: a tourer and a supermoto are not the same
+    // route, and the number a rider would give changes with which one is in the garage.
     comfortRangeM: integer('comfort_range_m'),
-    // Tank capacity in MILLILITERS, typed in gallons or liters — the same unit
-    // boundary `usable_range_m` follows, and src/bikes/policy.ts is again the
-    // only place the two meet. Stored metric because #150 will switch the site
-    // over, and a value stored in whatever unit somebody typed drifts on every
-    // round trip.
+    // Tank capacity in MILLILITERS, typed in gallons or liters — the same unit boundary
+    // `usable_range_m` follows, and src/bikes/policy.ts is again the only place the two
+    // meet. Stored metric because #150 will switch the site over.
     //
-    // NULLABLE, AND NULL IS NOT ZERO. Most riders will never fill it in, and a
-    // tank of zero is a different claim from a tank nobody has measured.
+    // NULLABLE, AND NULL IS NOT ZERO: a tank of zero is a different claim from a tank
+    // nobody has measured.
     tankMl: integer('tank_ml'),
-    // The photo's bookkeeping, mirroring rides.thumb_hash: the hash lets the route
-    // serve the image immutable, because a changed picture is a changed URL.
+    // The photo's bookkeeping, mirroring rides.thumb_hash: the hash lets the route serve
+    // the image immutable, because a changed picture is a changed URL.
     //
-    // `photo_bytes` IS COUNTED HERE AND NOWHERE ELSE — out of rides.size_bytes and
-    // out of users.used_bytes, since a bike photo is not ride data and a fourth byte
-    // column in that generated expression corrupts quota accounting on every delete.
+    // `photo_bytes` IS COUNTED HERE AND NOWHERE ELSE — a bike photo is not ride data,
+    // and a fourth byte column in that generated expression corrupts quota accounting.
     photoHash: varchar('photo_hash', { length: 32 }),
     photoBytes: integer('photo_bytes').notNull().default(0),
     // Which bike the rider is assumed to be on. Enforced as AT MOST ONE by the
@@ -522,11 +491,9 @@ export const bikes = pgTable(
   ],
 )
 
-// Every username a rider has held, current one included. Two jobs: showing them
-// their own history, and keeping a released name out of anyone else's hands for a
-// cooling-off period.
-//
-// The window cannot be an index — "unavailable unless you are the rider who
+// Every username a rider has held, current one included: showing them their own
+// history, and keeping a released name out of anyone else's hands for a cooling-off
+// period. The window cannot be an index — "unavailable unless you are the rider who
 // released it" is not something a unique constraint can express — so it is an
 // application check, and uq_username_lower remains the hard guard.
 export const usernameHistory = pgTable(
@@ -582,12 +549,10 @@ export const sessions = pgTable(
   (t) => [index('idx_session_user').on(t.userId), index('idx_session_expires').on(t.expiresAt)],
 )
 
-// Magic-link tokens, following the sessions table above exactly: the primary key
-// is the SHA-256 hash of the token that was emailed, never the token itself, so
-// a leaked table yields nothing redeemable.
-//
-// Keyed on email rather than user id on purpose — a link can be requested for an
-// address with no account yet, and that is the signup path.
+// Magic-link tokens, following the sessions table above exactly: the primary key is
+// the SHA-256 hash of the token that was emailed, never the token itself, so a leaked
+// table yields nothing redeemable. Keyed on email rather than user id, because a link
+// can be requested for an address with no account yet.
 export const loginTokens = pgTable(
   'login_tokens',
   {
@@ -642,10 +607,9 @@ export const invites = pgTable(
     usedCount: integer('used_count').notNull().default(0),
     expiresAt: timestamp('expires_at').notNull(),
     revokedAt: timestamp('revoked_at'),
-    // SET NULL, not cascade, and nullable for that reason alone: cascading means
-    // purging a manager deletes their invites, and invite_redemptions cascades from
-    // invites — so it would take OTHER riders' record of how they got in. Losing "who
-    // minted it" is the cheapest thing to lose; label carries the human meaning.
+    // SET NULL, not cascade, and nullable for that reason alone: cascading means purging a
+    // manager deletes their invites, and invite_redemptions cascades from invites — so it
+    // would take OTHER riders' record of how they got in.
     createdBy: bigint('created_by', { mode: 'number' }).references(() => users.id, { onDelete: 'set null' }),
     createdAt: timestamp('created_at').notNull().defaultNow(),
     updatedAt: timestamp('updated_at').notNull().defaultNow(),
@@ -689,14 +653,12 @@ export const inviteRedemptions = pgTable(
   ],
 )
 
-// One rider's answers to the Rider Survey. The FK is the PK — one response per
-// rider, no surrogate id to keep in sync.
+// One rider's answers to the Rider Survey. The FK is the PK — one response per rider.
 //
-// answers is jsonb and the question set lives in src/survey/questions.ts, so
-// changing a question is a code change and never a migration.
-//
-// $type<> is a compile-time claim Postgres does not enforce. EVERY read goes through
-// parseAnswers(), which is lenient by design. submitted_at null means a draft.
+// answers is jsonb and the question set lives in src/survey/questions.ts, so changing a
+// question is a code change and never a migration. $type<> is a compile-time claim
+// Postgres does not enforce: every read goes through parseAnswers(), which is lenient
+// by design. submitted_at null means a draft.
 export const surveyResponses = pgTable(
   'survey_responses',
   {
@@ -717,9 +679,8 @@ export const surveyResponses = pgTable(
 
 // The shareable package (docs/ideas.md), and the top of the hierarchy:
 // ride > route > leg > stop/POI. The slug is the share id; visibility gates. Byte
-// columns describe imported originals on disk and drive quota — native rides
-// have zero bytes and no files. totalMiles/totalDurationS/stopCount are caches
-// recomputed on every save/import.
+// columns describe imported originals on disk and drive quota — native rides have zero
+// bytes and no files. totalMiles/totalDurationS/stopCount are caches.
 export const rides = pgTable(
   'rides',
   {
