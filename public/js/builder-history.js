@@ -2,46 +2,34 @@
 //
 // Two protections that are deliberately not the same thing:
 //
-//   History — recover from a mistake you made and noticed. In memory, per
-//             session, lost on reload.
-//   Draft   — recover from a crash, a closed tab or a dead phone, including
-//             for a ride that has never been saved and has no id. Survives
-//             reload; that is the whole point of it.
+//   History — recover from a mistake you made and noticed. In memory, per session,
+//             lost on reload.
+//   Draft   — recover from a crash, a closed tab or a dead phone, including for a ride
+//             that has never been saved. Survives reload; that is the point of it.
 //
-// Kept out of builder.js so it can be tested: test/builder-history.test.ts
-// evals this file and drives window.TBHistory, the same trick
-// test/twist-client.test.ts uses on twist.js. builder.js owns every DOM and
-// map concern; nothing here touches either.
+// Kept out of builder.js so it can be tested: test/builder-history.test.ts evals this
+// file and drives window.TBHistory. builder.js owns every DOM and map concern.
 (function (window) {
   "use strict";
 
   // ---- Snapshots ----------------------------------------------------------
-  //
-  // What a snapshot copies is decided by what the builder mutates in place,
-  // which is not obvious and not uniform:
-  //
-  //   leg.geometry   never mutated in place — always replaced wholesale, so it
-  //                  is SHARED by reference. This is what makes a snapshot
-  //                  cost ~50 object copies instead of ~19,000 coordinate
-  //                  pairs for a long route, and what makes a 100-step stack
-  //                  affordable at all.
-  //   leg.viaPoints  WAS in that category and no longer is. Drag-to-shape
-  //                  splices into it in place, so it must be copied like
-  //                  roles. This is the same trap twice: a field is safe to
-  //                  share right up until someone adds the feature that
-  //                  mutates it, and nothing fails loudly when they do — the
-  //                  snapshot just quietly gains the edit it was taken to
-  //                  protect against.
-  //   roles          the exception, and the trap. point.roles.splice() and
-  //                  .push() mutate it in place, so it MUST be copied. Sharing
-  //                  it would let a later role toggle reach back and rewrite
-  //                  history that has already been taken.
-  //   stops/pois     arrays are reversed, swapped, pushed and spliced; the
-  //                  objects themselves are written field-by-field on drag and
-  //                  on every keystroke. Both need copying.
-  //
-  // Everything else on `state` is UI or identity and is deliberately absent —
-  // restoring a map handle or a marker list would fight the renderer.
+    //
+    // What a snapshot copies is decided by what the builder mutates in place, which is
+    // not obvious and not uniform:
+    //
+    //   leg.geometry   never mutated in place — always replaced wholesale, so it is
+    //                  SHARED by reference. This is what makes a snapshot cost ~50 object
+    //                  copies instead of ~19,000 coordinate pairs.
+    //   leg.viaPoints  WAS in that category and no longer is: drag-to-shape splices into
+    //                  it in place. The same trap twice — a field is safe to share right
+    //                  up until someone adds the feature that mutates it, and nothing
+    //                  fails loudly when they do.
+    //   roles          point.roles.splice() and .push() mutate it in place, so it MUST be
+    //                  copied, or a later role toggle reaches back and rewrites history.
+    //   points         arrays are reversed, swapped, pushed and spliced; the objects are
+    //                  written field-by-field on drag and on every keystroke.
+    //
+    // Everything else on `state` is UI or identity and is deliberately absent.
   function copyDetails(d) {
     if (!d) return null;
     return { ...d, links: (d.links || []).map((l) => ({ ...l })) };
@@ -52,17 +40,12 @@
       // Spread carries endManual, which payload() drops. Losing it would turn
       // an end time the rider typed by hand back into a derived one, silently.
       ...r,
-      // roles and details are both COPIED rather than shared, and for the same
-      // reason: the editor mutates them in place. roles because splice() does;
-      // details because the field editor assigns into the object a field at a
-      // time. Share either and undo restores a point whose contents already
-      // changed underneath the snapshot — the failure is silent and looks like
-      // undo simply not working on that field.
-      //
-      // `links` needs its own copy inside details for the same reason again: it
-      // is an array the editor pushes to and splices.
-      // ONE ORDERED LIST, both kinds. `kind` rides along in the spread, which is
-      // what makes undo able to take a promotion back.
+      // roles and details are both COPIED rather than shared, because the editor mutates
+            // them in place: roles because splice() does, details because the field editor
+            // assigns into the object a field at a time. Share either and undo restores a point
+            // whose contents already changed underneath the snapshot — silently, looking like
+            // undo simply not working on that field. `links` needs its own copy inside details
+            // for the same reason.
       points: (r.points || []).map((pt) => ({
         ...pt,
         roles: (pt.roles || []).slice(),
@@ -76,18 +59,14 @@
     return {
       meta: {
         ...state.meta,
-        // THE SAME TRAP AS `roles` AND `viaPoints`, ONE LEVEL UP, and it was
-        // live from the route groups shipped. `{ ...state.meta }` is SHALLOW, so
-        // the snapshot pointed at the very array the Groups panel pushes to,
-        // splices out of and reorders — and every group object in it is written
-        // field by field by the name and color inputs. Undo restored a meta
-        // object whose subgroups had already moved on, so adding, renaming,
-        // recoloring, deleting or reordering a group could not be taken back
-        // and nothing said so.
-        //
-        // It surfaced when adding a group started seeding a route for it:
-        // undo took the route back and left the group, which is one gesture
-        // half-undone rather than an undo that quietly does nothing.
+        // THE SAME TRAP AS `roles` AND `viaPoints`, ONE LEVEL UP, and it was live from
+                // the route groups shipped. `{ ...state.meta }` is SHALLOW, so the snapshot
+                // pointed at the very array the Groups panel pushes to and reorders — and every
+                // group object in it is written field by field by the name and color inputs. Undo
+                // restored a meta object whose subgroups had already moved on.
+                //
+                // It surfaced when adding a group started seeding a route for it: undo took the
+                // route back and left the group.
         subgroups: (state.meta.subgroups || []).map((g) => ({ ...g })),
       },
       routes: (state.routes || []).map(snapshotRoute),
