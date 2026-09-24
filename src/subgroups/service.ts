@@ -1,13 +1,10 @@
 // Subgroups, query side. The rules are in ./policy.ts, ./schedule.ts and
 // ./rendezvous.ts, and nothing here re-decides one.
 //
-// RECONCILED BY UID, NOT CHURNED. Every other child of a ride — routes, points,
-// legs — is deleted and re-inserted on every save, and this deliberately is not:
-// `ride_members.subgroup_id` and `rides.primary_subgroup_id` both point at these
-// rows, and a delete-and-reinsert would null every one of them on the first edit
-// a rider made. So the payload's subgroups are matched against the stored ones
-// by uid, the missing ones deleted and the rest updated in place, which keeps
-// ids stable for exactly as long as the rider keeps the subgroup.
+// RECONCILED BY UID, NOT CHURNED. Every other child of a ride is deleted and
+// re-inserted on every save, and this deliberately is not: `ride_members.subgroup_id`
+// and `rides.primary_subgroup_id` both point at these rows, and a delete-and-reinsert
+// would null every one of them on the first edit a rider made.
 import { and, eq, inArray } from 'drizzle-orm'
 import { db } from '../db/index'
 import { rideMembers, rideSubgroups, rides, users, type RideSubgroupRow, type TimeAnchor } from '../db/schema'
@@ -89,39 +86,26 @@ export const subgroupsOf = (rideId: number): Promise<RideSubgroupRow[]> =>
 /**
  * Give a ride its main group, at the moment the ride is created.
  *
- * EVERY RIDE HAS AT LEAST ONE GROUP — planning a route means somebody is riding
- * it, which is a group of one. `SEED_GROUP` in builder.js is what makes that
- * true for a ride planned in the builder, and it is CLIENT-SIDE, so a ride
- * created by any other path — an upload, a clone, the seed script — arrived with
- * none and stayed that way until somebody opened it in the builder. Ziad's call,
- * 2026-09-06: the four creating paths seed it themselves, so no new ride can be
- * groupless whatever made it.
+ * EVERY RIDE HAS AT LEAST ONE GROUP — planning a route means somebody is riding it.
+ * `SEED_GROUP` in builder.js is what makes that true for a ride planned in the builder,
+ * and it is CLIENT-SIDE, so a ride created by any other path arrived with none. All
+ * four creating paths seed it themselves now.
  *
- * THIS IS NOT A BACKFILL AND DELIBERATELY SO. Rides already stored without a
- * group still get theirs the first time the builder saves them, which is the
- * repair that was already there; what changes is that the set of such rides
- * stops growing. A data migration over live rider records was declined for this
- * on 2026-09-03 and that half of the decision stands.
+ * THIS IS NOT A BACKFILL AND DELIBERATELY SO. Rides already stored without a group
+ * still get theirs the first time the builder saves them; what changes is that the set
+ * of such rides stops growing.
  *
- * `onConflictDoNothing` on the ride/uid pair, so a caller that runs this twice
- * — or one whose payload already carries a group with the same uid — writes one
- * row. It does NOT set `rides.primary_subgroup_id`: the column is resolved from
- * the payload's own order on every save (`subgroups[0]` is the main group), and
- * a value written here would be one more thing that could disagree with the list
- * a rider is looking at.
- *
- * The name matches what the builder seeds so a ride is not identifiable by which
- * path created it.
+ * `onConflictDoNothing` on the ride/uid pair, so a caller that runs this twice writes
+ * one row. It does NOT set `rides.primary_subgroup_id`: that column is resolved from
+ * the payload's own order on every save, and a value written here would be one more
+ * thing that could disagree with the list a rider is looking at.
  */
 export async function seedMainGroup(w: Writer, rideId: number): Promise<void> {
-  // ONLY WHEN THE RIDE HAS NONE, checked rather than inferred from the call
-  // site. Two of the four creating paths run `insertRideGraph` FIRST, which
-  // reconciles the payload's own subgroups — so an unconditional insert would
-  // give every ride saved from the builder a second, empty group named the same
-  // as the one it already has. `onConflictDoNothing` does not catch that: the
-  // uid is minted here and is new by construction, so there is no conflict to
-  // catch. Asking is the only thing that works at all four sites in either
-  // order, which is what makes this safe to call from a fifth.
+  // ONLY WHEN THE RIDE HAS NONE, checked rather than inferred from the call site. Two
+  // of the four creating paths run `insertRideGraph` FIRST, which reconciles the
+  // payload's own subgroups — so an unconditional insert would give every ride saved
+  // from the builder a second, empty group with the same name. `onConflictDoNothing`
+  // does not catch that: the uid is minted here and is new by construction.
   const existing = await w.select({ id: rideSubgroups.id }).from(rideSubgroups).where(eq(rideSubgroups.rideId, rideId))
   if (existing.length > 0) return
   await w.insert(rideSubgroups).values({ rideId, uid: newUid(), name: 'Group 1', position: 0 })
@@ -223,17 +207,14 @@ export type Strand = {
   /**
    * The route uids this VIEWER is on, or null when nothing narrows.
    *
-   * **THIS OUTRANKS `subgroupId` AND IS THE REASON A PER-RIDER EXPORT IS NOW
-   * CORRECT.** A strand is a GROUP's run — its own routes plus every shared one
-   * — which was an approximation of what a rider wanted and is wrong the moment
-   * two riders in one group ride different stretches. A friend who joins for the
-   * middle of a ride is on neither group's strand and on exactly three routes.
-   * `route_riders` is what knows that; see src/route-riders/policy.ts.
+   * **THIS OUTRANKS `subgroupId` AND IS THE REASON A PER-RIDER EXPORT IS NOW CORRECT.**
+   * A strand is a GROUP's run, which was an approximation of what a rider wanted and is
+   * wrong the moment two riders in one group ride different stretches. A friend who
+   * joins for the middle of a ride is on neither group's strand and on exactly three
+   * routes; `route_riders` is what knows that.
    *
-   * **ONLY WHEN THE STRAND WAS DERIVED FROM MEMBERSHIP.** An explicit `?group`
-   * is a planner asking for a GROUP's view and still gets one, and `?group=all`
-   * is the way back to the whole ride — narrowing either to the viewer's own
-   * routes would take away the question they asked.
+   * **ONLY WHEN THE STRAND WAS DERIVED FROM MEMBERSHIP.** An explicit `?group` is a
+   * planner asking for a GROUP's view and still gets one.
    */
   routeUids: string[] | null
 }

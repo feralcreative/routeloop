@@ -1,29 +1,23 @@
 // Who may see a ride, and who may take a copy of one.
 //
-// THIS IS THE ONLY PLACE THE VISIBILITY TABLE IS WRITTEN DOWN. Before this
-// module the same four-clause test — public, or unlisted, or the owner —
-// existed in three hand-rolled copies (getViewable in src/index.tsx, and its
-// own copy in each of handoff.tsx and roadbook.tsx), plus two list queries that
-// tested `visibility = 'public'` directly. Three copies of a rule agreed only
-// because nobody had changed it yet; adding a fourth level is exactly the
-// change that would have made them disagree, and a disagreement here is a leak.
+// THIS IS THE ONLY PLACE THE VISIBILITY TABLE IS WRITTEN DOWN. Before this module the
+// same four-clause test existed in three hand-rolled copies, plus two list queries that
+// tested `visibility = 'public'` directly. Three copies of a rule agreed only because
+// nobody had changed it yet; adding a fourth level is exactly the change that would
+// have made them disagree, and a disagreement here is a leak.
 //
-// Pure — a function of an already-loaded ride plus the viewer plus the two
-// facts that need a database to establish — so it is testable under the house
-// rule that governs test/. The queries live in ./query.ts, the same split as
-// invites/policy.ts vs service.ts and stats/shape.ts vs query.ts.
+// Pure — a function of an already-loaded ride plus the viewer plus the two facts that
+// need a database to establish. The queries live in ./query.ts.
 //
 // The two forms are NOT interchangeable and both are needed:
 //
 //   canView()        — a boolean over one loaded ride. What a route asks.
-//   visibleToViewer() in ./query.ts — a drizzle predicate with EXISTS
-//                      subqueries, for the queries that filter a LIST and
-//                      cannot load each row to ask about it.
+//   visibleToViewer() in ./query.ts — a drizzle predicate with EXISTS subqueries, for
+//                      the queries that filter a LIST.
 //
-// They have to agree. The `deleted_at` sweep was easy because its predicate was
-// a CONSTANT (`isNull(rides.deletedAt)`) that every path could share; this one
-// depends on the viewer, so a shared constant cannot carry it and two
-// implementations is the price. Same arrangement src/maps/alts.ts has with
+// They have to agree. The `deleted_at` sweep was easy because its predicate was a
+// CONSTANT that every path could share; this one depends on the viewer, so two
+// implementations is the price — the same arrangement src/maps/alts.ts has with
 // public/js/alts.js, and the same obligation to keep them pinned together.
 
 import type { RideVisibility } from '../db/schema'

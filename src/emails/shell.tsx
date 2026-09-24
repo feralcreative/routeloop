@@ -1,38 +1,26 @@
 // The one email document, and the primitives templates build bodies from.
 //
-// Email is not the web and the differences are not stylistic. Outlook on Windows
-// renders with Word's HTML engine, Gmail strips much of a <style> block and
-// clips it entirely on long messages, and several mobile clients force-invert
-// colors whatever you asked for. So:
+// Email is not the web and the differences are not stylistic. Outlook on Windows renders
+// with Word's HTML engine, Gmail strips much of a <style> block, and several mobile
+// clients force-invert colors whatever you asked for. So:
 //
 //   - Layout is tables. Not flex, not grid, not a div with a max-width.
-//   - Every style that MATTERS is an inline style= attribute. The <style> block
-//     below may only ever *improve* a message that is already correct without
-//     it, because a large minority of readers will never see it.
+//   - Every style that MATTERS is an inline style= attribute. The <style> block below
+//     may only ever *improve* a message that is already correct without it.
 //   - Padding goes on a <td>. Word drops padding on a <div>.
-//   - The design is light — white card, dark text. Clients that force-invert
-//     produce something legible from that; force-inverting an already-dark
-//     design yields gray mud.
+//   - The design is light. Clients that force-invert produce something legible from
+//     that; force-inverting an already-dark design yields gray mud.
 //
-// DARK MODE sits on top of that last point rather than replacing it, and the
-// distinction is what keeps the rest of the file true. There are two populations
-// and they are served by different mechanisms:
+// DARK MODE sits on top of that last point rather than replacing it. Clients that honor
+// prefers-color-scheme get a real dark design from the @media block; clients that do
+// not still get the light design and still invert it cleanly.
 //
-//   Clients that honor prefers-color-scheme (Apple Mail on both platforms is
-//   the one that matters) get a real dark design, from the @media block below.
+// So the light values stay inline and stay correct standalone, the dark ones exist ONLY
+// inside the media query, and the query overrides with !important because that is what
+// beats an inline declaration. Nothing dark is load-bearing: deleting the whole <style>
+// block would still leave every message correct.
 //
-//   Clients that do not (Gmail everywhere, which applies its own inversion and
-//   ignores the query) still get the light design and still invert it cleanly,
-//   exactly as before.
-//
-// So the light values stay inline and stay correct standalone, the dark ones
-// exist ONLY inside the media query, and the media query overrides with
-// !important because that is what beats an inline declaration in the cascade.
-// Nothing dark is load-bearing. Deleting the whole <style> block would still
-// leave every message correct, which is the rule this file has always followed.
-//
-// Templates supply a body fragment and nothing else. Everything from the doctype
-// to the footer lives here once, so no two emails can drift apart.
+// Templates supply a body fragment and nothing else.
 import { APP_ORIGIN } from '../config'
 import { esc } from '../views/esc'
 import { CONTENT_WIDTH, COLORS, DARK, FONT_STACK } from './theme'
@@ -87,22 +75,17 @@ export function A({ href, children }: { href: string; children?: unknown }) {
 /**
  * The call to action.
  *
- * A table, not a styled <a>, because Word ignores padding on an inline element
- * and would render the label with no button around it. Outlook shows this with
- * square corners — border-radius is one of the properties Word drops — and that
- * is an acceptable outcome rather than a reason to hand-write VML for it.
+ * A table, not a styled <a>, because Word ignores padding on an inline element and
+ * would render the label with no button around it. Outlook shows this with square
+ * corners — border-radius is one of the properties Word drops — and that is acceptable
+ * rather than a reason to hand-write VML.
  *
- * Every Button's href must also appear in the template's text() arm. A CTA that
- * exists only as a button is invisible to a plain-text reader, and
+ * Every Button's href must also appear in the template's text() arm, and
  * test/emails.test.ts asserts it.
  *
- * No dark-mode class, deliberately: this is the one element that already carries
- * its own opaque background, so white-on-$url is 5.7:1 whatever the card behind
- * it is doing. Lifting it to DARK.url would also mean dark label text, i.e. a
- * differently-colored primary button in half of all inboxes, which is a bigger
- * change to the brand than the 3.5:1 it sits at against the dark card — and that
- * figure is the button's edge against its surround, where 3:1 is the bar, not
- * the label against the button.
+ * No dark-mode class, deliberately: this is the one element that already carries its
+ * own opaque background. Lifting it would mean a differently-colored primary button in
+ * half of all inboxes.
  */
 export function Button({ href, children }: { href: string; children?: unknown }) {
   return (
@@ -131,50 +114,27 @@ const PREHEADER_PAD = '&zwnj;&nbsp;'.repeat(60)
 
 // The wordmark, one asset per scheme.
 //
-// Both are 800x100 and about 10 KB, drawn for this purpose — not a scaled copy
-// of the site lockup, which is an SVG most clients will not render at all.
-// Displayed at half size, so the file named here is the 2x asset and the name
-// says so.
+// Both are drawn for this purpose — not a scaled copy of the site lockup, which is an
+// SVG most clients will not render at all. Displayed at half size, so the file named
+// here is the 2x asset and the name says so.
 //
-// The `-dark` suffix names the ground, not the ink: LOGO_DARK is the reversed
-// white artwork, for a dark client. Same convention as the site's SVG pair in
-// src/views/layout.tsx, which spells it `-dk`; these two keep `-dark` because
-// that is how the artwork was delivered.
+// The `-dark` suffix names the ground, not the ink: LOGO_DARK is the reversed white
+// artwork, for a dark client.
 //
-// Both are also OPAQUE, which is the property that makes this work at all and
-// is worth checking before swapping either file. A transparent PNG disappears
-// wherever the client repaints the cell behind it; these carry their own ground
-// (white / #000), so each one is correct on its own regardless of what the
-// client does to the surrounding table. test/email-dark-mode.test.ts reads the
-// corner pixel of each rather than trusting this paragraph.
+// Both are also OPAQUE, which is the property that makes this work at all and is worth
+// checking before swapping either file: a transparent PNG disappears wherever the
+// client repaints the cell behind it. test/email-dark-mode.test.ts reads the corner
+// pixel of each rather than trusting this paragraph.
 //
-// The mark went from 3.5:1 to 8.15:1 in the 2026-08-11 rebrand, and it was
-// drawn at 400 wide where it had been 180 — nearly the full 536px the cell has
-// — with the note that anything narrower renders a wordmark too short to read
-// beside 16px body copy.
+// FOR THE BETA THE FILES CARRY THE SIGN, and THE DISPLAYED SIZE IS HALF THAT: the sign
+// made the lockup tall enough to be the first half of every message, so it is drawn at
+// 210×74. The old rule about 400 being the floor was about the word alone, before the
+// sign added height above it. An explicit width and height is what Outlook needs, so
+// the pair is stated rather than derived — and it has to MATCH the file.
 //
-// FOR THE BETA THE FILES CARRY THE SIGN: the word is 400×50 of the composite
-// and the BETA sign hangs off its right end into the extra.
-// utils/build-email-logos.mjs writes both files from the SVGs and prints the
-// numbers to put here; run it without --beta when the beta ends.
-//
-// THE DISPLAYED SIZE IS HALF THAT. Ziad's call, 2026-09-22: the sign made the
-// lockup tall enough to be the first half of every message, so it is drawn at
-// 210×74 and the rule about 400 being the floor no longer applies — that was
-// about the word alone, before the sign added 149px of height above it. The
-// artwork Ziad drew for the beta is exported AT the displayed size, 210×74 with
-// a 420×148 at 2x, and the `@2x` file is the one in the markup: a retina asset
-// drawn at half its pixels is sharper rather than softer, and the opaque grounds
-// test/email-dark-mode.test.ts reads off each corner pixel are properties of the
-// file rather than of the size it is drawn at. An explicit width and height on
-// the <img> is what Outlook needs, so the pair is stated rather than derived —
-// and it has to MATCH the file, or the client scales the raster to a shape it
-// was not drawn at.
-//
-// THE `-beta-` IN THE NAME IS WHICH LOCKUP IT IS, not which environment ships
-// it: these carry the sign baked in, and the unsuffixed names are reserved for
-// the plain wordmark the beta ends with. utils/build-email-logos.mjs writes
-// whichever pair its flag names.
+// THE `-beta-` IN THE NAME IS WHICH LOCKUP IT IS, not which environment ships it: the
+// unsuffixed names are reserved for the plain wordmark the beta ends with.
+// utils/build-email-logos.mjs writes whichever pair its flag names.
 const LOGO_W = 210
 const LOGO_H = 74
 const LOGO_LIGHT = `${APP_ORIGIN}/img/logo-routeloop-email-beta-hz@2x.png`
@@ -183,22 +143,19 @@ const LOGO_DARK = `${APP_ORIGIN}/img/logo-routeloop-email-beta-hz-dark@2x.png`
 /**
  * The header wordmark.
  *
- * This used to be styled text, on the grounds that a remote image is blocked by
- * default in a large share of clients and so is the one element guaranteed not
- * to render on first open. That is still true, and it is why every style below
- * that governs ALT TEXT — font, size, weight, color — is set on the <img> itself
- * rather than the cell. With images off, a client draws the alt string using the
- * image's own styles, so "Routeloop" still renders in brand-ish shape at roughly
- * the right size. The picture carries no information that is not in the alt.
+ * This used to be styled text, on the grounds that a remote image is blocked by default
+ * in a large share of clients. That is still true, and it is why every style below that
+ * governs ALT TEXT is set on the <img> itself rather than the cell: with images off, a
+ * client draws the alt string using the image's own styles. The picture carries no
+ * information that is not in the alt.
  *
- * The dark copy is a second <img> in a hidden <div> that the media query
- * un-hides, rather than a CSS background-image swap, because background-image is
- * stripped by Gmail and ignored by Word — a background swap would show nothing
- * at all in the clients that most need a fallback.
+ * The dark copy is a second <img> in a hidden <div> that the media query un-hides,
+ * rather than a CSS background-image swap, because background-image is stripped by
+ * Gmail and ignored by Word.
  *
- * `mso-hide:all` AND the conditional comment are both here on purpose: Word
- * honors neither display:none nor max-height reliably, and being wrong shows
- * the reader two logos stacked. The belt-and-braces costs one comment.
+ * `mso-hide:all` AND the conditional comment are both here on purpose: Word honors
+ * neither display:none nor max-height reliably, and being wrong shows the reader two
+ * logos stacked.
  */
 function header(): string {
   const img = (src: string) =>
