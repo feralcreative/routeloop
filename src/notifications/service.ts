@@ -1,27 +1,21 @@
 // The one door every notification goes through.
 //
-// The rules are ./policy.ts and the catalog ./catalog.ts; this is the half that
-// reads and writes tables, which is why it is not in either of those — the
-// rule-from-query split every other module here follows.
+// The rules are ./policy.ts and the catalog ./catalog.ts; this is the half that reads
+// and writes tables.
 //
-// **ONE `notify()` AND NOT ONE NOTIFIER PER EVENT.** There were three notifier
-// modules before this (auth, feedback, friends) and each re-derived the same
-// shape: look up the recipient, decide, send, swallow. Thirteen events would
-// have been thirteen copies of that, and the copies drift — the first one to
-// forget the preference check is a rider being mailed something they turned off,
-// with nothing to raise it. The senders now say WHO, WHICH EVENT and WHAT, and
-// this decides everything else.
+// **ONE `notify()` AND NOT ONE NOTIFIER PER EVENT.** There were three notifier modules
+// before this and each re-derived the same shape: look up the recipient, decide, send,
+// swallow. Thirteen events would have been thirteen copies, and the copies drift — the
+// first one to forget the preference check is a rider being mailed something they
+// turned off.
 //
-// **IT IS VOID AND NEVER THROWS**, like the three notifiers it generalizes: a
-// mail or an insert failing must not turn a successful button press into an
-// error page, and the `.catch()` is attached SYNCHRONOUSLY because Node's
-// default `--unhandled-rejections=throw` terminates the process on a floating
-// rejection. Same reasoning as sendTemplateDetached, which is what it wraps.
+// **IT IS VOID AND NEVER THROWS**: a mail or an insert failing must not turn a
+// successful button press into an error page, and the `.catch()` is attached
+// SYNCHRONOUSLY because Node's default `--unhandled-rejections=throw` terminates the
+// process on a floating rejection.
 //
-// **CALL IT AFTER THE CALLER'S TRANSACTION HAS COMMITTED.** It does its own
-// reads, and an SMTP round trip inside a transaction holds a pooled connection
-// open for a network call — the rule notifyNewSignup and notifyNewReport both
-// carry, unchanged.
+// **CALL IT AFTER THE CALLER'S TRANSACTION HAS COMMITTED.** It does its own reads, and
+// an SMTP round trip inside a transaction holds a pooled connection open.
 import { and, desc, eq, inArray, isNull, lt, ne, sql } from 'drizzle-orm'
 import { db } from '../db/index'
 import { notificationPrefs, notifications, userProfiles, users } from '../db/schema'

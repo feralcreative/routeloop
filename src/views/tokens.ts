@@ -1,16 +1,11 @@
-// Reads the design tokens back out of the SCSS that defines them, so /brand
-// shows what the app actually ships rather than a copy that drifts.
+// Reads the design tokens back out of the SCSS that defines them, so /brand shows what
+// the app actually ships rather than a copy that drifts.
 //
-// A hardcoded table in TypeScript would have been half the code and wrong
-// within a week — that is the whole failure mode this page exists to fix, since
-// the palette already has one copy too many (ROUTE_COLORS was duplicated in
-// builder.js until the importer needed it too). Parsing the source means a
-// token trimmed in _tokens.scss disappears from the page on the next reload,
-// with no second place to remember.
+// A hardcoded table in TypeScript would have been half the code and wrong within a week
+// — the palette already has one copy too many. Parsing the source means a token trimmed
+// in _tokens.scss disappears from the page on the next reload.
 //
-// Cached by mtime, the same guard views/assets.ts uses: production parses once
-// because the files are fixed for the life of the container, and a dev edit
-// re-reads on the next request without a restart.
+// Cached by mtime, the same guard views/assets.ts uses.
 import { readdirSync, readFileSync, statSync } from 'node:fs'
 import { join } from 'node:path'
 
@@ -19,18 +14,15 @@ const TOKENS_FILE = join(STYLE_DIR, '_tokens.scss')
 
 // The compiled stylesheet, which is where the VALUES are now.
 //
-// _tokens.scss stopped holding colors when the theme engine landed: every token
-// there is a `var(--x)` reference and the numbers moved to _palette.scss, where
-// they are Sass maps put through `color.adjust()` and do not exist until the
-// compiler has run. This page went to zero color tokens overnight and nothing
-// failed, because "is this a color" was a regex over a string.
+// _tokens.scss stopped holding colors when the theme engine landed: every token there
+// is a `var(--x)` reference and the numbers moved to _palette.scss, where they are Sass
+// maps put through `color.adjust()`. This page went to zero color tokens overnight and
+// nothing failed, because "is this a color" was a regex over a string.
 //
-// Reading the BUILD rather than re-deriving it is deliberate. Reimplementing the
-// palette's color math in TypeScript would give a second implementation of the
-// thing this page exists to display, and the first hue that disagreed would look
-// like a design decision. Compiling Sass at request time was the other option and
-// is worse: `sass` is a devDependency and the production image does not install
-// it, so /brand would work locally and 500 in the container.
+// Reading the BUILD rather than re-deriving it is deliberate: a second implementation
+// of the palette's color math would look like a design decision the first hue it
+// disagreed on. Compiling Sass at request time is worse — `sass` is a devDependency and
+// the production image does not install it.
 const CSS_FILE = join(process.cwd(), 'public', 'style', 'main.min.css')
 
 export type Token = {
@@ -130,22 +122,15 @@ export function parseTokens(scss: string, palette?: ReadonlyMap<string, string>)
 /**
  * Every hex written directly into a partial, with where and how often.
  *
- * `_tokens.scss` and `_palette.scss` are both excluded by the caller: a token's
- * own definition is not a stray literal, and counting them would put every color
- * the app defines at the top of a list whose whole purpose is finding the ones
- * with no name.
+ * `_tokens.scss` and `_palette.scss` are both excluded by the caller: a token's own
+ * definition is not a stray literal.
  *
- * **COMMENTS ARE STRIPPED FIRST, AND NOT DOING SO MADE THIS WHOLE PAGE LIE.**
- * A three-digit hex and a GitHub issue reference are the same characters: this
- * repo's comments are dense with `#130`, `#188`, `#282`, and every one of them
- * was being expanded — `#130` to `#113300`, `#282` to `#228822` — and reported
- * as an untokenized color used seven times across three files. Thirty-one of the
- * page's thirty-six findings were issue numbers, which is enough noise to make
- * the real five invisible and the page worth ignoring. Found 2026-09-07 while
- * paring the palette, by an audit that disagreed with the page.
+ * **COMMENTS ARE STRIPPED FIRST, AND NOT DOING SO MADE THIS WHOLE PAGE LIE.** A
+ * three-digit hex and a GitHub issue reference are the same characters: `#130` was
+ * being expanded to `#113300` and reported as an untokenized color used seven times.
+ * Thirty-one of the page's thirty-six findings were issue numbers.
  */
-const stripComments = (text: string): string =>
-  text.replace(/\/\*[\s\S]*?\*\//g, ' ').replace(/\/\/[^\n]*/g, ' ')
+const stripComments = (text: string): string => text.replace(/\/\*[\s\S]*?\*\//g, ' ').replace(/\/\/[^\n]*/g, ' ')
 
 export function findLiterals(files: { name: string; text: string }[], tokens: Token[]): Literal[] {
   const byValue = new Map<string, string>()
@@ -192,39 +177,31 @@ function expand(hex: string): string {
 const channel = (v: number) => (v <= 0.03928 ? v / 12.92 : Math.pow((v + 0.055) / 1.055, 2.4))
 
 /**
- * The three sRGB channels of a color, each 0..1, or null if it is not one this
- * can measure.
+ * The three sRGB channels of a color, each 0..1, or null if it is not one this can
+ * measure.
  *
- * TWO FORMS, AND THE SECOND IS NOT COSMETIC. Sass emits a hex for an authored
- * literal but `rgb(60%, 40.47%, 0%)` for anything `color.adjust()` produced —
- * which is every derived token in the palette, `$pending` and `$label` among
- * them. Reading only hex meant the two tokens most likely to have a contrast
- * problem, because they are amber pushed toward legibility, were the two this
- * could not measure. They rendered as "no ratio" on /brand and were skipped
- * silently by the audit.
+ * TWO FORMS, AND THE SECOND IS NOT COSMETIC. Sass emits a hex for an authored literal
+ * but `rgb(60%, 40.47%, 0%)` for anything `color.adjust()` produced — which is every
+ * derived token in the palette. Reading only hex meant the two tokens most likely to
+ * have a contrast problem were the two this could not measure.
  *
- * ALPHA STILL RETURNS NULL, deliberately. A translucent color has no contrast
- * ratio without knowing what is behind it, and inventing a backdrop would put a
- * confident wrong number on the page — `$panel-bg` is a white scrim over a map.
- * That is why the `/` guard and the four-argument `rgba()` both bail.
+ * ALPHA STILL RETURNS NULL, deliberately: a translucent color has no contrast ratio
+ * without knowing what is behind it, and inventing a backdrop would put a confident
+ * wrong number on the page.
  */
 function channels(value: string): [number, number, number] | null {
   const v = value.trim().toLowerCase()
 
-  // The keywords Sass actually emits. It writes the shortest form of a color, so
-  // a derivation that lands exactly on a named one comes out as that name rather
-  // than as a hex — and without these, the tokens most likely to have been
-  // clamped by accident are the ones that cannot be measured.
+  // The keywords Sass actually emits. It writes the shortest form of a color, so a
+  // derivation that lands exactly on a named one comes out as that name rather than as
+  // a hex.
   //
-  // `black` and `white` are the clamped ends of the lightness scale. `red` is
-  // there since 2026-08-26 and is the reason this is a table rather than two
-  // comparisons: $stop became #cc0000, which sits at exactly 40% HSL lightness,
-  // so the dark schemes' `kml-d10` — a 10% step run the other way — lands on
-  // hsl(0, 100%, 50%), which IS #ff0000, which Sass writes as `red`.
+  // `black` and `white` are the clamped ends of the lightness scale. `red` is there
+  // because $stop became #cc0000, which sits at exactly 40% HSL lightness, so a 10% step
+  // the other way lands on hsl(0, 100%, 50%), which Sass writes as `red`.
   //
-  // Still not a general lookup of all 148 names. Each entry is a value this
-  // palette provably emits, checked by the sweep in test/palette-contrast.ts
-  // that refuses anything not matching this set.
+  // Still not a general lookup of all 148 names: each entry is a value this palette
+  // provably emits, checked by the sweep in test/palette-contrast.ts.
   const named = KEYWORDS.get(v)
   if (named) return named
 
@@ -271,17 +248,14 @@ export function contrast(a: string, b: string): number | null {
 /**
  * The default light palette, read out of the `:root` block of the compiled CSS.
  *
- * The FIRST `:root` block specifically, which is the default light one — the five
- * others are `:root[data-theme=…]` and `:root[data-scheme=…]` and do not match
- * this pattern. That is the palette this page reports, and the page says so:
- * showing one rider's active theme would make the figures depend on who is
- * looking, and showing all six would turn a swatch chart into a matrix. All six
- * are measured by test/palette-contrast.test.ts, which is enforcement rather than
- * a page somebody has to remember to open.
+ * The FIRST `:root` block specifically — the five others carry an attribute selector
+ * and do not match this pattern. That is the palette this page reports, and the page
+ * says so: showing one rider's active theme would make the figures depend on who is
+ * looking, and showing all six would turn a swatch chart into a matrix. All six are
+ * measured by test/palette-contrast.test.ts.
  *
- * Empty when the stylesheet has not been built. /brand then renders exactly as it
- * did before this was added — names and comments, no swatches — rather than
- * failing, because a reference page must never be able to take a route down.
+ * Empty when the stylesheet has not been built, so /brand renders as it did before this
+ * was added rather than failing: a reference page must never take a route down.
  */
 export function parsePalette(css: string): Map<string, string> {
   const out = new Map<string, string>()
