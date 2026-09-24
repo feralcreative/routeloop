@@ -1,14 +1,12 @@
-// The security-critical half of the import pipeline (ported from the PHP-era
-// spec in _PLANS/multi-tenant-rebuild.md), extended with structured
+// The security-critical half of the import pipeline, extended with structured
 // extraction: imports produce DB rows (points + track), not just files.
 //
 // Order of defenses: reject any <!DOCTYPE> before the parser ever runs (kills
-// external-entity and billion-laughs outright — route files never need one),
-// then parse strictly with @xmldom/xmldom (a pure-JS DOM with no network or
-// entity resolution), then sanitize script vectors in <name>/<description>,
-// then extract structure server-side so points, roles, and mileage are
-// authoritative and unspoofable. The viewer's esc() at render time is the
-// second layer of the same defense.
+// external-entity and billion-laughs outright — route files never need one), then
+// parse strictly with @xmldom/xmldom (a pure-JS DOM with no network or entity
+// resolution), then sanitize script vectors in <name>/<description>, then extract
+// structure server-side so points, roles and mileage are authoritative. The viewer's
+// esc() at render time is the second layer of the same defense.
 import { DOMParser, XMLSerializer, MIME_TYPE, type Document, type Element } from '@xmldom/xmldom'
 import { parseRoleName, type Role } from './roles'
 
@@ -162,16 +160,13 @@ export function extracted(lines: Array<{ track: Track; name?: string | null }>, 
   return { points, tracks, track: first, trackMeters: tracks[0]?.meters ?? 0 }
 }
 
-// Which line does this point belong to? Only asked when a file holds several,
-// and answered by proximity: a waypoint sitting on route 3's road is a route 3
-// stop, whatever order the <wpt> elements happened to appear in. GPX writes
-// waypoints at document level with nothing tying them to a <trk>, so proximity
-// is the only signal there is.
+// Which line does this point belong to? Only asked when a file holds several, and
+// answered by proximity: a waypoint sitting on route 3's road is a route 3 stop,
+// whatever order the <wpt> elements appeared in. GPX writes waypoints at document
+// level with nothing tying them to a <trk>, so proximity is the only signal there is.
 //
-// Vertices are sampled rather than walked. A recorded route is tens of thousands
-// of points, the answer only has to be better than "put everything on route 1",
-// and an exact nearest-vertex search over every track would make a large import
-// noticeably slower to no benefit.
+// Vertices are sampled rather than walked: a recorded route is tens of thousands of
+// points and the answer only has to be better than "put everything on route 1".
 export function nearestTrackIndex(tracks: ExtractedTrack[], p: { lat: number; lng: number }): number {
   let best = 0
   let bestM = Infinity
@@ -191,24 +186,19 @@ export function nearestTrackIndex(tracks: ExtractedTrack[], p: { lat: number; ln
 
 // Which vertex of a track is nearest this point?
 //
-// Lifted out of distFromStartAlongTrack below, which computed exactly this and
-// threw the index away — track-split.ts needs the index rather than the
-// distance, and two copies of a nearest-vertex search would be two chances to
+// Lifted out of distFromStartAlongTrack below, which computed exactly this and threw
+// the index away — two copies of a nearest-vertex search would be two chances to
 // disagree about which vertex a stop sits on.
 //
-// SQUARED DEGREES, WITH NO COSINE CORRECTION ON LONGITUDE, and that is not an
-// oversight to fix. It only ever ranks candidates on one track against each
-// other, so the constant factor cancels — but the ranking it produces is baked
-// into every `points.dist_from_start_m` ever written, and public/js/twist.js
-// carries a port that test/twist-client.test.ts pins to this exact arithmetic.
-// "Correcting" it would silently move stored mileages on every existing ride
-// and break that test. If it ever does need to change, it changes in three
-// places at once and with a backfill.
+// SQUARED DEGREES, WITH NO COSINE CORRECTION ON LONGITUDE, and that is not an oversight
+// to fix. It only ever ranks candidates on one track against each other, so the
+// constant factor cancels — but the ranking is baked into every
+// `points.dist_from_start_m` ever written, and public/js/twist.js carries a port that
+// test/twist-client.test.ts pins to this exact arithmetic. If it ever does need to
+// change, it changes in three places at once and with a backfill.
 //
-// Note the client's own nearestVertexIndex in public/js/route-shape.js DOES
-// apply the correction. That one ranks a drag against a few miles of road and
-// never writes anything, so the two are allowed to differ; they answer
-// different questions.
+// Note the client's own nearestVertexIndex in public/js/route-shape.js DOES apply the
+// correction: it ranks a drag against a few miles of road and never writes anything.
 export function nearestVertexIndex(track: Track, p: { lat: number; lng: number }): number {
   let best = 0
   let bestD = Number.POSITIVE_INFINITY
@@ -377,18 +367,15 @@ export function processGpx(text: string): ExtractedRoute {
     return out
   }
 
-  // Every <trk> is kept, because each one is a separate ride and dropping the
-  // rest loses routes the file plainly contained. Segments *within* a track are
-  // joined, because a <trkseg> break is a recording pause in one ride while
-  // separate <trk> elements are separate rides. The two cases look alike and
-  // are not.
+  // Every <trk> is kept, because each one is a separate ride and dropping the rest
+  // loses routes the file plainly contained. Segments *within* a track are joined,
+  // because a <trkseg> break is a recording pause in one ride while separate <trk>
+  // elements are separate rides.
   //
-  // What is never done is reading every trkpt in the file as one track. That
-  // invents the geometry between where one route ends and the next begins:
-  // measured on a real 3-route ride, 553 miles came back as 631 and twistiness
-  // fell from 79/69/53 to 59, because the phantom joins are perfectly straight.
-  // Keeping the tracks apart is what avoids that, and it is also what keeps
-  // the routes — the reason this used to take only the longest one.
+  // What is never done is reading every trkpt in the file as one track: that invents
+  // the geometry between where one route ends and the next begins. Measured on a real
+  // 3-route ride, 553 miles came back as 631 and twistiness fell from 79/69/53 to 59,
+  // because the phantom joins are perfectly straight.
   const lines: Array<{ track: Track; name: string | null }> = []
   for (const trk of elements(doc, 'trk')) {
     const t = readPts(trk, 'trkpt')
