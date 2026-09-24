@@ -3,32 +3,23 @@
 @use "motion" as *;
 
 // The dashboard is `/`, served by src/routes/home.tsx — NOT src/routes/rides.tsx,
-// which is the ride list (on this page from 2026-08-24 to 2026-09-15, its own
-// page again since) and was called dashboard.tsx until 2026-08-15. This file
-// kept its name because it names the page correctly; the route module was the
-// thing that had it wrong. Nothing here styles the ride list — that is
-// _rides.scss and the generic card rules in _chrome.scss.
+// which is the ride list. This file kept its name because it names the page
+// correctly; the route module was the thing that had it wrong. Nothing here styles
+// the ride list — that is _rides.scss and the generic card rules in _chrome.scss.
 
-// The signed-in home page: hero figure, KPI tiles, a meter, two bar forms and
-// one chart.
+// The signed-in home page: hero figure, KPI tiles, a meter, two bar forms and one
+// chart. Everything except the chart is built from divs — the app already had three
+// working instances of this idiom, and a charting library asked to draw a horizontal
+// bar produces worse marks than a span with a width on it.
 //
-// Everything except the chart is built from divs. The app already had three
-// working instances of this idiom before the dashboard existed — .seat-meter on
-// the invites page, .spread and .tally-bar on the survey summary — and a
-// charting library asked to draw a horizontal bar produces worse marks than a
-// span with a width on it.
+// Colors are declared once as custom properties on .home and referenced by role, so
+// a palette change is one block rather than a search. The three categorical hues were
+// run through the data-viz validator against this page's card surface. Do not swap
+// one by eye — re-run the script.
 //
-// Colors are declared once as custom properties on .home and referenced by role
-// below, so a palette change is one block rather than a search. The three
-// categorical hues were run through the data-viz validator against this page's
-// white card surface: all five checks pass, worst adjacent pair is teal-orange
-// at OKLab ΔE 11.6 under protanopia. Do not swap one by eye — re-run the script.
-//
-// The app HAS a theme now — six palettes on two axes, since 2026-08-25 — and this
-// block joined it in the only way it needed to: every value below is a token,
-// so the viz slots follow whichever palette is active without a second table.
-// The role ring is the one color set on this page that deliberately does NOT
-// follow the theme; src/maps/role-colors.ts says why.
+// Every value below is a token, so the viz slots follow whichever palette is active.
+// The role ring is the one color set on this page that deliberately does NOT follow
+// the theme; src/maps/role-colors.ts says why.
 .home {
   // Sequential slot: the activity line and the storage meter, both of which are
   // one quantity over one axis. The role bars used to take it too, on the
@@ -36,20 +27,16 @@
   // rank — that argument is sound and is exactly why they now take a fixed
   // CATEGORICAL ring instead of a ramp. See src/maps/role-colors.ts.
   --viz-series-1: #{$brand};
-  // Categorical slots, validated as a set by test/viz-categories.test.ts —
-  // which is the validator this comment used to refer to and the repo did not
-  // contain. Do not swap one by eye; the test will tell you what it costs.
-  //
-  // FOUR SINCE 2026-08-26, when visibility gained `friends`. Color follows the
-  // meaning, never the size of the group, and the assignment is made in the
-  // .split-* rules below rather than here — a slot is a slot.
-  //
-  // The new one is $concrete, the sign post and gantry, picked by measurement:
-  // its closest approach to the other three is ΔE 11.0 where the existing
-  // blue-green pair manages 7.7, and it is the only candidate that stays clear
-  // of both the card and the empty track in all six palettes. The test carries
-  // the numbers; the known tritanopia weakness in the blue-green pair is
-  // documented there too and predates this slot.
+  // Categorical slots, validated as a set by test/viz-categories.test.ts. Do not swap
+    // one by eye; the test will tell you what it costs.
+    //
+    // FOUR SINCE 2026-08-26, when visibility gained `friends`. Color follows the
+    // meaning, never the size of the group, and the assignment is made in the .split-*
+    // rules below rather than here — a slot is a slot.
+    //
+    // The new one is $concrete, picked by measurement: its closest approach to the other
+    // three is ΔE 11.0 where the existing blue-green pair manages 7.7, and it is the
+    // only candidate that stays clear of both the card and the empty track in all six.
   --viz-cat-1: #{$disabled};
   --viz-cat-2: #{$detour};
   --viz-cat-3: #{$interstate};
@@ -60,19 +47,14 @@
 }
 
 // A SIGN FIELD IS TOO DARK TO BE A BAR ON A DARK CARD, 2026-09-17. A field is
-// authored to carry a white legend, so the contrast theme's guide green
-// (#14402f) and services blue (#043a72) are dark by design — and once the card
-// lifted off the near-black, both came within ΔE 18 of it under a deficiency.
-// The green takes the tone the palette already derives for setting TYPE on the
-// field, the record figures' answer. The blue takes `$brand`, the link blue,
-// which is `$disabled` LIFTED for exactly this reason — to stay legible on a
-// near-black page — and not `disabled-text`, which was tried first and landed
-// within ΔE 7.3 of the lifted green in the colorblind theme, where the two
-// fields are both blues. The orange and the gray were never close.
-// test/viz-categories.test.ts measures the dark palettes with these names.
-// ON `.home`, NOT `:root`: the slots above are declared on `.home`, and a
-// custom property set on an ancestor loses to one set on the element itself.
-// The rule shipped on `:root[data-scheme]` for a moment and changed nothing.
+// authored to carry a white legend, so the contrast theme's guide green and services
+// blue are dark by design — and once the card lifted off the near-black, both came
+// within ΔE 18 of it under a deficiency. The green takes the tone the palette already
+// derives for setting TYPE on the field; the blue takes `$brand`, which is `$disabled`
+// LIFTED for exactly this reason, and not `disabled-text`, which landed within ΔE 7.3
+// of the lifted green in the colorblind theme.
+// ON `.home`, NOT `:root`: the slots above are declared on `.home`, and a custom
+// property set on an ancestor loses to one set on the element itself.
 :root[data-scheme="dark"] .home {
   --viz-cat-1: #{$brand};
   --viz-cat-3: #{$interstate-text};
@@ -86,12 +68,10 @@
   padding-bottom: 0.5em;
 }
 
-// The hero figure and the onramp on one line (2026-09-14): figure at the
-// left, sign at the right, bottoms flush. `align-items: flex-end` is what
-// puts the sign's bottom edge on the figure's — the figure's line box ends
-// at its baseline plus descent, which is what the eye reads as "flush". The
-// row's own bottom margin replaces the two the children carried, and the
-// children keep none so a wrap does not double it.
+// The hero figure and the onramp on one line: figure at the left, sign at the right,
+// bottoms flush. `align-items: flex-end` is what puts the sign's bottom edge on the
+// figure's. The row's own bottom margin replaces the two the children carried, and
+// the children keep none so a wrap does not double it.
 .hero-row {
   display: flex;
   align-items: flex-end;
@@ -127,36 +107,29 @@
 
 // --- The onramp --------------------------------------------------------------
 //
-// One guide sign under the hero. It is the page's most prominent control and the
-// only one that starts something, so it is bigger than a `.btn` elsewhere.
+// One guide sign under the hero. It is the page's most prominent control and the only
+// one that starts something, so it is bigger than a `.btn` elsewhere.
 //
-// SIZED FROM THE CONTAINER, NOT BY A `.btn-lg`. `$btn-flat` in _chrome.scss is
-// the list of variants that opt OUT of the guide-sign treatment, and a variant
-// bringing its own size is exactly what that list is for — so a size modifier
-// would have had to join it and would have turned the sign off, which is the
-// opposite of prominent. Scaling it from here leaves the class system alone.
+// SIZED FROM THE CONTAINER, NOT BY A `.btn-lg`. `$btn-flat` is the list of variants
+// that opt OUT of the guide-sign treatment, and a variant bringing its own size is
+// exactly what that list is for — so a size modifier would have had to join it and
+// would have turned the sign off.
 //
-// The keyline does not scale with it, and should not: it is two inset shadows at
-// 3px and 5px, and a real sign's keyline is a fixed width whatever the sign
-// measures.
-//
-// `inline-flex` so the sign is as wide as its own legend rather than the column.
+// The keyline does not scale with it, and should not: a real sign's keyline is a
+// fixed width whatever the sign measures.
 .dash-cta {
   margin: 0;
 
   .btn {
     display: inline-flex;
     font-size: 1.15rem;
-    // THE SAME PADDING THE SIGN ALREADY HAS, RESTATED IN em SO IT SCALES WITH
-    // THE LARGER TYPE. The base rule is in rem, which would have left a bigger
-    // button with a normal button's padding.
-    //
-    // Copying its numbers means copying the two decisions inside them, and the
-    // second is the one worth naming: the arrow's side is TIGHTER (1.05 against
-    // 1.4), because the arrow's bounding box carries air that the glyphs of a
-    // word do not. A first pass here set the arrow's side LOOSER instead, and
-    // the gap after the arrow was the first thing Ziad saw. The other is the
-    // 0.1em the legend rides down by; see the note on the base rule.
+    // THE SAME PADDING THE SIGN ALREADY HAS, RESTATED IN em SO IT SCALES WITH THE LARGER
+        // TYPE. The base rule is in rem, which would have left a bigger button with a normal
+        // button's padding.
+        //
+        // Copying its numbers means copying the two decisions inside them, and the second is
+        // worth naming: the arrow's side is TIGHTER, because the arrow's bounding box
+        // carries air that the glyphs of a word do not.
     padding: calc(0.75em + 0.1em) 1.05em calc(0.75em - 0.1em) 1.4em;
   }
 }
@@ -172,19 +145,14 @@
   padding: 0;
   display: grid;
   gap: 0.75rem;
-  // auto-fit rather than a fixed count: the tile row is 4 or 5 items depending
-  // on whether the rider has ever dragged the route line, and a fixed grid
-  // leaves a hole when it is 4.
-  //
-  // THE FLOOR IS WHAT SIZES THE ROW, NOT THE TYPE (#176). Growing .stat-value
-  // alone just makes tighter tiles — the track width is this number, so raising
-  // it is what actually gives the figures room. 10.5rem from 8.5rem: at the
-  // 960px .page-wrap cap that still fits five across with the gap, which is the
-  // count the row has to survive, and four across it reads as a deliberately
-  // wider row rather than as a hole.
-  // 12rem since the tiles carry three bars (2026-09-14): a label column, a
-  // track and a number need the width, and five across still fit at the
-  // 960px cap (5 × 12rem + 4 × 0.75rem = 63rem against 68.5rem).
+  // auto-fit rather than a fixed count: the tile row is 4 or 5 items depending on
+    // whether the rider has ever dragged the route line, and a fixed grid leaves a hole
+    // when it is 4.
+    //
+    // THE FLOOR IS WHAT SIZES THE ROW, NOT THE TYPE (#176). Growing .stat-value alone
+    // just makes tighter tiles — the track width is this number.
+    // 12rem since the tiles carry three bars: a label column, a track and a number need
+    // the width, and five across still fit at the 960px cap.
   grid-template-columns: repeat(auto-fit, minmax(12rem, 1fr));
 }
 
@@ -229,39 +197,29 @@
   color: $neutral-50;
 }
 
-// The yours/average/top comparison, #137, as three bars since 2026-09-14.
-// Ziad's call: two small captions under the figure ("everyone 29 · most 80")
-// still read as more numbers, and the tile exists for the comparison — so each
-// tile is a three-row bar chart, you / average rider / top rider, in a FIXED
-// order so the eye reads the same row across the whole strip.
+// The yours/average/top comparison (#137), as three bars: two small captions under
+// the figure still read as more numbers, and the tile exists for the comparison — so
+// each tile is a three-row bar chart in a FIXED order, so the eye reads the same row
+// across the whole strip.
 //
-// THREE OF THE FOUR CATEGORICAL SLOTS, and the assignment follows the meaning:
-// the rider's own row takes the guide-sign green (--viz-cat-3, the color the
-// app already paints "yours" in — the Plan a ride sign), the average the
-// regulatory blue (--viz-cat-1), the top the work-zone orange (--viz-cat-2).
-// The set is validated together by test/viz-categories.test.ts, which is what
-// lets three of them sit in one tile. The bar carries the color and the number
-// stays $text, so nothing here is colored TYPE and the palette audit's text
-// bars do not apply — the figures read at full contrast in all six.
+// THREE OF THE FOUR CATEGORICAL SLOTS, and the assignment follows the meaning: the
+// rider's own row takes the guide-sign green, the average the regulatory blue, the
+// top the work-zone orange. The bar carries the color and the number stays $text, so
+// nothing here is colored TYPE.
 //
-// Pushed to the bottom with margin-top:auto for the reason the old pair was:
-// the tiles are a flex column and "roads you insisted on" wraps where "routes"
-// does not, so the charts would otherwise start at different heights.
+// Pushed to the bottom with margin-top:auto: the tiles are a flex column and "roads
+// you insisted on" wraps where "routes" does not, so the charts would otherwise start
+// at different heights.
 //
-// The share rides in as `--share` on the row, set by the template from the
-// stats shape; the fill is `width: var(--share)`. A row at 0% is an empty
-// track, which is the honest drawing of a rider with none.
+// The share rides in as `--share` on the row; a row at 0% is an empty track, which is
+// the honest drawing of a rider with none.
 // ONE GRID FOR THE THREE ROWS, with each row and its dd flattened into it by
-// `display: contents`: the label column is then the width of the WIDEST label
-// in the tile, so the three tracks start on one line. Three separate grids
-// each sized their own label, and on a phone the bars started at three
-// different x positions and could not be compared — which is the one thing
-// they are for. The custom properties on the row still reach the fill,
-// because inheritance does not care that the box is not generated.
+// `display: contents`: the label column is then the width of the WIDEST label in the
+// tile, so the three tracks start on one line. Three separate grids each sized their
+// own label, and on a phone the bars started at three different x positions.
 //
-// The label takes what it needs, so "Average rider" is never ellipsized where
-// there is room, and the track gives way first on a narrow tile — a truncated
-// label is a lost meaning, a shorter bar is not.
+// The label takes what it needs and the track gives way first on a narrow tile — a
+// truncated label is a lost meaning, a shorter bar is not.
 .stat-bars {
   display: grid;
   grid-template-columns: max-content minmax(2.5em, 1fr) auto;
@@ -345,12 +303,10 @@
 .stat-block {
   margin: 0 0 2.25rem;
 
-  // 1.35rem, up from 1.05rem. Ziad's call, 2026-08-26. At the old size a section
-  // heading was barely larger than the body text under it, so eight of them down
-  // a long page read as labels rather than as the divisions they are — the page
-  // had one visual level where it has three things to say. It is the same size
-  // the first-run panel's h2 already used, which is what it should have been all
-  // along rather than a new number.
+  // 1.35rem, up from 1.05rem. At the old size a section heading was barely larger than
+    // the body text under it, so eight of them down a long page read as labels rather
+    // than as the divisions they are. It is the same size the first-run panel's h2
+    // already used.
   h2 {
     // 1em above, on top of the 2.25rem the block below already carries. Ziad's
     // call, 2026-08-26, and it goes on the HEADING rather than on .stat-block so
@@ -542,25 +498,21 @@
 
 // --- Records (#136) ----------------------------------------------------------
 //
-// These are achievement cards and used to be styled like the storage meter: a
-// flat $grey hairline around a 1.15rem figure, which is the size this app gives
-// a form label. The block is the most celebratory thing on the page and read as
-// the least.
+// These are achievement cards and used to be styled like the storage meter: a flat
+// $grey hairline around a 1.15rem figure, which is the size this app gives a form
+// label. The block is the most celebratory thing on the page and read as the least.
 //
 // Four moves, cheapest first, all of them here except the count-up:
 //
-//   1. The numeral is set large — clearly above body text, clearly below the
-//      hero, which is the one figure allowed to be biggest.
-//   2. The unit is split off it. "482 mi" as one string spends the emphasis on
-//      "mi"; the numeral takes the size and the unit sits beside it small.
+//   1. The numeral is set large — above body text, below the hero.
+//   2. The unit is split off it. "482 mi" as one string spends the emphasis on "mi".
 //   3. Each record carries its own mark, in its own accent color.
 //   4. The card gets an accent edge and a hover lift instead of a hairline.
 //
-// THE ACCENT IS DECORATION AND CARRIES NO MEANING. Every record already says
-// what it is in words directly above the figure, so these four colors are there
-// to stop four identical boxes reading as a table — nothing is distinguished by
-// them alone. That is also why they are ordinary sign tokens and follow the
-// theme, rather than being pinned like the role ring.
+// THE ACCENT IS DECORATION AND CARRIES NO MEANING. Every record already says what it
+// is in words directly above the figure, so these four colors are there to stop four
+// identical boxes reading as a table. That is also why they follow the theme, rather
+// than being pinned like the role ring.
 .record-list {
   list-style: none;
   margin: 0;
@@ -610,13 +562,12 @@
   }
 }
 
-// THE WHOLE CARD IS A LINK, to the ride that holds the record. Inherits its
-// color and drops the underline: the label, figure and hint are each already
-// styled, and an underlined blue numeral reads as a broken link rather than as a
-// record. The ring is on the card, above.
+// THE WHOLE CARD IS A LINK, to the ride that holds the record. Inherits its color and
+// drops the underline: an underlined blue numeral reads as a broken link rather than
+// as a record.
 //
-// `is-static` is the no-ride case — a <span> wearing the same class, so the
-// layout does not depend on which element rendered.
+// `is-static` is the no-ride case — a <span> wearing the same class, so the layout
+// does not depend on which element rendered.
 .record-link {
   display: flex;
   flex-direction: column;
@@ -629,15 +580,11 @@
   }
 }
 
-// The map of the ride that set the record.
+// The map of the ride that set the record. SHALLOWER THAN A RIDE CARD'S 16/10: here
+// the picture is evidence for a figure rather than the subject of the card, and a
+// face as tall as a ride card's pushes the numeral below the fold of a 13rem cell.
 //
-// SHALLOWER THAN A RIDE CARD'S 16/10. Here the picture is evidence for a figure
-// rather than the subject of the card, and the figure is what has to be read
-// first — a face as tall as a ride card's pushes the numeral below the fold of a
-// 13rem grid cell.
-//
-// box-sizing explicitly, because there is no global border-box reset in style/
-// and this box declares both a width and an aspect-ratio.
+// box-sizing explicitly, because there is no global border-box reset in style/.
 .record-face {
   box-sizing: border-box;
   display: block;
@@ -685,12 +632,11 @@
   }
 }
 
-// EACH RECORD SETS TWO COLORS, AND THEY ARE NOT INTERCHANGEABLE. --record-accent
-// is the FIELD: the left edge and the filled mark. --record-figure-color is the
-// same hue as TEXT, which every one of these needs to be its own token because a
-// sign field is not a text color — $detour is the loudest failure (2.46:1 on
-// $white, 1.98:1 in contrast) but all four fail on the dark schemes. Measured;
-// see test/palette-contrast.test.ts, which holds all eight pairs.
+// EACH RECORD SETS TWO COLORS, AND THEY ARE NOT INTERCHANGEABLE. --record-accent is
+// the FIELD: the left edge and the filled mark. --record-figure-color is the same hue
+// as TEXT, which every one of these needs to be its own token because a sign field is
+// not a text color — $detour is the loudest failure (2.46:1 on $white) but all four
+// fail on the dark schemes. See test/palette-contrast.test.ts.
 .record--distance {
   --record-accent: #{$interstate};
   --record-figure-color: #{$interstate-text};

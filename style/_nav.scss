@@ -32,18 +32,13 @@
   display: block;
   line-height: 0;
 
-  // 28px, and the height is the only dimension set — the lockup is 8.15:1, so
-  // this renders 228px wide.
-  //
-  // The number is not the old one nudged. It went 24 → 34 → 48 while the mark
-  // was an icon-plus-word lockup, where most of the height was the icon and the
-  // word came out around 8px tall. The mark is a pure wordmark again, so every
-  // pixel of the height is now letterform: 48px here would be a 391px banner
-  // across the header, and 28px is what puts the word at the weight 48px used to
-  // buy. Set by eye against a nav bar carrying five items at 0.95rem.
-  //
-  // Shorter than the 40px nav toggle it sits beside, which is fine — the toggle
-  // only exists below LG, where the header has nothing else competing with it.
+  // 28px, and the height is the only dimension set — the lockup is 8.15:1, so this
+    // renders 228px wide.
+    //
+    // The number is not the old one nudged. It went 24 → 34 → 48 while the mark was an
+    // icon-plus-word lockup, where most of the height was the icon. The mark is a pure
+    // wordmark again, so every pixel of the height is letterform: 48px here would be a
+    // 391px banner across the header, and 28px puts the word at the weight 48px bought.
   img {
     display: block;
     width: auto;
@@ -58,33 +53,24 @@
   position: relative;
 }
 
-// THE HEADER'S "Take the tour" SIGN — a guide sign at about a third scale,
-// beside the account chip (Ziad's call, 2026-09-11). It is a direct child of
-// the header rather than of the drawer, because on a map page the drawer is
-// closed at every width and the builder is where a tour is most wanted; see the
-// note on the markup in layout.tsx. `/settings` can hide it, in which case it
-// is not rendered at all.
+// THE HEADER'S "Take the tour" SIGN — a guide sign at about a third scale, beside the
+// account chip. A direct child of the header rather than of the drawer, because on a
+// map page the drawer is closed at every width and the builder is where a tour is
+// most wanted. `/settings` can hide it, in which case it is not rendered at all.
 //
-// THE CONSTRUCTION IS `.notif-more`'s, NOT `.btn`'s. Adding `.btn` would bring
-// the full-size sign — 3px/5px keyline, an arrow, 0.75rem padding — and every
-// line here would be an override of it. At this scale the keyline is 2px/3px,
-// in px because a keyline is a drawn line and an em-based width lands on a
-// fraction of a device pixel — the numbers `.notif-more` settled on, for the
-// reasons it records.
+// THE CONSTRUCTION IS `.notif-more`'s, NOT `.btn`'s. Adding `.btn` would bring the
+// full-size sign and every line here would be an override of it. At this scale the
+// keyline is 2px/3px, in px because an em-based width lands on a fraction of a
+// device pixel.
 //
-// A YIELD SIGN WITH NO ARROW (#340). Ziad's call, 2026-09-13: the sign is a
-// call to action, not a guide sign pointing somewhere, so the arrow went and
-// the field is $yield. Yield is a BLACK-legend field — white on it is about
-// 1.23:1, the worst pairing the palette can produce, and legend.ts records it
-// as the one field left carrying black — so the legend AND the keyline are
-// $ink-dark, or a white ring on yellow vanishes. $ink-dark and never $text:
-// the legend does not follow the page (#282), and the sign-legend test is
-// what holds that pairing.
+// A YIELD SIGN WITH NO ARROW (#340): the sign is a call to action, not a guide sign
+// pointing somewhere. Yield is a BLACK-legend field — white on it is about 1.23:1,
+// the worst pairing the palette can produce — so the legend AND the keyline are
+// $ink-dark, and never $text: the legend does not follow the page (#282).
 //
-// `margin-left: auto` is what puts it at the right in the drawer layouts, where
-// the header is the logo (or nothing, on a map page) and then this and the
-// hamburger; `.site-menu` gives up its own auto margin when the sign is there,
-// or the two would split the space and the sign would float mid-bar.
+// `margin-left: auto` is what puts it at the right in the drawer layouts;
+// `.site-menu` gives up its own auto margin when the sign is there, or the two would
+// split the space and the sign would float mid-bar.
 .nav-tour {
   display: inline-flex;
   align-items: center;
@@ -131,15 +117,11 @@
 }
 
 //@ Phone
-// THREE THINGS DID NOT FIT THE HEADER at 390px and overflowed the page by
-// 36px to the right — the 228px wordmark, the tour sign and the hamburger,
-// with a 1rem gap between each — and had since the sign landed (#340). Seen
-// on 2026-09-15, the day the phone got 1rem gutters, which made it worse by
-// nothing and visible for the first time. Three things give: the wordmark
-// drops to 22px (179px wide, and still the biggest thing in the row), the
-// sign says "tour" with a capital drawn by CSS, and the gaps halve. 179 + 8 +
-// 58 + 8 + 40 fits a 360px Android with the gutters, which is the narrowest
-// phone worth the arithmetic.
+// THREE THINGS DID NOT FIT THE HEADER at 390px and overflowed the page by 36px —
+// the 228px wordmark, the tour sign and the hamburger, with a 1rem gap between each
+// — and had since the sign landed (#340). Three things give: the wordmark drops to
+// 22px (179px wide, still the biggest thing in the row), the sign says "tour" with a
+// capital drawn by CSS, and the gaps halve. That fits a 360px Android with gutters.
 @media (max-width: $bp-phone) {
   .site-header {
     gap: 0.5rem;
@@ -303,47 +285,30 @@
     background: color-mix(in srgb, $brand 8%, transparent);
   }
 
-  // EXIT MAP IS A BUTTON, and red. It is the only item in this menu that leaves
-  // the page rather than moving around inside it, and a column of identical text
-  // links gave it no way to say that.
-  //
-  // `$stop` rather than `$stop`, which is the same color — the palette has one
-  // red. `$stop` means "this file is the wrong format"; `$stop` is the road-sign
-  // field, and the sign this borrows from is the one that means stop what you
-  // are doing. Same hue either way, but the name is the part a reader has to
-  // understand, and one of the two is about to be nonsense in a nav.
-  //
-  // OUTLINED AT REST, FILLED ON HOVER. A solid red bar sitting at the top of
-  // every map page's menu shouts before anyone has reached for it; the keyline
-  // says the same thing quietly and the fill arrives when a pointer does. Both
-  // states measure 5.2:1 — red on white and then the white legend the pairing
-  // table in _tokens.scss assigns `$stop` — so the label is equally legible
-  // either way and only its weight on the page changes.
-  //
-  // No `color.adjust()` on the hover fill. `.btn`'s reflex is to darken, which
-  // is right when a field is already colored and merely has to move; here the
-  // hover IS the color arriving, and $stop diluted by 8% is a worse red than
-  // $stop.
-  //
-  // Left-aligned like every other item rather than centered: it is a row in a
-  // list before it is a button, and centering one row breaks the column the whole
-  // drawer reads down.
-  //
-  // THE `:any-link` IS A SPECIFICITY FIX, not decoration, and what it out-ranks
-  // is easy to miss. `html.map-page a:link` in _chrome.scss sets
-  // `font-weight: 500` on every anchor on a map page, and it carries two type
-  // selectors against this rule's one — so a plain `.site-nav a.nav-exit-map`
-  // loses the tiebreak and the weight silently stayed at 500 while every other
-  // property here applied. A pseudo-class here adds the component that settles
-  // it. The element always has an href, so the selector never fails to match.
-  //
-  // NOT `:link`, which is what this was until 2026-08-18 and is why the button
-  // rendered near-black instead of red. `:link` and `:visited` are mutually
-  // exclusive, so the moment a rider had `/rides` in history the whole rule
-  // stopped matching and the anchor fell back to `.site-nav a`'s $text — losing
-  // the keyline and the fill with it, not just the color. `:any-link` matches
-  // both states and carries the same specificity. Nothing in this stylesheet
-  // styles `:visited`, so there is no second rule to keep in step.
+  // EXIT MAP IS A BUTTON, and red. It is the only item in this menu that leaves the
+    // page rather than moving around inside it, and a column of identical text links
+    // gave it no way to say that.
+    //
+    // OUTLINED AT REST, FILLED ON HOVER. A solid red bar at the top of every map page's
+    // menu shouts before anyone has reached for it; the keyline says the same thing
+    // quietly. Both states measure 5.2:1, so only its weight on the page changes.
+    //
+    // No `color.adjust()` on the hover fill: `.btn`'s reflex is to darken, which is
+    // right when a field is already colored and merely has to move, where here the
+    // hover IS the color arriving.
+    //
+    // Left-aligned like every other item rather than centered: it is a row in a list
+    // before it is a button.
+    //
+    // THE `:any-link` IS A SPECIFICITY FIX, not decoration. `html.map-page a:link` in
+    // _chrome.scss sets `font-weight: 500` on every anchor on a map page and carries two
+    // type selectors against this rule's one, so a plain `.site-nav a.nav-exit-map`
+    // loses the tiebreak and the weight silently stayed at 500.
+    //
+    // NOT `:link`, which is what this was until 2026-08-18 and is why the button
+    // rendered near-black: `:link` and `:visited` are mutually exclusive, so the moment
+    // a rider had `/rides` in history the whole rule stopped matching and the anchor
+    // fell back to `.site-nav a`'s $text — losing the keyline and the fill with it.
   a.nav-exit-map:any-link {
     margin-bottom: 0.35rem;
     border: 2px solid $stop;
@@ -448,16 +413,14 @@
   gap: 0.45em;
 }
 
-// THE ACCOUNT CHIP. Ziad's call, 2026-09-07: the avatar and name sat loose in
-// the bar with nothing bounding them, which was fine while they were a label and
-// stopped being fine the moment they had to carry an unread badge — a count
-// floating beside a name reads as part of the name. The border is what gives the
-// badge an edge to sit on, and it makes the pair one press target rather than a
-// picture next to some text.
+// THE ACCOUNT CHIP: the avatar and name sat loose in the bar with nothing bounding
+// them, which was fine while they were a label and stopped being fine the moment they
+// had to carry an unread badge. The border gives the badge an edge to sit on, and
+// makes the pair one press target.
 //
 // A HAIRLINE AND A PILL, not a filled button: it is the resting state of a menu
-// trigger on every page, and a solid fill there would compete with the guide
-// signs that are the app's actual buttons.
+// trigger on every page, and a solid fill would compete with the guide signs that are
+// the app's actual buttons.
 .nav-chip {
   border: 1px solid $grey;
   border-radius: 999px;
@@ -480,40 +443,31 @@
 
 // THE BADGE'S GEOMETRY, AS THREE RELATED NUMBERS RATHER THAN THREE LOOSE ONES.
 //
-// $badge-size is both the width floor and the height, which is what keeps the
-// one-digit pill a circle. The padding and the line-height have to SUM to it —
-// stated as a subtraction so they cannot be edited apart, which they had been:
-// the pill was 16.4 x 17.0 for exactly that reason.
+// $badge-size is both the width floor and the height, which keeps the one-digit pill
+// a circle. The padding and the line-height have to SUM to it — stated as a
+// subtraction so they cannot be edited apart, which they had been: the pill was
+// 16.4 x 17.0 for exactly that reason.
 //
-// All three are in the badge's own em, so the whole thing scales with its
-// font-size and nothing here is a device pixel.
+// All three are in the badge's own em, so nothing here is a device pixel.
 $badge-size: 1.55em;
 $badge-ink-nudge: 0.21em;
 $badge-line: calc(#{$badge-size} - #{$badge-ink-nudge});
 
 // THE HAMBURGER'S UNREAD DOT (#300), AND IT IS DELIBERATELY NOT A `.nav-badge`.
 //
-// The chip's badge and the menu item's are one shape because both NAME the
-// thing — three unread, here they are. A hamburger names nothing; it is a
-// container, so all it can honestly say is "something inside here", and a count
-// on it would read as a fact about the MENU rather than about what the menu
-// holds. Ziad's call, 2026-09-10. The number still reaches a screen reader,
-// through the summary's `aria-label` rather than through this, which is why the
-// element is `aria-hidden` and empty.
+// The chip's badge and the menu item's are one shape because both NAME the thing. A
+// hamburger names nothing; it is a container, so all it can honestly say is
+// "something inside here". The number still reaches a screen reader through the
+// summary's `aria-label`, which is why this is `aria-hidden` and empty.
 //
-// **IT NEVER APPEARS BESIDE THE CHIP'S BADGE, AND NO RULE HERE ARRANGES THAT.**
-// The toggle is `display: none` above 992px on a chrome page and shown at every
-// width on a map page, so the dot is painted exactly where the chip is sealed
-// inside a closed drawer. That is the whole fix: the drawer is also closed on a
-// NARROW chrome page, which had the same hole and was not what the issue was
-// about.
+// **IT NEVER APPEARS BESIDE THE CHIP'S BADGE, AND NO RULE HERE ARRANGES THAT.** The
+// toggle is `display: none` above 992px on a chrome page and shown at every width on
+// a map page, so the dot is painted exactly where the chip is sealed inside a closed
+// drawer — which also covers the NARROW chrome page the issue was not about.
 //
-// $stop and $ink-light for the reason `.nav-badge` carries them — the same
-// statement in a smaller form, and $white is the page surface (#282).
-//
-// **POSITIONED AGAINST THE TOGGLE, WHICH IS WHY THAT BOX GREW A `position`.**
-// It is a 40px flex box centering the bars; without a containing block the dot
-// anchors to the header and lands wherever the logo is not.
+// **POSITIONED AGAINST THE TOGGLE, WHICH IS WHY THAT BOX GREW A `position`.** It is a
+// 40px flex box centering the bars; without a containing block the dot anchors to the
+// header and lands wherever the logo is not.
 .nav-toggle-dot {
   position: absolute;
   top: 6px;
@@ -522,50 +476,40 @@ $badge-line: calc(#{$badge-size} - #{$badge-ink-nudge});
   height: 8px;
   border-radius: 50%;
   background: $stop;
-  // **NO KEYLINE, AND THE FIRST VERSION HAD ONE.** A 2px `$white` ring read as
-  // the page surface showing through — which is what it was FOR, separating the
-  // disc from the bars under it — and `test/sign-legend.test.ts` refused it,
-  // correctly: `$white` is the page-surface token and is near-black under a dark
-  // scheme, so the same declaration that draws a halo on a light header draws a
-  // dark collar on a dark one. That is #282 exactly, and the guard cannot tell a
-  // decorative ring from a legend. The dot does not need one: it sits at the
-  // corner of a 40px control, on the header's own ground on a chrome page and on
-  // the `$panel-bg` chip the map page gives the toggle.
+  // **NO KEYLINE, AND THE FIRST VERSION HAD ONE.** A 2px `$white` ring read as the page
+    // surface showing through — which is what it was FOR — and `test/sign-legend.test.ts`
+    // refused it, correctly: `$white` is the page-surface token and is near-black under a
+    // dark scheme, so the same declaration draws a halo on a light header and a dark
+    // collar on a dark one. The dot does not need one.
 }
 
-// UNREAD, AND THE ONLY THING IN THE CHROME THAT ASKS FOR ANYTHING. $stop because
-// of that: every other mark in the nav is a way TO somewhere, and this is a count
-// of things that happened while the rider was away. It carries $ink-light rather
-// than $white — the page-surface token is near-black under a dark scheme, which
-// is the site-wide bug #282 records.
+// UNREAD, AND THE ONLY THING IN THE CHROME THAT ASKS FOR ANYTHING. $stop because of
+// that: every other mark in the nav is a way TO somewhere. It carries $ink-light
+// rather than $white — the page-surface token is near-black under a dark scheme
+// (#282).
 //
-// Rendered only when the count is non-zero; a badge showing 0 is furniture that
-// teaches people to stop reading badges.
+// Rendered only when the count is non-zero; a badge showing 0 teaches people to stop
+// reading badges.
 .nav-badge {
-  // **`inline-block` IS LOAD-BEARING AND ITS ABSENCE MADE THE TWO BADGES
-  // DIFFERENT SHAPES.** No `display` was declared, so the chip's badge was
-  // blockified by that flex row and the MENU's stayed an INLINE box — where
-  // `min-width`, `text-align` and vertical padding all do nothing at all. So the
-  // menu pill took its width from the padding and the digit alone (14.3px against
-  // the chip's 16.4px), was never actually centered, and the padding below moved
-  // its background rather than its glyph. Found by measuring the two side by side
-  // after they responded differently to the same rule.
+  // **`inline-block` IS LOAD-BEARING AND ITS ABSENCE MADE THE TWO BADGES DIFFERENT
+    // SHAPES.** No `display` was declared, so the chip's badge was blockified by that
+    // flex row and the MENU's stayed an INLINE box — where `min-width`, `text-align` and
+    // vertical padding all do nothing. The menu pill took its width from the padding and
+    // the digit alone, was never centered, and the padding moved its background rather
+    // than its glyph.
   display: inline-block;
 
-  // **ROUND, AND THE WIDTH AND HEIGHT COME FROM ONE VALUE SO IT CANNOT DRIFT OUT
-  // OF IT.** Ziad's call, 2026-09-09: it read as stretched vertically, and it
-  // measurably was — 16.4px wide against 17.0px tall, because `min-width` was
-  // 1.5em while the height was the 1.55em the padding and line-height happened to
-  // add up to. Half a pixel is enough to see on a circle.
-  //
-  // The HEIGHT is stated rather than left to emerge from that sum, which is what
-  // retires the "change one and change the other" hazard: `box-sizing` is
-  // border-box, so the padding sits inside this and the content box lands at
-  // exactly $badge-line — the line box fills it and the glyph does not move.
-  //
-  // A two-digit count or the `99+` cap grows WIDER than this and stays a stadium,
-  // which is right: `min-width` is a floor, and only the one-digit case is a
-  // circle.
+  // **ROUND, AND THE WIDTH AND HEIGHT COME FROM ONE VALUE SO IT CANNOT DRIFT OUT OF
+    // IT.** It read as stretched vertically and measurably was — 16.4px wide against
+    // 17.0px tall, because `min-width` was 1.5em while the height was the 1.55em the
+    // padding and line-height happened to add up to.
+    //
+    // The HEIGHT is stated rather than left to emerge from that sum, which retires the
+    // "change one and change the other" hazard: `box-sizing` is border-box, so the
+    // content box lands at exactly $badge-line.
+    //
+    // A two-digit count grows WIDER than this and stays a stadium: `min-width` is a
+    // floor, and only the one-digit case is a circle.
   min-width: $badge-size;
   height: $badge-size;
 
@@ -574,26 +518,16 @@ $badge-line: calc(#{$badge-size} - #{$badge-ink-nudge});
   // the word "Notifications" and 1.6px put it against the final letter.
   margin-left: 0.4em;
 
-  // **THE DIGIT IS PUSHED DOWN BY A TOP PADDING AND THE LINE-HEIGHT GIVES THE
-  // HEIGHT BACK, SO THE PILL IS THE SIZE IT ALWAYS WAS.**
-  //
-  // A digit has no descender, so it sits HIGH in a line box — the descent space
-  // below it is empty — and centering the BOX therefore leaves the ink above
-  // center. Measured off a screenshot at 1.50px above the pill's own middle,
-  // which is what Ziad reported as "the number inside it is too high".
-  //
-  // **THE PADDING ONLY MOVES THE INK BY HALF OF ITSELF, AND GETTING THAT WRONG
-  // COST A PASS.** The obvious reading is that a block's line box starts at the
-  // content-box top, so 0.14em of padding moves the glyph 0.14em — measured, it
-  // moved 0.5px of an expected 1.53px. Taking the same 0.14em off `line-height`
-  // to keep the pill's height also shrinks the HALF-LEADING by half of it, and
-  // that pulls the glyph back up. So the net is padding minus half the
-  // line-height reduction, which is exactly half the padding: 0.3em of padding
-  // buys 0.15em of movement.
-  //
-  // The nudge landed by measurement rather than derivation: 0.3em overshot to
-  // 0.5px LOW on both badges, so the shift wanted 0.105em and the padding twice
-  // that. `$badge-line` is whatever is left of the box after it.
+  // **THE DIGIT IS PUSHED DOWN BY A TOP PADDING AND THE LINE-HEIGHT GIVES THE HEIGHT
+    // BACK, SO THE PILL IS THE SIZE IT ALWAYS WAS.** A digit has no descender, so it sits
+    // HIGH in a line box and centering the BOX leaves the ink above center — measured at
+    // 1.50px high.
+    //
+    // **THE PADDING ONLY MOVES THE INK BY HALF OF ITSELF, AND GETTING THAT WRONG COST A
+    // PASS.** Taking the same amount off `line-height` to keep the pill's height also
+    // shrinks the HALF-LEADING by half of it, which pulls the glyph back up. So the net
+    // is exactly half the padding: 0.3em of padding buys 0.15em of movement. The nudge
+    // landed by measurement rather than derivation.
   padding: $badge-ink-nudge 0.35em 0;
   line-height: $badge-line;
 
@@ -607,12 +541,10 @@ $badge-line: calc(#{$badge-size} - #{$badge-ink-nudge});
   background: $stop;
   color: $ink-light;
   font-size: 0.72em;
-  // A LIGHTER CUT, and it is a real one rather than a synthesis: Overpass is
-  // loaded as a variable font with the weight axis declared `100 900`, so 500 is
-  // drawn at 500. Ziad's call, 2026-09-09. It matches `.notif-more`, the app's
-  // other piece of small reversed type on a sign field, and for the same reason
-  // — light ink on a saturated ground gains apparent weight, so 700 read heavy
-  // at 10.9px.
+  // A LIGHTER CUT, and it is a real one rather than a synthesis: Overpass is loaded as
+    // a variable font with the weight axis declared `100 900`. It matches `.notif-more`,
+    // the app's other piece of small reversed type on a sign field — light ink on a
+    // saturated ground gains apparent weight, so 700 read heavy at 10.9px.
   font-weight: 500;
   text-align: center;
   // No global border-box reset in this stylesheet — see AGENTS.md.
@@ -621,16 +553,13 @@ $badge-line: calc(#{$badge-size} - #{$badge-ink-nudge});
 
 // THE LAST 1.1px, FOR A BADGE THAT SITS IN A TEXT LINE RATHER THAN IN THE CHIP.
 //
-// `vertical-align: middle` puts the pill's center on the label's baseline plus
-// half an x-height, which is close to the label's INK center and measurably not
-// it — 1.10px low. Nothing in the vertical-align keywords names "the middle of
-// the letters", so the remainder is a nudge.
+// `vertical-align: middle` puts the pill's center on the label's baseline plus half an
+// x-height, which is close to the label's INK center and measurably not it — 1.10px
+// low. Nothing in the vertical-align keywords names "the middle of the letters".
 //
-// **SCOPED TO `a`, BECAUSE THE CHIP MUST NOT MOVE.** That badge is centered by
-// its flex row and measures +0.15px; applying this to `.nav-badge` itself would
-// drag a correct thing off by a pixel to fix an incorrect one. `.nav-chip` is a
-// `summary`, so descending from `a` reaches the menu rows and the bar's own nav
-// links — both of which are the text-line case — and reaches the chip never.
+// **SCOPED TO `a`, BECAUSE THE CHIP MUST NOT MOVE.** That badge is centered by its
+// flex row and measures +0.15px. `.nav-chip` is a `summary`, so descending from `a`
+// reaches the menu rows and the bar's own nav links and reaches the chip never.
 a .nav-badge {
   position: relative;
   top: -0.1em;
