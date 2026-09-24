@@ -1,11 +1,10 @@
-// The ride graph: the shape the builder saves, the rules it must satisfy, and
-// the code that writes it to the database.
+// The ride graph: the shape the builder saves, the rules it must satisfy, and the
+// code that writes it to the database.
 //
-// Extracted from rides.ts so the importer can reuse it. A native Routeloop JSON
-// file is this payload exactly, so importing one is the same validation and the
-// same insert the builder's save runs — not a second path that agrees with it
-// today and drifts tomorrow. rides.ts already imports from routes/maps.ts, so
-// leaving this there and importing it back would have been a cycle.
+// Extracted from rides.ts so the importer can reuse it. A native Routeloop JSON file
+// is this payload exactly, so importing one is the same validation and the same
+// insert the builder's save runs — not a second path that agrees today and drifts
+// tomorrow.
 import { and, eq, inArray, sql } from 'drizzle-orm'
 import { z } from 'zod'
 // Only the transaction type is needed here; the queries all run on the `tx`
@@ -33,12 +32,11 @@ export const MAX_ROUTES = 31
 // MAX_STOPS plus MAX_POIS, so no ride that was legal before this change becomes
 // illegal after it — the two caps could each be met independently.
 export const MAX_POINTS = 400
-// Kept, but the reason changed on 2026-08-24. It used to bound promotion — a route
-// of 400 POIs must not become 400 routing anchors and 399 Directions calls — and
-// that no longer applies: 400 points are 399 legs whatever their kinds, and
-// promoting one is a flag flip that routes nothing. What it still bounds is the
-// surfaces that count stops rather than points: rides.stop_count, the roadbook's
-// numbered rows, and the Google Maps hand-off.
+// Kept, but the reason changed on 2026-08-24. It used to bound promotion — a route of
+// 400 POIs must not become 399 Directions calls — and that no longer applies: 400
+// points are 399 legs whatever their kinds. What it still bounds is the surfaces that
+// count stops rather than points: rides.stop_count, the roadbook's numbered rows, and
+// the Google Maps hand-off.
 export const MAX_STOPS = 200
 export const MAX_VIAS_PER_LEG = 20
 export const MAX_PTS_PER_LEG = 25000
@@ -79,14 +77,13 @@ const detailsSchema = z.object({
 export type PointDetailsInput = z.infer<typeof detailsSchema>
 
 const pointSchema = z.object({
-  // THE ONLY THING THAT MAKES A POINT A STOP. Ziad's call, 2026-08-23: a point
-  // is created as a POI and promoted later, so the kind is a flag on an element
-  // of one ordered list rather than a choice of which list to put it in.
+  // THE ONLY THING THAT MAKES A POINT A STOP: a point is created as a POI and promoted
+  // later, so the kind is a flag on an element of one ordered list rather than a choice
+  // of which list to put it in.
   //
-  // Defaults to 'poi' — the baseline type. A payload from an older client, or a
-  // native JSON file written before this shipped, is merged into this shape by
-  // the reader, which stamps the kind explicitly; nothing relies on the default
-  // to classify a legacy point.
+  // Defaults to 'poi'. A payload from an older client is merged into this shape by the
+  // reader, which stamps the kind explicitly; nothing relies on the default to classify
+  // a legacy point.
   kind: z.enum(['stop', 'poi']).default('poi'),
   lat: z.number().min(-90).max(90),
   lng: z.number().min(-180).max(180),
@@ -151,18 +148,16 @@ const routeSchema = z
     // ONE ORDERED LIST. The array order IS the rider's order, for both kinds.
     points: z.array(pointSchema).min(1).max(MAX_POINTS),
     legs: z.array(legSchema),
-    // ALTERNATES. Both default, which is what keeps every native JSON file a
-    // rider already downloaded — and every in-flight save from a tab opened
-    // before this shipped — valid without a format-version bump.
+    // ALTERNATES. Both default, which is what keeps every native JSON file a rider
+    // already downloaded valid without a format-version bump.
     //
-    // Bounded to the route cap because the value is a partition key the server
-    // renumbers densely anyway (see resolveAltGroups); the bound is only here so
-    // a hostile payload cannot write an arbitrary smallint into the column.
+    // Bounded to the route cap because the value is a partition key the server renumbers
+    // densely anyway; the bound is only here so a hostile payload cannot write an
+    // arbitrary smallint into the column.
     //
-    // No .refine() for group validity, deliberately. A refine can only reject,
-    // and the shapes it would reject — a group of one, two members briefly
-    // claiming active — are exactly what a rider passes through mid-edit while
-    // the autosave fires. normalize() repairs them instead.
+    // No .refine() for group validity, deliberately: a refine can only reject, and the
+    // shapes it would reject are exactly what a rider passes through mid-edit while the
+    // autosave fires. normalize() repairs them instead.
     altGroup: z
       .number()
       .int()
@@ -176,14 +171,10 @@ const routeSchema = z
     // from a tab opened before this shipped stays valid with no version bump.
     routePrefs: routePrefsSchema.nullable().default(null),
   })
-  // LEGS CONNECT CONSECUTIVE POINTS, both kinds. A POI is something the rider
-  // will at least ride BY — it is always part of the route, just not necessarily
-  // somewhere they stop — so `legs[i]` joins `points[i]` to `points[i+1]`
-  // whatever kind either end is. Ziad's call, 2026-08-24.
-  //
-  // This used to count in stops, and the consequence was the report that changed
-  // it: a new route with a start and one POI drew two dots and no road, because
-  // there was nothing the router had been asked to join.
+  // LEGS CONNECT CONSECUTIVE POINTS, both kinds. A POI is something the rider will at
+  // least ride BY, so `legs[i]` joins `points[i]` to `points[i+1]` whatever kind either
+  // end is. This used to count in stops, and the consequence was the report that
+  // changed it: a new route with a start and one POI drew two dots and no road.
   .refine((r) => r.legs.length === Math.max(0, r.points.length - 1), {
     message: 'legs must connect consecutive points (points - 1 legs)',
   })
@@ -192,15 +183,13 @@ const routeSchema = z
   .refine((r) => stopsOf(r.points).length <= MAX_STOPS, {
     message: `a route may have at most ${MAX_STOPS} stops`,
   })
-  // AT LEAST ONE STOP PER DAY. Note this is no longer about routing: a route of
-  // nothing but POIs draws a complete road now, because every point anchors a
-  // leg. It survives for the surfaces that count stops rather than points — the
-  // roadbook numbers its rows from them, the Google Maps hand-off is built from
-  // them, and `start`/`finish` are roles on a stop.
+  // AT LEAST ONE STOP PER ROUTE. No longer about routing — a route of nothing but POIs
+  // draws a complete road, because every point anchors a leg. It survives for the
+  // surfaces that count stops: the roadbook numbers its rows from them, the Maps
+  // hand-off is built from them, and `start`/`finish` are roles on a stop.
   //
-  // The builder upholds it by promoting the first point of every route on the spot,
-  // so a rider never meets this message; it is here for a hand-written payload
-  // and for a native file from some future client.
+  // The builder upholds it by promoting the first point of every route on the spot, so
+  // a rider never meets this message.
   .refine((r) => stopsOf(r.points).length >= 1, {
     message: 'a route needs at least one stop',
   })
@@ -290,15 +279,14 @@ export function normalize(p: RidePayload): void {
 
 // Ride-level caches derived from the normalized payload.
 //
-// ACTIVE DAYS ONLY. A ride carrying two alternates for the same stretch would
-// otherwise report both — the total is what a rider is going to ride, not the
-// sum of everything they considered. Run normalize() first: this trusts that
-// exactly one member of each group is flagged active, which is resolveAltGroups'
-// job and not this function's.
+// ACTIVE ROUTES ONLY. A ride carrying two alternates for the same stretch would
+// otherwise report both — the total is what a rider is going to ride, not the sum of
+// everything they considered. Run normalize() first: this trusts that exactly one
+// member of each group is flagged active.
 //
 // `stops` is filtered for the same reason and it is easy to miss: rides.stop_count
-// feeds the ride cards and the ride list, so a losing alternate's stops would
-// inflate a count nobody would think to question.
+// feeds the ride cards, so a losing alternate's stops would inflate a count nobody
+// would think to question.
 export function rideTotals(p: RidePayload) {
   let meters = 0
   let seconds = 0
@@ -319,23 +307,19 @@ export type Tx = Parameters<Parameters<typeof db.transaction>[0]>[0]
 /**
  * What a save does about `point_details`.
  *
- * `reconcile` is the owner's save and the normal case: the payload is the whole
- * truth, and a detail row whose uid is no longer in it is deleted.
+ * `reconcile` is the owner's save and the normal case: the payload is the whole truth,
+ * and a detail row whose uid is no longer in it is deleted.
  *
- * **`preserve` IS FOR A SAVE BY SOMEBODY WHO CANNOT SEE THE DETAILS, and it
- * exists to stop a silent, unrecoverable data loss.** An `edit`-level member
- * loads the ride through detailsForViewer(), which hands a non-owner an EMPTY
- * map — correctly, because a confirmation number is not shared by sharing a
- * route. Their save then posts a payload with no details in it, and a
- * reconciling write would read that as "the rider cleared every one of them"
- * and delete the lot. The owner would lose every gate code and reservation on
- * the ride, with nothing raised, because somebody they trusted to move a stop
- * moved one.
+ * **`preserve` IS FOR A SAVE BY SOMEBODY WHO CANNOT SEE THE DETAILS, and it exists to
+ * stop a silent, unrecoverable data loss.** An `edit`-level member loads the ride
+ * through detailsForViewer(), which hands a non-owner an EMPTY map — correctly — so
+ * their save posts a payload with no details in it, and a reconciling write would read
+ * that as "the rider cleared every one of them". The owner would lose every gate code
+ * on the ride, with nothing raised.
  *
- * Under `preserve` nothing in point_details is written or deleted. The cost is
- * that details belonging to a point the editor DELETED linger as orphans until
- * the owner's next save reconciles them — invisible to everyone in the meantime,
- * and the right way round: an orphan is recoverable and a deletion is not.
+ * The cost is that details belonging to a point the editor DELETED linger as orphans
+ * until the owner's next save reconciles them — the right way round: an orphan is
+ * recoverable and a deletion is not.
  */
 export type DetailsMode = 'reconcile' | 'preserve'
 
@@ -371,14 +355,12 @@ export async function insertRideGraph(
     // conflicts with itself, permanently, on a ride nobody else has touched.
     //
 
-    // SETTLED BEFORE THE DAY IS WRITTEN, because the route's hash covers the point
-    // uids. Settling after would hash a freshly-created route with a list of empty
-    // ones, and the next load would return the real ones — a route that conflicts
-    // with itself, permanently, on a ride nobody else has touched.
+    // SETTLED BEFORE THE ROUTE IS WRITTEN, because the route's hash covers the point
+    // uids. Settling after would hash a freshly-created route with a list of empty ones,
+    // and the next load would return the real ones — a route that conflicts with itself,
+    // permanently, on a ride nobody else has touched.
     //
-    // One settle over the whole route. The unique index is per route across both
-    // kinds, so the lists could never have been settled separately without
-    // risking a POI and a stop sharing a uid.
+    // One settle over the whole route: the unique index is per route across both kinds.
     const withUids = ensureUids(r.points)
 
     const [route] = await tx
@@ -412,13 +394,11 @@ export async function insertRideGraph(
         // column — two spellings of one state would make routeRevision() disagree
         // with itself and manufacture a save conflict nobody caused.
         routePrefs: normalizePrefs(r.routePrefs),
-        // THE ONLY PLACE A DAY IS HASHED. loadRidePayload returns this column
-        // VERBATIM rather than recomputing from the rows it read, and that is
-        // what makes the whole scheme safe: if the read recomputed, the write
-        // shape and the read shape would have to stay identical field for field
-        // forever, and the first divergence would make every route conflict with
-        // itself on every save with nothing to point at. Stored once, echoed
-        // back, compared to itself.
+        // THE ONLY PLACE A ROUTE IS HASHED. loadRidePayload returns this column VERBATIM
+        // rather than recomputing from the rows it read, and that is what makes the whole
+        // scheme safe: if the read recomputed, the write shape and the read shape would
+        // have to stay identical forever, and the first divergence would make every route
+        // conflict with itself on every save.
         contentHash: routeRevision({ ...r, uid: r.uid, points: withUids }),
       })
       .returning()
@@ -427,14 +407,11 @@ export async function insertRideGraph(
     // how far into the route `points[i]` sits.
     const prefix: number[] = [0]
     for (const d of legDistM) prefix.push(prefix[prefix.length - 1] + d)
-    // ONE ALGORITHM FOR BOTH KINDS, where there used to be two. A stop's
-    // distance was the prefix sum of the legs before it and a POI's was its
-    // projection onto the concatenated track, because a POI sat beside the route
-    // and had no leg boundary of its own. Every point has one now, so the prefix
-    // is the answer for all of them — and it is the better answer twice over: it
-    // is exact rather than nearest-vertex, and it is never null, where a
-    // projection is null on a trackless import. Promotion no longer changes a
-    // point's stored distance either, which is one fewer thing a flag flip does.
+    // ONE ALGORITHM FOR BOTH KINDS, where there used to be two. A stop's distance was the
+    // prefix sum of the legs before it and a POI's was its projection onto the
+    // concatenated track. Every point has a leg boundary now, so the prefix is the answer
+    // for all of them — and it is the better answer twice over: exact rather than
+    // nearest-vertex, and never null where a projection is null on a trackless import.
     const pointRows = withUids.map((s, i) => ({
       routeId: route.id,
       kind: s.kind,
@@ -490,16 +467,13 @@ export async function insertRideGraph(
   // identical trap point_details carries, for the identical reason: alt_votes
   // cascades from `rides`, so a save that deletes every route takes none of them.
   await reconcileVotes(tx, rideId, liveRouteUids)
-  // THE FOURTH, and the same trap a fourth time: `route_riders` keys on routes.uid
-  // and cascades from `rides`, so a route that leaves the payload takes none of
-  // its roster with it. Left alone, a deleted route keeps saying who was on it
-  // — and a uid that later gets reused inherits a set nobody chose.
+  // THE FOURTH, and the same trap a fourth time: `route_riders` keys on routes.uid and
+  // cascades from `rides`, so a route that leaves the payload takes none of its roster
+  // with it — and a uid that later gets reused inherits a set nobody chose.
   //
-  // It runs for EVERY saver, owner or editor, like the comment demotion above
-  // and unlike point_details. There is no `preserve` case because there is
-  // nothing private here to destroy: who is on a route is already visible to
-  // everyone the roster is visible to, so an editor's save carries the same
-  // rows the owner's would.
+  // It runs for EVERY saver, owner or editor. There is no `preserve` case because there
+  // is nothing private here to destroy: who is on a route is already visible to
+  // everyone the roster is.
   await reconcileRouteRiders(tx, rideId, liveRouteUids)
 }
 

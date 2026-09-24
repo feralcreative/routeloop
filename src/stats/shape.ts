@@ -1,27 +1,20 @@
 // Raw aggregate rows in, everything the dashboard renders out.
 //
-// Same split as src/survey/score.ts and for the same reason: query.ts holds the
-// SQL and cannot be tested here, so every judgment that could be WRONG rather
-// than merely absent lives in this file, where vitest can pin it without a
-// database.
+// Same split as src/survey/score.ts: query.ts holds the SQL and cannot be tested here,
+// so every judgment that could be WRONG rather than merely absent lives in this file.
 //
-// Three of those judgments are not obvious and each has cost someone a
-// afternoon somewhere:
+// Three of those judgments are not obvious:
 //
 //   - Twistiness rolls up DISTANCE-WEIGHTED, never as an average of averages.
 //   - A null twistiness is "not measured", never "Straight".
 //   - Saddle time is reported, and part of it is an estimate that says so.
 //
-// THE LAST ONE REVERSED ON 2026-08-24 and the old reasoning is worth keeping,
-// because it was right about the danger and wrong about the remedy. There was no
-// "hours in the saddle" figure at all, on the grounds that the import path never
-// writes a leg duration — so a lifetime total would undercount by however much
-// of the library was imported, silently, and in the FLATTERING direction, which
-// is the kind of wrong nobody reports. The remedy taken was to estimate the
-// missing legs from distance at a nominal speed (src/maps/ride-time.ts), which
-// is what both clients already do, rather than to keep the figure off the page.
-// `SaddleTime.estimated` is the part that keeps it honest: the total covers
-// everything, and the page says when some of it was figured rather than measured.
+// THE LAST ONE REVERSED ON 2026-08-24 and the old reasoning is worth keeping, because
+// it was right about the danger and wrong about the remedy. There was no "hours in the
+// saddle" figure at all, on the grounds that the import path never writes a leg
+// duration — so a lifetime total would undercount silently and in the FLATTERING
+// direction. The remedy taken was to estimate the missing legs from distance, which is
+// what both clients already do, rather than to keep the figure off the page.
 import type { RideVisibility } from '../db/schema'
 import { ROLE_META, type Role } from '../maps/roles'
 import { roleColor } from '../maps/role-colors'
@@ -77,16 +70,14 @@ export type RawMonth = { month: string; n: number }
 /**
  * The four records, each with the ride that holds it.
  *
- * EVERY record names a ride, which two of them did not until 2026-08-26. The
- * longest route and the twistiest stretch were `max()` aggregates, so the figure
- * arrived with no way back to the road it was set on — fine while a record was
- * four words and a numeral, and not fine once each one shows its map. query.ts
- * resolves both with an ordered `limit 1` now, the same shape the two "best
- * ride" records always used.
+ * EVERY record names a ride, which two of them did not until 2026-08-26: the longest
+ * route and the twistiest stretch were `max()` aggregates, so the figure arrived with
+ * no way back to the road it was set on — fine while a record was four words and a
+ * numeral, and not fine once each one shows its map.
  *
- * `*Thumb` is `rides.thumb_hash`, and null is a NORMAL value rather than an
- * error: the sweep may not have reached a new ride yet, and a ride with no
- * geometry never gets a picture at all. The card draws its own accent instead.
+ * `*Thumb` is `rides.thumb_hash`, and null is a NORMAL value rather than an error: the
+ * sweep may not have reached a new ride yet, and a ride with no geometry never gets a
+ * picture at all.
  */
 export type RawRecords = {
   longestRouteM: number | null
@@ -107,15 +98,12 @@ export type RawRecords = {
 }
 
 /**
- * Average and highest across every rider, for one metric.
+ * Average and highest across every rider, for one metric. Both are per-RIDER figures:
+ * the average number of rides a rider has, and the most any one of them has — not an
+ * average over rides.
  *
- * Both are per-RIDER figures: the average number of rides a rider has, and the
- * most any one of them has — not an average over rides, which would be a
- * different and far less interesting number.
- *
- * Declared here rather than in query.ts because query.ts already imports this
- * file for ACTIVITY_MONTHS and the Raw* types, and the dependency has to run one
- * way. Same reason RawTotals lives here.
+ * Declared here rather than in query.ts because query.ts already imports this file,
+ * and the dependency has to run one way.
  */
 export type RawSpread = { avg: number; top: number }
 
@@ -145,17 +133,15 @@ export const miles = (m: number): number => m / METERS_PER_MILE
 export const TWIST_WINDOW_MI = 20
 
 /**
- * A distance in the rider's own unit, with thousands separators and no decimals.
- * Dashboard figures are read, not audited.
+ * A distance in the rider's own unit, with thousands separators and no decimals:
+ * dashboard figures are read, not audited.
  *
- * TAKES THE UNITS RATHER THAN ASSUMING MILES (#150), and defaults to imperial so
- * every existing caller keeps its behavior. The name stays `fmtMiles` even
- * though it no longer always formats miles — renaming it would touch six call
- * sites to say nothing new, and the parameter is what tells the truth here.
+ * TAKES THE UNITS RATHER THAN ASSUMING MILES (#150), and defaults to imperial so every
+ * existing caller keeps its behavior. The name stays `fmtMiles` because renaming it
+ * would touch six call sites to say nothing new.
  *
- * The UNIT ITSELF is not appended. Callers put the label in their own markup,
- * usually in a separate element with its own type — see .record-unit — so
- * returning "248 mi" from here would give them a string they had to split.
+ * The UNIT ITSELF is not appended: callers put the label in their own markup, usually
+ * in a separate element with its own type.
  */
 export const fmtDistance = (m: number, units: Units = 'imperial'): string =>
   Math.round(distanceFrom(m, units)).toLocaleString('en-US')
@@ -170,14 +156,12 @@ export const fmtCount = (n: number): string => n.toLocaleString('en-US')
 /**
  * An average count, for the comparison column beside a rider's own figure.
  *
- * ONE DECIMAL, AND ONLY WHEN IT SAYS SOMETHING. "6.7 rides" is a real difference
- * from 6; "13.0 routes" is 13 with a decorative zero on it. Rounding everything to
- * a whole number instead would be worse in the other direction — in a cohort this
- * small the averages are single digits, and "7" against a rider's own "7" reads
- * as a tie when they are actually ahead.
+ * ONE DECIMAL, AND ONLY WHEN IT SAYS SOMETHING. "6.7 rides" is a real difference from
+ * 6; "13.0 routes" is 13 with a decorative zero on it. Rounding everything to a whole
+ * number would be worse the other way — in a cohort this small the averages are single
+ * digits, and "7" against a rider's own "7" reads as a tie when they are ahead.
  *
- * Rounds before testing for a fraction, so 12.98 prints as 13 rather than as
- * "13.0".
+ * Rounds before testing for a fraction, so 12.98 prints as 13 rather than "13.0".
  */
 export function fmtAvg(n: number): string {
   const r = Math.round(n * 10) / 10
@@ -187,14 +171,12 @@ export function fmtAvg(n: number): string {
 /**
  * A lifetime total of riding time, as hours.
  *
- * HOURS AND NOTHING SMALLER, unlike the roadbook's `fmtDuration`, which prints
- * "4h 20m" for a single route. A minute is real information about one route and
- * noise across a hundred — "312h 47m" invites a precision the underlying figure
- * does not have, since some unknown share of it is estimated from distance.
+ * HOURS AND NOTHING SMALLER, unlike the roadbook's `fmtDuration`. A minute is real
+ * information about one route and noise across a hundred — "312h 47m" invites a
+ * precision the underlying figure does not have.
  *
- * Deliberately not routed through src/maps/duration.ts either. That module
- * formats a rider's own typed dwell in whichever of three formats they picked,
- * and this is a derived aggregate rather than a value they entered.
+ * Deliberately not routed through src/maps/duration.ts either: that formats a rider's
+ * own typed dwell, and this is a derived aggregate.
  */
 export const fmtHours = (seconds: number): string => fmtCount(Math.round(seconds / 3600))
 
@@ -221,15 +203,13 @@ export type TwistRollup = { dpm: number; rank: number; label: string; unit: stri
 /**
  * One twistiness figure across every route that has one.
  *
- * DISTANCE-WEIGHTED. The metric is degrees per mile, so the rollup is the total
- * degrees over the total miles — not the mean of the per-route numbers. Averaging
- * those would let a 30-mile breakfast loop count the same as a 300-mile transit
- * route, which is the exact mistake builder.js:1211-1255 documents on the client.
+ * DISTANCE-WEIGHTED. The metric is degrees per mile, so the rollup is the total degrees
+ * over the total miles — not the mean of the per-route numbers, which would let a
+ * 30-mile breakfast loop count the same as a 300-mile transit route.
  *
- * Returns null when nothing has been measured. That is NOT the same as zero:
- * `routes.twistiness_dpm` is nullable and a null means no track was long enough
- * to measure, while 0 is a genuine claim that the road is straight. Reporting an
- * unmeasured library as "Straight" would be a lie the rider cannot see through.
+ * Returns null when nothing has been measured, which is NOT the same as zero: a null
+ * means no track was long enough to measure, while 0 is a genuine claim that the road
+ * is straight.
  */
 export function rollUpTwist(rows: readonly RawTwist[], units: Units = 'imperial'): TwistRollup {
   let degrees = 0
@@ -268,10 +248,9 @@ export type RoleBar = {
 /**
  * Roles that describe the shape of a route rather than a choice the rider made.
  *
- * Every ride has a start and an end, so they arrive at the top of the histogram
- * with a count equal to the number of routes and push everything interesting
- * into the bottom third. The chart is titled "what you stop for"; nobody stops
- * for the start.
+ * Every ride has a start and an end, so they arrive at the top of the histogram with a
+ * count equal to the number of routes and push everything interesting into the bottom
+ * third. The chart is titled "what you stop for"; nobody stops for the start.
  *
  * `home` is deliberately NOT here — starting a ride from your own door is a real
  * choice and not every ride does it.
@@ -279,16 +258,13 @@ export type RoleBar = {
 const STRUCTURAL_ROLES: ReadonlySet<string> = new Set(['start', 'finish'])
 
 /**
- * Every role that has been used at least once, biggest first.
+ * Every role that has been used at least once, biggest first. Roles nobody used are
+ * dropped rather than rendered as empty bars: seventeen rows of which four have data is
+ * a chart about the taxonomy, not about the rider.
  *
- * Roles nobody used are dropped rather than rendered as empty bars: seventeen
- * rows of which four have data is a chart about the taxonomy, not about the
- * rider.
- *
- * `share` is against the BIGGEST bar, not the total, because these bars are a
- * magnitude comparison and a share-of-total would make every bar tiny the moment
- * one category dominates — which one always does, since almost every ride has a
- * start and a finish.
+ * `share` is against the BIGGEST bar, not the total, because these bars are a magnitude
+ * comparison and a share-of-total would make every bar tiny the moment one category
+ * dominates — which one always does.
  */
 export function roleBars(rows: readonly RawRole[]): RoleBar[] {
   const known = rows.filter((r) => r.n > 0 && r.role in ROLE_META && !STRUCTURAL_ROLES.has(r.role))
@@ -320,12 +296,11 @@ export type MonthPoint = { month: string; label: string; n: number }
 /**
  * The last N months, every one present, zeroes included.
  *
- * SQL only returns months that had a ride, so a rider who planned in January and
- * again in June would otherwise draw a two-point line with a straight segment
- * across the gap — a chart claiming steady activity through a five-month silence.
+ * SQL only returns months that had a ride, so a rider who planned in January and again
+ * in June would otherwise draw a two-point line with a straight segment across the gap
+ * — a chart claiming steady activity through a five-month silence.
  *
- * `now` is a parameter rather than `new Date()` so the test can pin it. Every
- * boundary here is UTC, matching the timestamps the months are grouped from.
+ * `now` is a parameter rather than `new Date()` so the test can pin it.
  */
 export function monthSeries(rows: readonly RawMonth[], now: Date, count = ACTIVITY_MONTHS): MonthPoint[] {
   const byMonth = new Map(rows.map((r) => [r.month, r.n]))
