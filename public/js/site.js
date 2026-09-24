@@ -130,17 +130,13 @@
     const hideBox = document.getElementById("alpha-hide");
     let lastFocus = null;
 
-    // Design hook: ?alpha=1 pins the modal open. It ignores a stored dismissal,
-    // reopens on every load so the SCSS watcher's live reload brings it straight
-    // back, and makes close a no-op so nothing you click dismisses what you are
-    // styling. It also never writes the dismissal key, so a styling session
-    // cannot poison the real one. Drop the param for normal behavior.
-    //
-    // Local hosts only. Ungated, a link carrying the param would pin an
-    // undismissable modal on any rider who opened it — petty rather than
-    // dangerous, but there is no reason to leave it reachable. The check is on
-    // hostname and not on window.TB because this file is loaded by the two
-    // legacy map pages too and must not assume TB exists.
+    // Design hook: ?alpha=1 pins the modal open. It ignores a stored dismissal, reopens
+        // on every load so the SCSS watcher's live reload brings it back, makes close a
+        // no-op, and never writes the dismissal key.
+        //
+        // Local hosts only: ungated, a link carrying the param would pin an undismissable
+        // modal on any rider who opened it. The check is on hostname and not on window.TB,
+        // because this file is loaded by the two legacy map pages too.
     const pinned = IS_LOCAL && readParam("alpha") === "1";
 
     function open() {
@@ -200,45 +196,33 @@
   }
 
   // --- Sign-in background clip ---------------------------------------------
-  // The <video> ships without a src so that honoring prefers-reduced-motion
-  // skips the download rather than hiding an already-fetched 19 MB file. CSS
-  // paints the poster frame behind it, so doing nothing here degrades to a
-  // still image instead of a blank panel.
-  // Play/pause for the background clip, remembered per browser.
-  //
-  // "Remembered" is stronger than restoring a toggle: a rider who paused it
-  // last time never has the file fetched again, which is the same ~3 MB saving
-  // the reduced-motion path already takes. src stays unset until the clip is
-  // actually wanted.
+    // The <video> ships without a src so that honoring prefers-reduced-motion skips the
+    // download rather than hiding an already-fetched file. CSS paints the poster frame
+    // behind it, so doing nothing degrades to a still image.
+    // Play/pause, remembered per browser — stronger than restoring a toggle: a rider
+    // who paused it last time never has the file fetched again.
   const ICON_PLAY = '<svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M8 5v14l11-7z"/></svg>';
   const ICON_PAUSE =
     '<svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M6 5h4v14H6zm8 0h4v14h-4z"/></svg>';
 
   // --- Splash backdrop: a deck of clips, shuffled and crossfaded ----------
-  //
-  // **A FOLDER OF CLIPS, NOT ONE FILE.** Ziad's call, 2026-09-20. The page
-  // gets the folder's list as window.TB.splashClips, shuffles it, and plays
-  // the clips through the two <video>s in .splash-media: one in front,
-  // playing, the other behind, preloaded with the next clip and paused at
-  // its first frame. FADE_S before the front clip ends the back one starts
-  // and the two swap opacity over a CSS transition; then the roles flip and
-  // the new back element loads the clip after. The fade starts on
-  // `timeupdate`, never on `ended` — that fires after the last frame is gone
-  // and leaves a black gap.
-  //
-  // **AT MOST MAX_FETCH DISTINCT CLIPS PER VISIT.** Six five-second clips at
-  // this bitrate is about the one file this replaced, so the worst case is
-  // unchanged while every visit is still a different sequence; once the cap
-  // is reached the deck is the fetched set, reshuffled, with the one rule
-  // that a deck never opens with the clip that just played.
-  //
-  // What did not change, and each is load-bearing: no src in the markup, so
-  // reduced motion (through TBMotion, so the in-app setting counts), a
-  // remembered pause, and Save-Data fetch zero bytes; the poster is the
-  // layer's background, so those cases and an empty folder render a still;
-  // the play/pause button pauses the SYSTEM, not one element; and
-  // window.TBSplash is the hook replay.js pauses the backdrop through while
-  // the sneak peek is open.
+    //
+    // **A FOLDER OF CLIPS, NOT ONE FILE.** The page gets the folder's list as
+    // window.TB.splashClips, shuffles it, and plays the clips through the two <video>s
+    // in .splash-media: one in front playing, the other behind, preloaded with the next
+    // clip and paused at its first frame. FADE_S before the front clip ends the back one
+    // starts and the two swap opacity. The fade starts on `timeupdate`, never on `ended`
+    // — that fires after the last frame is gone and leaves a black gap.
+    //
+    // **AT MOST MAX_FETCH DISTINCT CLIPS PER VISIT**, which is about the one file this
+    // replaced; once the cap is reached the deck is the fetched set, reshuffled, with
+    // the one rule that a deck never opens with the clip that just played.
+    //
+    // What did not change, and each is load-bearing: no src in the markup, so reduced
+    // motion, a remembered pause and Save-Data fetch zero bytes; the poster is the
+    // layer's background, so those cases and an empty folder render a still; the
+    // play/pause button pauses the SYSTEM, not one element; and window.TBSplash is the
+    // hook replay.js pauses the backdrop through.
   var FADE_S = 0.8;
   var MAX_FETCH = 6;
 
@@ -426,15 +410,11 @@
   }
 
   // --- FAQ accordion -------------------------------------------------------
-  // The questions are <details>, so opening and closing is the platform's job.
-  // Two things it does not do for us:
-  //
-  //   1. Expand all, for reading the whole page top to bottom.
-  //   2. Reliable deep-linking. Chrome auto-expands a <details> when you
-  //      navigate to a fragment inside it; Firefox and Safari do not, so a
-  //      /faq#some-id link from elsewhere in the app would land on a collapsed
-  //      question and look broken. That is the whole reason this exists — the
-  //      links from the builder are useless without it.
+    // The questions are <details>, so opening and closing is the platform's job. Two
+    // things it does not do for us: expand all, and reliable deep-linking — Chrome
+    // auto-expands a <details> when you navigate to a fragment inside it, Firefox and
+    // Safari do not, so a /faq#some-id link would land on a collapsed question and look
+    // broken. That is the whole reason this exists.
   function initFaq() {
     const items = Array.from(document.querySelectorAll("details.qa"));
     if (items.length === 0) return;
@@ -470,13 +450,11 @@
   }
 
   // --- Release notes: open the entry a link names ---------------------------
-  //
-  // Every entry but the newest is folded into a <details> (#325), and a
-  // notification links to `/release-notes#<entry>` — an id on the SECTION,
-  // outside the <details>, so the browser's own fragment navigation scrolls to
-  // a folded entry and stops. This opens it, on load and on a hash change,
-  // which is the one thing the native accordion cannot do for itself. Nothing
-  // happens on a page with no such entry, which is every other page.
+    //
+    // Every entry but the newest is folded into a <details> (#325), and a notification
+    // links to `/release-notes#<entry>` — an id on the SECTION, outside the <details>,
+    // so the browser's own fragment navigation scrolls to a folded entry and stops. This
+    // opens it, which is the one thing the native accordion cannot do for itself.
   function openNotedRelease() {
     const id = decodeURIComponent(window.location.hash.slice(1));
     if (!id) return;
@@ -511,27 +489,20 @@
   );
 
   // --- Release notes: an opened entry scrolls to its own top ----------------
-  //
-  // Ziad's call, 2026-09-13: opening a card thirty entries down puts its
-  // title wherever the click happened to be — routinely near the bottom of
-  // the screen, with the notes unfolding below the fold. And the accordion
-  // closes whichever entry was open, which is usually ABOVE this one, so the
-  // page also shifts up by that entry's height as it folds. The scroll waits
-  // for that fold to finish, or it lands short by exactly the collapsed
-  // height. The wait is read off the fold's own transition rather than off a
-  // motion preference: under `motion.still` the duration is 0s and the scroll
-  // is immediate, with no second copy of that rule here.
-  //
-  // `toggle` does not bubble, hence capture. The SECTION is what is scrolled
-  // to, so the eyebrow and the timeline dot arrive with the title; it carries
-  // a scroll-margin so the card does not kiss the top edge.
-  //
-  // THE SCROLL IS DRIVEN BY HAND, NOT `scrollIntoView({behavior: "smooth"})`.
-  // Ziad's call, 2026-09-13: the browser's smooth scroll runs at one pace and
-  // stops dead, which is jarring over a long jump. This one starts fast and
-  // eases out — a cubic ease-out — so the card settles rather than lands. The
-  // scroll container is whichever ancestor actually scrolls: the window on
-  // the standalone page, `.rn-body` in the dialog.
+    //
+    // Opening a card thirty entries down puts its title wherever the click happened to
+    // be, routinely near the bottom of the screen. And the accordion closes whichever
+    // entry was open, usually ABOVE this one, so the page also shifts up as it folds —
+    // the scroll waits for that fold to finish, or it lands short by exactly the
+    // collapsed height. The wait is read off the fold's own transition, so under
+    // `motion.still` the duration is 0s and the scroll is immediate.
+    //
+    // `toggle` does not bubble, hence capture. The SECTION is what is scrolled to, so
+    // the eyebrow and the timeline dot arrive with the title.
+    //
+    // THE SCROLL IS DRIVEN BY HAND, NOT `scrollIntoView({behavior: "smooth"})`: the
+    // browser's smooth scroll runs at one pace and stops dead, which is jarring over a
+    // long jump. This one eases out, so the card settles rather than lands.
   const scrollerOf = (el) => {
     for (let n = el.parentElement; n; n = n.parentElement) {
       const o = getComputedStyle(n).overflowY;
@@ -575,13 +546,11 @@
   );
 
   // --- Release notes -------------------------------------------------------
-  //
-  // Its own function rather than a second copy of initSplash: the two dialogs
-  // share markup and keyboard behavior, but the alpha modal owns a dismissal
-  // key, a design pin and an auto-open on load, and none of that belongs here.
-  // What IS shared is the focus trap, and it is small enough that a second
-  // honest copy beats a shared abstraction with two callers pulling in different
-  // directions.
+    //
+    // Its own function rather than a second copy of initSplash: the two dialogs share
+    // markup and keyboard behavior, but the alpha modal owns a dismissal key, a design
+    // pin and an auto-open on load. What IS shared is the focus trap, and it is small
+    // enough that a second honest copy beats a shared abstraction.
   function initNotes() {
     const backdrop = document.getElementById("release-notes");
     if (!backdrop) return;
@@ -590,14 +559,11 @@
     let lastFocus = null;
     let loaded = false;
 
-    // FETCHED ON FIRST OPEN, then kept. The notes only ever get longer and this
-    // modal is on every page, so inlining them would put a growing file on every
-    // HTML response for a dialog most riders never open.
-    //
-    // A failure leaves the fallback link that shipped in the markup, which goes
-    // to the same content server-rendered. That is the whole error path: there
-    // is nothing useful to say about a fetch that failed, and a rider who wants
-    // the notes can still read them.
+    // FETCHED ON FIRST OPEN, then kept. The notes only ever get longer and this modal is
+        // on every page, so inlining them would put a growing file on every HTML response.
+        //
+        // A failure leaves the fallback link that shipped in the markup, which goes to the
+        // same content server-rendered. That is the whole error path.
     function load() {
       if (loaded) return;
       loaded = true;
@@ -752,38 +718,25 @@
     });
   }
 
-  // Tell the layout how tall the page-top banner is, so the map and the drawer
-  // move down instead of being painted over.
-  //
-  // IT LIVES HERE RATHER THAN IN builder.js, WHICH IS WHERE IT WAS UNTIL THE
-  // STAGE BANNER LANDED. The viewer is a map page too and loads no copy of
-  // builder.js, so a banner there had nothing to push the map down — and every
-  // chrome page needs the same number now that a banner can appear on all of
-  // them. One writer to --banner-h, one place to fix it: two functions setting
-  // one custom property is the same trap as two previewOf()s in map-common.js.
-  //
-  // MEASURED, not declared. `html.has-stage-banner` seeds a plausible one-line
-  // height in _map.scss so the first paint is close, but the recovery text
-  // wraps to two lines in a narrow drawer and the maps-misconfigured banner is
-  // longer again, so no constant is right for long. Re-measured on resize, and
-  // by a ResizeObserver where there is one — a banner can also change height
-  // without the window moving, which is exactly what the recovery bar does when
-  // its text is written into it.
-  //
-  // Reads 0 when the banner is hidden or absent, which is what most pages get
-  // and what makes the calc()s in _map.scss a no-op by default.
-  //
-  // IT ONLY ACTS ON A CHANGE, AND THAT IS WHAT STOPS IT RECURSING FOREVER.
-  // This function dispatches a resize, and it is itself a resize listener, so
-  // dispatching unconditionally called it again from inside itself: a
-  // RangeError every time a banner appeared, thrown out of offerRecovery() and
-  // straight through the builder's init(). Everything after that line was then
-  // never wired — clicking the map added nothing and the route could not be
-  // dragged into shape — so a rider with an unsaved draft got a builder that
-  // looked normal and did not work, with one console error nobody was looking
-  // at. Comparing against the last value fixes it at the source rather than
-  // with a re-entry flag: the nested call measures the same height, changes
-  // nothing and returns.
+  // Tell the layout how tall the page-top banner is, so the map and the drawer move
+    // down instead of being painted over.
+    //
+    // IT LIVES HERE RATHER THAN IN builder.js, WHICH IS WHERE IT WAS UNTIL THE STAGE
+    // BANNER LANDED. The viewer is a map page too and loads no copy of builder.js, so a
+    // banner there had nothing to push the map down. One writer to --banner-h: two
+    // functions setting one custom property is the same trap as two previewOf()s.
+    //
+    // MEASURED, not declared. `html.has-stage-banner` seeds a plausible one-line height
+    // so the first paint is close, but the recovery text wraps to two lines in a narrow
+    // drawer. Re-measured on resize, and by a ResizeObserver where there is one — a
+    // banner can change height without the window moving.
+    //
+    // IT ONLY ACTS ON A CHANGE, AND THAT IS WHAT STOPS IT RECURSING FOREVER. This
+    // function dispatches a resize and is itself a resize listener, so dispatching
+    // unconditionally called it again from inside itself: a RangeError every time a
+    // banner appeared, thrown straight through the builder's init(), so everything after
+    // that line was never wired and a rider with an unsaved draft got a builder that
+    // looked normal and did not work.
   let bannerH = null;
   function refreshBanner() {
     const bar = document.querySelector(".tb-banner:not([hidden])");
@@ -798,28 +751,21 @@
     if (h) window.dispatchEvent(new Event("resize"));
   }
 
-  // Named for the feature rather than for its shape, so the next helper that
-  // lands in this file cannot silently replace it.
-  // THE RIDER'S OWN DATE FORMAT AND CLOCK, read once off <html> (#270).
-  //
-  // WHY THIS EXISTS AT ALL. Three client formatters — fmtClockMin in builder.js,
-  // fmtStamp in map-common.js and fmtMoment in ride-time.js — all called
-  // toLocaleString with `undefined` or `[]` as the locale, which is the
-  // BROWSER's, not the rider's. So the date-format preference reached the
-  // printed roadbook and nothing on screen, and a rider who set 24-hour time
-  // would have got it in exactly one place.
-  //
-  // HERE RATHER THAN IN A FOURTH CLIENT MODULE because site.js is already loaded
-  // by page() on every surface including the builder and the viewer, and a new
-  // file needs a <script> line in builder.ts as well — two edits, the second of
-  // which fails silently. See the AGENTS.md note on that trap.
-  //
-  // READ ONCE AND CACHED, WITH A WAY TO FORGET. Both attributes are
-  // server-rendered, so on every page but one they cannot change without a load.
-  // The exception is /settings, where saving a preference is an autosave rather
-  // than a POST and a redirect — autosave.js re-stamps <html> and calls forget()
-  // so the next read is the rider's new answer rather than the one they arrived
-  // with.
+  // Named for the feature rather than for its shape, so the next helper that lands in
+    // this file cannot silently replace it.
+    // THE RIDER'S OWN DATE FORMAT AND CLOCK, read once off <html> (#270).
+    //
+    // WHY THIS EXISTS AT ALL: three client formatters all called toLocaleString with
+    // `undefined` as the locale, which is the BROWSER's, not the rider's. So the
+    // date-format preference reached the printed roadbook and nothing on screen.
+    //
+    // HERE RATHER THAN IN A FOURTH CLIENT MODULE because site.js is already loaded by
+    // page() on every surface, and a new file needs a <script> line in builder.ts as
+    // well — two edits, the second of which fails silently.
+    //
+    // READ ONCE AND CACHED, WITH A WAY TO FORGET. Both attributes are server-rendered,
+    // so on every page but one they cannot change without a load. The exception is
+    // /settings, where autosave.js re-stamps <html> and calls forget().
   var fmtPrefs = null;
   function timePrefs() {
     if (fmtPrefs) return fmtPrefs;
