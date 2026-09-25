@@ -69,7 +69,10 @@ export type Term = {
   id: TermId
   /** The row's label on the settings page. */
   label: string
-  /** One line under it: where the word shows up. */
+  /** Where the word shows up, as a template: `{one}`, `{many}` and their
+   *  capitalized `{One}`, `{Many}` are filled with the rider's current word, so
+   *  the example on the settings page reads with a Custom word the moment it is
+   *  typed. `fillExample()` here and in public/js/jargon.js do the filling. */
   where: string
   axis: Axis
   /** The preset's word for each member of the axis; a power term omits pedal. */
@@ -103,98 +106,98 @@ export const TERMS: Term[] = [
   {
     id: 'journey',
     label: 'The whole thing',
-    where: '“Plan a ride”, “Your rides”, every card',
+    where: '“Plan a {one}”, “Your {many}”, every card',
     axis: 'vehicle',
     by: { motorcycle: w('ride'), car: w('trip'), bicycle: w('ride') },
   },
   {
     id: 'travel',
     label: 'Moving',
-    where: '“3h 33m riding”, “hours of riding”',
+    where: '“3h 33m {one}”, “hours of {one}”',
     axis: 'vehicle',
     by: { motorcycle: w('riding'), car: w('driving'), bicycle: w('pedaling') },
   },
   {
     id: 'vehicle',
     label: 'What you are on',
-    where: 'the paddock, “no bike on file”',
+    where: '“no {one} on file”, “your {many}”',
     axis: 'vehicle',
     by: { motorcycle: w('bike'), car: w('car'), bicycle: w('bike') },
   },
   {
     id: 'person',
     label: 'Who is coming',
-    where: 'the roster, “riders you follow”',
+    where: 'the roster, “{many} you follow”',
     axis: 'vehicle',
     by: { motorcycle: w('rider'), car: w('driver'), bicycle: w('rider') },
   },
   {
     id: 'storage',
     label: 'Where it lives',
-    where: 'the Paddock tab',
+    where: 'the {One} tab',
     axis: 'vehicle',
     by: { motorcycle: w('paddock'), car: w('garage'), bicycle: w('shed') },
   },
   {
     id: 'curvy',
     label: 'A road with bends',
-    where: 'the Prefer chip, the dashboard',
+    where: 'the Prefer {one} chip, the dashboard',
     axis: 'vehicle',
     by: { motorcycle: w('twisty', 'twisty'), car: w('twisty', 'twisty'), bicycle: w('twisty', 'twisty') },
   },
   {
     id: 'route',
     label: 'One day’s worth',
-    where: 'route headers, “Route 1 of 3”',
+    where: '{one} headers, “{One} 1 of 3”',
     axis: 'vehicle',
     by: { motorcycle: w('route'), car: w('day'), bicycle: w('stage') },
   },
   {
     id: 'roadbook',
     label: 'The printable page',
-    where: 'the viewer’s print link',
+    where: 'the viewer’s “Print the {one}” link',
     axis: 'vehicle',
     by: { motorcycle: w('roadbook'), car: w('itinerary', 'itineraries'), bicycle: w('cue sheet') },
   },
   {
     id: 'fuel',
     label: 'What it runs on',
-    where: '“fuel stop”, the Gas chip',
+    where: '“{one} stop”, the {One} chip',
     axis: 'power',
     by: { gas: w('gas', 'gas'), electric: w('charge', 'charge') },
   },
   {
     id: 'refuel',
     label: 'Topping up',
-    where: '“fill up here”',
+    where: '“{one} here”',
     axis: 'power',
     by: { gas: w('fill up', 'fill up'), electric: w('charge', 'charge') },
   },
   {
     id: 'tank',
     label: 'What holds it',
-    where: 'the paddock, “on this tank”',
+    where: '“on this {one}”, the paddock',
     axis: 'power',
     by: { gas: w('tank'), electric: w('battery', 'batteries') },
   },
   {
     id: 'station',
     label: 'Where you get it',
-    where: 'the search, meeting points',
+    where: '“{many} nearby”, meeting points',
     axis: 'power',
     by: { gas: w('gas station'), electric: w('charger') },
   },
   {
     id: 'dry',
     label: 'Running out',
-    where: 'the E marker, tips',
+    where: '“{one} here”, the E marker',
     axis: 'power',
     by: { gas: w('runs dry', 'runs dry'), electric: w('goes flat', 'goes flat') },
   },
   {
     id: 'highway',
     label: 'The big road',
-    where: 'the Avoid chip',
+    where: 'the “Avoid {many}” chip',
     axis: 'regional',
     by: {},
     options: [w('highway'), w('motorway'), w('freeway')],
@@ -202,6 +205,23 @@ export const TERMS: Term[] = [
 ]
 
 export const termById = (id: TermId): Term => TERMS.find((t) => t.id === id) as Term
+
+/** A term's example split around its word slots, so a caller can set the
+ *  word apart (the settings page bolds it). Mirrored by `fillExample()` in
+ *  public/js/jargon.js, which fills the same template live. */
+export function exampleParts(template: string, word: Word): { text: string; slot: boolean }[] {
+  const out: { text: string; slot: boolean }[] = []
+  let last = 0
+  for (const m of template.matchAll(/\{(one|many|One|Many)\}/g)) {
+    if (m.index! > last) out.push({ text: template.slice(last, m.index), slot: false })
+    const key = m[1]
+    const raw = key.toLowerCase() === 'one' ? word.one : word.many
+    out.push({ text: key[0] === key[0].toUpperCase() ? cap(raw) : raw, slot: true })
+    last = m.index! + m[0].length
+  }
+  if (last < template.length) out.push({ text: template.slice(last), slot: false })
+  return out
+}
 
 /** The rider's own words, keyed by term — only the rows they set to Custom, or
  *  a regional row's pick. Stored as jsonb on the profile. */

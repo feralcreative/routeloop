@@ -40,6 +40,7 @@ import {
   cap,
   toPower,
   vocabOf,
+  exampleParts,
   wd,
   wds,
   wordsFor,
@@ -927,7 +928,15 @@ export async function accountPage(
                     return (
                       <tr class={off ? 'is-off' : ''} data-term={t.id} data-axis={t.axis}>
                         <th scope="row">{t.label}</th>
-                        <td class="jargon-where">{t.where}</td>
+                        {/* THE EXAMPLE READS WITH THE WORD IN FORCE, custom
+                            or default, and jargon.js refills it as the rider
+                            types or changes the pickers. A fuel term under
+                            Feets has no word, so it shows the gas one. */}
+                        <td class="jargon-where" data-example={t.where}>
+                          {exampleParts(t.where, w[t.id] ?? follows ?? t.by.gas ?? { one: '', many: '' }).map((p) =>
+                            p.slot ? <b>{p.text}</b> : p.text,
+                          )}
+                        </td>
                         <td class="jargon-default">
                           <label class="jargon-pick">
                             <input type="radio" name={`pick-${t.id}`} value="default" checked={!custom} />
