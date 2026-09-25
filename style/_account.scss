@@ -270,6 +270,12 @@
   }
 }
 
+// Squared where the folder tab sits (_forms.scss). Here rather than beside the
+// tab because the `border-radius` shorthand above would otherwise undo it.
+.profile-form > fieldset {
+  border-top-left-radius: 0;
+}
+
 // A GROUP THAT SHOWS ITS EDGE AT REST.
 //
 // `.setting` is deliberately unboxed — boxing every section makes a settings page
