@@ -1019,9 +1019,10 @@
     right: 0.9rem;
   }
 
-  // THE SAME SMALL SIGN AS "Read more": black on the work-zone orange while the
-  // kind is live. `$detour` is a BLACK-legend field (white on it is under 3:1),
-  // and `$ink-dark` rather than `$black` because it does not flip with the scheme.
+  // THE SAME SMALL SIGN AS "Read more": black on the yield yellow while the kind
+  // is live. `$yield` is a BLACK-legend field, and `$ink-dark` rather than
+  // `$black` because it does not flip with the scheme. Its tooltip is the tips
+  // layer's (`data-tip-inline`), which appears at once where a native title waits.
   button {
     box-sizing: border-box;
     width: var(--mute-w);
@@ -1034,16 +1035,16 @@
     line-height: 1.2;
     white-space: nowrap;
     cursor: pointer;
-    background: $detour;
+    background: $yield;
     color: $ink-dark;
     font-weight: 700;
     letter-spacing: 0.04em;
     box-shadow:
-      inset 0 0 0 2px $detour,
+      inset 0 0 0 2px $yield,
       inset 0 0 0 3px $ink-dark;
 
     &:hover {
-      background: color-mix(in oklab, $detour, black 12%);
+      background: color-mix(in oklab, $yield, white 14%);
     }
 
     &:focus-visible {
