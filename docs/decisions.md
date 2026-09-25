@@ -279,6 +279,12 @@ A muted kind still lands in the notification center; it never adds to the badge,
 
 Mute is a third switch per kind rather than turning both channels off, so unmuting restores exactly what the rider had. A muted row is written already read and delivered instead of being filtered when read, which keeps the badge's query, run on every page, unchanged.
 
+## The colorblind palette is tuned by measurement, 2026-09-24
+
+The colorblind theme was a hue shift: pull go toward blue and stop toward orange so the pair separates on the blue-yellow axis. That fixed stop against go and left detour and warning 4.3 apart (OKLab ×100) in normal vision and the two blues 2.0 apart under tritanopia (#405).
+
+It is now the result of a search: each of the nine sign fields held to its hue family and to the legend ink the table gives it at 4.5:1, maximizing the smallest separation under normal vision and all three dichromacies at once. Nine colors with five dark white-legend fields and four light black-legend ones cannot all be far apart, so the floors in the test (15, and 10 for tritanopia, which is rare) are what the search reached with room to spare rather than an ideal.
+
 ## Appendix: auth and place-search cost analysis, 2026-07-26
 
 Written before either migration, as analysis for a decision with nothing yet implemented. Both recommendations were followed on the auth side; the search side went to Google rather than trying Mapbox Search Box first. Retained because the cost model and the Apple-specific hazards are still the best record of what was weighed.
