@@ -233,3 +233,41 @@ describe('the categorical viz slots', () => {
     for (const name of [...categoriesFor(key), SURFACE, TRACK]) expect(token(key, name)).toBeTruthy()
   })
 })
+
+// THE COLORBLIND PALETTE'S NINE SIGN FIELDS, the strip on Preferences › Appearance.
+// Retuned 2026-09-24: the old set put detour and warning 4.3 apart in NORMAL
+// vision and the two blues 2.0 apart under tritanopia. The floors are what the
+// retune reached, with a little room: a change that lets any pair slip below
+// them is a change back toward that. Tritanopia gets its own, lower floor
+// because it is rare (about 1 in 10,000) and collapses blue against green.
+// Only the colorblind palette is held to this; it is the one making the claim.
+describe('the colorblind palette keeps its sign fields apart', () => {
+  const SIGNS = ['stop', 'detour', 'warning', 'yield', 'go', 'interstate', 'disabled', 'recreation', 'tarmac']
+  const closest = (key: PaletteKey, kind: Deficiency | 'normal') => {
+    const seen = SIGNS.map((name) => simulate(parse(token(key, name)), kind))
+    let dE = Infinity
+    let where = ''
+    for (let i = 0; i < seen.length; i++) {
+      for (let j = i + 1; j < seen.length; j++) {
+        const d = deltaE(seen[i], seen[j])
+        if (d < dE) {
+          dE = d
+          where = `${SIGNS[i]} vs ${SIGNS[j]}`
+        }
+      }
+    }
+    return { dE, where }
+  }
+
+  for (const key of ['colorblind-light', 'colorblind-dark'] as PaletteKey[]) {
+    it.each(['normal', 'protanopia', 'deuteranopia'] as const)(`${key}: every pair at least 15 apart (%s)`, (kind) => {
+      const { dE, where } = closest(key, kind)
+      expect(dE, `closest pair: ${where}`).toBeGreaterThanOrEqual(15)
+    })
+
+    it(`${key}: every pair at least 10 apart under tritanopia`, () => {
+      const { dE, where } = closest(key, 'tritanopia')
+      expect(dE, `closest pair: ${where}`).toBeGreaterThanOrEqual(10)
+    })
+  }
+})

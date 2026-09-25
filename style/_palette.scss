@@ -202,39 +202,40 @@ $-signs-contrast: (
   "tarmac": #1a0d04,
 );
 
-// COLORBLIND. Addresses the collisions this palette has BY CONSTRUCTION rather
-// than shifting every hue: $stop and $go converge under deuteranopia and
-// protanopia, and $yield and $detour are adjacent ambers. The move is the
-// standard one — pull "go" toward blue and "stop" toward orange-red, so the pair
-// separates on the blue-yellow axis both common forms leave intact.
+// COLORBLIND. Retuned 2026-09-24 by measurement, not by hue-shifting: the nine
+// fields in the Appearance strip were searched in OKLCh for the widest smallest
+// separation (OKLab ΔE ×100) under normal vision, protanopia, deuteranopia and
+// tritanopia at once, each held to its own hue family so a stop still reads as a
+// stop, and each holding the legend ink the table below gives it at 4.5:1.
+// `test/viz-categories.test.ts` pins the result: every pair at least 15 apart
+// under the first three and 10 under tritanopia. The set it replaced put detour
+// and warning 4.3 apart in NORMAL vision and the two blues 2.0 apart under
+// tritanopia.
 //
-// **THIS IS NOT SUFFICIENT ON ITS OWN AND MUST NOT BE TREATED AS IF IT WERE.** A
-// theme that only shifts hues does not fix a signal that was carrying meaning
-// alone. The audit of where color is the ONLY cue is separate work, and this
-// theme is a lie until it is done.
+// Still true from the first version: "go" is a blue, so stop and go separate on
+// the blue-yellow axis both common forms leave intact, and a theme that only
+// shifts hues does not fix a signal carrying meaning alone. The audit of where
+// color is the ONLY cue is separate work.
 //
-// **THE INK PAIRING IS INVARIANT AND THESE TWO BROKE IT.** The pair started as
-// Okabe-Ito vermillion and blue, which separate on blue-yellow exactly as
-// intended and land on the WRONG SIDE of the legend table: white on the
-// vermillion measured 3.87:1 and black on the blue 4.05:1, backwards from every
-// other palette.
+// **`disabled` IS AN AZURE NAVY, NOT A VIOLET, FOR THE DARK LINK.** The dark
+// scheme's link is `-tone($disabled, 62%)`, and a violet-leaning navy at that
+// lightness measured 3.7:1 on the card; #123d7a gives 4.9.
 //
-// That could have been fixed by making the ink table theme-dependent, and must
-// not be: `$ink-light` and `$ink-dark` are referenced directly by dozens of rules.
-// The colors moved instead — the vermillion darkened 6% and the blue lightened
-// 7%. Measured 2026-08-25.
+// **THE INK PAIRING IS INVARIANT.** `$ink-light` and `$ink-dark` are referenced
+// directly by dozens of rules, so a theme moves its colors to fit the legend
+// table rather than changing the table.
 $-signs-colorblind: (
-  "interstate": #1f5c7a,
+  "interstate": #3f7998,
   "speed": #efefef,
-  "stop": #b65000,
-  "detour": #d99200,
-  "warning": #cc8400,
-  "yield": #f0e442,
-  "go": #0089d6,
-  "disabled": #004c99,
+  "stop": #9c3102,
+  "detour": #cd6d16,
+  "warning": #e5ba53,
+  "yield": #ffff34,
+  "go": #73a3eb,
+  "disabled": #123d7a,
   "signal": #4b5fd0,
-  "recreation": #5c4033,
-  "tarmac": #291507,
+  "recreation": #451b00,
+  "tarmac": #060301,
 );
 
 // A legibility derivation, signed by the scheme. Module scope rather than nested
