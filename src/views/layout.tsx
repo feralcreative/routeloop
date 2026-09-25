@@ -283,10 +283,9 @@ function SiteHeader({
                                         the builder too, and on a map page `.nav-end` is inside a closed drawer
                                         at every width — the #300 problem.
 
-                                        `hideTour` is the checkbox on /settings. Not rendered at all rather
-                                        than hidden: a rider who asked for it gone gets no tab stop either.
+                                        Shown to every signed-in rider; `hide_tour` is no longer read.
                                       */}
-      {user && !hideTourOf(user) && (
+      {user && (
         <a class="nav-tour" href="/builder?tour" data-tour-start aria-label="Take the tour">
           {/* TWO WORDS OF THE THREE HIDE ON A PHONE (_nav.scss): the wordmark,
                                                         this sign and the hamburger did not fit 358px together. The
@@ -698,7 +697,7 @@ const unreadOf = (u: UserRow | null): number => {
 
 /**
  * The profile columns the session row carries beyond UserRow, read through
- * `unknown` the way hideTourOf() and unreadOf() do — page() takes a UserRow and
+ * `unknown` the way unreadOf() does — page() takes a UserRow and
  * every caller passes the session user, which is one.
  */
 const profileOf = (u: UserRow | null): { vehicle?: unknown; power?: unknown; jargon?: unknown } | null =>
@@ -709,12 +708,6 @@ const profileOf = (u: UserRow | null): { vehicle?: unknown; power?: unknown; jar
 export const wordsOf = (opts: { user: UserRow | null; words?: Words; ride?: PageOpts['ride'] }): Words =>
   opts.words ?? wordsFor(vocabOf(profileOf(opts.user)), opts.ride)
 
-/**
- * Whether the header's Take the tour sign is hidden — `user_profiles.hide_tour`,
- * riding on the session user exactly as `unread` does and read the same
- * defensive way, for the same reason.
- */
-const hideTourOf = (u: UserRow | null): boolean => (u as unknown as { hideTour?: unknown } | null)?.hideTour === true
 
 /** Up to two initials for the tinted disc a rider with no picture gets — the
  *  account chip's rule, shared with the rider cards on /riders (#341). */
