@@ -5,15 +5,12 @@
 // rather than a document. The photo routes are the exception and take multipart,
 // because that is what a file input posts.
 //
-// **There is no public surface here and there should not be one yet.** A bike is
-// currently private to its owner: every route is behind `requireActiveApi` (or
-// `requireActive` for the image), and every query in service.ts folds the owner
-// id into its WHERE clause. Whether a rider can SHOW their paddock on a public
-// profile is a real product question and a deliberate non-decision — see the
-// serving route below.
+// Every API route is behind `requireActiveApi` and every query in service.ts folds
+// the owner id into its WHERE clause. The one public surface is the photo, served
+// to whoever the rider shows their Paddock to on /@handle — see the route below.
 import { Hono } from 'hono'
 import { bodyLimit } from 'hono/body-limit'
-import { currentUser, requireActive, requireActiveApi, requireSameOrigin, type AuthEnv } from '../auth/middleware'
+import { currentUser, requireActiveApi, requireSameOrigin, type AuthEnv } from '../auth/middleware'
 import { bikeInput, bikeLabel, canAddBike, MAX_BIKES, metersToMiles, mlToTank, tankRefusal } from '../bikes/policy'
 import { volumeFor } from '../views/prefs'
 import { volumeUnit } from '../views/volume'
@@ -32,6 +29,8 @@ import { readBikePhoto, writeBikePhoto } from '../bikes/photo'
 import { checkUpload, MAX_IMAGE_BYTES, UPLOAD_REFUSAL_MESSAGES } from '../images/policy'
 import { BIKE_PHOTO_BOX, processImage, PROCESSED_MIME } from '../images/process'
 import type { BikeRow } from '../db/schema'
+import { bikeForPhoto, profileGateOf } from '../profiles/service'
+import { canSeePaddock } from '../profiles/policy'
 
 export const bikesRoutes = new Hono<AuthEnv>()
 
@@ -194,27 +193,27 @@ bikesRoutes.delete('/api/bikes/:id/photo', requireActiveApi, requireSameOrigin, 
 /**
  * Serving the photo.
  *
- * OWNER ONLY, for now, and that is a non-decision rather than a decision: a bike
- * is not currently shown anywhere but its owner's own profile, so the narrow
- * gate is the one that cannot leak. Letting a rider show their paddock publicly
- * — or to the people on a ride with them — is a real question that belongs with
- * ride membership (#71), and widening this route is where it would be answered.
+ * THE OWNER, OR ANYONE THE PADDOCK IS SHOWN TO on the public profile
+ * (`canSeePaddock` in src/profiles/policy.ts). Anything else 404s exactly like a
+ * bike that does not exist, so the route does not confirm one.
  *
- * IMMUTABLE, because the URL carries the fingerprint. A changed photo is a
- * different `?v=`, so a year is safe and a re-upload is visible immediately.
- * Private in the cache-control sense for the same reason a feedback screenshot
- * is: a shared cache holding one rider's file is the same leak as showing it to
- * the wrong person.
+ * IMMUTABLE, because the URL carries the fingerprint. Private in the
+ * cache-control sense, so a shared cache never holds a photo a later viewer may
+ * not be allowed.
  */
-bikesRoutes.get('/bikes/:id/photo', requireActive, async (c) => {
-  const user = currentUser(c)
+bikesRoutes.get('/bikes/:id/photo', async (c) => {
+  const viewer = c.get('user') ?? null
   const id = idOf(c.req.param('id'))
   if (!id) return c.notFound()
 
-  const bike = await getBike(user.id, id)
+  const bike = await bikeForPhoto(id)
   if (!bike || !bike.photoHash) return c.notFound()
+  if (viewer?.id !== bike.ownerId) {
+    const gate = await profileGateOf(bike.ownerId)
+    if (!canSeePaddock(gate.visibility, gate.sharePaddock, bike.ownerId, viewer)) return c.notFound()
+  }
 
-  const data = await readBikePhoto(user.id, id)
+  const data = await readBikePhoto(bike.ownerId, id)
   if (!data) return c.notFound()
 
   return new Response(new Uint8Array(data), {

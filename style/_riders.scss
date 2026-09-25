@@ -200,3 +200,133 @@
     --face: 72px;
   }
 }
+
+// --- The public profile (/@handle) --------------------------------------------
+//
+// The face is `.rider-face` at a larger `--face`; the numbers are the dashboard's
+// `.stat-tiles`. A minimal page (hidden, or signed out on a riders-only page) has
+// no face and no sections, so the name and handle sit alone.
+
+.profile-self {
+  margin-bottom: 1.5rem;
+}
+
+.profile-head {
+  display: flex;
+  align-items: center;
+  gap: 1.5rem;
+  margin-bottom: 1.25rem;
+}
+
+.profile-face {
+  --face: 120px;
+}
+
+.profile-who {
+  min-width: 0;
+
+  .profile-name {
+    margin: 0;
+  }
+
+  .profile-handle {
+    margin: 0.1rem 0 0;
+    color: $neutral-50;
+  }
+
+  .profile-acts {
+    margin: 0.75rem 0 0;
+  }
+}
+
+.profile-meta {
+  margin: 0.4rem 0 0;
+  font-size: 0.9rem;
+  color: $neutral-50;
+}
+
+.profile-bio {
+  max-width: 60ch;
+  margin: 0 0 1rem;
+  white-space: pre-line;
+  text-wrap: pretty;
+}
+
+.profile-links {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem 1.2rem;
+  list-style: none;
+  margin: 0 0 1.5rem;
+  padding: 0;
+}
+
+.profile-section {
+  margin-top: 2rem;
+}
+
+.profile-bikes {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(13rem, 1fr));
+  gap: 0.75rem;
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.profile-bike {
+  display: flex;
+  flex-direction: column;
+  gap: 0.2rem;
+  min-width: 0;
+  padding: 0 0 0.9rem;
+  overflow: hidden;
+  background: $white;
+  border: 1px solid $grey;
+  border-radius: 10px;
+
+  > span {
+    padding: 0 0.9rem;
+  }
+}
+
+.profile-bike-photo {
+  display: block;
+  box-sizing: border-box;
+  width: 100%;
+  aspect-ratio: 4 / 3;
+  margin-bottom: 0.5rem;
+  object-fit: cover;
+  background: $neutral-94;
+}
+
+.profile-bike-name {
+  font-weight: 600;
+}
+
+.profile-bike-spec,
+.profile-bike-facts {
+  font-size: 0.85rem;
+  color: $neutral-50;
+}
+
+// The public-page block on the Profile tab: each level's sentence sits under its
+// label, because who can see a page is a disclosure rather than a tooltip.
+.public-page .choice-note {
+  grid-column: 2;
+  font-size: 0.85rem;
+  color: $neutral-50;
+}
+
+//@ Phone — the face goes above the name
+@media (max-width: $bp-phone) {
+  .profile-head {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 1rem;
+  }
+
+  .profile-face {
+    --face: 96px;
+  }
+}

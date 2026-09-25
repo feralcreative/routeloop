@@ -104,6 +104,10 @@ export const volumeUnitsEnum = pgEnum('volume_units', ['auto', 'gallons', 'liter
 // here answers "what did the rider not say"; this one answers "what does somebody
 // who has never been here need".
 export const tipsEnum = pgEnum('tips', ['on', 'off'])
+// Who can open a rider's full page at /@handle. `hidden` still answers with the
+// name and handle, so a friend request or a roster link never lands on a 404.
+// Rank lives in src/profiles/policy.ts; member order is not openness.
+export const profileVisibilityEnum = pgEnum('profile_visibility', ['public', 'members', 'hidden'])
 // The 17-category taxonomy carried over from the KML naming convention;
 // canonical metadata lives in src/maps/roles.ts.
 export const waypointRoleEnum = pgEnum('waypoint_role', [
@@ -401,6 +405,13 @@ export const userProfiles = pgTable('user_profiles', {
   youtube: varchar('youtube', { length: 120 }),
   strava: varchar('strava', { length: 120 }),
   shareSocials: boolean('share_socials').notNull().default(false),
+  // The public profile (/@handle). Visibility defaults to signed-in riders only;
+  // a rider with no row gets the same answer from DEFAULT_PROFILE_VISIBILITY.
+  profileVisibility: profileVisibilityEnum('profile_visibility').notNull().default('members'),
+  // Free text, shown only on the public profile. Empty is null and shows nothing.
+  bio: varchar('bio', { length: 280 }),
+  // Off until asked: a garage is not published by filling one in.
+  sharePaddock: boolean('share_paddock').notNull().default(false),
   // The rider's own avatar, counted HERE AND NOWHERE ELSE — never in `users.used_bytes`
   // and never in `rides.size_bytes`'s generated expression. Same rule as
   // `bikes.photo_bytes`: a fourth byte column reaching that expression corrupts quota
