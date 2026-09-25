@@ -1019,11 +1019,9 @@
     right: 0.9rem;
   }
 
-  // THE SAME SMALL SIGN AS "Read more": red on white while the kind is live, and a
-  // gray field once it is muted. The white is `$ink-light`, never `$white`, which
-  // is the page surface and turns near-black in the dark. The gray is
-  // `$concrete`, fixed in every palette, so it carries BLACK ink: white on it is
-  // under 4.5:1.
+  // THE SAME SMALL SIGN AS "Read more": red on white while the kind is live. The
+  // white is `$ink-light`, never `$white`, which is the page surface and turns
+  // near-black in the dark.
   button {
     box-sizing: border-box;
     width: var(--mute-w);
@@ -1054,17 +1052,17 @@
     }
   }
 
+  // Muted, it steps back: gray lettering and keyline on no field at all.
+  // `$neutral-50` is the meta line's own gray, so it follows the scheme.
   &.is-muted button {
-    background: $concrete;
-    color: $ink-dark;
+    background: transparent;
+    color: $neutral-50;
     font-weight: 500;
     letter-spacing: normal;
-    box-shadow:
-      inset 0 0 0 2px $concrete,
-      inset 0 0 0 3px $ink-dark;
+    box-shadow: inset 0 0 0 1px $neutral-50;
 
     &:hover {
-      background: color-mix(in oklab, $concrete, white 14%);
+      background: color-mix(in oklab, $neutral-50 12%, transparent);
     }
   }
 }
