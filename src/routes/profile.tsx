@@ -233,6 +233,30 @@ function Field(o: {
   )
 }
 
+/**
+ * A Google Places lookup that fills the block's name, address and coordinates in
+ * one pick. NO `name`, so it is never posted and never autosaved: it is a way to
+ * fill the fields below, not a field. profile.js wires it; with script off it is
+ * hidden and the fields are typed by hand.
+ */
+function Lookup({ id, label }: { id: string; label: string }) {
+  return (
+    <p class="field addr-lookup" hidden>
+      <label for={`f-${id}`}>{label}</label>
+      <input
+        id={`f-${id}`}
+        type="search"
+        autocomplete="off"
+        placeholder="A business, a landmark, or an address"
+        aria-describedby={`h-${id}`}
+      />
+      <span class="field-hint" id={`h-${id}`}>
+        Pick a result and the fields below fill themselves&nbsp;in.
+      </span>
+    </p>
+  )
+}
+
 function Check(o: { name: string; label: string; values: Record<string, unknown> }) {
   const on = o.values[o.name] === true || o.values[o.name] === 'on'
   return (
@@ -510,6 +534,7 @@ export function profilePanel({ user, values, errors, saved, history }: RenderArg
               who clears the field goes back to "Home" rather than having it
               written into their profile as though they had typed it. Same
               arrangement `start_label` has with "Meeting point". */}
+          <Lookup id="homeLookup" label="Look it up" />
           <Field
             name="homeLabel"
             label="Name it"
@@ -544,6 +569,7 @@ export function profilePanel({ user, values, errors, saved, history }: RenderArg
             Without this there is nothing to swap in, so a ride you started at home keeps the pin on your&nbsp;house the
             moment you share it with anyone.
           </p>
+          <Lookup id="startLookup" label="Look it up" />
           <Field
             name="startLabel"
             label="Name it"
