@@ -328,7 +328,18 @@
     }
     var p = document.createElement("span");
     p.className = "tip-body";
-    p.textContent = body;
+    // `data-tip-strong` NAMES THE PART OF THE BODY TO BOLD, found by text and built
+    // from text nodes, so an attribute can never inject markup. Absent, or not in
+    // the body, and the body renders plain.
+    var strong = node.getAttribute("data-tip-strong");
+    var at = strong ? body.indexOf(strong) : -1;
+    if (at >= 0) {
+      var s = document.createElement("b");
+      s.textContent = strong;
+      p.append(body.slice(0, at), s, body.slice(at + strong.length));
+    } else {
+      p.textContent = body;
+    }
     el.appendChild(p);
 
     el.hidden = false;
