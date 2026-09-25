@@ -1227,14 +1227,14 @@ export async function accountPage(
                             <td>
                               <label class="notif-box">
                                 <input type="checkbox" name={`${e.key}:email`} checked={want.email} />
-                                <span class="visually-hidden">Email me when {e.label.toLowerCase()}</span>
+                                <span class="visually-hidden">Email me {e.label} notifications</span>
                               </label>
                             </td>
                             <td>
                               <label class="notif-box">
                                 <input type="checkbox" name={`${e.key}:browser`} checked={want.browser} />
                                 <span class="visually-hidden">
-                                  Show a browser notification when {e.label.toLowerCase()}
+                                  Show {e.label} notifications in the browser
                                 </span>
                               </label>
                             </td>
@@ -1244,7 +1244,7 @@ export async function accountPage(
                             <td>
                               <label class="notif-box">
                                 <input type="checkbox" name={`${e.key}:mute`} checked={want.muted} />
-                                <span class="visually-hidden">Mute notifications when {e.label.toLowerCase()}</span>
+                                <span class="visually-hidden">Mute {e.label} notifications</span>
                               </label>
                             </td>
                           </tr>
