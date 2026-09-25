@@ -1019,9 +1019,9 @@
     right: 0.9rem;
   }
 
-  // THE SAME SMALL SIGN AS "Read more": red on white while the kind is live. The
-  // white is `$ink-light`, never `$white`, which is the page surface and turns
-  // near-black in the dark.
+  // THE SAME SMALL SIGN AS "Read more": black on the work-zone orange while the
+  // kind is live. `$detour` is a BLACK-legend field (white on it is under 3:1),
+  // and `$ink-dark` rather than `$black` because it does not flip with the scheme.
   button {
     box-sizing: border-box;
     width: var(--mute-w);
@@ -1034,16 +1034,16 @@
     line-height: 1.2;
     white-space: nowrap;
     cursor: pointer;
-    background: $ink-light;
-    color: $stop;
+    background: $detour;
+    color: $ink-dark;
     font-weight: 700;
     letter-spacing: 0.04em;
     box-shadow:
-      inset 0 0 0 2px $ink-light,
-      inset 0 0 0 3px $stop;
+      inset 0 0 0 2px $detour,
+      inset 0 0 0 3px $ink-dark;
 
     &:hover {
-      background: color-mix(in oklab, $stop, white 88%);
+      background: color-mix(in oklab, $detour, black 12%);
     }
 
     &:focus-visible {
