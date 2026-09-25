@@ -30,8 +30,8 @@ import { toTips } from '../views/tips'
 import { clampDivert } from '../subgroups/rendezvous'
 import { TERMS, toJargon, toPower, toVehicle, vocabOf, wordsFor } from '../views/vocab'
 import { GROUPS, eventsInGroup, type GroupId } from '../notifications/catalog'
-import { checkedKeys, rowsFromForm } from '../notifications/policy'
-import { savePrefs } from '../notifications/service'
+import { checkedKeys, MUTE, rowsFromForm } from '../notifications/policy'
+import { quietUnread, savePrefs } from '../notifications/service'
 import { accountPage, type AccountTab } from '../views/account-page'
 import { loadProfile, profilePanel, PROFILE_SCRIPTS } from './profile'
 import { usernameHistoryFor } from '../auth/username'
@@ -521,7 +521,12 @@ settingsRoutes.post('/settings/notifications', requireActive, requireSameOrigin,
   if (!group) return c.redirect('/account#notifications', 303)
 
   const events = eventsInGroup(group.id as GroupId).map((e) => e.key)
-  await savePrefs(user.id, rowsFromForm(events, checkedKeys(body as Record<string, unknown>)))
+  const rows = rowsFromForm(events, checkedKeys(body as Record<string, unknown>))
+  await savePrefs(user.id, rows)
+  await quietUnread(
+    user.id,
+    rows.filter((r) => r.channel === MUTE && r.enabled).map((r) => r.event),
+  )
 
   const anchor = `notify-${group.id}`
   return c.redirect(`/settings?saved=${anchor}#${anchor}`, 303)

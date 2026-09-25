@@ -544,12 +544,25 @@
   // header takes everything left over — which is where the words are.
   thead th:not(:first-child),
   tbody td {
-    width: 4.5rem;
+    width: 4rem;
     text-align: center;
   }
 
   tbody th {
     font-weight: 400;
+  }
+
+  // A MUTED ROW READS AS MUTED, live as the box is ticked. The label and the two
+  // channel boxes dim, because while muted neither channel delivers; the boxes
+  // keep their values so unmuting restores them.
+  tbody tr:has(input[name$=":mute"]:checked) {
+    .notif-label {
+      color: $neutral-50;
+    }
+
+    td:not(:last-child) input {
+      opacity: 0.4;
+    }
   }
 
   tr:last-child th,
@@ -939,8 +952,8 @@
 }
 
 // THE NOTIFICATION CENTER. A record rather than an inbox — nothing here is
-// replied to, filed or dismissed, so the list carries no controls at all and the
-// only gesture is following one to the thing it is about.
+// replied to, filed or dismissed. The one control on a row is Mute, which
+// quiets that KIND rather than dismissing the row.
 .notif-feed {
   list-style: none;
   margin: 1.5rem 0 0;
@@ -950,6 +963,8 @@
 
 .notif-feed-item {
   border-bottom: 1px solid $grey;
+  // The Mute button sits in the row's top-right corner, over the link's padding.
+  position: relative;
 
   &:last-child {
     border-bottom: 0;
@@ -979,6 +994,24 @@
 
   > a:hover {
     background: $neutral-96;
+  }
+
+  // Room for the Mute button, so a long title wraps before reaching it.
+  &:has(> .notif-mute) > a,
+  &:has(> .notif-mute) > .notif-feed-plain {
+    padding-right: 6.5rem;
+  }
+}
+
+.notif-mute {
+  position: absolute;
+  top: 0.7rem;
+  right: 0.9rem;
+  margin: 0;
+
+  .btn {
+    padding: 0.3rem 0.7rem;
+    font-size: 0.8rem;
   }
 }
 

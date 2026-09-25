@@ -20,9 +20,10 @@
 // The rules and the claim are src/notifications/service.ts; this only decides
 // who may ask.
 import { Hono } from 'hono'
-import { currentUser, requireActive, requireActiveApi, type AuthEnv } from '../auth/middleware'
-import { claimPending, markAllRead, recentNotifications } from '../notifications/service'
-import { eventDef } from '../notifications/catalog'
+import { currentUser, requireActive, requireActiveApi, requireSameOrigin, type AuthEnv } from '../auth/middleware'
+import { claimPending, markAllRead, prefsOf, recentNotifications, setMuted } from '../notifications/service'
+import { eventDef, isEvent } from '../notifications/catalog'
+import { isMuted } from '../notifications/policy'
 import { markStyle } from '../notifications/marks'
 import { raw } from 'hono/html'
 import { icon } from '../views/icon'
@@ -54,9 +55,9 @@ notificationRoutes.post('/api/notifications/pending', requireActiveApi, async (c
  *
  * **A RECORD, NOT AN INBOX.** There is nothing to reply to, nothing to archive
  * and nothing to file: every row already happened somewhere else in the app, and
- * the only two things a rider does here are read the list and follow one to the
- * thing it is about. So there is no per-row dismiss, no bulk select, and no
- * unread toggle — opening the page IS the read, which is what makes the badge
+ * the things a rider does here are read the list, follow one to the thing it is
+ * about, and mute a kind that has become noise. So there is no per-row dismiss,
+ * no bulk select, and no unread toggle — opening the page IS the read, which is what makes the badge
  * mean "since you last looked" rather than "since you last remembered to tidy".
  *
  * **THE LIST IS READ BEFORE ANYTHING IS MARKED**, or a rider would arrive to a
@@ -72,7 +73,12 @@ notificationRoutes.post('/api/notifications/pending', requireActiveApi, async (c
  */
 notificationRoutes.get('/notifications', requireActive, async (c) => {
   const user = currentUser(c)
-  const [rows, dateFormat, clock] = await Promise.all([recentNotifications(user.id), dateFormatFor(c), clockFor(c)])
+  const [rows, dateFormat, clock, prefs] = await Promise.all([
+    recentNotifications(user.id),
+    dateFormatFor(c),
+    clockFor(c),
+    prefsOf(user.id),
+  ])
   // AFTER the read. See the note above.
   await markAllRead(user.id)
 
@@ -95,6 +101,7 @@ notificationRoutes.get('/notifications', requireActive, async (c) => {
         <ul class="notif-feed">
           {rows.map((n) => {
             const def = eventDef(n.event)
+            const muted = def ? isMuted(prefs, def.key) : false
             // `is-new` is what the rider came to see, and it is computed from
             // the values read BEFORE markAllRead ran — by the time this renders
             // the rows are stamped, which is why the flag cannot be re-derived.
@@ -127,6 +134,7 @@ notificationRoutes.get('/notifications', requireActive, async (c) => {
                 <span class="notif-feed-meta">
                   <span class="notif-meta-text">
                     {def ? def.label : n.event} · {when(n.createdAt)}
+                    {muted ? ' · Muted' : ''}
                   </span>
                   {/* A TINY GUIDE SIGN, AND IT IS A <span> RATHER THAN A LINK.
                       Ziad's call, 2026-09-09. The whole row is already the `<a>`
@@ -158,6 +166,23 @@ notificationRoutes.get('/notifications', requireActive, async (c) => {
                     anything whose subject has no page of its own, and a link to
                     nothing is worse than plain text. */}
                 {n.url ? <a href={n.url}>{row}</a> : <div class="notif-feed-plain">{row}</div>}
+                {/* MUTE THIS KIND, FROM WHERE IT ANNOYED YOU. A sibling of the
+                    row's link, never inside it: a form in an <a> is invalid and
+                    gives one row two hit targets. A plain POST, so it works with
+                    no script; the same switch is on Preferences › Notifications. */}
+                {def && (
+                  <form method="post" action="/notifications/mute" class="notif-mute">
+                    <input type="hidden" name="event" value={def.key} />
+                    <input type="hidden" name="muted" value={muted ? '0' : '1'} />
+                    <button
+                      type="submit"
+                      class="btn btn-quiet"
+                      aria-label={`${muted ? 'Unmute' : 'Mute'} notifications like this: ${def.label}`}
+                    >
+                      {muted ? 'Unmute' : 'Mute'}
+                    </button>
+                  </form>
+                )}
               </li>
             )
           })}
@@ -167,4 +192,16 @@ notificationRoutes.get('/notifications', requireActive, async (c) => {
   ).toString()
 
   return c.html(page({ title: 'Notifications', user, navKey: 'notifications', body, feedbackArea: 'account' }))
+})
+
+/**
+ * Mute or unmute one kind of notification from the center. A muted kind still
+ * lands here, already read, so it never adds to the badge, pops up or emails.
+ * An unknown event writes nothing, like every settings handler.
+ */
+notificationRoutes.post('/notifications/mute', requireActive, requireSameOrigin, async (c) => {
+  const user = currentUser(c)
+  const body = await c.req.parseBody()
+  if (isEvent(body.event)) await setMuted(user.id, body.event, body.muted === '1')
+  return c.redirect('/notifications', 303)
 })

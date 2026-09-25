@@ -17,7 +17,17 @@ import {
   isEvent,
   type NotificationEvent,
 } from '../src/notifications/catalog'
-import { channelsFor, checkedKeys, defaultFor, enabledFor, prefMap, rowsFromForm } from '../src/notifications/policy'
+import {
+  channelsFor,
+  checkedKeys,
+  defaultFor,
+  delivers,
+  enabledFor,
+  isMuted,
+  MUTE,
+  prefMap,
+  rowsFromForm,
+} from '../src/notifications/policy'
 import { ALL_EMAILS } from '../src/emails/index'
 
 describe('the catalog', () => {
@@ -178,7 +188,7 @@ describe('a rider’s stored answers', () => {
 
   it('reports both channels for one event together', () => {
     const prefs = prefMap([{ event: 'new_follower', channel: 'browser', enabled: true }])
-    expect(channelsFor(prefs, 'new_follower')).toEqual({ email: true, browser: true })
+    expect(channelsFor(prefs, 'new_follower')).toEqual({ email: true, browser: true, muted: false })
   })
 })
 
@@ -190,7 +200,7 @@ describe('what a submitted form stores', () => {
     // this form" are the same absence — writing every submitted event is what
     // tells them apart, and a delete would put them back together.
     const rows = rowsFromForm(rides, new Set([`${rides[0]}:email`]))
-    expect(rows.length).toBe(rides.length * 2)
+    expect(rows.length).toBe(rides.length * 3)
     expect(rows.filter((r) => r.enabled).map((r) => `${r.event}:${r.channel}`)).toEqual([`${rides[0]}:email`])
   })
 
@@ -218,6 +228,35 @@ describe('what a submitted form stores', () => {
     // settings handler follows.
     expect(checkedKeys({ group: 'rides' }).size).toBe(0)
     expect(checkedKeys({}).size).toBe(0)
+  })
+})
+
+describe('muting a kind', () => {
+  it('is off until asked', () => {
+    const prefs = prefMap([])
+    for (const e of EVENTS) expect(isMuted(prefs, e.key)).toBe(false)
+  })
+
+  it('stops delivery on both channels without changing what they are set to', () => {
+    const prefs = prefMap([
+      { event: 'ride_comment', channel: 'browser', enabled: true },
+      { event: 'ride_comment', channel: MUTE, enabled: true },
+    ])
+    expect(delivers(prefs, 'ride_comment', 'email')).toBe(false)
+    expect(delivers(prefs, 'ride_comment', 'browser')).toBe(false)
+    expect(channelsFor(prefs, 'ride_comment')).toEqual({ email: true, browser: true, muted: true })
+  })
+
+  it('touches no other kind', () => {
+    const prefs = prefMap([{ event: 'ride_comment', channel: MUTE, enabled: true }])
+    expect(delivers(prefs, 'ride_rsvp', 'email')).toBe(true)
+  })
+
+  it('round-trips through the form', () => {
+    const checked = checkedKeys({ 'ride_comment:mute': 'on', group: 'rides' })
+    expect([...checked]).toEqual(['ride_comment:mute'])
+    const rows = rowsFromForm(['ride_comment'], checked)
+    expect(rows.find((r) => r.channel === MUTE)).toEqual({ event: 'ride_comment', channel: MUTE, enabled: true })
   })
 })
 

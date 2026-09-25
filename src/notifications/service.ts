@@ -22,7 +22,7 @@ import { notificationPrefs, notifications, userProfiles, users } from '../db/sch
 import { sendTemplateDetached } from '../auth/mailer'
 import type { EmailTemplate } from '../emails/types'
 import { EVENTS, type Channel, type NotificationEvent } from './catalog'
-import { enabledFor, prefMap, type PrefRow } from './policy'
+import { delivers, isMuted, prefMap, type PrefRow } from './policy'
 import { vocabOf, wordsFor } from '../views/vocab'
 
 /** How long a raised notification is kept before the poll prunes it. Long
@@ -76,6 +76,34 @@ export async function savePrefs(userId: number, rows: readonly PrefRow[]): Promi
  * uses that today, and the field exists so that the first event which does is a
  * caller change and not a signature change.
  */
+/**
+ * A muted kind's row goes into the center already read and delivered, so it
+ * never counts toward the badge and never raises a popup. Stamped at write time
+ * rather than filtered at read time, which leaves the badge's query — run on
+ * every page render — untouched.
+ */
+const quietStamps = (muted: boolean): { readAt?: Date; deliveredAt?: Date } =>
+  muted ? { readAt: new Date(), deliveredAt: new Date() } : {}
+
+/** Mute or unmute one kind for one rider, from the notification center. */
+export async function setMuted(userId: number, event: NotificationEvent, muted: boolean): Promise<void> {
+  await savePrefs(userId, [{ event, channel: 'mute', enabled: muted }])
+  if (muted) await quietUnread(userId, [event])
+}
+
+/** Muting quiets anything of those kinds still unread, so the badge drops the
+ *  moment the rider asks rather than on their next visit to the center. */
+export async function quietUnread(userId: number, events: readonly string[]): Promise<void> {
+  if (events.length === 0) return
+  const now = new Date()
+  await db
+    .update(notifications)
+    .set({ readAt: now, deliveredAt: sql`coalesce(${notifications.deliveredAt}, ${now})` })
+    .where(
+      and(eq(notifications.userId, userId), inArray(notifications.event, [...events]), isNull(notifications.readAt)),
+    )
+}
+
 export type Notice<P> = {
   event: NotificationEvent
   title: string
@@ -120,7 +148,7 @@ export function notify<P>(userId: number, notice: Notice<P>): void {
   void (async () => {
     if ((await humansOnly([userId])).length === 0) return
     const prefs = await prefsOf(userId)
-    const want = (ch: Channel) => enabledFor(prefs, notice.event, ch)
+    const want = (ch: Channel) => delivers(prefs, notice.event, ch)
 
     if (notice.email && want('email')) {
       // The address is read here rather than passed in: every caller would
@@ -167,6 +195,7 @@ export function notify<P>(userId: number, notice: Notice<P>): void {
       title: notice.title,
       body: notice.body,
       url: notice.url ?? null,
+      ...quietStamps(isMuted(prefs, notice.event)),
     })
   })().catch((err) => {
     console.warn(`[notify] ${notice.event} failed:`, err instanceof Error ? err.message : err)
@@ -199,7 +228,7 @@ export function notifyOnce<P>(userId: number, notice: Notice<P>): void {
     if ((await humansOnly([userId])).length === 0) return
     const prefs = await prefsOf(userId)
 
-    if (notice.email && enabledFor(prefs, notice.event, 'email')) {
+    if (notice.email && delivers(prefs, notice.event, 'email')) {
       const [row] = await db
         .select({
           email: users.email,
@@ -234,6 +263,7 @@ export function notifyOnce<P>(userId: number, notice: Notice<P>): void {
           createdAt: now,
           readAt: null,
           deliveredAt: null,
+          ...quietStamps(isMuted(prefs, notice.event)),
         })
         .where(eq(notifications.id, existing.id))
       // ONE ROW IS AN INVARIANT, NOT A HOPE. Any others for the same event —
@@ -256,6 +286,7 @@ export function notifyOnce<P>(userId: number, notice: Notice<P>): void {
       title: notice.title,
       body: notice.body,
       url: notice.url ?? null,
+      ...quietStamps(isMuted(prefs, notice.event)),
     })
   })().catch((err) => {
     console.warn(`[notify] ${notice.event} (once) failed:`, err instanceof Error ? err.message : err)
@@ -303,18 +334,33 @@ export function notifyMany<P>(
     }
 
     const wantEmail: number[] = []
-    const toStore: Array<{ userId: number; event: string; title: string; body: string; url: string | null }> = []
+    const toStore: Array<{
+      userId: number
+      event: string
+      title: string
+      body: string
+      url: string | null
+      readAt?: Date
+      deliveredAt?: Date
+    }> = []
     const notices = new Map<number, Notice<P>>()
 
     for (const id of people) {
       const prefs = prefMap(byUser.get(id) ?? [])
       const notice = build(id)
       notices.set(id, notice)
-      if (notice.email && enabledFor(prefs, event, 'email')) wantEmail.push(id)
+      if (notice.email && delivers(prefs, event, 'email')) wantEmail.push(id)
       // Unconditional, like notify() above and for the same reason: the row is
       // the RECORD and the browser preference decides only whether a toast is
       // raised from it. See claimPending().
-      toStore.push({ userId: id, event, title: notice.title, body: notice.body, url: notice.url ?? null })
+      toStore.push({
+        userId: id,
+        event,
+        title: notice.title,
+        body: notice.body,
+        url: notice.url ?? null,
+        ...quietStamps(isMuted(prefs, event)),
+      })
     }
 
     if (toStore.length > 0) await db.insert(notifications).values(toStore)
@@ -368,7 +414,7 @@ export async function claimPending(userId: number, limit = 10) {
   // has never touched the settings page is polled for nothing and toasted for
   // nothing while their center still fills up.
   const prefs = await prefsOf(userId)
-  const wanted = EVENTS.filter((e) => enabledFor(prefs, e.key, 'browser')).map((e) => e.key)
+  const wanted = EVENTS.filter((e) => delivers(prefs, e.key, 'browser')).map((e) => e.key)
   if (wanted.length === 0) return []
 
   const due = await db
