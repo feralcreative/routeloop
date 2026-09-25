@@ -273,6 +273,12 @@ The profile had a suggestion dropdown built on the Geocoding response it already
 
 So Home base and Public starting point each have a Places lookup (#396), proxied through the server key like Text Search. Each lookup carries a session token the client mints and the one Details call closes, so it bills as one session rather than per keystroke. A typed address is still placed on blur with Geocoding, as before.
 
+## Muting a notification keeps it, quietly, 2026-09-24
+
+A muted kind still lands in the notification center; it never adds to the badge, pops up, or emails (#402). Silencing it outright was the other option and was not chosen: the center is the record of what happened, and a rider who mutes Release notes may still want to look.
+
+Mute is a third switch per kind rather than turning both channels off, so unmuting restores exactly what the rider had. A muted row is written already read and delivered instead of being filtered when read, which keeps the badge's query, run on every page, unchanged.
+
 ## Appendix: auth and place-search cost analysis, 2026-07-26
 
 Written before either migration, as analysis for a decision with nothing yet implemented. Both recommendations were followed on the auth side; the search side went to Google rather than trying Mapbox Search Box first. Retained because the cost model and the Apple-specific hazards are still the best record of what was weighed.
