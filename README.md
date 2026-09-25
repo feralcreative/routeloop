@@ -31,7 +31,7 @@ Auth changed because Cloudflare Access is billed **per seat**, which cannot surv
 
 Delivered in phases:
 
-- [x] **Data model**—rides → days → stops/POIs → routed legs; the 17-role taxonomy
+- [x] **Data model**—rides → routes → stops/POIs → routed legs; the 17-role taxonomy
 - [x] **Import**—KML/GPX upload becomes a structured, editable ride
 - [x] **Ride builder**—plan a road-snapped route, classify stops, save
 - [x] **Native viewer**—shared rides render from the database
@@ -43,30 +43,35 @@ Delivered in phases:
 - [x] **Ride timeline**—per-day date-times and the timeline slider
 - [x] **Import and export**—six formats in, five out; several files become the days of one ride
 - [x] **Roadbook**—a printable stop-by-stop sheet
-- [x] **Expand + the Google Maps hand-off**—`/m/:slug/navigate`, nine waypoints per link
+- [x] **Expand + the Google Maps hand-off**—`/m/:slug/go`, nine waypoints per link
 - [x] **Shaping**—drag the route line onto the road you meant
 - [x] **Undo and crash-recovery drafts** in the builder
-- [ ] **The group layer**—ride membership, friendships, and the visibility levels that need both
-- [ ] **Later**—bikes, saved places, on-the-road mobile interface, PostGIS
+- [x] **The group layer**—ride membership, friendships, following, the friends-only visibility level, groups that meet and split, and meeting-point proposals
+- [x] **The Paddock and saved places**—bikes with ranges and tanks for fuel planning, and places reused across rides
+- [x] **On the road**—a phone page per ride with the Maps hand-off and GPX files, kept offline on request
+- [x] **Public profiles**—`/@handle`, with a picture, bio, stats and Paddock, and a setting for who can see it
+- [ ] **Later**—PostGIS
 
 ## What it does
 
 - **Plan**—build a route on a map: click or search to add stops, and the road route is snapped between them. Classify each stop with the 17-role taxonomy (gas, food, camp, meet, scenic…).
 - **Organize**—a ride packages one or more days, all drawn on **one map at the same time** so you see the whole ride; a slider focuses a single day by dimming the rest. Stops, points of interest, and ephemeral shaping waypoints are distinct.
-- **Share**—public, unlisted, or private visibility, shareable by link.
+- **Share**—public, unlisted, friends-only or private visibility, shareable by link. Invite friends onto a ride's roster to RSVP, comment, suggest changes and vote on alternates.
+- **Ride together**—split a ride into groups that set off from different places, get meeting points proposed along the main group's road, and split a group off at any stop.
+- **Profiles**—each rider has a page at `/@handle` with their picture, a short bio, stats from their public rides, their public rides themselves and, if they choose, their Paddock. They decide who sees it: anyone, signed-in riders, or nobody but themselves (everyone else gets the name and handle only). Home base and a public starting point are found with a Google Places lookup.
 - **Import**—drop in existing `.kml` / `.kmz` / `.gpx` / `.geojson` / `.csv`, or a `.zip` of them, to migrate from other tools. Several files at once become the days of one ride, and files following the naming convention below arrive already named, ordered and dated.
 - **Export**—download any ride as KML, GPX, GeoJSON or CSV, whatever it was built or imported as, or as Routeloop JSON for a lossless backup that re-imports as the same ride. A multi-day ride can also come down as a zip of one conforming file per day.
 - **Roadbook**—a printable stop-by-stop sheet for the tank bag: leg and cumulative miles, miles since fuel, and an estimated clock.
 - **Shape**—drag the route line onto the road you actually meant. The dropped point becomes an ephemeral shaping waypoint on that leg, and only that leg re-routes.
-- **Hand off**—`/m/:slug/navigate` turns a day into an ordered series of Google Maps links, with an **Expand** density control that weaves in shaping points so Maps has too little room to pick its own roads. It also states the longest stretch Maps still chooses for itself rather than hiding it.
+- **Hand off**—`/m/:slug/go` (the old `/navigate` redirects) turns a route into an ordered series of Google Maps links, with an **Expand** density control that weaves in shaping points so Maps has too little room to pick its own roads. It also states the longest stretch Maps still chooses for itself rather than hiding it.
 - **Accounts**—sign in with Google or an emailed magic link. Every new account starts `pending` and must be approved from the owner's admin panel before it can use the app; each account has a storage quota for imported files.
-- **Email**—transactional mail from `routeloop.app` via Resend over SMTP, with replies received free through Cloudflare Email Routing. Four templates: the sign-in link, a waitlist confirmation, an approval notice, and a new-signup alert to the owner. See [docs/email.md](docs/email.md).
+- **Email**—transactional mail from `routeloop.app` via Resend over SMTP, with replies received free through Cloudflare Email Routing. Templates for the sign-in link, the waitlist, approval, and every notification a rider can opt into by email, from friend requests to release notes. See [docs/email.md](docs/email.md).
 
 ## Tech stack
 
 - **Backend**—TypeScript on Hono (Node in Docker; portable to Cloudflare Workers), PostgreSQL via Drizzle ORM, Zod validation.
-- **Maps**—Google Maps JavaScript API for rendering, Places (New) `AutocompleteSuggestion` for search, and the Routes API for per-leg road routing. The front end has no bundler; the inline bootstrap loader defines `google.maps.importLibrary` and libraries load on demand. Routing goes through a server-side proxy at `POST /api/route`, because the Routes key is IP-restricted and cannot be used from a browser. `public/js/map-common.js` is the only file that touches `google.maps`—the viewer and builder go through the handles it returns.
-- **Auth**—Google OAuth (via `arctic`) and an emailed magic link both resolve into the same hand-rolled server sessions, whose primary key is the SHA-256 hash of the browser token rather than the token itself. Authorization is separate: `users.status` (`pending` | `active` | `blocked`) decides who may actually use the app. Cloudflare Turnstile guards uploads and saves, feature-flagged off until keys are set.
+- **Maps**—Google Maps JavaScript API for rendering, Places (New) `AutocompleteSuggestion` for search in the builder, Places Text Search, Autocomplete and Details through server proxies (`src/maps/places.ts`) for category searches and the profile's address lookup, and the Routes API for per-leg road routing. The front end has no bundler; the inline bootstrap loader defines `google.maps.importLibrary` and libraries load on demand. Routing goes through a server-side proxy at `POST /api/route`, because the Routes key is IP-restricted and cannot be used from a browser. `public/js/map-common.js` is the only file that touches `google.maps`—the viewer and builder go through the handles it returns.
+- **Auth**—Google OAuth (via `arctic`) and an emailed magic link both resolve into the same hand-rolled server sessions, whose primary key is the SHA-256 hash of the browser token rather than the token itself. Authorization is separate: `users.status` (`pending` | `active` | `blocked`) decides who may actually use the app. Cloudflare Turnstile guards the file upload only, feature-flagged off until keys are set.
 - **Hosting**—Synology NAS (Docker) behind a Cloudflare Tunnel; HTTPS terminates at the Cloudflare edge and no inbound ports are open on the NAS.
 
 > There used to be a second, legacy viewer (`public/js/main.js`) rendering **imported** rides on its own shell. It survived the Mapbox era as the reference implementation for the port back to Google and was deleted on 2026-08-01, once it turned out the current engine already drew an imported ride correctly—`ride.json` had been serving both sources identically since per-leg spans were added. One viewer, one shell.
@@ -122,21 +127,20 @@ Delivered in phases:
 ### Run
 
 ```bash
-npm run dev
+npm start
 ```
 
-This runs the server, the SCSS watcher and live reload together—edit a stylesheet and the page updates without reloading. See [CONTRIBUTING.md](CONTRIBUTING.md) for the details and for `dev:server`, which starts the server alone.
+This runs the server, the SCSS watcher and live reload together, and opens the app in your browser once it answers—edit a stylesheet and the page updates without reloading. `npm run dev` does the same without opening a browser, and so does `npm run start:no-open`. See [CONTRIBUTING.md](CONTRIBUTING.md) for the details and for `dev:server`, which starts the server alone.
 
 Then open <http://localhost:6686>. The seed ride is at `/m/sample-route-one`; the builder is at `/builder`.
 
-One seeded ride is not enough to judge how the dashboard or the viewer read. To fill dev with varied, genuinely road-routed rides:
+One seeded ride is not enough to judge how the dashboard or the viewer read. To fill dev with about a dozen varied, genuinely road-routed rides:
 
 ```bash
-npx tsx utils/seed-demo-rides.ts                 # ~12 rides
-npx tsx utils/seed-demo-rides.ts --reset         # replace the previous set
-npx tsx utils/seed-demo-rides.ts --straight      # skip the API, straight legs
-npx tsx utils/seed-demo-rides.ts --owner=you@example.com
+npx tsx utils/seed-demo-rides.ts
 ```
+
+Add `--reset` to replace the previous set, `--straight` to skip the API and draw straight legs, or `--owner=you@example.com` to give them to a particular account.
 
 Legs come from the real Routes API so tracks follow actual roads, cached in a gitignored file so re-runs cost nothing. The RNG is seeded, so the same rides come back every time and a UI change is never confused with new data. It refuses to run unless `DATABASE_URL` is local.
 
@@ -148,8 +152,9 @@ Sign-in works locally once the Google OAuth client and SMTP credentials are in `
 
 ```bash
 npx tsx -e "import('./src/auth/session').then(async m => console.log(await m.createSession(1)))"
-# send it as: Cookie: routeloop_session=<token>
 ```
+
+Send the printed token as `Cookie: routeloop_session=<token>`.
 
 ## Project structure
 
@@ -185,6 +190,7 @@ src/                  TypeScript app (Hono)
   subgroups/          Converge-and-split groups: strands, the timing solve,
                       and the rendezvous proposer (pure geometry, no router)
   bikes/              The paddock, plus group-range.ts—the smallest tank
+  profiles/           The public profile: who sees how much of /@handle
   trash/              The recycle bin. purge.ts is the only code in the app
                       that destroys a ride
   account/            Deletion holds, the archive export, the quota sweep
@@ -194,10 +200,10 @@ src/                  TypeScript app (Hono)
                       routing.ts (Routes + Geocoding proxies), home.tsx (the
                       dashboard at /), admin.tsx (rider approval), auth.tsx,
                       pages.tsx (explore/profiles/legal), import.tsx,
-                      handoff.tsx (navigate), roadbook.tsx, roster.tsx,
+                      go.tsx (on the road), roadbook.tsx, roster.tsx,
                       riders.tsx (the Friends / All riders screen, at both
                       /riders and /friends), friends.tsx (the friendship verbs),
-                      trash.tsx, rendezvous.ts, settings.tsx
+                      trash.tsx, rendezvous.ts, settings.tsx, profile.tsx
   views/              layout.tsx (chrome shell), splash.tsx (alpha modal),
                       cards.tsx, tokens.ts (reads the compiled palette),
                       esc.ts, assets.ts
@@ -211,7 +217,7 @@ public/
   js/twist.js         Client twistiness, kept equal to the server's
   js/filename.js      The naming convention, kept equal to the server's
   js/import.js        The import drop box — enhancement over a plain form
-  js/profile.js       Profile page (address geocoding via /api/geocode)
+  js/profile.js       Profile tab: autosave, the Places lookup, address geocoding
   style/main.min.css  Compiled CSS (build artifact, git-ignored)
   img/icons/          Role SVGs (currentColor) + UI icons—22 files
 style/main.scss       SCSS source
@@ -236,7 +242,8 @@ drizzle/              Generated migrations + meta/ snapshots — committed;
                       applied by db:migrate and the one-shot migrate service
 vitest.config.ts      Test config — deliberately scoped to pure logic
 docs/                 STATUS.md (current state), ROADMAP.md (dev roadmap),
-                      ideas.md (vision), decisions.md,
+                      architecture.md, api.md, database.md, deployment.md,
+                      debugging.md, decisions.md, email.md, ideas.md (vision),
                       google-cloud-setup.md
 CONTRIBUTING.md       Setup, gotchas, conventions — start here to contribute
 _PLANS/               Plans + session handoff
@@ -248,9 +255,9 @@ Imported files live in a private `STORAGE_PATH` **outside** the web root, served
 ## The data model
 
 - **Ride**—the shareable package (slug, visibility, title): holds many routes.
-- **Route**—one day/session: an ordered list of stops joined by road-snapped legs, with an optional start/end date-time.
-- **Points** sit in one ordered list per day and come in two kinds: **Stops** (routing anchors—the road is drawn through them) and **POIs** (annotations that don't affect routing). Both carry an order and a duration. Every point you drop starts as a POI and is promoted to a stop when you want the route to go through it; the first point of a day is promoted for you. Ephemeral **shaping waypoints** are stored on the leg, not as points.
-- **Legs** carry the snapped geometry and the distance/duration between consecutive stops. That is true of imported rides too: the import cuts the uploaded track at its stops, so one code path renders both and an imported ride opens in the builder like any other.
+- **Route**—one stretch of the ride, often a day: an ordered list of points joined by road-snapped legs, with an optional start/end date-time.
+- **Points** sit in one ordered list per route and come in two kinds, and the road is drawn through both: a **stop** is somewhere you mean to stop, a **POI** somewhere you ride by. Both carry an order and a duration. Every point you drop starts as a POI and becomes a stop when you give it a category or promote it; the first point of a route is promoted for you. Ephemeral **shaping waypoints** are stored on the leg, not as points.
+- **Legs** carry the snapped geometry and the distance/duration between consecutive points. That is true of imported rides too: the import cuts the uploaded track at its stops, so one code path renders both and an imported ride opens in the builder like any other.
 
 Geometry is stored as `[lng, lat]` pairs—GeoJSON order. The Routes API returns that order too when asked for `GEO_JSON_LINESTRING`, so the migration needed no data backfill. Google's own JavaScript objects use `{lat, lng}`, and getting the two confused still renders a map, just in the wrong place, so exactly two functions do the conversion: `toGoogleWaypoint` on the server and `toLatLng`/`fromLatLng` in `map-common.js` on the client.
 
@@ -338,27 +345,31 @@ That archive drags straight back into `/import` and comes out as the ride it lef
 
 ## Deployment
 
-Target host is a Synology NAS. The app runs as a Docker container behind a Cloudflare Tunnel, with PostgreSQL as a sibling container. HTTPS terminates at Cloudflare's edge and no inbound ports are open on the NAS.
+Target host is a Synology NAS. The app runs as Docker containers behind a Cloudflare Tunnel, with PostgreSQL as a sibling container. HTTPS terminates at Cloudflare's edge. Deploys are blue/green: a Caddy proxy owns the host ports, the new color starts and passes its health check against the commit it was built from, and the proxy cuts over, so a deploy costs seconds of overlap rather than downtime. Every migration therefore has to be runnable against the release before it. The full topology and the traps each deploy has hit are in [docs/deployment.md](docs/deployment.md).
 
-Each container publishes two host ports and answers on both. Production serves `routeloop.app` from `localhost:16703`, with `tankbag.app` on `localhost:6686` redirecting to it; staging serves `stage.routeloop.app` from `localhost:6687`, with `stage.tankbag.app` on `localhost:16687` redirecting to it. Each hostname has always reached the same port through every rename—what changes is which one is canonical—so changing the name needed no tunnel or DNS change.
+Both environments deploy from a button: the **Deploy prod** and **Deploy stage** workflows in the Actions tab, or from a terminal:
 
 ```bash
-./utils/deploy/stage.sh --dry-run   # preview
-./utils/deploy/stage.sh             # stage.routeloop.app
-./utils/deploy/prod.sh              # routeloop.app
+gh workflow run deploy-prod.yml
 ```
 
-Production refuses a dirty tree or a non-`main` branch; `--force` bypasses both but never the confirmation. Staging has neither gate, so it is the one to use from a feature branch. Both build the image from the **working tree**, not from git, so uncommitted changes ship.
+```bash
+gh workflow run deploy-stage.yml
+```
+
+`utils/deploy/prod.sh` and `utils/deploy/stage.sh` still work from a laptop, and `utils/deploy/both.sh` deploys prod then stage. Production refuses a dirty tree or a non-`main` branch.
+
+**Stage runs on production's database and production's files**, so anything deleted on stage is deleted for real, and stage applies no migration of its own. When `main` carries a migration, deploy prod first.
 
 ### Moving data between environments
 
+To pull production down to your laptop:
+
 ```bash
-./utils/deploy/deploy-utils.sh db-clone prod dev     # pull production to your laptop
-./utils/deploy/deploy-utils.sh db-clone prod stage   # refresh staging
-DEPLOY_ENV=stage ./utils/deploy/deploy-utils.sh db-restore <file.sql.gz>
+./utils/deploy/deploy-utils.sh db-clone prod dev
 ```
 
-`db-clone` handles all three environments, local dev included, and syncs the KML/GPX storage alongside the database—a cloned database without those files 404s every imported ride. The destination is dropped and replaced, so it is backed up first and the undo command is printed. Prod as a _destination_ additionally requires `--force`; every destination requires typing its name.
+`db-clone` syncs the KML/GPX storage alongside the database, since a cloned database without those files 404s every imported ride. The destination is backed up first and the undo command is printed. It refuses to write to stage, because stage is production. Take a backup before anything destructive with `./utils/deploy/deploy-utils.sh db-backup`.
 
 > **Compose derives its project name from the directory it runs in**, and the volume prefix from that. Renaming a checkout therefore orphans the database: the stack comes back up on a brand-new empty volume while the rows sit in the old one, and the container name collides rather than failing cleanly. `docker-compose.yml` pins `name: routeloop` so the local prefix no longer depends on the path. The deployed stacks set `COMPOSE_PROJECT_NAME` explicitly for the same reason—which also means a stale volume from an earlier era can be silently adopted by a fresh deploy. Check `docker volume ls` before assuming a new environment is empty.
 
