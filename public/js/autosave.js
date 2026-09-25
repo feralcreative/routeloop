@@ -94,6 +94,13 @@
     // reasoning that neither changes without a page load. That was true until
     // this function existed, so it is told to forget.
     if (touched && window.TBFmt && window.TBFmt.forget) window.TBFmt.forget();
+    // A scheme saved here outranks the dev layer's per-browser Light/Dark flip,
+    // which would otherwise re-apply its own choice on the next page load.
+    if (form.elements.scheme) {
+      try {
+        localStorage.removeItem("routeloop.devSchemeFlip");
+      } catch (e) {}
+    }
   }
 
   function init(group) {
