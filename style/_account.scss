@@ -1281,6 +1281,11 @@
     vertical-align: middle;
   }
 
+  // The Term column sits flush with the heading and lede above the table.
+  th:first-child {
+    padding-left: 0;
+  }
+
   thead th {
     padding-bottom: 0.45rem;
     border-top: 0;
