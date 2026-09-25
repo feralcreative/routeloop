@@ -1142,6 +1142,10 @@ export async function accountPage(
             notification needs Chrome’s permission and only appears while you have Routeloop open in a tab, so it is a
             nudge while you are here rather than a way to be reached when you are&nbsp;not.
           </p>
+          <p>
+            <b>Mute</b> a kind you are tired of and it still shows up in your notifications, but it never adds to the
+            count, never pops up, and never emails. You can also mute a kind straight from your&nbsp;notifications.
+          </p>
           <p class="notif-permission" data-notif-permission hidden>
             <button type="button" class="btn btn-sign arrow-right arrow-n" data-notif-ask>
               Allow browser notifications
@@ -1194,13 +1198,14 @@ export async function accountPage(
                         </th>
                         <th scope="col">Email</th>
                         <th scope="col">Browser</th>
+                        <th scope="col">Mute</th>
                       </tr>
                     </thead>
                     <tbody>
                       {eventsInGroup(group.id).map((e) => {
                         const want = channelsFor(notifPrefs, e.key)
                         return (
-                          <tr>
+                          <tr class={want.muted ? 'is-muted' : undefined}>
                             <th scope="row">
                               <span class="label-row">
                                 <span class="notif-label">{e.label}</span>
@@ -1231,6 +1236,15 @@ export async function accountPage(
                                 <span class="visually-hidden">
                                   Show a browser notification when {e.label.toLowerCase()}
                                 </span>
+                              </label>
+                            </td>
+                            {/* MUTE KEEPS IT IN THE CENTER, QUIETLY: no badge, no
+                                popup, no email. The two channel boxes keep their
+                                own values underneath, so unmuting restores them. */}
+                            <td>
+                              <label class="notif-box">
+                                <input type="checkbox" name={`${e.key}:mute`} checked={want.muted} />
+                                <span class="visually-hidden">Mute notifications when {e.label.toLowerCase()}</span>
                               </label>
                             </td>
                           </tr>

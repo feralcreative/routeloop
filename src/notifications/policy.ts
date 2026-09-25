@@ -27,6 +27,18 @@
 // knows whether it can be honored.
 import { CHANNELS, isChannel, isEvent, type Channel, type NotificationEvent } from './catalog'
 
+/**
+ * MUTED IS A THIRD SWITCH PER EVENT, STORED BESIDE THE TWO CHANNELS. A muted kind
+ * still lands in the notification center, but already read and delivered, so it
+ * never bumps the badge or raises a popup, and its email is not sent. The
+ * channel switches keep their own values underneath, so unmuting puts back
+ * exactly what the rider had. Stored as `channel = 'mute'` in
+ * `notification_prefs`; `isChannel()` stays email and browser only, because
+ * muting is not somewhere a notification is delivered.
+ */
+export const MUTE = 'mute'
+const isPrefKey = (v: unknown): boolean => isChannel(v) || v === MUTE
+
 /** One stored answer. Exactly the columns the rules read, so a test does not
  *  have to build a whole row. */
 export type PrefRow = {
@@ -87,7 +99,7 @@ export const defaultFor = (channel: Channel, event?: string): boolean =>
 export function prefMap(rows: readonly PrefRow[]): Map<string, boolean> {
   const out = new Map<string, boolean>()
   for (const r of rows) {
-    if (!isEvent(r.event) || !isChannel(r.channel)) continue
+    if (!isEvent(r.event) || !isPrefKey(r.channel)) continue
     out.set(`${r.event}:${r.channel}`, r.enabled)
   }
   return out
@@ -106,9 +118,22 @@ export function enabledFor(prefs: Map<string, boolean>, event: NotificationEvent
 
 /** Both answers for one event, which is what the settings page renders as a
  *  row of two checkboxes. */
-export const channelsFor = (prefs: Map<string, boolean>, event: NotificationEvent): Record<Channel, boolean> => ({
+/** Whether a rider muted this kind. Nothing is muted until they say so. */
+export const isMuted = (prefs: Map<string, boolean>, event: NotificationEvent): boolean =>
+  prefs.get(`${event}:${MUTE}`) ?? false
+
+/** Whether to actually deliver on a channel: the channel is on and the kind is not muted.
+ *  `enabledFor` is the stored switch, which the settings page shows as it is. */
+export const delivers = (prefs: Map<string, boolean>, event: NotificationEvent, channel: Channel): boolean =>
+  !isMuted(prefs, event) && enabledFor(prefs, event, channel)
+
+export const channelsFor = (
+  prefs: Map<string, boolean>,
+  event: NotificationEvent,
+): Record<Channel, boolean> & { muted: boolean } => ({
   email: enabledFor(prefs, event, 'email'),
   browser: enabledFor(prefs, event, 'browser'),
+  muted: isMuted(prefs, event),
 })
 
 /**
@@ -134,6 +159,7 @@ export function rowsFromForm(submitted: readonly NotificationEvent[], checked: R
     for (const channel of CHANNELS) {
       out.push({ event, channel, enabled: checked.has(`${event}:${channel}`) })
     }
+    out.push({ event, channel: MUTE, enabled: checked.has(`${event}:${MUTE}`) })
   }
   return out
 }
@@ -145,7 +171,7 @@ export function checkedKeys(body: Record<string, unknown>): Set<string> {
   const out = new Set<string>()
   for (const key of Object.keys(body)) {
     const [event, channel] = key.split(':')
-    if (!isEvent(event) || !isChannel(channel)) continue
+    if (!isEvent(event) || !isPrefKey(channel)) continue
     out.add(key)
   }
   return out
