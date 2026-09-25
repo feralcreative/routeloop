@@ -9,20 +9,10 @@
 // It is also the only part of the geocoding path that CAN be tested. The route
 // around it needs Google; this needs a fixture.
 
-/** The four fields a profile address decomposes into.
- *
- *  THE COMPONENTS COST NOTHING EXTRA (#101). The Geocoding API already returns
- *  `address_components` in the response this endpoint has always made and threw
- *  them away; reading them is free. That is what makes a suggestion dropdown on
- *  the profile possible WITHOUT opening a Places Autocomplete SKU billed per
- *  keystroke on a page nobody has to search from.
- *
- *  The trade-off, stated rather than discovered: Geocoding gives fewer and
- *  rougher suggestions for a half-typed address than Places Autocomplete would.
- *  It fills every field correctly once a rider picks one, works outside the US,
- *  and adds no new billing surface, which is the balance this page wants. If the
- *  suggestions ever prove too thin, Autocomplete is the upgrade and it is a spend
- *  decision, not a code one. */
+/** The four fields a profile address decomposes into. Filled from Geocoding's
+ *  `address_components` when a typed address is placed on blur, and from Places
+ *  (New) `addressComponents`, via `fromPlacesComponents`, when a rider picks a
+ *  result from the profile's lookup. */
 export type AddressParts = {
   addressLine: string
   city: string
@@ -67,3 +57,16 @@ export type GoogleComponent = { long_name?: string; short_name?: string; types?:
 
 /** One geocoder result: where it is, what it is called, and its parts. */
 export type AddressHit = { lat: number; lng: number; label: string; parts?: AddressParts }
+
+/** Places API (New) spells a component `{longText, shortText, types}`; the
+ *  Geocoding shape above is what `addressParts` reads, so this converts. */
+export type PlacesComponent = { longText?: string; shortText?: string; types?: string[] }
+export const fromPlacesComponents = (c: PlacesComponent[] | undefined): GoogleComponent[] =>
+  (c ?? []).map((x) => ({ long_name: x.longText, short_name: x.shortText, types: x.types }))
+
+/** Types that mean the place IS an address rather than somewhere with a name. */
+const ADDRESS_TYPES = new Set(['street_address', 'premise', 'subpremise', 'route', 'postal_code', 'plus_code'])
+
+/** Whether a picked place is a business or landmark worth naming the block after. */
+export const isNamedPlace = (types: string[] | undefined): boolean =>
+  !!types && types.length > 0 && !types.some((t) => ADDRESS_TYPES.has(t) || t.startsWith('locality'))

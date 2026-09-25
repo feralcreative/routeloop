@@ -6,7 +6,7 @@
 // the rest rather than filling them wrongly. A city guessed out of a component
 // that merely sounds close is worse than an empty box the rider can type into.
 import { describe, expect, it } from 'vitest'
-import { addressParts } from '../src/maps/address'
+import { addressParts, fromPlacesComponents, isNamedPlace } from '../src/maps/address'
 
 const c = (long: string, short: string, ...types: string[]) => ({ long_name: long, short_name: short, types })
 
@@ -119,5 +119,28 @@ describe('the city fallback chain', () => {
 
   it('falls all the way to the county before giving up', () => {
     expect(addressParts([c('County', 'County', 'administrative_area_level_2')]).city).toBe('County')
+  })
+})
+
+describe('Places (New) components', () => {
+  it('decompose the same way as Geocoding ones', () => {
+    const p = addressParts(
+      fromPlacesComponents([
+        { longText: '1600', shortText: '1600', types: ['street_number'] },
+        { longText: 'Amphitheatre Parkway', shortText: 'Amphitheatre Pkwy', types: ['route'] },
+        { longText: 'Mountain View', shortText: 'Mountain View', types: ['locality', 'political'] },
+        { longText: 'California', shortText: 'CA', types: ['administrative_area_level_1', 'political'] },
+        { longText: '94043', shortText: '94043', types: ['postal_code'] },
+      ]),
+    )
+    expect(p).toEqual({ addressLine: '1600 Amphitheatre Parkway', city: 'Mountain View', state: 'CA', postalCode: '94043' })
+  })
+
+  it('names a business and not an address', () => {
+    expect(isNamedPlace(['cafe', 'food', 'establishment'])).toBe(true)
+    expect(isNamedPlace(['street_address'])).toBe(false)
+    expect(isNamedPlace(['premise', 'establishment'])).toBe(false)
+    expect(isNamedPlace(['locality', 'political'])).toBe(false)
+    expect(isNamedPlace([])).toBe(false)
   })
 })

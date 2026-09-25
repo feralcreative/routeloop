@@ -1,4 +1,4 @@
-// Google Places Text Search, in one place.
+// Google Places (New): Text Search, and Autocomplete plus Details for the profile.
 //
 // EXTRACTED FROM `routes/routing.ts` ON 2026-09-03 because a second caller
 // appeared: the meeting-point proposer needs gas stations along a road, and the
@@ -15,6 +15,8 @@
 // `[lng, lat]`, like every coordinate in this app. Declared here rather than
 // imported because kml.ts exports the Track (an array of these) and not the pair
 // itself, and a one-line alias beats widening that module's surface for it.
+import type { PlacesComponent } from './address'
+
 type LngLat = [number, number]
 
 const PLACES_ENDPOINT = 'https://places.googleapis.com/v1/places:searchText'
@@ -169,4 +171,108 @@ export async function searchPlaces(req: PlaceSearch, apiKey: string): Promise<Pl
     .filter((h): h is PlaceHit => h !== null)
 
   return { ok: true, places: rememberPlaces(key, hits) }
+}
+
+// --- Autocomplete and Details, for the profile's address lookup ---------------
+//
+// ONE SESSION PER LOOKUP. The client mints a token, every keystroke's
+// Autocomplete carries it, and the one Place Details call that resolves the pick
+// closes it. Google bills that as a single session rather than per keystroke.
+
+const AUTOCOMPLETE_ENDPOINT = 'https://places.googleapis.com/v1/places:autocomplete'
+const DETAILS_FIELD_MASK = 'displayName,formattedAddress,location,addressComponents,types'
+
+export type PlaceSuggestion = { id: string; main: string; secondary: string }
+export type PlaceDetail = {
+  name: string
+  address: string
+  lngLat: LngLat
+  types: string[]
+  components: PlacesComponent[]
+}
+
+async function placesFetch(url: string, init: RequestInit, label: string): Promise<Response | PlacesError> {
+  let res: Response
+  try {
+    res = await fetch(url, { ...init, signal: AbortSignal.timeout(10_000) })
+  } catch (err) {
+    console.error(`[places] ${label} unreachable:`, err instanceof Error ? err.stack : err)
+    return 'unreachable'
+  }
+  if (res.ok) return res
+  const detail = await res.text().catch(() => '')
+  console.error(`[places] ${label} ${res.status}: ${detail.slice(0, 300)}`)
+  return res.status === 403 && detail.includes('API_KEY_SERVICE_BLOCKED') ? 'blocked' : 'rejected'
+}
+
+export async function autocompletePlaces(
+  input: string,
+  sessionToken: string,
+  apiKey: string,
+): Promise<{ ok: true; suggestions: PlaceSuggestion[] } | { ok: false; error: PlacesError }> {
+  if (!apiKey) return { ok: false, error: 'unconfigured' }
+  const res = await placesFetch(
+    AUTOCOMPLETE_ENDPOINT,
+    {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'X-Goog-Api-Key': apiKey },
+      body: JSON.stringify({ input, sessionToken }),
+    },
+    'Autocomplete',
+  )
+  if (typeof res === 'string') return { ok: false, error: res }
+  const data = (await res.json().catch(() => null)) as {
+    suggestions?: {
+      placePrediction?: {
+        placeId?: string
+        text?: { text?: string }
+        structuredFormat?: { mainText?: { text?: string }; secondaryText?: { text?: string } }
+      }
+    }[]
+  } | null
+  const suggestions = (data?.suggestions ?? [])
+    .map((s) => s.placePrediction)
+    .filter((p): p is NonNullable<typeof p> => !!p?.placeId)
+    .slice(0, 5)
+    .map((p) => ({
+      id: p.placeId as string,
+      main: p.structuredFormat?.mainText?.text ?? p.text?.text ?? '',
+      secondary: p.structuredFormat?.secondaryText?.text ?? '',
+    }))
+  return { ok: true, suggestions }
+}
+
+export async function placeDetails(
+  placeId: string,
+  sessionToken: string,
+  apiKey: string,
+): Promise<{ ok: true; place: PlaceDetail | null } | { ok: false; error: PlacesError }> {
+  if (!apiKey) return { ok: false, error: 'unconfigured' }
+  const url = `https://places.googleapis.com/v1/places/${encodeURIComponent(placeId)}?sessionToken=${encodeURIComponent(sessionToken)}`
+  const res = await placesFetch(
+    url,
+    { headers: { 'X-Goog-Api-Key': apiKey, 'X-Goog-FieldMask': DETAILS_FIELD_MASK } },
+    'Place Details',
+  )
+  if (typeof res === 'string') return { ok: false, error: res }
+  const p = (await res.json().catch(() => null)) as {
+    displayName?: { text?: string }
+    formattedAddress?: string
+    location?: { latitude?: number; longitude?: number }
+    addressComponents?: PlacesComponent[]
+    types?: string[]
+  } | null
+  const lat = p?.location?.latitude
+  const lng = p?.location?.longitude
+  if (!p || !Number.isFinite(lat) || !Number.isFinite(lng)) return { ok: true, place: null }
+  return {
+    ok: true,
+    place: {
+      name: p.displayName?.text ?? '',
+      address: p.formattedAddress ?? '',
+      lngLat: [round6(Number(lng)), round6(Number(lat))],
+      types: p.types ?? [],
+      components: p.addressComponents ?? [],
+    },
+  }
 }

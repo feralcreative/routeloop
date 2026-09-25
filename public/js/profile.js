@@ -22,12 +22,16 @@
       lat: "f-homeLat",
       lng: "f-homeLng",
       status: "geocode-status",
+      lookup: "f-homeLookup",
+      label: "f-homeLabel",
     },
     {
       fields: ["startAddressLine", "startCity", "startState", "startPostalCode"],
       lat: "f-startLat",
       lng: "f-startLng",
       status: "start-geocode-status",
+      lookup: "f-startLookup",
+      label: "f-startLabel",
     },
   ];
 
@@ -122,35 +126,43 @@
 
   BLOCKS.forEach(wire);
 
-  // --- Address suggestions (#101) --------------------------------------------
-    //
-    // A dropdown ON the address line, replacing the status line below it as the primary
-    // feedback: help while typing rather than a report afterwards. Picking one fills the
-    // line, city, state, postal code and the coordinates in a single action.
-    //
-    // **IT COSTS NOTHING NEW, WHICH IS THE DESIGN.** The suggestions come from the same
-    // POST /api/geocode this page has always called — the Geocoding API already returned
-    // `address_components` and several results and the endpoint threw them away. Places
-    // Autocomplete would give richer suggestions for half-typed input and is billed per
-    // keystroke on a new SKU.
+  // --- Place lookup -----------------------------------------------------------
+  //
+  // A Google Places search above each block: a business, a landmark or an
+  // address. Picking one fills the name (when it is a named place and the name is
+  // still empty), the four address fields and the coordinates, then saves the
+  // block. It replaced the Geocoding dropdown on the address line, which could
+  // only ever match street addresses.
+  //
+  // ONE SESSION TOKEN PER LOOKUP: every keystroke carries it and the Details call
+  // that resolves the pick closes it, so Google bills the lookup as one session.
+  function newSession() {
+    return (crypto.randomUUID ? crypto.randomUUID() : String(Math.random()).slice(2) + Date.now()).replace(/[^A-Za-z0-9_-]/g, "");
+  }
+
   function suggestions(block) {
-    const line = document.getElementById("f-" + block.fields[0]);
+    const line = document.getElementById(block.lookup);
     if (!line) return;
+    const wrap = line.closest(".addr-lookup");
+    if (wrap) wrap.hidden = false;
+    const status = document.getElementById(block.status);
 
     const list = document.createElement("ul");
     list.className = "addr-suggest";
     list.setAttribute("role", "listbox");
+    list.id = block.lookup + "-list";
     list.hidden = true;
     line.setAttribute("role", "combobox");
     line.setAttribute("aria-expanded", "false");
     line.setAttribute("aria-autocomplete", "list");
-    line.setAttribute("autocomplete", "off");
+    line.setAttribute("aria-controls", list.id);
     line.insertAdjacentElement("afterend", list);
 
     let items = [];
     let active = -1;
     let timer = null;
     let seq = 0;
+    let session = newSession();
 
     function close() {
       list.hidden = true;
@@ -171,11 +183,34 @@
       else line.removeAttribute("aria-activedescendant");
     }
 
-    // FILLS EVERY FIELD, AND LEAVES ALONE THE ONES THE RESULT DOES NOT KNOW.
-    // The server returns '' for a component the country does not have, and
-    // writing that over a value the rider typed would be a suggestion deleting
-    // their work. Empty means "no answer", not "clear this".
-    function choose(hit) {
+    async function post(url, body) {
+      const res = await fetch(url, {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        credentials: "same-origin",
+        body: JSON.stringify(body),
+      });
+      const data = await res.json().catch(function () {
+        return {};
+      });
+      if (!res.ok) throw new Error(data.error || "place lookup failed");
+      return data;
+    }
+
+    // FILLS EVERY FIELD THE RESULT KNOWS AND LEAVES ALONE THE ONES IT DOES NOT:
+    // an empty component means "no answer", not "clear what the rider typed".
+    async function choose(item) {
+      close();
+      if (status) status.textContent = "Looking up " + item.main + "…";
+      let hit;
+      try {
+        hit = await post("/api/places/details", { id: item.id, session: session });
+      } catch (e) {
+        if (status) status.textContent = e.message;
+        return;
+      } finally {
+        session = newSession();
+      }
       const map = {};
       map[block.fields[0]] = hit.parts && hit.parts.addressLine;
       map[block.fields[1]] = hit.parts && hit.parts.city;
@@ -185,16 +220,15 @@
         const el = document.getElementById("f-" + name);
         if (el && map[name]) el.value = map[name];
       });
+      const labelEl = document.getElementById(block.label);
+      if (labelEl && hit.name && !labelEl.value.trim()) labelEl.value = hit.name;
       const latEl = document.getElementById(block.lat);
       const lngEl = document.getElementById(block.lng);
       if (latEl) latEl.value = String(hit.lat);
       if (lngEl) lngEl.value = String(hit.lng);
-      const status = document.getElementById(block.status);
-      if (status) status.textContent = hit.label;
-      close();
-      // The pick is what commits an address, so this is where the block's own
-      // save happens rather than on any timer. Fired as a real input event so a
-      // single listener owns the write.
+      if (status) status.textContent = "Matched: " + hit.label;
+      line.value = "";
+      // The pick is what commits an address; one listener owns that save.
       line.dispatchEvent(new Event("addr:chosen", { bubbles: true }));
     }
 
@@ -203,14 +237,16 @@
       list.replaceChildren();
       hits.forEach(function (hit, i) {
         const li = document.createElement("li");
-        li.id = block.fields[0] + "-suggest-" + i;
+        li.id = block.lookup + "-suggest-" + i;
         li.className = "addr-suggest-item";
         li.setAttribute("role", "option");
         li.setAttribute("aria-selected", "false");
-        li.textContent = hit.label;
+        const main = document.createElement("strong");
+        main.textContent = hit.main;
+        li.appendChild(main);
+        if (hit.secondary) li.appendChild(document.createTextNode(" " + hit.secondary));
         li.addEventListener("mousedown", function (e) {
-          // mousedown, not click: the input blurs before a click lands, and the
-          // blur handler closes the list out from under the pointer.
+          // mousedown, not click: the input blurs before a click lands.
           e.preventDefault();
           choose(hit);
         });
@@ -223,34 +259,30 @@
 
     async function look() {
       const q = line.value.trim();
-      // The same floor the geocoder itself uses. Below it there is nothing worth
-      // spending a call on.
-      if (q.length < 6) return close();
+      if (q.length < 3) return close();
       const mine = ++seq;
       try {
-        const res = await fetch("/api/geocode", {
-          method: "POST",
-          headers: { "content-type": "application/json" },
-          credentials: "same-origin",
-          body: JSON.stringify({ q: q }),
-        });
-        if (mine !== seq) return;
-        if (!res.ok) return close();
-        const data = await res.json();
+        const data = await post("/api/places/autocomplete", { q: q, session: session });
         if (mine !== seq) return;
         render(data.suggestions || []);
-      } catch {
+      } catch (e) {
+        if (mine !== seq) return;
         close();
+        if (status) status.textContent = e.message;
       }
     }
 
     line.addEventListener("input", function () {
       clearTimeout(timer);
-      // Longer than the autosave debounce on purpose: this one spends money.
-      timer = setTimeout(look, 400);
+      timer = setTimeout(look, 250);
     });
 
     line.addEventListener("keydown", function (e) {
+      // Enter in the lookup never submits the form: it is not a field.
+      if (e.key === "Enter" && (list.hidden || active < 0)) {
+        e.preventDefault();
+        return;
+      }
       if (list.hidden || items.length === 0) return;
       if (e.key === "ArrowDown") {
         e.preventDefault();
@@ -258,9 +290,7 @@
       } else if (e.key === "ArrowUp") {
         e.preventDefault();
         mark(active <= 0 ? items.length - 1 : active - 1);
-      } else if (e.key === "Enter" && active >= 0) {
-        // Only swallowed when something is highlighted — otherwise Enter still
-        // submits the form, which is what it does on every other field here.
+      } else if (e.key === "Enter") {
         e.preventDefault();
         choose(items[active]);
       } else if (e.key === "Escape") {
@@ -270,7 +300,6 @@
     });
 
     line.addEventListener("blur", function () {
-      // A frame's grace so a mousedown on an item is not beaten by the blur.
       setTimeout(close, 120);
     });
   }

@@ -15,8 +15,8 @@ import { twistiness } from '../maps/twist'
 import { requireActiveApi, requireAuthApi, requireSameOrigin, type AuthEnv } from '../auth/middleware'
 import { GMAPS_SERVER_KEY } from '../config'
 import { MAX_VIAS_PER_LEG } from '../maps/ride-graph'
-import { type AddressHit, type GoogleComponent, addressParts } from '../maps/address'
-import { searchPlaces } from '../maps/places'
+import { type AddressHit, type GoogleComponent, addressParts, fromPlacesComponents, isNamedPlace } from '../maps/address'
+import { autocompletePlaces, placeDetails, searchPlaces, type PlacesError } from '../maps/places'
 import { parseTerms, rankPlaces } from '../places/ranking'
 import { placeListsFor } from '../views/prefs'
 
@@ -488,4 +488,48 @@ routingRoutes.post('/api/places/search', requireAuthApi, requireActiveApi, requi
   }
   if (out.error === 'unreachable') return c.json({ error: 'place search is unavailable' }, 502)
   return c.json({ error: 'place search rejected the request' }, 502)
+})
+
+// --- The profile's address lookup (Places Autocomplete + Details) --------------
+//
+// Proxied for the same reason as Text Search: the key allowed to call Places is
+// the server's. The client owns the session token; one lookup is one session.
+
+const sessionToken = z.string().regex(/^[A-Za-z0-9_-]{8,64}$/)
+
+const placesFailure = (error: PlacesError) =>
+  error === 'unconfigured'
+    ? ({ error: 'place lookup is not configured' } as const)
+    : error === 'blocked'
+      ? ({ error: 'place lookup is not enabled on the server key—add Places API (New) to it' } as const)
+      : ({ error: 'place lookup is unavailable' } as const)
+
+routingRoutes.post('/api/places/autocomplete', requireAuthApi, requireActiveApi, requireSameOrigin, async (c) => {
+  const parsed = z
+    .object({ q: z.string().trim().min(3).max(200), session: sessionToken })
+    .safeParse(await c.req.json().catch(() => null))
+  if (!parsed.success) return c.json({ error: 'a search and a session are required' }, 400)
+  const out = await autocompletePlaces(parsed.data.q, parsed.data.session, GMAPS_SERVER_KEY)
+  if (out.ok) return c.json({ suggestions: out.suggestions })
+  return c.json(placesFailure(out.error), out.error === 'unconfigured' || out.error === 'blocked' ? 503 : 502)
+})
+
+routingRoutes.post('/api/places/details', requireAuthApi, requireActiveApi, requireSameOrigin, async (c) => {
+  const parsed = z
+    .object({ id: z.string().regex(/^[A-Za-z0-9_-]{1,300}$/), session: sessionToken })
+    .safeParse(await c.req.json().catch(() => null))
+  if (!parsed.success) return c.json({ error: 'a place and a session are required' }, 400)
+  const out = await placeDetails(parsed.data.id, parsed.data.session, GMAPS_SERVER_KEY)
+  if (!out.ok) {
+    return c.json(placesFailure(out.error), out.error === 'unconfigured' || out.error === 'blocked' ? 503 : 502)
+  }
+  if (!out.place) return c.json({ error: 'that place has no location' }, 404)
+  const p = out.place
+  return c.json({
+    name: isNamedPlace(p.types) ? p.name : '',
+    label: p.address || p.name,
+    lng: p.lngLat[0],
+    lat: p.lngLat[1],
+    parts: addressParts(fromPlacesComponents(p.components)),
+  })
 })
