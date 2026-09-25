@@ -943,6 +943,7 @@ export async function accountPage(
                               name={`custom-${t.id}`}
                               maxlength={40}
                               value={custom}
+                              placeholder="Your word"
                               aria-label={`Your word for ${t.label.toLowerCase()}`}
                             />
                           </label>
