@@ -465,7 +465,7 @@
     if (!watched(e.target)) return;
     // The fieldset the edit happened in, so the border lands on the group the
     // rider is actually looking at rather than on all of them.
-    const group = e.target.closest("fieldset");
+    const group = e.target.closest(".profile-form > fieldset");
     if (group) dirtyGroups.add(group);
     queue();
   });
@@ -491,7 +491,7 @@
     if (!watched(e.target)) return;
     // A checkbox fires `change` and not `input`, so the group has to be picked
     // up here too or the share flags save with no border.
-    const group = e.target.closest("fieldset");
+    const group = e.target.closest(".profile-form > fieldset");
     if (group) dirtyGroups.add(group);
     queue();
   });

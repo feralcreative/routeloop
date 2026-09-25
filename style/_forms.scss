@@ -37,6 +37,37 @@
     letter-spacing: 0.1em;
     color: $neutral-50;
   }
+
+  // A CARD'S LEGEND IS A FOLDER TAB. Lifted out of the border rather than
+  // straddling it, sitting on the card's top edge with the card's top-left corner
+  // squared to meet it. It takes the card's own ground and border, so a saving
+  // card's amber or green outline runs around the tab too, and it reaches 2px
+  // down over the card's top border so the two read as one piece.
+  > fieldset {
+    position: relative;
+    margin-top: 2.1rem;
+    border-top-left-radius: 0;
+
+    > legend {
+      position: absolute;
+      bottom: calc(100% - 2px);
+      left: -2px;
+      padding: 0.5rem 1rem 0.4rem;
+      background: inherit;
+      border: 2px solid;
+      border-color: inherit;
+      border-bottom: 0;
+      border-radius: 10px 10px 0 0;
+    }
+  }
+
+  // A fieldset INSIDE a card is a group of controls, not another card.
+  fieldset fieldset {
+    margin: 0 0 1rem;
+    padding: 0;
+    background: none;
+    border: 0;
+  }
 }
 
 // The import form. Same field styling as the profile, but no fieldsets — it is
