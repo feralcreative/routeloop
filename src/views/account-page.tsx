@@ -32,7 +32,6 @@ import { CLOCK_CHOICES, resolveClock, toClock } from './clock'
 import { VOLUME_CHOICES, toVolumeUnits } from './volume'
 import { MOTION_CHOICES, toMotion } from './motion'
 import { UNITS_CHOICES, toUnits } from './units'
-import { TIPS_CHOICES, toTips } from './tips'
 import {
   POWER_CHOICES,
   TERMS,
@@ -175,8 +174,6 @@ async function prefsFor(userId: number) {
       motion: userProfiles.motion,
       clock: userProfiles.clock,
       volumeUnits: userProfiles.volumeUnits,
-      tips: userProfiles.tips,
-      hideTour: userProfiles.hideTour,
       avoidPlaces: userProfiles.avoidPlaces,
       favorPlaces: userProfiles.favorPlaces,
       meetDivertMi: userProfiles.meetDivertMi,
@@ -193,8 +190,6 @@ async function prefsFor(userId: number) {
     motion: toMotion(p?.motion),
     clock: toClock(p?.clock),
     volumeUnits: toVolumeUnits(p?.volumeUnits),
-    tips: toTips(p?.tips),
-    hideTour: p?.hideTour ?? false,
     avoidPlaces: p?.avoidPlaces ?? '',
     favorPlaces: p?.favorPlaces ?? '',
     // Null is "never set", and the box shows the app's default as a placeholder
@@ -259,8 +254,6 @@ export async function accountPage(
     avoidPlaces,
     favorPlaces,
     meetDivertMi,
-    tips,
-    hideTour,
     vocab,
   } = await prefsFor(user.id)
   // The words the presets alone would give, with no Custom row — what each
@@ -1317,107 +1310,6 @@ export async function accountPage(
         {/* Rendered by profile.tsx, which owns this form's validation and its
             error re-render. Raw because it is already a string of markup this
             application produced — the same arrangement views/content.ts uses. */}
-        {/*
-          A FOLD AT THE TOP OF PROFILE, NOT A TOPIC ON PREFERENCES (#339).
-          Ziad's call, 2026-09-13: this is the first thing a new rider should
-          see and the last thing an old one wants to keep seeing, so it opens
-          by default and folds to one line once they close it. The fold is
-          remembered per browser in localStorage under `routeloop.fold.*`
-          (site.js writes it on `toggle`, FOLD_RESTORE in layout.tsx reads it
-          back before the page settles) — a fold is not a preference, and a
-          column would be a migration for a chevron. Nothing stored means
-          open, so a new rider sees it with no write anywhere.
-        */}
-        <details class="fold-card setting-topic" id="tips" data-fold="show-around" open>
-          <summary>
-            <h2>Show me around</h2>
-            <span class="fold-lead">The tour, and the tips on every control</span>
-          </summary>
-          <p>
-            Two things, for somebody new. The tour walks you through the builder once, step by step, and waits while you
-            build a real route. The tips are what stay behind it: point at anything and get a sentence on what it is for
-            and why you would touch it. Both are on to start with, and neither turns itself&nbsp;off.
-          </p>
-
-          {/*
-            THE TOUR IS A LINK, NOT A FORM. There is nothing to store from here —
-            it runs on the builder, and finishing or skipping it is what writes
-            `tour_done_at`, from the builder, through its own endpoint. This is
-            the same `/builder?tour` the account menu carries, so a rider has two
-            doors to one room and both open the same one.
-          */}
-          <p class="setting-actions">
-            <a class="btn" href="/builder?tour" data-tour-start>
-              Take the tour
-            </a>
-          </p>
-
-          {/*
-            ONE FIELDSET IN THE THREE-COLUMN GRID, which is what keeps it to a
-            third of the page rather than letting two radios run the full width
-            of a desktop window. The grid is the page's rhythm and a lone cell
-            still sits on it; a full-bleed choice set does not, and reads as a
-            different kind of control from the five below.
-          */}
-          <form method="post" action="/settings/tips" class="setting-form" data-autosave>
-            <div class="three-col">
-              <fieldset class="choice-set">
-                <legend class="choice-legend">
-                  Tips
-                  {raw(
-                    choiceKey(
-                      'tips',
-                      'the tips',
-                      TIPS_CHOICES.map((c) => ({ label: c.label, tip: c.example })),
-                    ),
-                  )}
-                </legend>
-                {TIPS_CHOICES.map((choice) => (
-                  <Choice
-                    name="tips"
-                    id={choice.id}
-                    checked={choice.id === tips}
-                    label={choice.label}
-                    tip={choice.example}
-                  />
-                ))}
-              </fieldset>
-            </div>
-            <div class="setting-actions">
-              <button type="submit" class="btn btn-sign arrow-right arrow-n" data-js-hide>
-                Save
-              </button>
-              <Saved when={on('tips')} />
-            </div>
-          </form>
-
-          {/*
-            THE HEADER'S SIGN HAS A SWITCH, AND IT IS ITS OWN FORM. Ziad's call,
-            2026-09-11. The sign sits beside the account chip on every page,
-            builder included, which a rider who has taken the tour twice does
-            not need to keep seeing; the account menu's own item stays, so this
-            hides an affordance and never the feature. Its own handler and its
-            own column, like every form on this page, so saving it cannot
-            revert the radios above.
-
-            A HIDDEN `present` FIELD, because an unticked checkbox sends
-            nothing and the handler has to tell "unticked" from "not this
-            form" — the same shape the notification forms carry as `group`.
-          */}
-          <form method="post" action="/settings/tour-button" class="setting-form" data-autosave>
-            <input type="hidden" name="present" value="1" />
-            <label class="check">
-              <input type="checkbox" name="hideTour" checked={hideTour} />
-              <span>Hide the Take the tour button in the header</span>
-            </label>
-            <div class="setting-actions">
-              <button type="submit" class="btn btn-sign arrow-right arrow-n" data-js-hide>
-                Save
-              </button>
-              <Saved when={on('tour-button')} />
-            </div>
-          </form>
-        </details>
 
         {raw(opts.profile)}
       </div>

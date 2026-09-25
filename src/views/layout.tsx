@@ -1051,16 +1051,7 @@ export function page(opts: PageOpts): string {
   const clock = u?.clock
   const localeAttr_ = ` data-date-format="${esc(dateFormat)}"`
   const clockAttr_ = clock && clock !== 'locale' ? ` data-clock="${esc(clock)}"` : ''
-  // A THIRD CLIENT STAMP, AND ITS ABSENCE MEANS THE OPPOSITE OF THE OTHERS' (#133).
-  //
-  // `data-motion` and `data-clock` omit their default member so something else
-  // can answer — the operating system, or the date format. Nothing else answers
-  // this one, so absence simply means `on`, which is the default. Stamping only
-  // the override is what makes a SIGNED-OUT visitor and a rider with no
-  // `user_profiles` row land where everybody else does: explanations on, which
-  // is the whole direction of the feature. See src/views/tips.ts.
-  const tipsAttr_ = u?.tips === 'off' ? ' data-tips="off"' : ''
-  // A FOURTH, AND IT IS THE ONE THAT SAYS "NEW" RATHER THAN "OFF". `data-tour`
+  // THE ONE THAT SAYS "NEW". `data-tour`
   // is stamped for a signed-in rider whose `tour_done_at` is null. Absent
   // for everybody else, including a signed-out visitor — there is no builder
   // for them to be toured through. The account menu reads it to decide
@@ -1085,7 +1076,7 @@ export function page(opts: PageOpts): string {
   const body = isMap ? opts.body : `<div class="page-wrap">\n${opts.body}\n${siteFooter(variant === 'splash')}\n</div>`
 
   return `<!doctype html>
-<html lang="en-US"${htmlClass}${themeAttr_}${schemeAttr_}${motionAttr_}${mapSchemeAttr_}${localeAttr_}${clockAttr_}${tipsAttr_}${tourAttr_}${tourRideAttr_}>
+<html lang="en-US"${htmlClass}${themeAttr_}${schemeAttr_}${motionAttr_}${mapSchemeAttr_}${localeAttr_}${clockAttr_}${tourAttr_}${tourRideAttr_}>
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
