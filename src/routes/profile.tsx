@@ -26,6 +26,7 @@ import { avatarSrc, fieldHelp } from '../views/layout'
 // that needs it, and the failure is a type error rather than anything readable.
 import { raw as rawHtml } from 'hono/html'
 import { SEP } from '../views/sep'
+import { BIO_MAX, DEFAULT_PROFILE_VISIBILITY, PROFILE_VISIBILITIES, VISIBILITY_CHOICES } from '../profiles/policy'
 
 export const profileRoutes = new Hono<AuthEnv>()
 
@@ -67,6 +68,7 @@ const profileFields = {
   facebook: optionalText(120),
   youtube: optionalText(120),
   strava: optionalText(120),
+  bio: optionalText(BIO_MAX),
 }
 
 // An unchecked checkbox is simply absent from the body, so presence is the value.
@@ -98,6 +100,8 @@ const profileSchema = z.object({
   // rider who wants their socials seen has to publish their phone to do it.
   sharePhone: checkbox,
   shareSocials: checkbox,
+  sharePaddock: checkbox,
+  profileVisibility: z.enum(PROFILE_VISIBILITIES).catch(DEFAULT_PROFILE_VISIBILITY),
 })
 
 type ProfileValues = z.infer<typeof profileSchema>
@@ -270,6 +274,63 @@ function HistoryBlock({ rows }: { rows: UsernameHistoryRow[] }) {
         })}
       </ul>
     </div>
+  )
+}
+
+/**
+ * Who sees /@handle and what is on it. The three levels are a disclosure, so each
+ * one's sentence is printed rather than tucked behind a `?`.
+ */
+function PublicPage({ user, values: v, errors }: { user: UserRow; values: Record<string, unknown>; errors?: FieldErrors }) {
+  const current = typeof v.profileVisibility === 'string' ? v.profileVisibility : DEFAULT_PROFILE_VISIBILITY
+  const bio = v.bio == null ? '' : String(v.bio)
+  const err = errors?.bio
+  return (
+    <fieldset class="public-page" id="public-page">
+      <legend>Your public page</legend>
+      <p class="field-hint">
+        {user.username ? (
+          <>
+            Lives at <a href={`/@${user.username}`}>routeloop.app/@{user.username}</a>. Who sees what is below; your
+            public rides are listed on it too, unless you hide&nbsp;it.
+          </>
+        ) : (
+          <>Pick a username above and your page lives at routeloop.app/@&nbsp;it.</>
+        )}
+      </p>
+      <fieldset class="choice-set">
+        <legend class="choice-legend">Who can see it</legend>
+        {VISIBILITY_CHOICES.map((c) => (
+          <label class="choice">
+            <input type="radio" name="profileVisibility" value={c.value} checked={current === c.value} />
+            <span class="choice-label">{c.label}</span>
+            <span class="choice-note">{c.hint}</span>
+          </label>
+        ))}
+      </fieldset>
+      <p class={`field${err ? ' has-error' : ''}`}>
+        <label for="f-bio">About you</label>
+        <textarea
+          id="f-bio"
+          name="bio"
+          rows={3}
+          maxlength={BIO_MAX}
+          aria-invalid={err ? 'true' : undefined}
+          aria-describedby={err ? 'e-bio' : 'h-bio'}
+        >
+          {bio}
+        </textarea>
+        {err && (
+          <span class="field-error" id="e-bio">
+            {err}
+          </span>
+        )}
+        <span class="field-hint" id="h-bio">
+          Optional, up to {BIO_MAX} characters. What you ride, where, and&nbsp;how.
+        </span>
+      </p>
+      <Check name="sharePaddock" label="Show my Paddock on my page" values={v} />
+    </fieldset>
   )
 }
 
@@ -594,6 +655,8 @@ export function profilePanel({ user, values, errors, saved, history }: RenderArg
           <Check name="shareSocials" label="Show these on my profile" values={v} />
         </fieldset>
 
+        <PublicPage user={user} values={v} errors={errors} />
+
         {/*
           #181. NO CLUB FIELDS, DELIBERATELY, and this note is what stands in for
           them until there is somewhere real to put one.
@@ -814,6 +877,9 @@ profileRoutes.post('/profile', requireActive, async (c) => {
         sharePhone: p.sharePhone,
         phone: text(p.phone),
         shareSocials: p.shareSocials,
+        sharePaddock: p.sharePaddock,
+        profileVisibility: p.profileVisibility,
+        bio: text(p.bio),
         instagram: handle(p.instagram),
         facebook: handle(p.facebook),
         youtube: handle(p.youtube),
@@ -888,9 +954,17 @@ const AUTOSAVE_FIELDS = [
   'facebook',
   'youtube',
   'strava',
+  'bio',
 ] as const
 
-const AUTOSAVE_FLAGS = ['shareLastName', 'addHomeToRides', 'sharePaymentHandles', 'sharePhone', 'shareSocials'] as const
+const AUTOSAVE_FLAGS = [
+  'shareLastName',
+  'addHomeToRides',
+  'sharePaymentHandles',
+  'sharePhone',
+  'shareSocials',
+  'sharePaddock',
+] as const
 
 /**
  * Which stored column each text field writes, and how its value is cleaned.
@@ -960,6 +1034,13 @@ profileRoutes.post('/api/profile', requireActiveApi, requireSameOrigin, async (c
   // rather than being inferred from what happens to be present.
   if (body._flags === '1') {
     for (const name of AUTOSAVE_FLAGS) set[name] = body[name] === 'on' || body[name] === 'true'
+  }
+
+  // A radio group: absent means not sent, and an unknown value is refused.
+  if ('profileVisibility' in body) {
+    const vis = z.enum(PROFILE_VISIBILITIES).safeParse(body.profileVisibility)
+    if (vis.success) set.profileVisibility = vis.data
+    else errors.profileVisibility = 'pick one of the three'
   }
 
   // displayName is the one required field, and an empty one is a rider mid-edit

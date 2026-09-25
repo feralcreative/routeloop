@@ -28,8 +28,19 @@ import { viewOf } from '../friends/service'
 import { FriendActions } from '../views/friend-actions'
 import { FollowForm } from '../views/follow-form'
 import { followViewOf } from '../follows/service'
-import { unitsFor } from '../views/prefs'
-import { wds } from '../views/vocab'
+import { dateFormatFor, unitsFor, volumeFor } from '../views/prefs'
+import { wd, wds, type Words } from '../views/vocab'
+import { avatarSrc, initialsOf } from '../views/layout'
+import { SEP } from '../views/sep'
+import { twistScale } from '../views/twist-scale'
+import { fmtCount, fmtDistance, fmtHours, rollUpTwist } from '../stats/shape'
+import { followCounts } from '../follows/service'
+import { bikeLabel, mlToTank } from '../bikes/policy'
+import { canSeePaddock, profileDepth, toProfileVisibility, type ProfileVisibility } from '../profiles/policy'
+import { friendCount, paddockOf, publicStats, type PublicStats } from '../profiles/service'
+import { distanceUnit, type Units } from '../views/units'
+import type { DateFormat } from '../views/date-format'
+import type { BikeRow } from '../db/schema'
 
 export const pageRoutes = new Hono<AuthEnv>()
 
@@ -143,19 +154,19 @@ pageRoutes.get('/explore', async (c) => {
 
 // Public rider profile at /@handle.
 //
-// What appears here is the whole privacy decision made visible, so the rule is written
-// as one list rather than scattered through the template:
+// The privacy rule, as one list:
 //
-//   shown        username, display name, public rides
-//   opt-in       last name, and only via share_last_name
-//   never        first name, email, home address, coordinates, payment handles
+//   always       username, display name (last name only via share_last_name)
+//   by depth     avatar, bio, joined month, counts, stats, public rides
+//   opt-in       socials (share_socials), paddock (share_paddock)
+//   never        first name, email, addresses, coordinates, phone, payment handles
 //
-// Payment handles are "never" rather than "opt-in" on purpose: they are for settling up
-// with people you are actually riding with, and a handle on a public page is a payment
-// request open to strangers.
-// Hono does not match `/@:username` — a literal prefix in front of a param is not
-// something its router handles — so this is a regex param, and pinning the charset to
-// the username rule means a bad handle 404s at the router instead of reaching a query.
+// How much a viewer gets is `profileDepth()` in src/profiles/policy.ts. A minimal
+// page is name and handle only: friend emails and rosters link here, so a hidden
+// rider still has somewhere to be added from.
+//
+// Hono does not match `/@:username`, so this is a regex param pinned to the
+// username charset: a bad handle 404s at the router.
 pageRoutes.get('/:handle{@[A-Za-z0-9_]{3,30}}', async (c) => {
   const handle = c.req.param('handle').slice(1) // drop the @
   const [row] = await db
@@ -166,9 +177,15 @@ pageRoutes.get('/:handle{@[A-Za-z0-9_]{3,30}}', async (c) => {
       status: users.status,
       deletionRequestedAt: users.deletionRequestedAt,
       isGuide: users.isGuide,
+      avatarUrl: users.avatarUrl,
+      createdAt: users.createdAt,
+      avatarBytes: userProfiles.avatarBytes,
       lastName: userProfiles.lastName,
       shareLastName: userProfiles.shareLastName,
       shareSocials: userProfiles.shareSocials,
+      sharePaddock: userProfiles.sharePaddock,
+      profileVisibility: userProfiles.profileVisibility,
+      bio: userProfiles.bio,
       instagram: userProfiles.instagram,
       facebook: userProfiles.facebook,
       youtube: userProfiles.youtube,
@@ -179,76 +196,195 @@ pageRoutes.get('/:handle{@[A-Za-z0-9_]{3,30}}', async (c) => {
     .where(sql`lower(${users.username}) = lower(${handle})`)
     .limit(1)
 
-  // A pending or blocked account has no public presence, and neither does one on
-  // its way out. Same 404 as a handle that was never claimed, so the page cannot
-  // be used to probe account states — including "did this rider just leave".
-  //
-  // The name itself stays reserved through the hold: username_history is
-  // untouched until the purge, so nobody else can claim it while the rider can
-  // still change their mind.
-  //
-  // A tour guide rider gets the same 404: it is a seeded account with no
-  // presence anywhere but the tour's own ride, and a page for one would be a
-  // page for nobody.
+  // Pending, blocked, leaving and tour-guide accounts all get the same 404 as a
+  // handle never claimed, so the page cannot probe account states.
   if (!row?.username || row.status !== 'active' || row.deletionRequestedAt || row.isGuide) {
     return c.text('Not found', 404)
   }
 
-  const cards = await db
-    .select({ ride: rides, color: routesTable.color })
-    .from(rides)
-    .leftJoin(routesTable, and(eq(routesTable.rideId, rides.id), eq(routesTable.position, 0)))
-    // LISTED_RIDE for the same reason /explore uses it: a public profile is a
-    // list, and an unlisted or friends-only ride has no business in one.
-    .where(and(eq(rides.ownerId, row.id), LISTED_RIDE, LIVE_RIDE))
-    .orderBy(desc(rides.viewCount), desc(rides.createdAt))
-    .limit(50)
-
-  const surname = row.shareLastName && row.lastName ? ` ${row.lastName}` : ''
-
-  // Signed-in visitors only, and never on your own profile. This page is
-  // readable signed out — see the route's own note — so `viewer` is genuinely
-  // often null here, and an Add friend button for someone with no account is an
-  // invitation to a form that would refuse them.
   const viewer = c.get('user') ?? null
-  const canAsk = viewer !== null && viewer.status === 'active' && viewer.id !== row.id
-  // Two independent relationships, so two lookups. Neither implies the other:
-  // a rider can follow someone they are not friends with, which is the whole
-  // point of following, and be friends with someone they do not follow.
+  const isSelf = viewer?.id === row.id
+  const visibility = toProfileVisibility(row.profileVisibility)
+  const depth = profileDepth(visibility, row.id, viewer)
+  const full = depth === 'full'
+  const showPaddock = full && canSeePaddock(visibility, row.sharePaddock ?? false, row.id, viewer)
+
+  // Signed-in, active, and not yourself. Friend and follow are two independent
+  // relationships, so two lookups.
+  const canAsk = viewer !== null && viewer.status === 'active' && !isSelf
   const [view, followView_] = canAsk
     ? await Promise.all([viewOf(viewer.id, row.id), followViewOf(viewer.id, row.id)])
     : (['none', 'none'] as const)
 
-  const units = await unitsFor(c)
-  const w = wordsOf({ user: c.get('user') ?? null })
+  const [cards, stats, friends, follows, bikes, units, dateFormat, volume] = full
+    ? await Promise.all([
+        db
+          .select({ ride: rides, color: routesTable.color })
+          .from(rides)
+          .leftJoin(routesTable, and(eq(routesTable.rideId, rides.id), eq(routesTable.position, 0)))
+          // LISTED_RIDE, as on /explore: an unlisted or friends-only ride has no
+          // business in a list.
+          .where(and(eq(rides.ownerId, row.id), LISTED_RIDE, LIVE_RIDE))
+          .orderBy(desc(rides.viewCount), desc(rides.createdAt))
+          .limit(50),
+        publicStats(row.id),
+        friendCount(row.id),
+        followCounts(row.id),
+        showPaddock ? paddockOf(row.id) : Promise.resolve([]),
+        unitsFor(c),
+        dateFormatFor(c),
+        volumeFor(c),
+      ])
+    : [[], null, 0, null, [], 'imperial' as const, 'en-US' as const, 'gallons' as const]
+
+  const w = wordsOf({ user: viewer })
+  const surname = row.shareLastName && row.lastName ? ` ${row.lastName}` : ''
+  const name = `${row.displayName}${surname}`
+  const face = full ? avatarSrc({ id: row.id, avatarUrl: row.avatarUrl, avatarBytes: row.avatarBytes ?? 0 }) : null
+  const liters = volume === 'liters'
 
   const body = (
     <>
-      <h1 class="profile-name">
-        {row.displayName}
-        {surname}
-      </h1>
-      <p class="profile-handle">@{row.username}</p>
-      {/*
-        GATED ON THE FLAG, and the flag defaults to false — filling a field in is
-        not agreeing to publish it. The PHONE is deliberately not here at all:
-        `sharePhone` says "riders on my rides", which is a membership scope, and a
-        public profile is not that. It belongs on a roster if it ever surfaces.
-      */}
-      {row.shareSocials && <SocialLinks row={row} />}
-      {canAsk && (
-        <div class="profile-acts friend-acts">
-          <FriendActions handle={row.username} view={view} back={`/@${row.username}`} />
-          <FollowForm handle={row.username} view={followView_} back={`/@${row.username}`} />
-        </div>
+      {isSelf && (
+        <p class="notice profile-self">
+          {SELF_NOTE[visibility]} <a href="/profile#public-page">Change who can see&nbsp;it</a>
+        </p>
       )}
-      <h2>Public {wds(w, 'journey')}</h2>
-      {raw(rideCards(cards, false, { units, words: w }))}
+      <header class="profile-head">
+        {full &&
+          (face ? (
+            <img class="rider-face profile-face" src={face} alt="" />
+          ) : (
+            <span class="rider-face profile-face is-initials" aria-hidden="true">
+              {initialsOf(row.displayName) || '?'}
+            </span>
+          ))}
+        <div class="profile-who">
+          <h1 class="profile-name">{name}</h1>
+          <p class="profile-handle">@{row.username}</p>
+          {full && (
+            <p class="profile-meta">
+              Planning since {fmtMonthYear(row.createdAt, dateFormat)}
+              {SEP}
+              {plural(friends, 'friend')}
+              {SEP}
+              {plural(follows?.followers ?? 0, 'follower')}
+            </p>
+          )}
+          {canAsk && (
+            <div class="profile-acts friend-acts">
+              <FriendActions handle={row.username} view={view} back={`/@${row.username}`} />
+              <FollowForm handle={row.username} view={followView_} back={`/@${row.username}`} />
+            </div>
+          )}
+        </div>
+      </header>
+
+      {full && row.bio && <p class="profile-bio">{row.bio}</p>}
+      {full && row.shareSocials && <SocialLinks row={row} />}
+
+      {full && stats && stats.rides > 0 && <PublicStatTiles stats={stats} units={units} words={w} />}
+
+      {showPaddock && bikes.length > 0 && (
+        <section class="profile-section">
+          <h2>Paddock</h2>
+          <ul class="profile-bikes">
+            {bikes.map((b) => (
+              <BikeCard bike={b} units={units} liters={liters} />
+            ))}
+          </ul>
+        </section>
+      )}
+
+      {full && (
+        <section class="profile-section">
+          <h2>Public {wds(w, 'journey')}</h2>
+          {cards.length > 0 ? (
+            raw(rideCards(cards, false, { units, words: w }))
+          ) : (
+            <p class="field-hint">Nothing public&nbsp;yet.</p>
+          )}
+        </section>
+      )}
     </>
   ).toString()
 
-  return render(c, row.displayName, body, 'content-page profile-page')
+  return render(c, name, body, `content-page profile-page${full ? '' : ' is-minimal'}`)
 })
+
+const SELF_NOTE: Record<ProfileVisibility, string> = {
+  public: 'This is your page as anyone sees it, signed in or not.',
+  members: 'This is your page as signed-in riders see it. Anyone else gets your name and handle only.',
+  hidden: 'Your page is hidden. Everyone else sees your name and handle only.',
+}
+
+const plural = (n: number, word: string) => `${n.toLocaleString('en-US')} ${word}${n === 1 ? '' : 's'}`
+
+const fmtMonthYear = (d: Date, f: DateFormat) => d.toLocaleDateString(f, { month: 'long', year: 'numeric', timeZone: 'UTC' })
+
+function PublicStatTiles({ stats, units, words }: { stats: PublicStats; units: Units; words: Words }) {
+  const twist = rollUpTwist(stats.twist, units)
+  return (
+    <section class="profile-section">
+      <h2>By the numbers</h2>
+      <ul class="stat-tiles">
+        <li class="stat-tile">
+          <span class="stat-head">
+            <span class="stat-value">{fmtCount(stats.rides)}</span>
+            <span class="stat-label">public {stats.rides === 1 ? wd(words, 'journey') : wds(words, 'journey')}</span>
+          </span>
+        </li>
+        <li class="stat-tile">
+          <span class="stat-head">
+            <span class="stat-value">{fmtDistance(stats.distanceM, units)}</span>
+            <span class="stat-label">{distanceUnit(units)} planned</span>
+          </span>
+        </li>
+        <li class="stat-tile">
+          <span class="stat-head">
+            <span class="stat-value">{fmtHours(stats.durationS)}</span>
+            <span class="stat-label">hours of riding</span>
+          </span>
+        </li>
+        {twist && (
+          <li class="stat-tile" title={`${twist.dpm} ${twist.unit}`}>
+            <span class="stat-label">Twistiness</span>
+            {raw(twistScale(twist.rank, twist.label))}
+          </li>
+        )}
+      </ul>
+    </section>
+  )
+}
+
+function BikeCard({ bike, units, liters }: { bike: BikeRow; units: Units; liters: boolean }) {
+  const label = bikeLabel(bike)
+  const spec = [bike.year ? String(bike.year) : null, bike.make, bike.model].filter(Boolean).join(' ')
+  const facts = [
+    bike.fuelType === 'electric' ? 'Electric' : null,
+    bike.usableRangeM ? `${fmtDistance(bike.usableRangeM, units)} ${distanceUnit(units)} range` : null,
+    bike.tankMl && bike.fuelType !== 'electric'
+      ? `${mlToTank(bike.tankMl, liters)} ${liters ? 'L' : 'gal'} tank`
+      : null,
+  ].filter(Boolean)
+  return (
+    <li class="profile-bike">
+      {bike.photoHash ? (
+        <img
+          class="profile-bike-photo"
+          src={`/bikes/${bike.id}/photo?v=${bike.photoHash}`}
+          alt={label}
+          loading="lazy"
+        />
+      ) : (
+        <span class="profile-bike-photo is-empty" aria-hidden="true"></span>
+      )}
+      <span class="profile-bike-name">{label}</span>
+      {bike.nickname && spec && <span class="profile-bike-spec">{spec}</span>}
+      {facts.length > 0 && <span class="profile-bike-facts">{facts.join(SEP)}</span>}
+    </li>
+  )
+}
 
 /**
  * The four social links, composed from stored HANDLES.

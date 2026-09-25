@@ -387,6 +387,8 @@
       if (!watched(el)) return;
       if (el.type === "checkbox") {
         if (el.checked) data.append(el.name, "on");
+      } else if (el.type === "radio") {
+        if (el.checked) data.append(el.name, el.value);
       } else {
         data.append(el.name, el.value);
       }
@@ -400,7 +402,7 @@
       if (!res.ok) throw new Error(String(res.status));
       const out = await res.json();
       Array.prototype.forEach.call(form.elements, function (el) {
-        if (watched(el) && el.type !== "checkbox") showError(el.name, null);
+        if (watched(el) && el.type !== "checkbox" && el.type !== "radio") showError(el.name, null);
       });
       const bad = Object.keys(out.errors || {});
       bad.forEach(function (name) {
