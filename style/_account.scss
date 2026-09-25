@@ -963,8 +963,10 @@
 
 .notif-feed-item {
   border-bottom: 1px solid $grey;
-  // The Mute button sits in the row's top-right corner, over the link's padding.
+  // The Mute sign is positioned against the row, beside "Read more".
   position: relative;
+  --more-w: 5.6rem;
+  --mute-w: 4.2rem;
 
   &:last-child {
     border-bottom: 0;
@@ -996,22 +998,68 @@
     background: $neutral-96;
   }
 
-  // Room for the Mute button, so a long title wraps before reaching it.
-  &:has(> .notif-mute) > a,
-  &:has(> .notif-mute) > .notif-feed-plain {
-    padding-right: 6.5rem;
+  // THE MUTE SIGN SITS JUST LEFT OF "Read more" ON THE META LINE. It is a form,
+  // so it cannot live inside the row's <a>; it is positioned over a gap the meta
+  // line's text keeps clear of instead. Both signs have fixed widths so the gap
+  // and the sign always agree. Bottom-aligned, because the meta line is the
+  // row's last; "Read more" keeps `margin-left: auto`, so it stays at the right
+  // edge when the line wraps on a phone and the Mute sign stays beside it.
+  &:has(> .notif-mute) .notif-meta-text {
+    margin-right: calc(var(--mute-w) + 0.4rem);
   }
 }
 
 .notif-mute {
   position: absolute;
-  top: 0.7rem;
-  right: 0.9rem;
+  right: calc(0.9rem + var(--more-w) + 0.4rem);
+  bottom: 0.9rem;
   margin: 0;
 
-  .btn {
-    padding: 0.3rem 0.7rem;
-    font-size: 0.8rem;
+  .notif-feed-item:not(:has(.notif-more)) > & {
+    right: 0.9rem;
+  }
+
+  // THE SAME SMALL SIGN AS "Read more", in the regulatory red while the kind is
+  // live and a gray field once it is muted. The gray is `$concrete`, fixed in
+  // every palette, so it carries BLACK ink: white on it is under 4.5:1.
+  button {
+    box-sizing: border-box;
+    width: var(--mute-w);
+    padding: 0.34rem 0.4rem 0.2rem;
+    border: 0;
+    border-radius: 4px;
+    font: inherit;
+    font-size: 0.72rem;
+    font-weight: 500;
+    line-height: 1.2;
+    white-space: nowrap;
+    cursor: pointer;
+    background: $stop;
+    color: $ink-light;
+    box-shadow:
+      inset 0 0 0 2px $stop,
+      inset 0 0 0 3px $ink-light;
+
+    &:hover {
+      background: color-mix(in oklab, $stop, black 12%);
+    }
+
+    &:focus-visible {
+      outline: 2px solid $brand;
+      outline-offset: 2px;
+    }
+  }
+
+  &.is-muted button {
+    background: $concrete;
+    color: $ink-dark;
+    box-shadow:
+      inset 0 0 0 2px $concrete,
+      inset 0 0 0 3px $ink-dark;
+
+    &:hover {
+      background: color-mix(in oklab, $concrete, white 14%);
+    }
   }
 }
 
@@ -1088,7 +1136,13 @@
 .notif-more {
   display: inline-flex;
   align-items: center;
+  justify-content: center;
   flex: none;
+  box-sizing: border-box;
+  // Fixed so the Mute sign beside it always lands in the same place, and pushed
+  // right on its own line when the meta wraps on a phone.
+  width: var(--more-w, auto);
+  margin-left: auto;
   gap: 0;
   // MORE ON TOP THAN ON THE BOTTOM, the same asymmetry `sign-field()` carries and
   // for the same reason — which is worth stating correctly, because the obvious
