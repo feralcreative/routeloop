@@ -60,6 +60,13 @@
     }
   }
 
+  // Each card reaches 0.9rem past its cell on both sides (_account.scss), which
+  // ate all but a sliver of the grid's column gap. This puts 2rem back between
+  // two cards side by side.
+  &.two-col {
+    column-gap: calc(2rem + 1.8rem);
+  }
+
   // A fieldset INSIDE a card is a group of controls, not another card.
   fieldset fieldset {
     margin: 0 0 1rem;
