@@ -155,7 +155,9 @@
   box-sizing: border-box;
   width: 100%;
   min-height: 2.1rem;
-  padding: 0.2rem 0.35rem;
+  // Uneven on purpose, like `.btn`'s own padding: Overpass rides high in its line
+  // box, and 0.14em more on top than below is what centers the capitals (measured).
+  padding: calc(0.2rem + 0.14em) 0.35rem calc(0.2rem - 0.14em);
   font-size: 0.78rem;
   line-height: 1.1;
   white-space: nowrap;
