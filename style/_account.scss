@@ -1319,16 +1319,27 @@
     }
   }
 
-  // THE BOX IS TWENTY-FOUR CHARACTERS WIDE — twice the longest default word
-  // ("gas stations", twelve), sized in the same two steps as the pill beside
-  // it. Ziad's call, 2026-09-21. The pill shrinks to it rather than filling
-  // the cell.
+  // THE CUSTOM PILL IS DRAWN EXACTLY LIKE THE DEFAULT ONE (2026-09-24): same
+  // 13rem floor, and its text box is bare text inside the pill rather than a
+  // field in a field. The pill's own border and focus ring are the only edge.
   .jargon-custom .jargon-pick {
     display: inline-flex;
+    box-sizing: border-box;
+    min-width: 13rem;
 
     input[type="text"] {
-      flex: none;
-      width: 24ch;
+      flex: 1 1 auto;
+      width: auto;
+      padding: 0;
+      border: 0;
+      border-radius: 0;
+      background: transparent;
+      line-height: inherit;
+      outline: none;
+
+      &::placeholder {
+        color: $neutral-50;
+      }
     }
   }
 
