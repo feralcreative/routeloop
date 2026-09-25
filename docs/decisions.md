@@ -259,6 +259,20 @@ Google Analytics 4 and the Cloudflare Web Analytics beacon, on every page, in pr
 
 **The Cloudflare beacon is a snippet the site ships, not the edge auto-injection it had been.** The old setup ran on the pre-rename `tankbag.app` host with the EU excluded and nothing in the repo could show it was running on `routeloop.app` at all. A snippet is in view-source and in the repo, and does not depend on the edge rewriting HTML. It is cookieless and loads for everyone.
 
+## The public profile has three levels, and hidden is not a 404, 2026-09-24
+
+`/@handle` was readable by anyone and showed a rider's public rides to anyone. It gained a picture, a bio, stats and a Paddock (#395), and with them a setting for who sees the page: anyone, signed-in riders, or nobody. The default is signed-in riders, which is narrower than before, so no rider's page became more exposed by the change.
+
+**Hidden keeps the name, the handle and the friend and follow buttons.** A 404 was the other option and was rejected: friendship emails and rosters link to this page, and a rider who hides it still has to be addable. The owner always sees the full page, with a line saying who else can.
+
+**Stats count listed rides only**, so a figure on a public page never includes a private ride, and the Paddock is its own opt-in because filling a garage in is not agreeing to publish it. Bike photos follow the Paddock's gate.
+
+## The profile's address lookup is Places Autocomplete, 2026-09-24
+
+The profile had a suggestion dropdown built on the Geocoding response it already paid for (#101), on the recorded reasoning that Places Autocomplete was a new billing line for a page nobody has to search from. That reasoning held while the field was a street address. A public starting point is usually a business—"the Chevron on Moraga", "Peet's at the plaza"—and Geocoding cannot find one by name.
+
+So Home base and Public starting point each have a Places lookup (#396), proxied through the server key like Text Search. Each lookup carries a session token the client mints and the one Details call closes, so it bills as one session rather than per keystroke. A typed address is still placed on blur with Geocoding, as before.
+
 ## Appendix: auth and place-search cost analysis, 2026-07-26
 
 Written before either migration, as analysis for a decision with nothing yet implemented. Both recommendations were followed on the auth side; the search side went to Google rather than trying Mapbox Search Box first. Retained because the cost model and the Apple-specific hazards are still the best record of what was weighed.
