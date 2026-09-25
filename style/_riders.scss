@@ -126,15 +126,52 @@
 }
 
 .rider-card-acts {
-  display: flex;
-  flex-wrap: wrap;
-  justify-content: center;
+  // Equal columns side by side, so two verbs are the same width and one lines up
+  // under the next card's. A label too long for half the card widens its own
+  // column rather than being cut off.
+  display: grid;
+  grid-auto-flow: column;
+  grid-auto-columns: minmax(max-content, 1fr);
   gap: 0.4rem;
+  width: 100%;
   margin-top: auto;
 
   form {
+    display: flex;
     margin: 0;
   }
+}
+
+// ONE COMPACT SIZE FOR EVERY VERB ON A CARD. A full guide sign, a flat Cancel
+// request and the plain word Friends were three heights on three baselines. The
+// sign keeps its keyline, thinned: a transparent 2px border lets the variant's
+// own field show as the outer ring, hover included, and the white line is an
+// inset shadow inside it.
+.rider-cards .rider-card-acts .btn.btn-sm,
+.rider-cards .rider-card-acts .friend-state {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-sizing: border-box;
+  width: 100%;
+  min-height: 2.1rem;
+  padding: 0.2rem 0.35rem;
+  font-size: 0.78rem;
+  line-height: 1.1;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.rider-cards .rider-card-acts .btn.btn-sign,
+.rider-cards .rider-card-acts .btn.btn-sign:hover {
+  border: 2px solid transparent;
+  box-shadow: inset 0 0 0 1.5px currentColor;
+}
+
+.rider-cards .rider-card-acts .friend-state {
+  border: 1px solid $grey;
+  border-radius: 6px;
 }
 
 // --- The three sizes ---------------------------------------------------------
@@ -153,8 +190,13 @@
 }
 
 .rider-cards--md {
-  grid-template-columns: repeat(auto-fill, minmax(12rem, 1fr));
+  // 14rem rather than 12: two verbs side by side need it.
+  grid-template-columns: repeat(auto-fill, minmax(14rem, 1fr));
   --face: 64px;
+
+  .rider-card {
+    padding: 1rem 0.75rem;
+  }
 }
 
 // Small is a list again — one across, the face at the left, the verb at the
@@ -184,8 +226,9 @@
   }
 
   .rider-card-acts {
+    width: auto;
     margin-top: 0;
-    justify-content: flex-end;
+    grid-auto-columns: 8.5rem;
   }
 }
 
