@@ -10,6 +10,7 @@ import {
   POWERS,
   aWd,
   customWord,
+  exampleParts,
   toJargon,
   toPower,
   toVehicle,
@@ -82,5 +83,17 @@ describe('vocab', () => {
   it('power terms mirror POWERS minus pedal', () => {
     expect(POWERS).toContain('pedal')
     for (const t of TERMS) if (t.axis === 'power') expect(t.by.pedal).toBeUndefined()
+  })
+})
+
+describe('the settings examples read with the word in force', () => {
+  it('gives every term a slot for its word', () => {
+    for (const t of TERMS) expect(t.where, t.id).toMatch(/\{(one|many|One|Many)\}/)
+  })
+
+  it('fills the slots, capitalized where the template asks', () => {
+    const parts = exampleParts('“Plan a {one}”, the {Many} tab', { one: 'fart', many: 'farts' })
+    expect(parts.map((p) => p.text).join('')).toBe('“Plan a fart”, the Farts tab')
+    expect(parts.filter((p) => p.slot).map((p) => p.text)).toEqual(['fart', 'Farts'])
   })
 })

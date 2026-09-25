@@ -30,12 +30,50 @@
     return window.TBVocab.resolve(d.terms, { vehicle: d.profile.vehicle, power: d.profile.power, jargon: {} }, null);
   }
 
+  // A typed word, with `one/many` giving its plural — customWord() in vocab.js.
+  function customWord(s) {
+    const i = s.indexOf("/");
+    if (i > 0) {
+      const one = s.slice(0, i).trim();
+      return { one, many: s.slice(i + 1).trim() || one };
+    }
+    return { one: s, many: s + "s" };
+  }
+
+  // THE EXAMPLE READS WITH THE WORD IN FORCE: the Custom box when its pill is
+  // picked and holds a word, otherwise the default. Mirrors exampleParts() in
+  // src/views/vocab.ts, and builds text nodes so a typed word stays text.
+  function fillExample(row, preset) {
+    const cell = row.querySelector(".jargon-where[data-example]");
+    if (!cell) return;
+    const box = row.querySelector('.jargon-pick--custom input[type="text"]');
+    const picked = row.querySelector('.jargon-pick--custom input[type="radio"]');
+    const typed = box && picked && picked.checked && box.value.trim();
+    const word = typed ? customWord(typed) : preset[row.getAttribute("data-term")];
+    if (!word) return;
+    const template = cell.getAttribute("data-example");
+    const parts = [];
+    let last = 0;
+    template.replace(/\{(one|many|One|Many)\}/g, (m, key, at) => {
+      if (at > last) parts.push(template.slice(last, at));
+      const raw = key.toLowerCase() === "one" ? word.one : word.many;
+      const b = document.createElement("b");
+      b.textContent = key[0] === key[0].toUpperCase() ? window.TBVocab.cap(raw) : raw;
+      parts.push(b);
+      last = at + m.length;
+      return m;
+    });
+    if (last < template.length) parts.push(template.slice(last));
+    cell.replaceChildren(...parts);
+  }
+
   function markRow(row, preset) {
     const term = row.getAttribute("data-term");
     const axis = row.getAttribute("data-axis");
     const word = preset[term];
     const off = axis === "power" && word === null;
     row.classList.toggle("is-off", off);
+    fillExample(row, preset);
     // A regional row has no preset; its default is its first option and the
     // server rendered it.
     if (off || axis === "regional") return;
@@ -117,5 +155,15 @@
     const custom = box.closest(".jargon-pick--custom");
     const radio = custom && custom.querySelector('input[type="radio"]');
     if (radio && box.value.trim()) radio.checked = true;
+    const row = box.closest("tr[data-term]");
+    if (row) fillExample(row, presetWords());
+  });
+
+  // Picking the Default pill back puts the default word back in the example.
+  table.addEventListener("change", (e) => {
+    const radio = e.target;
+    if (!(radio instanceof HTMLInputElement) || radio.type !== "radio") return;
+    const row = radio.closest("tr[data-term]");
+    if (row) fillExample(row, presetWords());
   });
 })();
