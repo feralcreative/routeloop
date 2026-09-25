@@ -258,7 +258,7 @@ export const EVENTS = [
   {
     key: 'release',
     group: 'account',
-    label: 'Routeloop changed',
+    label: 'Release notes',
     detail: 'The release notes, in your notifications, so you see what changed without going to look.',
     optional: true,
     icon: 'product',
