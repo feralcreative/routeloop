@@ -176,9 +176,10 @@ notificationRoutes.get('/notifications', requireActive, async (c) => {
                     <input type="hidden" name="muted" value={muted ? '0' : '1'} />
                     <button
                       type="submit"
-                      aria-label={`${muted ? 'Unmute' : 'Mute'} notifications like this: ${def.label}`}
+                      title={`${muted ? 'Unmute' : 'Mute'} all “${def.label}” notifications`}
+                      aria-label={`${muted ? 'Unmute' : 'Mute'} all “${def.label}” notifications`}
                     >
-                      {muted ? 'Unmute' : 'Mute'}
+                      {muted ? 'Unmute' : 'STFU'}
                     </button>
                   </form>
                 )}

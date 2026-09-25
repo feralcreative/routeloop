@@ -1019,9 +1019,11 @@
     right: 0.9rem;
   }
 
-  // THE SAME SMALL SIGN AS "Read more", in the regulatory red while the kind is
-  // live and a gray field once it is muted. The gray is `$concrete`, fixed in
-  // every palette, so it carries BLACK ink: white on it is under 4.5:1.
+  // THE SAME SMALL SIGN AS "Read more": red on white while the kind is live, and a
+  // gray field once it is muted. The white is `$ink-light`, never `$white`, which
+  // is the page surface and turns near-black in the dark. The gray is
+  // `$concrete`, fixed in every palette, so it carries BLACK ink: white on it is
+  // under 4.5:1.
   button {
     box-sizing: border-box;
     width: var(--mute-w);
@@ -1034,14 +1036,16 @@
     line-height: 1.2;
     white-space: nowrap;
     cursor: pointer;
-    background: $stop;
-    color: $ink-light;
+    background: $ink-light;
+    color: $stop;
+    font-weight: 700;
+    letter-spacing: 0.04em;
     box-shadow:
-      inset 0 0 0 2px $stop,
-      inset 0 0 0 3px $ink-light;
+      inset 0 0 0 2px $ink-light,
+      inset 0 0 0 3px $stop;
 
     &:hover {
-      background: color-mix(in oklab, $stop, black 12%);
+      background: color-mix(in oklab, $stop, white 88%);
     }
 
     &:focus-visible {
@@ -1053,6 +1057,8 @@
   &.is-muted button {
     background: $concrete;
     color: $ink-dark;
+    font-weight: 500;
+    letter-spacing: normal;
     box-shadow:
       inset 0 0 0 2px $concrete,
       inset 0 0 0 3px $ink-dark;
