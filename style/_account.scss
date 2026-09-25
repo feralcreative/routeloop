@@ -552,6 +552,19 @@
     font-weight: 400;
   }
 
+  // The column label with its tick-all box above it, centered on the column's
+  // own boxes so the head reads as the switch for everything under it.
+  .notif-col-head {
+    display: inline-flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 0.3rem;
+
+    input {
+      margin: 0;
+    }
+  }
+
   // A MUTED ROW READS AS MUTED, live as the box is ticked. The label and the two
   // channel boxes dim, because while muted neither channel delivers; the boxes
   // keep their values so unmuting restores them.

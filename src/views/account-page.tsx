@@ -1197,9 +1197,24 @@ export async function accountPage(
                         <th scope="col">
                           <h3>{group.label}</h3>
                         </th>
-                        <th scope="col">Email</th>
-                        <th scope="col">Browser</th>
-                        <th scope="col">Mute</th>
+                        {/* A TICK-ALL PER COLUMN, per group. Hidden until
+                            notif-columns.js reveals it, because with no script
+                            it would be a box that does nothing. Nameless, so it
+                            is never posted. */}
+                        {(['email', 'browser', 'mute'] as const).map((col) => (
+                          <th scope="col">
+                            <span class="notif-col-head">
+                              <input
+                                type="checkbox"
+                                class="notif-col-all"
+                                data-col={col}
+                                hidden
+                                aria-label={`All ${col === 'email' ? 'Email' : col === 'browser' ? 'Browser' : 'Mute'} in ${group.label}`}
+                              />
+                              {col === 'email' ? 'Email' : col === 'browser' ? 'Browser' : 'Mute'}
+                            </span>
+                          </th>
+                        ))}
                       </tr>
                     </thead>
                     <tbody>
@@ -1367,7 +1382,8 @@ export async function accountPage(
     // state, so a missing script fails silently rather than loudly.
     scripts: `<script src="${asset('/js/tabs.js')}" defer></script>
   <script src="${asset('/js/autosave.js')}" defer></script>
-  <script src="${asset('/js/jargon.js')}" defer></script>\n  ${opts.scripts ?? ''}\n  ${tourAssets(user).scripts}`,
+  <script src="${asset('/js/jargon.js')}" defer></script>
+  <script src="${asset('/js/notif-columns.js')}" defer></script>\n  ${opts.scripts ?? ''}\n  ${tourAssets(user).scripts}`,
     // The tour's paddock beat lands on the Paddock tab, so the page carries
     // the tour's assets while one is running.
     head: tourAssets(user).head,
