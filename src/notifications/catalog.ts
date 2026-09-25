@@ -61,12 +61,12 @@ export type GroupId = (typeof GROUPS)[number]['id']
 type EventDef = {
   readonly key: string
   readonly group: GroupId
-  /** The control's own label on the settings page. Written from the RIDER'S
-   *  side — "Somebody comments on your ride", not "Comment created" — because
-   *  the page is a list of things that will happen to them. */
+  /** The kind's short name: the settings row, the center's meta line and the
+   *  mute tooltip ("Mute all Comments notifications"). A few words, since
+   *  2026-09-24; what triggers it is `detail`, behind the `?` on the settings row. */
   readonly label: string
-  /** One line under the label saying who triggers it and when, for the cases
-   *  where the label alone leaves that ambiguous. */
+  /** Who triggers it and when, in the settings row's `?` bubble. The short
+   *  label no longer says, so every event needs one that does. */
   readonly detail: string
   /**
    * Whether this event can be turned off at all.
@@ -136,8 +136,9 @@ export const EVENTS = [
   {
     key: 'ride_comment',
     group: 'rides',
-    label: 'Somebody comments on a ride you own',
-    detail: 'Commenting is roster-only, so this is always somebody you put on the ride.',
+    label: 'Comments',
+    detail:
+      'Somebody comments on a ride you own. Commenting is roster-only, so it is always somebody you put on the ride.',
     optional: true,
     icon: 'comment',
     tone: 'info',
@@ -145,8 +146,8 @@ export const EVENTS = [
   {
     key: 'ride_suggestion',
     group: 'rides',
-    label: 'Somebody suggests a change to a ride you own',
-    detail: 'A whole route proposed against yours, for you to accept or discard.',
+    label: 'Suggestions',
+    detail: 'Somebody proposes a whole route against one of yours, for you to accept or discard.',
     optional: true,
     icon: 'proposal',
     tone: 'info',
@@ -154,8 +155,8 @@ export const EVENTS = [
   {
     key: 'suggestion_decided',
     group: 'rides',
-    label: 'Your suggestion was accepted or discarded',
-    detail: 'The other half of the one above, from the proposer’s side.',
+    label: 'Suggestion decisions',
+    detail: 'The owner accepted or discarded a route you suggested.',
     optional: true,
     icon: 'proposal',
     tone: 'info',
@@ -163,8 +164,8 @@ export const EVENTS = [
   {
     key: 'vote_resolved',
     group: 'rides',
-    label: 'A vote on an alternate route closed',
-    detail: 'Only when a winner was actually elected—a tie changes nothing and says nothing.',
+    label: 'Votes',
+    detail: 'A vote on an alternate route closed with a winner. A tie changes nothing and says nothing.',
     optional: true,
     icon: 'vote',
     tone: 'info',
@@ -173,8 +174,8 @@ export const EVENTS = [
   {
     key: 'ride_added',
     group: 'roster',
-    label: 'Somebody puts you on a ride',
-    detail: 'You can only be added by a friend, so this is never a stranger.',
+    label: 'Added to a ride',
+    detail: 'Somebody puts you on a ride. Only a friend can, so it is never a stranger.',
     optional: true,
     icon: 'roster',
     tone: 'info',
@@ -182,8 +183,8 @@ export const EVENTS = [
   {
     key: 'ride_rsvp',
     group: 'roster',
-    label: 'Somebody says whether they are coming',
-    detail: 'On a ride you own. One message per answer, including a changed one.',
+    label: 'RSVPs',
+    detail: 'Somebody says whether they are coming on a ride you own, including when they change their answer.',
     optional: true,
     icon: 'roster',
     tone: 'info',
@@ -192,8 +193,8 @@ export const EVENTS = [
   {
     key: 'friend_request',
     group: 'people',
-    label: 'Somebody asks to be your friend',
-    detail: 'A request is the one thing you cannot discover any other way.',
+    label: 'Friend requests',
+    detail: 'Somebody asks to be your friend.',
     optional: true,
     icon: 'friendship',
     tone: 'info',
@@ -201,8 +202,8 @@ export const EVENTS = [
   {
     key: 'friend_accepted',
     group: 'people',
-    label: 'Your friend request was accepted',
-    detail: 'A decline sends nothing, deliberately—see the FAQ on how refusals work.',
+    label: 'Friend request accepted',
+    detail: 'Somebody accepted your friend request. A decline sends nothing, deliberately.',
     optional: true,
     icon: 'friendship',
     tone: 'info',
@@ -210,8 +211,8 @@ export const EVENTS = [
   {
     key: 'new_follower',
     group: 'people',
-    label: 'Somebody follows you',
-    detail: 'Following is one-way and grants no access to anything of yours.',
+    label: 'New followers',
+    detail: 'Somebody follows you. Following is one-way and grants no access to anything of yours.',
     optional: true,
     icon: 'friendship',
     tone: 'info',
@@ -220,8 +221,8 @@ export const EVENTS = [
   {
     key: 'feedback_status',
     group: 'account',
-    label: 'Something changed on a report you filed',
-    detail: 'Fixed, planned, being worked on, or not happening. Never on every edit.',
+    label: 'Report updates',
+    detail: 'A report you filed changed: fixed, planned, being worked on, or not happening. Never on every edit.',
     optional: true,
     icon: 'bug',
     tone: 'info',
@@ -230,7 +231,8 @@ export const EVENTS = [
     key: 'trash_purge_soon',
     group: 'account',
     label: 'Recycle bin',
-    detail: 'One message for your whole bin, a week before the first ride goes, bumped rather than repeated.',
+    detail:
+      'Rides in your bin are about to be deleted for good. One message for the whole bin, a week before the first ride goes.',
     optional: true,
     icon: 'storage',
     tone: 'stop',
@@ -239,8 +241,8 @@ export const EVENTS = [
   {
     key: 'quota_full',
     group: 'account',
-    label: 'Your storage is nearly full',
-    detail: 'Once when you cross the line, and again only after you drop back under it.',
+    label: 'Storage',
+    detail: 'Your storage is nearly full. Once when you cross the line, and again only after you drop back under it.',
     optional: true,
     icon: 'storage',
     tone: 'warn',
@@ -248,8 +250,8 @@ export const EVENTS = [
   {
     key: 'account_purge_soon',
     group: 'account',
-    label: 'Your account is about to be deleted',
-    detail: 'Only if you asked for it. Signing in cancels the deletion.',
+    label: 'Account deletion',
+    detail: 'Your account is about to be deleted. Only if you asked for it; signing in cancels it.',
     optional: true,
     icon: 'storage',
     tone: 'stop',
@@ -259,7 +261,7 @@ export const EVENTS = [
     key: 'release',
     group: 'account',
     label: 'Release notes',
-    detail: 'The release notes, in your notifications, so you see what changed without going to look.',
+    detail: 'What changed in Routeloop, so you see it without going to look.',
     optional: true,
     icon: 'product',
     tone: 'info',
