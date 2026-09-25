@@ -171,12 +171,11 @@ notificationRoutes.get('/notifications', requireActive, async (c) => {
                     gives one row two hit targets. A plain POST, so it works with
                     no script; the same switch is on Preferences › Notifications. */}
                 {def && (
-                  <form method="post" action="/notifications/mute" class="notif-mute">
+                  <form method="post" action="/notifications/mute" class={`notif-mute${muted ? ' is-muted' : ''}`}>
                     <input type="hidden" name="event" value={def.key} />
                     <input type="hidden" name="muted" value={muted ? '0' : '1'} />
                     <button
                       type="submit"
-                      class="btn btn-quiet"
                       aria-label={`${muted ? 'Unmute' : 'Mute'} notifications like this: ${def.label}`}
                     >
                       {muted ? 'Unmute' : 'Mute'}
