@@ -315,5 +315,5 @@ export const VEHICLE_CHOICES: { id: Vehicle; label: string; example: string }[] 
 export const POWER_CHOICES: { id: Power; label: string; example: string }[] = [
   { id: 'gas', label: 'Gasoline', example: 'gas, tank, gas station' },
   { id: 'electric', label: 'Electricity', example: 'charge, battery, charger' },
-  { id: 'pedal', label: 'Pedals', example: 'nothing to plan fuel around' },
+  { id: 'pedal', label: 'Feets', example: 'nothing to plan fuel around' },
 ]
