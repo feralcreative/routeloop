@@ -51,7 +51,18 @@
   // with no reload; the choice is remembered in localStorage and re-applied
   // on boot OVER the server's stamp, for as long as it is set. Note it does
   // not touch the stored preference — Preferences still says what it said.
-  var SCHEME_KEY = "routeloop.devScheme";
+  //
+  // **IT REMEMBERS ONLY A PRESS.** It used to store whatever scheme was on
+  // screen the first time it loaded, so a browser that first saw the light
+  // page pinned "light" over every later Dark saved in Preferences. Saving a
+  // scheme in Preferences now clears it too (autosave.js), so the saved
+  // preference wins until the button is pressed again.
+  // Renamed from `routeloop.devScheme` when it stopped storing unpressed
+  // choices; the old key held exactly those, so it is dropped on sight.
+  var SCHEME_KEY = "routeloop.devSchemeFlip";
+  try {
+    localStorage.removeItem("routeloop.devScheme");
+  } catch (e) {}
 
   function currentScheme() {
     var s = document.documentElement.getAttribute("data-scheme");
@@ -59,11 +70,13 @@
     return matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light";
   }
 
-  function setScheme(v) {
+  function setScheme(v, remember) {
     document.documentElement.setAttribute("data-scheme", v);
-    try {
-      localStorage.setItem(SCHEME_KEY, v);
-    } catch (e) {}
+    if (remember) {
+      try {
+        localStorage.setItem(SCHEME_KEY, v);
+      } catch (e) {}
+    }
     var b = document.getElementById("dev-scheme");
     if (b) b.textContent = v === "dark" ? "Dark" : "Light";
   }
@@ -143,14 +156,17 @@
     sb.id = "dev-scheme";
     sb.title = "Flip light/dark for this browser (dev only)";
     sb.addEventListener("click", function () {
-      setScheme(currentScheme() === "dark" ? "light" : "dark");
+      setScheme(currentScheme() === "dark" ? "light" : "dark", true);
     });
     document.body.appendChild(sb);
     var saved = null;
     try {
       saved = localStorage.getItem(SCHEME_KEY);
     } catch (e) {}
-    setScheme(saved === "dark" || saved === "light" ? saved : currentScheme());
+    if (saved === "dark" || saved === "light") setScheme(saved, false);
+    else {
+      sb.textContent = currentScheme() === "dark" ? "Dark" : "Light";
+    }
 
     sweep(document.body);
     new MutationObserver(function (records) {
