@@ -229,7 +229,7 @@ export const EVENTS = [
   {
     key: 'trash_purge_soon',
     group: 'account',
-    label: 'Rides in your bin are about to be destroyed',
+    label: 'Recycle bin',
     detail: 'One message for your whole bin, a week before the first ride goes, bumped rather than repeated.',
     optional: true,
     icon: 'storage',
