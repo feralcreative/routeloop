@@ -4505,7 +4505,9 @@
       // NAMES THE COMPROMISE: these stations are real and on the road, and what they
       // are not is reachable on the tank somebody arrives with.
       return (
-        '<p class="sg-note">No gas station both groups can reach on one tank—these need a fuel stop first:</p>' +
+        '<p class="sg-note">No ' +
+        stationWord() +
+        " both groups can reach on one tank—these need a fuel stop first:</p>" +
         meetListHtml(data.candidates, data.group, base)
       );
     }
@@ -4514,7 +4516,9 @@
       // no station is ordinary on a rural road, and a rider who asked for a
       // forecourt and got a mile marker has to be told.
       return (
-        '<p class="sg-note">No gas station on the stretch everyone can reach—these are the best spots on the road:</p>' +
+        '<p class="sg-note">No ' +
+        stationWord() +
+        " on the stretch everyone can reach—these are the best spots on the road:</p>" +
         meetListHtml(data.candidates, data.group, base)
       );
     }
@@ -4683,7 +4687,7 @@
       const pt = newPoint(lng, lat, d.name || "Meeting point", d.address);
       // `gas` alongside `meet` when it is a forecourt: the fuel overlay reads that role
       // to decide where a tank refills.
-      pt.roles = d.name ? ["meet", "gas"] : ["meet"];
+      pt.roles = d.name ? ["meet", fuelRole()] : ["meet"];
       // NEVER BEFORE THE FIRST POINT. A joining group contributes a STARTING POINT and
       // nothing else, so its route is routinely one point long — and `points.length -
       // 1` is 0 there, which put the meeting point ahead of where the group sets off
@@ -6532,10 +6536,15 @@
     }));
   }
 
-  // WHICH CATEGORY PUTS FUEL BACK IN, from the bike the plan is built around. `gas`
-  // when nothing is known, because it is what all but a handful of bikes take and
-  // the alternative is showing no fuel figures at all.
-  const fuelRole = () => (window.TB.range && window.TB.range.fuelType === "electric" ? "charge" : "gas");
+  // WHICH CATEGORY PUTS FUEL BACK IN (#31): the ride's own power when the planner
+  // set one, so the chip's word and its search agree, then the binding bike's,
+  // then the rider's default. Mirrors fuelRoleOf() in src/subgroups/rendezvous.ts.
+  function fuelRole() {
+    const bike = window.TB.range && window.TB.range.fuelType;
+    const profile = window.TBVocabData && window.TBVocabData.profile ? window.TBVocabData.profile.power : null;
+    const power = state.meta.power || bike || profile;
+    return power === "electric" ? "charge" : "gas";
+  }
 
   // The group's binding range in meters, or null when nobody on the ride has one on
   // file. NULL MUST STAY NULL all the way to the renderer — a fuel warning built on
@@ -6736,12 +6745,18 @@
     // A row of seventeen chips would be a worse version of typing the word.
     //
     // Each chip carries the ROLE, so a picked result arrives already tagged.
-  const CHIPS = [
-    { role: "gas", label: Wc("fuel"), query: "gas station" },
-    { role: "food", label: "Food", query: "restaurant" },
-    { role: "coffee", label: "Coffee", query: "coffee shop" },
-    { role: "hotel", label: "Lodging", query: "hotel" },
-  ];
+  const stationWord = () => (fuelRole() === "charge" ? "charger" : "gas station");
+
+  // The fuel chip follows fuelRole(), so an electric ride searches chargers.
+  function chips() {
+    const charge = fuelRole() === "charge";
+    return [
+      { role: charge ? "charge" : "gas", label: Wc("fuel"), query: charge ? "EV charging station" : "gas station" },
+      { role: "food", label: "Food", query: "restaurant" },
+      { role: "coffee", label: "Coffee", query: "coffee shop" },
+      { role: "hotel", label: "Lodging", query: "hotel" },
+    ];
+  }
 
   // HOW FAR OFF THE ROUTE IS WORTH IT, in MILES — always miles, whatever unit the
     // rider reads, because the value is compared against meters through one
@@ -6781,7 +6796,7 @@
     const slot = at == null ? "" : ' data-at="' + at + '"';
     return (
       '<div class="add-chips" role="group" aria-label="Find nearby">' +
-      CHIPS.map(
+      chips().map(
         (c) =>
           '<button type="button" class="chip" data-route="' +
           r +
@@ -8355,7 +8370,7 @@
       // The chips' tooltips name the scope, so they go stale otherwise — but a SLOT
       // chip's does not, because a slot searches its own leg whichever scope is set.
       document.querySelectorAll(".add-chips .chip").forEach((el) => {
-        const spec = CHIPS.find((c) => c.role === el.dataset.chip);
+        const spec = chips().find((c) => c.role === el.dataset.chip);
         if (!spec || el.dataset.at != null) return;
         el.title = chipTitle(spec, false);
       });
@@ -8376,7 +8391,7 @@
         return categorySearch({
           r,
           at: null,
-          spec: CHIPS.find((c) => c.role === "hotel"),
+          spec: chips().find((c) => c.role === "hotel"),
           input: null,
           track: stretch,
           near: entry.at,
@@ -8385,7 +8400,7 @@
       const chip = e.target.closest(".chip");
       if (!chip || chip.disabled) return;
       const r = Number(chip.dataset.route);
-      const spec = CHIPS.find((c) => c.role === chip.dataset.chip);
+      const spec = chips().find((c) => c.role === chip.dataset.chip);
       if (!spec || !state.routes[r]) return;
       const at = slotOf(chip);
       const row = chip.closest(".add-row");

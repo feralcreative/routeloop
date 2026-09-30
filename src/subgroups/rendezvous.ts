@@ -86,6 +86,22 @@ export type RendezvousOptions = {
    * reported for a road with several.
    */
   fuelOnly?: boolean
+  /** Which role counts as a refill: `charge` for an electric ride (#31). */
+  fuelRole?: FuelRole
+}
+
+export type FuelRole = 'gas' | 'charge'
+
+/** What puts fuel back in: the ride's own power when set, then the binding
+ *  bike's type, then the rider's default. Mirrors `fuelRole()` in builder.js. */
+export function fuelRoleOf(ridePower: string | null, bikeFuel: string | null, profilePower: string | null): FuelRole {
+  return (ridePower || bikeFuel || profilePower) === 'electric' ? 'charge' : 'gas'
+}
+
+/** The Text Search query and the Places type that make a station of each kind. */
+export const FUEL_SEARCH: Record<FuelRole, { query: string; type: string }> = {
+  gas: { query: 'gas station', type: 'gas_station' },
+  charge: { query: 'EV charging station', type: 'electric_vehicle_charging_station' },
 }
 
 // TEN MILES OF EXTRA DETOUR BY DEFAULT, down from twenty-five (#370): twenty-five
@@ -99,6 +115,7 @@ const DEFAULTS = {
   minSharedFraction: 0.2,
   sampleM: 2000,
   fuelOnly: false,
+  fuelRole: 'gas' as FuelRole,
   favor: [] as string[],
   avoid: [] as string[],
 }
@@ -310,7 +327,7 @@ export function proposeRendezvous(
   // them. Snapped to their nearest trunk vertex so `alongM` is comparable and
   // so a stop a hundred meters off the line is still a point on the route.
   for (const stop of fuelStops) {
-    if (!stop.roles.includes('gas')) continue
+    if (!stop.roles.includes(opts.fuelRole)) continue
     let best = -1
     let bestD = Infinity
     for (let i = 1; i < trunk.length - 1; i++) {
@@ -541,7 +558,7 @@ export function proposeGroupMeet(
   // Existing fuel stops on the main group's road, snapped to it, offered whether
   // or not the sampler landed on them. Same thumb on the scale as above.
   for (const stop of fuelStops) {
-    if (!stop.roles.includes('gas')) continue
+    if (!stop.roles.includes(opts.fuelRole)) continue
     let best = -1
     let bestD = Infinity
     for (let i = 1; i < primary.track.length - 1; i++) {
