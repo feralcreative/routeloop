@@ -326,7 +326,7 @@ builderRoutes.post('/api/rides/:id/clone', requireActiveApi, requireSameOrigin, 
  * second permission rule beside canEditAsMember(). It should never fire, but the
  * cost of the invariant being wrong once is an owner locked out of their own ride.
  */
-async function builderRide(
+export async function builderRide(
   userId: number,
   idParam: string,
 ): Promise<{ ride: RideRow; member: MemberFields | null } | undefined> {
@@ -1264,6 +1264,8 @@ ${
   <script src="${asset('/js/route-split.js')}" defer></script>
   <script src="${asset('/js/corridor.js')}" defer></script>
   <script src="${asset('/js/range-circle.js')}" defer></script>
+  <script src="${asset('/js/conditions.js')}" defer></script>
+  <script src="${asset('/js/conditions-strip.js')}" defer></script>
   <script src="${asset('/js/builder.js')}" defer></script>
   ${tourScript()}`,
   })

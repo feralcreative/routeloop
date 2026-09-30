@@ -42,6 +42,7 @@ import { suggestionRoutes } from './routes/suggestions'
 import { rosterRoutes } from './routes/roster'
 import { followRoutes } from './routes/follows'
 import { rendezvousRoutes } from './routes/rendezvous'
+import { conditionsRoutes } from './routes/conditions'
 import { routeRiderRoutes } from './routes/route-riders'
 import { profileRoutes } from './routes/profile'
 import { builderRoutes } from './routes/builder'
@@ -280,6 +281,7 @@ app.route('/', liveRoutes)
 app.route('/', suggestionRoutes)
 app.route('/', followRoutes)
 app.route('/', rendezvousRoutes)
+app.route('/', conditionsRoutes)
 app.route('/', routeRiderRoutes)
 app.route('/', friendRoutes)
 // Literal paths, and ahead of pageRoutes whose /:handle{@…} route would not
@@ -453,6 +455,8 @@ app.get('/api/public/rides/:slug/ride.json', async (c) => {
       // The lossy exports do the opposite and filter, because a GPX file cannot say
       // "this is somebody else's morning" and a rider handed one would ride it.
       subgroupUid: r.subgroupId ? (subgroupUidOf.get(r.subgroupId) ?? null) : null,
+      // What the elevation and weather strip keys its samples on (#23, #24).
+      uid: r.uid,
       title: r.title,
       color: r.color,
       startAt: r.startAt?.toISOString() ?? null,
@@ -902,6 +906,8 @@ function viewHtml(
   <script src="${asset('/js/route-ink.js')}" defer></script>
   <script src="${asset('/js/route-distance.js')}" defer></script>
   <script src="${asset('/js/range-circle.js')}" defer></script>
+  <script src="${asset('/js/conditions.js')}" defer></script>
+  <script src="${asset('/js/conditions-strip.js')}" defer></script>
   <script src="${asset('/js/viewer.js')}" defer></script>
   ${tourAssets(user).scripts}`,
   })

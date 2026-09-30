@@ -1193,6 +1193,58 @@ table.route-table {
   }
 }
 
+// THE ELEVATION PROFILE (#23), a strip standing on top of the bar rather than a
+// row inside it, so the bar keeps the height --timeline-height reserves. Same
+// horizontal padding as the bar, so its x axis lines up with the slider's.
+.time-profile {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: calc(100% + 6px);
+  box-sizing: border-box;
+  height: 64px;
+  padding: 6px 0.9em;
+  background: $panel-bg;
+  border-radius: 12px;
+  box-shadow: 0 2px 12px $panel-shadow;
+  pointer-events: none;
+
+  &[hidden] {
+    display: none;
+  }
+}
+
+.time-profile-svg {
+  display: block;
+  width: 100%;
+  height: 100%;
+}
+
+.time-profile-area {
+  fill: color-mix(in oklab, #{$go}, transparent 70%);
+}
+
+.time-profile-line {
+  fill: none;
+  stroke: $go;
+  stroke-width: 1.5;
+}
+
+.time-profile-cursor {
+  stroke: $text;
+  stroke-width: 1.5;
+}
+
+.time-profile-label {
+  position: absolute;
+  top: 4px;
+  left: 0.9em;
+  font-size: 0.72em;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  color: $text;
+}
+
 //@ Phone — the drawer stops being a drawer and becomes a bottom sheet
 //
 // A left drawer does not survive this width: 380px of a 390px viewport leaves ten

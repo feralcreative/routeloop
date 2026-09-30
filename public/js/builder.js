@@ -1251,6 +1251,7 @@
         $("save-announce").textContent = "";
         // A clean save is what makes the NEXT failure new again.
         lastErrorSeen = null;
+        if (conditions) conditions.load();
         closeErrorDialog();
       }
     }
@@ -5838,16 +5839,63 @@
     // directly. Not just cheaper — activeAtMoment SKIPS LOSING ALTERNATES, so a
     // rider who clicked into an alternate would get back null and watch the route
     // they are editing dim itself.
-  const activeNow = () => {
-    if (state.moment == null) return null;
-    if (state.timeScope === "ride") return activeAtMoment(state.routes, state.moment);
+  const activeNow = () => (state.moment == null ? null : activeFor(state.moment));
+
+  function activeFor(momentS) {
+    if (state.timeScope === "ride") return activeAtMoment(state.routes, momentS);
     const r = activeIndex();
     const route = r == null ? null : state.routes[r];
     const span = route && routeSpan(route);
     if (!span) return null;
-    const at = activeAt(route, Math.min(Math.max(state.moment, span.from), span.to) - span.from);
+    const at = activeAt(route, Math.min(Math.max(momentS, span.from), span.to) - span.from);
     return { routeIndex: r, legIndex: at.legIndex, pointIndex: at.pointIndex, legFraction: at.legFraction };
-  };
+  }
+
+  // The elevation strip and the weather readout (#23, #24). Made on first use, once
+  // the ride has an id: the endpoint reads what is STORED, which is also why every
+  // clean save asks it again.
+  let conditions = null;
+  let stripKey = null;
+  function conditionsStrip() {
+    if (conditions || !window.TBConditionsStrip || !state.rideId) return conditions;
+    conditions = window.TBConditionsStrip.create({
+      url: (uid) => "/api/rides/" + state.rideId + "/conditions?route=" + encodeURIComponent(uid),
+      units: UNITS,
+      routes: () => state.routes,
+      axis: () => {
+        const span = timelineSpan();
+        if (!span) return null;
+        if (state.timeScope !== "ride") return { min: span.from, max: span.to, momentAt: (v) => v };
+        const segs = rideSegs();
+        return { min: 0, max: segmentsTotalS(segs), momentAt: (v) => momentAtOffset(segs, v) };
+      },
+      valueAt: (m) => (state.timeScope === "ride" ? offsetAtMoment(rideSegs(), m) : m),
+      moment: () => state.moment,
+      resolve: (m) => {
+        const a = activeFor(m);
+        return a && a.routeIndex != null ? { route: state.routes[a.routeIndex], a } : null;
+      },
+      onData: () => {
+        stripKey = null;
+        renderTimeline();
+      },
+    });
+    conditions.load();
+    return conditions;
+  }
+
+  // Rebuilds the profile when what the slider spans changes, and otherwise only
+  // moves the cursor, because this runs on every scrub.
+  function paintStrip() {
+    const c = conditionsStrip();
+    if (!c) return;
+    const slider = $("time-slider");
+    const key = [state.timeScope, slider.min, slider.max, activeIndex(), state.routes.length].join("|");
+    if (key !== stripKey) {
+      stripKey = key;
+      c.refresh();
+    } else c.moment(state.moment);
+  }
 
   function renderTimeline() {
     const wrap = $("ride-timeline");
@@ -5896,6 +5944,7 @@
       slider.value = String(state.moment == null ? span.from : Math.min(Math.max(state.moment, span.from), span.to));
     }
 
+    paintStrip();
     if (state.moment == null) {
       say(fmtMoment(span.from) + " – " + fmtMoment(span.to));
       return;
@@ -5923,7 +5972,8 @@
       const fallback = pt && pt.kind === "poi" ? "a point of interest" : "point " + ((a.pointIndex || 0) + 1);
       what = routeLabel(a.routeIndex) + SEP + "at " + ((pt && pt.name) || fallback);
     }
-    say(fmtMoment(state.moment) + SEP + what);
+    const sky = conditions ? conditions.weatherText(state.moment) : "";
+    say(fmtMoment(state.moment) + (sky ? SEP + sky : "") + SEP + what);
   }
 
   // Moving the timeline is the primary gesture; the route slider follows it so the
