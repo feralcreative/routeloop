@@ -43,6 +43,53 @@
   transform-origin: 50% 0;
 }
 
+// Center on me (#267), stacked above the zoom pair at its scaled size.
+.map-locate {
+  display: grid;
+  place-items: center;
+  box-sizing: border-box;
+  width: 28px;
+  height: 28px;
+  // Measured against the scaled pair: its layout box is wider and taller than
+  // what it paints, so these line the edges up rather than the boxes.
+  margin: 0 22px -2px 0;
+  padding: 0;
+  border: 0;
+  border-radius: 2px;
+  background: $white;
+  color: $text;
+  box-shadow: rgba(0, 0, 0, 0.3) 0 1px 4px -1px;
+  cursor: pointer;
+
+  &:hover {
+    color: $brand;
+  }
+
+  &:focus-visible {
+    outline: 2px solid $brand;
+    outline-offset: 2px;
+  }
+
+  &.is-busy svg {
+    animation: map-locate-pulse 1s ease-in-out infinite;
+
+    @include still {
+      animation: none;
+      opacity: 0.5;
+    }
+  }
+
+  &[hidden] {
+    display: none;
+  }
+}
+
+@keyframes map-locate-pulse {
+  50% {
+    opacity: 0.35;
+  }
+}
+
 .panel-title {
   display: flex;
   align-items: center;
