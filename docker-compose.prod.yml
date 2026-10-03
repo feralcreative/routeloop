@@ -305,7 +305,10 @@ services:
   # be answered by ${DB_VOLUME_NAME}, which deploy.config deliberately keeps
   # pointed at stage's own dead volume rather than at prod's.
   db:
-    image: postgres:17-alpine
+    # PostGIS (#37). Built FROM postgres:17-alpine, so the musl data directory
+    # and its collations carry over on the same volume; a Debian-based image would not.
+    # amd64 only: native on the NAS, emulated on an Apple Silicon dev machine.
+    image: postgis/postgis:17-3.5-alpine
     container_name: ${DB_CONTAINER_NAME}
     restart: unless-stopped
     # No ports: — Postgres is reachable only from the app over the bridge.

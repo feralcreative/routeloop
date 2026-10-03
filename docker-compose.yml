@@ -19,7 +19,11 @@ name: routeloop
 
 services:
   db:
-    image: postgres:17-alpine
+    # PostGIS (#37). Built FROM postgres:17-alpine, so the musl data directory
+    # and its collations carry over on the same volume; a Debian-based image would not.
+    # amd64 only: native on the NAS, emulated on an Apple Silicon dev machine.
+    image: postgis/postgis:17-3.5-alpine
+    platform: linux/amd64
     container_name: routeloop-db
     restart: unless-stopped
     environment:
