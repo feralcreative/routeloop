@@ -24,6 +24,7 @@ import { reconcileRouteRiders } from '../route-riders/service'
 import { demoteOrphanComments } from '../comments/service'
 import { reconcileSubgroups, writeRideAnchors } from '../subgroups/service'
 import { POWERS, VEHICLES } from '../views/vocab'
+import { refreshRouteTracks } from './route-track'
 
 // 31 rather than 30: a month-long ride plus the route you get home.
 export const MAX_ROUTES = 31
@@ -448,6 +449,8 @@ export async function insertRideGraph(
       )
     }
   }
+
+  await refreshRouteTracks(tx, rideId)
 
   // AFTER the reconcile, because a payload can create a subgroup and name it
   // primary in the same save — the id does not exist until then.
