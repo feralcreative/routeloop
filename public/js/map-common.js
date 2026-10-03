@@ -148,7 +148,7 @@
           // first, then the page's scheme, then the OS. INITIAL-ONLY in the
           // Maps API — setOptions cannot change it — which is why a saved
           // preference reaches the map on its next load and the dev flip in
-          // devtools.js repaints the page and not the tiles.
+          // devtools.js stamps data-map-scheme and reloads.
           colorScheme: scheme,
           // Google's own POI pins open their own info windows and would fight
           // the builder's click-to-add-a-stop.
@@ -430,8 +430,7 @@
 
   // WHETHER THIS MAP'S TILES ARE DARK, decided once, when the map was made,
   // from the same answer the tiles took — not read live off <html>, because
-  // the tiles' scheme is initial-only and the dev flip repaints the page and
-  // not them. `FOLLOW_SYSTEM` is what the tiles do with no stamp, so it is
+  // the tiles' scheme is initial-only. `FOLLOW_SYSTEM` is what the tiles do with no stamp, so it is
   // resolved the way they resolve it.
   const darkTiles = new WeakMap();
 

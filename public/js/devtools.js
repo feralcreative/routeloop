@@ -57,6 +57,12 @@
   // page pinned "light" over every later Dark saved in Preferences. Saving a
   // scheme in Preferences now clears it too (autosave.js), so the saved
   // preference wins until the button is pressed again.
+  //
+  // **IT FLIPS THE MAP TOO**, by stamping `data-map-scheme` beside
+  // `data-scheme`, which outranks the rider's own map choice in colorScheme()
+  // in map-common.js. The tiles' scheme is initial-only, so a press on a map
+  // page reloads; the stored flip is stamped at script run rather than in
+  // boot() so it lands before initMap() reads it.
   // Renamed from `routeloop.devScheme` when it stopped storing unpressed
   // choices; the old key held exactly those, so it is dropped on sight.
   var SCHEME_KEY = "routeloop.devSchemeFlip";
@@ -71,11 +77,14 @@
   }
 
   function setScheme(v, remember) {
-    document.documentElement.setAttribute("data-scheme", v);
+    var root = document.documentElement;
+    root.setAttribute("data-scheme", v);
+    root.setAttribute("data-map-scheme", v);
     if (remember) {
       try {
         localStorage.setItem(SCHEME_KEY, v);
       } catch (e) {}
+      if (root.classList.contains("map-page")) location.reload();
     }
     var b = document.getElementById("dev-scheme");
     if (b) b.textContent = v === "dark" ? "Dark" : "Light";
@@ -159,14 +168,7 @@
       setScheme(currentScheme() === "dark" ? "light" : "dark", true);
     });
     document.body.appendChild(sb);
-    var saved = null;
-    try {
-      saved = localStorage.getItem(SCHEME_KEY);
-    } catch (e) {}
-    if (saved === "dark" || saved === "light") setScheme(saved, false);
-    else {
-      sb.textContent = currentScheme() === "dark" ? "Dark" : "Light";
-    }
+    sb.textContent = currentScheme() === "dark" ? "Dark" : "Light";
 
     sweep(document.body);
     new MutationObserver(function (records) {
@@ -187,6 +189,12 @@
       attributeFilter: ["data-shepherd-step-id"],
     });
   }
+
+  var savedScheme = null;
+  try {
+    savedScheme = localStorage.getItem(SCHEME_KEY);
+  } catch (e) {}
+  if (savedScheme === "dark" || savedScheme === "light") setScheme(savedScheme, false);
 
   if (document.readyState === "loading") document.addEventListener("DOMContentLoaded", boot);
   else boot();
