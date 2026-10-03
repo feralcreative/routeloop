@@ -148,7 +148,7 @@
           // first, then the page's scheme, then the OS. INITIAL-ONLY in the
           // Maps API — setOptions cannot change it — which is why a saved
           // preference reaches the map on its next load and the dev flip in
-          // devtools.js repaints the page and not the tiles.
+          // devtools.js stamps data-map-scheme and reloads.
           colorScheme: scheme,
           // Google's own POI pins open their own info windows and would fight
           // the builder's click-to-add-a-stop.
@@ -189,7 +189,66 @@
           window.matchMedia("(prefers-color-scheme: dark)").matches),
     );
     rememberMapType(map);
+    addLocateControl(map);
     return map;
+  }
+
+  // Center on me (#267). A view change and nothing else: no point is added and
+  // the position goes to the map and nowhere else — never stored, never sent.
+  // A refused permission is permanent from the page's side, so the button hides
+  // rather than re-prompting into a dialog the browser will not show.
+  const LOCATE_SVG =
+    '<svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true" focusable="false">' +
+    '<circle cx="12" cy="12" r="4" fill="currentColor"/>' +
+    '<circle cx="12" cy="12" r="7.5" fill="none" stroke="currentColor" stroke-width="2"/>' +
+    '<path d="M12 1v4M12 19v4M1 12h4M19 12h4" stroke="currentColor" stroke-width="2"/></svg>';
+
+  // Desktop Wi-Fi fixes are regularly miles out, so the zoom never claims more
+  // precision than the fix carries.
+  function zoomForAccuracy(m) {
+    if (!(m > 0)) return 12;
+    if (m <= 100) return 15;
+    if (m <= 1000) return 13;
+    if (m <= 5000) return 11;
+    return 9;
+  }
+
+  function addLocateControl(map) {
+    if (!navigator.geolocation) return;
+    const btn = document.createElement("button");
+    btn.type = "button";
+    btn.className = "map-locate";
+    btn.title = "Center on me";
+    btn.setAttribute("aria-label", "Center the map on my location");
+    btn.innerHTML = LOCATE_SVG;
+    const hideIfDenied = (state) => {
+      btn.hidden = state === "denied";
+    };
+    if (navigator.permissions && typeof navigator.permissions.query === "function") {
+      navigator.permissions
+        .query({ name: "geolocation" })
+        .then((p) => {
+          hideIfDenied(p.state);
+          p.onchange = () => hideIfDenied(p.state);
+        })
+        .catch(() => {});
+    }
+    btn.addEventListener("click", () => {
+      btn.classList.add("is-busy");
+      navigator.geolocation.getCurrentPosition(
+        (pos) => {
+          btn.classList.remove("is-busy");
+          map.panTo({ lat: pos.coords.latitude, lng: pos.coords.longitude });
+          map.setZoom(zoomForAccuracy(pos.coords.accuracy));
+        },
+        (err) => {
+          btn.classList.remove("is-busy");
+          if (err && err.code === 1) btn.hidden = true;
+        },
+        { enableHighAccuracy: true, timeout: 15000, maximumAge: 60000 },
+      );
+    });
+    map.controls[Core.ControlPosition.RIGHT_BOTTOM].push(btn);
   }
 
   function fitTo(map, lngLats, padding) {
@@ -371,8 +430,7 @@
 
   // WHETHER THIS MAP'S TILES ARE DARK, decided once, when the map was made,
   // from the same answer the tiles took — not read live off <html>, because
-  // the tiles' scheme is initial-only and the dev flip repaints the page and
-  // not them. `FOLLOW_SYSTEM` is what the tiles do with no stamp, so it is
+  // the tiles' scheme is initial-only. `FOLLOW_SYSTEM` is what the tiles do with no stamp, so it is
   // resolved the way they resolve it.
   const darkTiles = new WeakMap();
 

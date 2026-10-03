@@ -31,12 +31,15 @@ import { ownRide } from './maps'
 import {
   alongTrackM,
   clampDivert,
+  fuelRoleOf,
+  FUEL_SEARCH,
   DEFAULT_DIVERT_MI,
   nearestVertex,
   proposeGroupMeet,
   rankByRoad,
   worstDivertMi,
   type FuelCandidate,
+  type FuelRole,
   type GroupMeet,
   type GroupRoute,
   type RoadMeasure,
@@ -73,7 +76,7 @@ rendezvousRoutes.post('/api/rides/:id/rendezvous', requireActiveApi, requireSame
   // comes back undefined, which the proposer treats as "use the default".
   const body = (await c.req.json().catch(() => ({}))) as { maxDivertMi?: unknown }
   const [prof] = await db
-    .select({ meetDivertMi: userProfiles.meetDivertMi })
+    .select({ meetDivertMi: userProfiles.meetDivertMi, power: userProfiles.power })
     .from(userProfiles)
     .where(eq(userProfiles.userId, user.id))
     .limit(1)
@@ -83,7 +86,12 @@ rendezvousRoutes.post('/api/rides/:id/rendezvous', requireActiveApi, requireSame
   const lists = await placeListsFor(c)
   const favor = parseTerms(lists.favor)
   const avoid = parseTerms(lists.avoid)
-  const divertOpt = { maxDivertMi: clampDivert(body.maxDivertMi) ?? clampDivert(prof?.meetDivertMi), favor, avoid }
+  const divertOpt: {
+    maxDivertMi: number | undefined
+    favor: string[]
+    avoid: string[]
+    fuelRole?: FuelRole
+  } = { maxDivertMi: clampDivert(body.maxDivertMi) ?? clampDivert(prof?.meetDivertMi), favor, avoid }
 
   const groups = await subgroupsOf(ride.id)
   // One group has nobody to meet. A real answer rather than an error.
@@ -207,7 +215,7 @@ rendezvousRoutes.post('/api/rides/:id/rendezvous', requireActiveApi, requireSame
       for (const p of pts) {
         if (p.routeId !== d.id) continue
         if (p.distFromStartM == null) continue
-        if (!p.roles.includes('gas')) continue
+        if (!p.roles.includes(fuelRole)) continue
         const at = offset + p.distFromStartM
         if (at <= alongM) last = Math.max(last, at)
       }
@@ -278,6 +286,9 @@ rendezvousRoutes.post('/api/rides/:id/rendezvous', requireActiveApi, requireSame
   // fuel plan, because it looks like one. Read ONCE for the whole press rather
   // than per group: it is a fact about the roster, not about who is joining.
   const range = await groupRange(ride.id)
+  // Chargers for an electric ride, gas otherwise (#31).
+  const fuelRole = fuelRoleOf(ride.power, range.fuelType, prof?.power ?? null)
+  divertOpt.fuelRole = fuelRole
 
   // SEQUENTIAL, NOT Promise.all, AND THAT IS DELIBERATE. Each group's pass spends
   // billed requests, and `fetchRouteLeg` and `searchPlaces` both cache — so groups
@@ -313,7 +324,7 @@ rendezvousRoutes.post('/api/rides/:id/rendezvous', requireActiveApi, requireSame
     // around the candidates the geometry liked, and the straight-line geometry can like
     // a backwards point — so the least-extra candidate is searched first and the paper
     // favorite second.
-    const stations = plain.length ? await gasAlong(frontLoadCheapest(plain), searchAnchors) : []
+    const stations = plain.length ? await fuelAlong(frontLoadCheapest(plain), searchAnchors, fuelRole) : []
     // `fuelOnly` and NOT a filter over the ordinary result: the ranking prefers the
     // earliest viable point and keeps only the best few, so a station a little further
     // along is crowded out by plain vertices before this line could see it.
@@ -450,12 +461,13 @@ const ANCHOR_BUDGET = 6
  *  nine-group ride costing 36 Routes requests on one press. */
 const ROUTED_BUDGET = 12
 
-async function gasAlong(plain: GroupMeet[], anchors: number): Promise<FuelCandidate[]> {
+async function fuelAlong(plain: GroupMeet[], anchors: number, role: FuelRole): Promise<FuelCandidate[]> {
+  const { query, type } = FUEL_SEARCH[role]
   const out: FuelCandidate[] = []
   const seen = new Set<string>()
   for (const anchor of plain.slice(0, anchors)) {
     const res = await searchPlaces(
-      { query: 'gas station', near: anchor.at, radiusM: STATION_RADIUS_M, wide: true },
+      { query, near: anchor.at, radiusM: STATION_RADIUS_M, wide: true },
       GMAPS_SERVER_KEY,
     )
     if (!res.ok) continue
@@ -463,11 +475,11 @@ async function gasAlong(plain: GroupMeet[], anchors: number): Promise<FuelCandid
       // TYPE, NOT NAME. Text Search answers "gas station" with supermarkets and
       // repair shops that merely mention fuel, and a meeting point the group
       // cannot fill up at is the one thing this feature must not produce.
-      if (p.type !== 'gas_station') continue
+      if (p.type !== type) continue
       const key = p.lngLat.join(',')
       if (seen.has(key)) continue
       seen.add(key)
-      out.push({ at: p.lngLat, roles: ['gas'], name: p.name, address: p.address })
+      out.push({ at: p.lngLat, roles: [role], name: p.name, address: p.address })
     }
   }
   // Snapping and the on-route test are proposeGroupMeet's, not repeated here —

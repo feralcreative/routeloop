@@ -90,6 +90,11 @@ window.TBVocab = (function () {
     return id in c && c[id] === null;
   }
 
+  /** The power in force on this ride: gas, electric or pedal. */
+  function power() {
+    return current().power_;
+  }
+
   function cap(s) {
     return s ? s.charAt(0).toUpperCase() + s.slice(1) : s;
   }
@@ -107,5 +112,5 @@ window.TBVocab = (function () {
     words = null;
   }
 
-  return { w, many, off, cap, setRide, forget, resolve, customWord, toVehicle, toPower };
+  return { w, many, off, power, cap, setRide, forget, resolve, customWord, toVehicle, toPower };
 })();

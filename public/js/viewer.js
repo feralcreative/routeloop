@@ -383,7 +383,9 @@
       const fallback = pt && pt.kind === "poi" ? "a point of interest" : "point " + ((a.pointIndex || 0) + 1);
       what = routeName(a.routeIndex) + SEP + "at " + ((pt && pt.name) || fallback);
     }
-    say(fmtMoment(state.moment) + SEP + what);
+    const sky = state.conditions ? state.conditions.weatherText(state.moment) : "";
+    say(fmtMoment(state.moment) + (sky ? SEP + sky : "") + SEP + what);
+    if (state.conditions) state.conditions.moment(state.moment);
   }
 
   function wireTimeline() {
@@ -672,6 +674,32 @@
     });
   }
 
+  // Elevation above the timeline and weather in its readout (#23, #24). The axis is
+  // the ride-scope slider's: riding hours with the nights left out.
+  function initConditions() {
+    if (!window.TBConditionsStrip || !rideSpan(state.ride.routes)) return;
+    const slug = (window.TB.rideUrl.match(/rides\/([^/]+)\/ride\.json/) || [])[1];
+    if (!slug) return;
+    const segs = () => rideSegments(state.ride.routes);
+    state.conditions = window.TBConditionsStrip.create({
+      url: (uid) => "/m/" + encodeURIComponent(slug) + "/conditions.json?route=" + encodeURIComponent(uid),
+      units: UNITS,
+      routes: () => state.ride.routes,
+      axis: () => ({ min: 0, max: segmentsTotalS(segs()), momentAt: (v) => momentAtOffset(segs(), v) }),
+      valueAt: (m) => offsetAtMoment(segs(), m),
+      moment: () => state.moment,
+      resolve: (m) => {
+        const a = activeAtMoment(state.ride.routes, m);
+        return a.routeIndex == null ? null : { route: state.ride.routes[a.routeIndex], a };
+      },
+      onData: () => {
+        state.conditions.refresh();
+        renderTimeline();
+      },
+    });
+    state.conditions.load();
+  }
+
   async function init() {
     try {
       const res = await fetch(window.TB.rideUrl);
@@ -692,6 +720,7 @@
       buildLegend();
       renderTimeline();
       wireTimeline();
+      initConditions();
 
       const cloneBtn = document.querySelector("[data-clone]");
       if (cloneBtn) {

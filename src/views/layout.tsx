@@ -516,7 +516,14 @@ export function rideTimeline(opts: { scopeToggle?: boolean; words?: Words } = {}
           aria-pressed="true"
           hidden
         ></button>
+        {/* #23. Shown by conditions-strip.js once a route has elevation samples. */}
+        <button type="button" class="time-scope" id="time-profile-toggle" aria-pressed="true" hidden>
+          Elevation
+        </button>
       </div>
+      {/* The profile sits ABOVE the bar, positioned out of it, so the bar keeps the
+          height --timeline-height reserves. */}
+      <div class="time-profile" id="time-profile" hidden></div>
       <input
         id="time-slider"
         class="time-slider"

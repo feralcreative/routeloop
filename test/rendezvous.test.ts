@@ -16,6 +16,8 @@ import {
   clampDivert,
   DEFAULT_DIVERT_MI,
   divertMi,
+  fuelRoleOf,
+  FUEL_SEARCH,
   PLACE_NUDGE_MI,
   placeNudgeMi,
   proposeGroupMeet,
@@ -530,6 +532,17 @@ describe('proposeGroupMeet', () => {
     expect(proposeGroupMeet(north, [far], [early], { fuelOnly: true, maxDivertMi: 200 }).length).toBe(1)
   })
 
+  // #31: an electric ride meets at a charger, and a gas station is not one.
+  it('takes chargers and skips gas stations when the fuel role is charge', () => {
+    const shell: FuelCandidate = { at: [-119.5, 40.004], roles: ['gas'], name: 'Shell' }
+    const charger: FuelCandidate = { at: [-119.5, 40.004], roles: ['charge'], name: 'Charger' }
+    const out = proposeGroupMeet(north, [south], [shell, charger], { fuelOnly: true, fuelRole: 'charge' })
+    expect(out.map((m) => m.name)).toEqual(['Charger'])
+    expect(proposeGroupMeet(north, [south], [shell, charger], { fuelOnly: true }).map((m) => m.name)).toEqual([
+      'Shell',
+    ])
+  })
+
   it('has no question to answer when nobody is joining', () => {
     expect(proposeGroupMeet(north, [])).toEqual([])
   })
@@ -754,5 +767,20 @@ describe('the avoid and favor lists', () => {
     expect(nudged[0].name).toBe('Shell')
     // Both are still offered either way.
     expect(nudged.map((m) => m.name).sort()).toEqual(['Costco Gas Station', 'Shell'])
+  })
+})
+
+describe('fuelRoleOf', () => {
+  it('takes the ride first, then the binding bike, then the rider', () => {
+    expect(fuelRoleOf('electric', 'gas', 'gas')).toBe('charge')
+    expect(fuelRoleOf('gas', 'electric', 'electric')).toBe('gas')
+    expect(fuelRoleOf(null, 'electric', 'gas')).toBe('charge')
+    expect(fuelRoleOf(null, null, 'electric')).toBe('charge')
+    expect(fuelRoleOf(null, null, null)).toBe('gas')
+  })
+
+  it('searches for a place of the same type it keeps', () => {
+    expect(FUEL_SEARCH.charge.type).toBe('electric_vehicle_charging_station')
+    expect(FUEL_SEARCH.gas.type).toBe('gas_station')
   })
 })
