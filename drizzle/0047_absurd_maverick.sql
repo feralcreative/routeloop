@@ -1,0 +1,1 @@
+ALTER TABLE "user_profiles" ADD COLUMN "on_leaderboard" boolean DEFAULT false NOT NULL;

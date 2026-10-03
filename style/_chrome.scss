@@ -1962,3 +1962,16 @@ ul.cards {
 .twist-key-row {
   display: block;
 }
+
+// Near me on Explore (#37): the location button and its status line.
+.explore-near-bar {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.75rem;
+  align-items: center;
+  margin: 0 0 1.25rem;
+
+  .btn[hidden] {
+    display: none;
+  }
+}

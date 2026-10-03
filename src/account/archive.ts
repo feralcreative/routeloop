@@ -323,6 +323,7 @@ export function buildAccountJson(input: AccountArchiveInput): AccountArchive {
           phone: profile.phone,
           shareSocials: profile.shareSocials,
           sharePaddock: profile.sharePaddock,
+          onLeaderboard: profile.onLeaderboard,
           profileVisibility: profile.profileVisibility,
           bio: profile.bio,
           instagram: profile.instagram,

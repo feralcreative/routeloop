@@ -25,6 +25,10 @@
 //
 // The friendship VERBS stay in routes/friends.tsx. This file decides what to
 // show; that one decides what may be done.
+import { leaderboard, type BoardRow } from '../leaderboard/service'
+import { METRICS, METRIC_LABEL, toMetric } from '../leaderboard/policy'
+import { unitsFor } from '../views/prefs'
+import { distanceFromMiles, distanceUnit } from '../views/units'
 import { Hono } from 'hono'
 import type { Context } from 'hono'
 import { and, eq, ne, sql } from 'drizzle-orm'
@@ -52,7 +56,9 @@ import { asset } from '../views/assets'
 
 export const riderRoutes = new Hono<AuthEnv>()
 
-type Tab = 'friends' | 'all'
+const plural = (n: number, word: string) => `${n.toLocaleString('en-US')} ${word}${n === 1 ? '' : 's'}`
+
+type Tab = 'friends' | 'all' | 'active'
 
 /** A roster row. Exactly what a public profile shows, which is the whole rule —
  *  the face included, since a profile page shows that too. */
@@ -234,18 +240,32 @@ async function ridersPage(c: Context<AuthEnv>, tab: Tab) {
   // A search is an answer to "which tab did you want", so it wins over the
   // route's own default. Otherwise a rider searching from the roster would be
   // handed back their friends list with their query still in the box.
-  const active: Tab = q
-    ? 'all'
-    : ((c.req.query('tab') === 'all' ? 'all' : c.req.query('tab') === 'friends' ? 'friends' : tab) as Tab)
+  const qt = c.req.query('tab')
+  const active: Tab = q ? 'all' : qt === 'all' || qt === 'friends' || qt === 'active' ? qt : tab
+  const metric = toMetric(c.req.query('metric'))
   const back = `/riders?tab=${active}${q ? `&q=${encodeURIComponent(q)}` : ''}`
 
-  const [incoming, friends, sent, blocked, roster] = await Promise.all([
+  const [incoming, friends, sent, blocked, roster, board, mine, units] = await Promise.all([
     listIncoming(me.id),
     listFriends(me.id),
     listSent(me.id),
     listBlocked(me.id),
     loadRoster(me.id, q),
+    leaderboard(me.id, metric),
+    db
+      .select({ on: userProfiles.onLeaderboard })
+      .from(userProfiles)
+      .where(eq(userProfiles.userId, me.id))
+      .limit(1),
+    unitsFor(c),
   ])
+  const listed = mine[0]?.on ?? false
+  const figure = (r: BoardRow) =>
+    metric === 'rides'
+      ? plural(r.rides, 'public ride')
+      : metric === 'stops'
+        ? plural(r.stops, 'stop')
+        : `${Math.round(distanceFromMiles(r.miles, units)).toLocaleString('en-US')} ${distanceUnit(units)}`
 
   const [views, followed] = await Promise.all([
     viewsOf(
@@ -291,6 +311,17 @@ async function ridersPage(c: Context<AuthEnv>, tab: Tab) {
           tabindex={on('all') ? undefined : -1}
         >
           All riders <span class="tab-count">{roster.length}</span>
+        </button>
+        <button
+          type="button"
+          class={`page-tab${on('active') ? ' is-active' : ''}`}
+          role="tab"
+          id="tab-active"
+          aria-controls="panel-active"
+          aria-selected={on('active') ? 'true' : 'false'}
+          tabindex={on('active') ? undefined : -1}
+        >
+          Most active
         </button>
       </div>
 
@@ -383,6 +414,44 @@ async function ridersPage(c: Context<AuthEnv>, tab: Tab) {
           </RiderCards>
         ) : (
           <p class="empty">{q ? 'Nobody matches that.' : 'Nobody else here yet.'}</p>
+        )}
+      </div>
+      <div
+        class="page-tabpanel"
+        id="panel-active"
+        role="tabpanel"
+        aria-labelledby="tab-active"
+        tabindex={0}
+        hidden={!on('active')}
+      >
+        <p class="lede">
+          Only riders who chose to be listed, counting their public rides.{' '}
+          {listed ? 'You are on it; change that' : 'To join, tick the box'} on your <a href="/profile">Profile</a>&nbsp;tab.
+        </p>
+        <nav class="explore-tabs board-metrics" aria-label="Rank by">
+          {METRICS.map((m) => (
+            <a
+              class={`board-metric${m === metric ? ' is-on' : ''}`}
+              href={`/riders?tab=active&metric=${m}`}
+              aria-current={m === metric ? 'page' : undefined}
+            >
+              {METRIC_LABEL[m]}
+            </a>
+          ))}
+        </nav>
+        {board.length > 0 ? (
+          <RiderCards name="active" riders={board}>
+            {(r) => {
+              const row = r as BoardRow
+              return (
+                <span class={`board-figure${row.id === me.id ? ' is-me' : ''}`}>
+                  <b>#{row.rank}</b> {figure(row)}
+                </span>
+              )
+            }}
+          </RiderCards>
+        ) : (
+          <p class="empty">Nobody has asked to be listed yet.</p>
         )}
       </div>
       {raw(CARDS_RESTORE)}
