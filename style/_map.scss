@@ -491,7 +491,7 @@ html.map-page.is-resizing {
     // page header hangs — which is about twice the stamp. Ziad's call,
     // 2026-09-20.
     .logo-beta {
-      width: 24.5%;
+      width: calc(24.5% * var(--sw));
       height: auto;
       max-width: none;
     }
