@@ -21,11 +21,10 @@
 // **test/access-lists.test.ts is the agreement test**, and it asserts that
 // anything either list surfaces is something canView() would allow.
 
-import { and, desc, eq, inArray, isNull, ne, or } from 'drizzle-orm'
+import { and, desc, eq, inArray, isNull, ne, or, sql } from 'drizzle-orm'
 import { db } from '../db/index'
 import {
   routes as routesTable,
-  follows,
   friendships,
   rideMembers,
   rides,
@@ -34,6 +33,7 @@ import {
   type RideRow,
 } from '../db/schema'
 import { LIVE_RIDE } from '../trash/service'
+import { followeeIdsOf } from '../follows/service'
 import { areFriends, pairOf } from '../friends/policy'
 import { canView, isFriendListed, isListed, type ViewGrants, type Viewer } from './policy'
 
@@ -216,18 +216,18 @@ export async function publicRides(viewerId: number, limit: number): Promise<List
  * by anyone willing to press Follow and the level would mean nothing. See the
  * note on the `follows` table in src/db/schema.ts.
  *
- * The join is one-directional, unlike friendsRides() above: `follows` has a
- * follower and a followee rather than a canonical pair, so there is exactly one
- * arrangement to test and testing both would make the feed reciprocal.
+ * One-directional, unlike friendsRides() above: the viewer's followees, which since
+ * #180 are their own follow rows plus their friends (followeeIdsOf()).
  */
 export async function followingRides(viewerId: number, limit: number): Promise<ListRow[]> {
   return db
     .select({ ride: rides, color: routesTable.color })
     .from(rides)
     .innerJoin(users, and(eq(users.id, rides.ownerId), isNull(users.deletionRequestedAt)))
-    .innerJoin(follows, and(eq(follows.followerId, viewerId), eq(follows.followeeId, rides.ownerId)))
     .leftJoin(routesTable, and(eq(routesTable.rideId, rides.id), eq(routesTable.position, 0)))
-    .where(and(LISTED_RIDE, LIVE_RIDE))
+    // Followed by a row or by friendship (#180). Still LISTED_RIDE only: a friend's
+    // friends-level rides are theirs to show on their profile, never in a feed.
+    .where(and(LISTED_RIDE, LIVE_RIDE, sql`${rides.ownerId} in ${followeeIdsOf(viewerId)}`))
     .orderBy(desc(rides.updatedAt))
     .limit(limit)
 }

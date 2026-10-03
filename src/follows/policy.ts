@@ -4,19 +4,30 @@
 // queries, so the rules are testable with no database — the same arrangement as
 // friends/policy.ts vs service.ts, members, votes and the rest.
 //
-// **A FOLLOW IS NOT A FRIENDSHIP AND THIS FILE IS SHORT BECAUSE OF IT.**
-// friends/policy.ts is a state machine — none, sent, incoming, friends,
-// blocked, blocked-by — because a friendship is negotiated. A follow is not
-// negotiated: it exists or it does not, the follower decides alone, and the
-// followee is never asked. So there are two states and no verbs beyond follow
-// and unfollow.
+// **FOLLOWING AND FRIENDSHIP ARE A LADDER, NOT TWO AXES** (#180, Ziad's call,
+// 2026-08-27, built 2026-10-02). Following is the lower rung: you follow someone
+// to pay attention to them, alone, and they are not told. Friendship is the upper
+// one: a friend request asks for a MUTUAL follow, so two friends follow each
+// other. Two riders who merely follow each other are not friends; friendship
+// only comes from a request and an accept.
+//
+// THE IMPLIED FOLLOW IS DERIVED, NEVER STORED. Accepting a request writes no
+// follow rows; "does A follow B" is "A has a follow row for B, or they are
+// friends". So unfriending touches no follow a rider made on their own, before or
+// after, and that row simply survives the friendship. Either rung can be taken
+// first: a rider may request friendship without following.
+//
+// IT IS ABOUT ATTENTION, NOT ACCESS. canView() still does not know `follows`
+// exists, and a friend's friends-level rides stay out of the follow feed, which
+// shows only what /explore would.
 //
 // What that leaves is the one thing following DOES have to reason about, which
 // is the block — and it is the reason this file exists at all rather than the
 // rules living inline in the service.
 
-/** The two states. `following` or not; there is nothing in between. */
-export type FollowView = 'none' | 'following'
+/** `friends` is following by friendship: no row of the viewer's own, nothing to
+ *  undo from the follow control, and the way down is unfriending. */
+export type FollowView = 'none' | 'following' | 'friends'
 
 /**
  * What the pair is, in the VIEWER's terms.
@@ -26,7 +37,8 @@ export type FollowView = 'none' | 'following'
  * 'incoming', because being followed is not a state you are in with somebody;
  * it is a fact about them.
  */
-export const followView = (row: unknown | null | undefined): FollowView => (row ? 'following' : 'none')
+export const followView = (row: unknown | null | undefined, friends = false): FollowView =>
+  friends ? 'friends' : row ? 'following' : 'none'
 
 /**
  * Whether this rider may follow that one.
@@ -57,6 +69,10 @@ export function canFollow(o: { viewerId: number; targetId: number; blocked: bool
  *  opposite answers, because there the row is the block itself and here it is
  *  not. */
 export const canUnfollow = (view: FollowView): boolean => view === 'following'
+
+/** Whether the follow control is shown at all. Beside a friend it is not: they
+ *  are followed by being a friend, and unfollowing a friend is not offered. */
+export const showsFollowControl = (view: FollowView): boolean => view !== 'friends'
 
 /**
  * Whether a follow may be RECORDED at all, given both riders' standing.
