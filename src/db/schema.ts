@@ -1961,3 +1961,76 @@ export const roadReports = pgTable(
 )
 
 export type RoadReportRow = typeof roadReports.$inferSelect
+
+// CLUBS (#182, Ziad's call, 2026-08-27, built 2026-10-02). A club is one record.
+// An admin creates it and names ONE manager, who alone admits and removes
+// members; every member may edit what the club says (name, chapters, icon).
+// src/clubs/policy.ts owns both axes.
+//
+// THE SEVEN POSITIONS ARE A CLOSED ENUM and grant nothing: a title is not a
+// permission, and the manager is not an office.
+export const clubPositionEnum = pgEnum('club_position', [
+  'member',
+  'secretary',
+  'road_captain',
+  'sergeant_at_arms',
+  'president',
+  'vice_president',
+  'treasurer',
+])
+
+export const clubs = pgTable('clubs', {
+  id: bigserial('id', { mode: 'number' }).primaryKey(),
+  name: varchar('name', { length: 80 }).notNull(),
+  // NULLABLE AND `set null`, NEVER CASCADE. A manager deleting their account must
+  // delete the manager, not the club: an ownerless club keeps its members, lets
+  // them leave and edit, and admits nobody until an admin appoints a new one.
+  managerId: bigint('manager_id', { mode: 'number' }).references(() => users.id, { onDelete: 'set null' }),
+  // The icon's bytes, counted here and in nobody's quota (the feedback_attachments
+  // rule). Zero means no icon. The file is STORAGE/clubs/<id>.webp.
+  iconBytes: integer('icon_bytes').notNull().default(0),
+  createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
+})
+
+// The club's own list, so fifteen spellings of one chapter become one row.
+export const clubChapters = pgTable(
+  'club_chapters',
+  {
+    id: bigserial('id', { mode: 'number' }).primaryKey(),
+    clubId: bigint('club_id', { mode: 'number' })
+      .notNull()
+      .references(() => clubs.id, { onDelete: 'cascade' }),
+    name: varchar('name', { length: 60 }).notNull(),
+  },
+  (t) => [uniqueIndex('uq_club_chapter_name').on(t.clubId, sql`lower(${t.name})`)],
+)
+
+// A rider's place in a club. `requested` is a request waiting on the manager and
+// grants nothing; `member` is in. Cascades from users, because this row IS about
+// that rider.
+export const clubMembers = pgTable(
+  'club_members',
+  {
+    id: bigserial('id', { mode: 'number' }).primaryKey(),
+    clubId: bigint('club_id', { mode: 'number' })
+      .notNull()
+      .references(() => clubs.id, { onDelete: 'cascade' }),
+    userId: bigint('user_id', { mode: 'number' })
+      .notNull()
+      .references(() => users.id, { onDelete: 'cascade' }),
+    status: varchar('status', { length: 12 }).notNull().default('requested'),
+    position: clubPositionEnum('position').notNull().default('member'),
+    chapterId: bigint('chapter_id', { mode: 'number' }).references(() => clubChapters.id, { onDelete: 'set null' }),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [
+    uniqueIndex('uq_club_member').on(t.clubId, t.userId),
+    index('ix_club_members_user').on(t.userId),
+    check('ck_club_member_status', sql`${t.status} in ('requested', 'member')`),
+  ],
+)
+
+export type ClubRow = typeof clubs.$inferSelect
+export type ClubMemberRow = typeof clubMembers.$inferSelect
+export type ClubPosition = (typeof clubPositionEnum.enumValues)[number]

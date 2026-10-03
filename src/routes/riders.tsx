@@ -286,7 +286,7 @@ async function ridersPage(c: Context<AuthEnv>, tab: Tab) {
       <h1>Riders</h1>
       <p class="lede">
         Everyone planning here, and the ones you ride with. Names and handles only—anything else is on a rider’s own
-        profile, and only if they put it there.
+        profile, and only if they put it there. Riding with a club? <a href="/clubs">Clubs</a>&nbsp;are here.
       </p>
 
       <div class="page-tabs" role="tablist" aria-label="Riders" data-tabs>

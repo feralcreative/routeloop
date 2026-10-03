@@ -1,5 +1,6 @@
 // Building the "Download Me" archive. The queries; the shape lives in
 // ./archive.ts, which is pure and tested.
+import { clubsOf } from '../clubs/service'
 import { asc, eq, inArray, or } from 'drizzle-orm'
 import { readFile } from 'node:fs/promises'
 import { db } from '../db/index'
@@ -419,6 +420,8 @@ async function everythingElse(userId: number) {
       answers: r.answers,
       submittedAt: r.submittedAt,
     })),
+    // The clubs this rider is in or waiting on (#182), named rather than by id.
+    clubs: await clubsOf(userId),
     // The road reports this rider made (#48), with where, as [lng, lat].
     roadReports: (await db.select().from(roadReports).where(eq(roadReports.reporterId, userId))).map((r) => ({
       kind: r.kind,
