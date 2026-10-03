@@ -44,6 +44,7 @@ import { followRoutes } from './routes/follows'
 import { rendezvousRoutes } from './routes/rendezvous'
 import { conditionsRoutes } from './routes/conditions'
 import { roadReportRoutes } from './routes/road-reports'
+import { clubRoutes } from './routes/clubs'
 import { routeRiderRoutes } from './routes/route-riders'
 import { profileRoutes } from './routes/profile'
 import { builderRoutes } from './routes/builder'
@@ -284,6 +285,7 @@ app.route('/', followRoutes)
 app.route('/', rendezvousRoutes)
 app.route('/', conditionsRoutes)
 app.route('/', roadReportRoutes)
+app.route('/', clubRoutes)
 app.route('/', routeRiderRoutes)
 app.route('/', friendRoutes)
 // Literal paths, and ahead of pageRoutes whose /:handle{@…} route would not

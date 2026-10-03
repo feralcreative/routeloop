@@ -131,6 +131,12 @@ describe('the archive covers every table that holds rider data', () => {
     route_riders: 'inside the ride files',
     // A route's road as a PostGIS line, rebuilt from route_legs on every save.
     route_tracks: 'inside the ride files',
+    // A club is the club's record, not one rider's; the rider's own membership
+    // ships as `clubs` with the club and chapter named.
+    clubs: 'the club’s own record, named in clubs',
+    club_chapters: 'the club’s own record, named in clubs',
+    // Exported, through clubsOf() in src/clubs/service.ts, which this text test cannot follow.
+    club_members: 'exported as clubs, by clubsOf()',
     // The roster of a ride is a fact about OTHER people. This rider's own row on
     // every ride ships as `memberships`; the rest is those riders' to export.
     ride_members: 'other people, exported as memberships',

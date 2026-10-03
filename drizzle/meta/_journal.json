@@ -337,6 +337,13 @@
       "when": 1790995410826,
       "tag": "0047_absurd_maverick",
       "breakpoints": true
+    },
+    {
+      "idx": 48,
+      "version": "7",
+      "when": 1790995559781,
+      "tag": "0048_optimal_scourge",
+      "breakpoints": true
     }
   ]
 }
