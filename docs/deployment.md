@@ -168,6 +168,17 @@ Not yet run. In order, and stopping at the first thing that does not look right:
 
 **Rolling back** is `utils/deploy/deploy-utils.sh cutover blue|green` as always, but note the two environments now share a database: rolling stage back does not undo anything written through it.
 
+### The PostGIS image swap (#37)
+
+`db` runs `postgis/postgis:17-3.5-alpine` instead of `postgres:17-alpine`. It is built from the same Alpine image at the same Postgres major, so the existing volume opens as it is; a Debian-based PostGIS image would not be safe on it, because musl and glibc sort text differently and every text index would be silently out of order. The image only makes PostGIS *available*: nothing uses it until a later migration runs `CREATE EXTENSION postgis`, which is why the swap ships alone.
+
+1. **Back up production.** `DEPLOY_ENV=prod utils/deploy/deploy-utils.sh db-backup`, and check the dump ends with `PostgreSQL database dump complete`.
+2. **Deploy prod.** The deploy's `up -d db` sees the new image and recreates the container: a few seconds with no database, volume untouched, and both colors reconnect on their own.
+3. **Check it took**: `utils/deploy/deploy-utils.sh psql` and `select name, default_version from pg_available_extensions where name = 'postgis';` should return a row.
+4. **Rolling back** is reverting the one image line and deploying again; with no extension created there is nothing in the data to undo.
+
+Dev runs the same image under `platform: linux/amd64`, emulated on Apple Silicon, because Docker Hub publishes PostGIS for amd64 only.
+
 ## Traps, all of which have actually happened
 
 - **The old stack holds the ports.** A renamed stack wants the same host ports the previous one published, and Compose fails with `port is already allocated` and nothing more helpful. Bring the old stack down first. **Hit again on 2026-08-27**, in its worst form: a `tankbag-stage` container from before the rename had been holding both stage ports for eighteen days, so every stage deploy in that window failed to bind—and the old `docker-compose down` never freed them, because it only ever addressed the `routeloop-stage` compose project. An orphan of a *different* project is invisible to every command the deploy runs.
