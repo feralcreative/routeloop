@@ -9,15 +9,15 @@
 // it, so changing provider is a change to .env and nothing else — the app moved
 // from a personal Gmail account to Resend without a line of this file changing
 // shape. An HTTP API would have bought a little and cost that.
-import nodemailer from 'nodemailer'
+import nodemailer, { type Transporter } from 'nodemailer'
 import { IS_STAGE, MAIL_ENABLED, MAIL_FROM, SMTP_HOST, SMTP_PASS, SMTP_PORT, SMTP_USER } from '../config'
 import { allow } from './ratelimit'
 import { renderEmail } from '../emails/shell'
 import type { EmailTemplate } from '../emails/types'
 
-let transport: nodemailer.Transporter | null = null
+let transport: Transporter | null = null
 
-function getTransport(): nodemailer.Transporter {
+function getTransport(): Transporter {
   if (!transport) {
     transport = nodemailer.createTransport({
       host: SMTP_HOST,
