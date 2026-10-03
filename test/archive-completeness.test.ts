@@ -129,6 +129,8 @@ describe('the archive covers every table that holds rider data', () => {
     point_details: 'inside the ride files',
     ride_subgroups: 'inside the ride files',
     route_riders: 'inside the ride files',
+    // A route's road as a PostGIS line, rebuilt from route_legs on every save.
+    route_tracks: 'inside the ride files',
     // The roster of a ride is a fact about OTHER people. This rider's own row on
     // every ride ships as `memberships`; the rest is those riders' to export.
     ride_members: 'other people, exported as memberships',

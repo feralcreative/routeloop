@@ -5,6 +5,7 @@
 // An import lands as: one rides row (source 'imported') + one route + the file's
 // placemarks as ordered stops + legs cut from the track — the same structured shape
 // the builder produces, so every viewer renders from one model.
+import { refreshRouteTracks } from '../maps/route-track'
 import { Hono } from 'hono'
 import type { ContentfulStatusCode } from 'hono/utils/http-status'
 import { bodyLimit } from 'hono/body-limit'
@@ -658,6 +659,7 @@ mapsRoutes.post(
                 distanceM: leg.distanceM,
               })),
             )
+            await refreshRouteTracks(tx, ride.id)
           }
 
           fileRideId = ride.id

@@ -17,6 +17,7 @@ import {
   rideMembers,
   rideSuggestions,
   rides,
+  roadReports,
   surveyResponses,
   userIdentities,
   userProfiles,
@@ -417,6 +418,15 @@ async function everythingElse(userId: number) {
       surveyVersion: r.surveyVersion,
       answers: r.answers,
       submittedAt: r.submittedAt,
+    })),
+    // The road reports this rider made (#48), with where, as [lng, lat].
+    roadReports: (await db.select().from(roadReports).where(eq(roadReports.reporterId, userId))).map((r) => ({
+      kind: r.kind,
+      note: r.note,
+      at: r.at,
+      season: r.seasonStart != null ? { start: r.seasonStart, end: r.seasonEnd } : null,
+      createdAt: r.createdAt,
+      expiresAt: r.expiresAt,
     })),
   }
 }

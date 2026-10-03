@@ -18,6 +18,8 @@ import {
   check,
   primaryKey,
   type AnyPgColumn,
+  customType,
+  geometry,
 } from 'drizzle-orm/pg-core'
 
 // 'google' is the OAuth flow and 'email' is the magic link. 'github' and
@@ -1890,3 +1892,69 @@ export type FeedbackKind = (typeof feedbackKindEnum.enumValues)[number]
 export type FeedbackState = (typeof feedbackStateEnum.enumValues)[number]
 /** The rider-facing lifecycle, derived from the enum so the two cannot drift. */
 export type FeedbackStatus = (typeof feedbackStatusEnum.enumValues)[number]
+
+// A ROUTE'S ROAD AS A POSTGIS LINE (#37). Derived from route_legs and rebuilt by
+// refreshRouteTracks() in src/maps/route-track.ts after every write of a ride's
+// legs, so it is never edited on its own. Its own table rather than a column on
+// routes because half the app selects whole route rows, and a track is thousands
+// of vertices nobody there asked for.
+//
+// CASCADES FROM routes, which every save deletes and reinserts: the old color
+// during a blue/green cutover saves without rebuilding, so a ride saved in that
+// minute has no track until its next save. Nothing reads a missing track as a
+// road with nothing on it being sure; spatial answers simply skip it.
+const lineString = customType<{ data: string }>({
+  dataType: () => 'geometry(LineString, 4326)',
+})
+
+export const routeTracks = pgTable(
+  'route_tracks',
+  {
+    routeId: bigint('route_id', { mode: 'number' })
+      .primaryKey()
+      .references(() => routes.id, { onDelete: 'cascade' }),
+    rideId: bigint('ride_id', { mode: 'number' })
+      .notNull()
+      .references(() => rides.id, { onDelete: 'cascade' }),
+    track: lineString('track').notNull(),
+  },
+  (t) => [index('ix_route_tracks_track').using('gist', t.track), index('ix_route_tracks_ride').on(t.rideId)],
+)
+
+// RIDER-REPORTED ROAD CONDITIONS (#48) AND SEASONAL CLOSURES (#53). A report is a
+// point a rider pressed, a kind, and a note; src/road-reports/policy.ts owns what
+// is live and what is in season. `kind` is a varchar checked here rather than a
+// pgEnum, for the reason notification events are: a fourth kind should be a code
+// change, not an ALTER TYPE.
+//
+// A SEASON IS TWO MONTH-DAYS AS MMDD (1101 and 0531 for November through May),
+// with no year, because a pass shuts every winter. A window may wrap the new year.
+// Only a closure carries one, and a seasonal closure never expires.
+export const roadReports = pgTable(
+  'road_reports',
+  {
+    id: bigserial('id', { mode: 'number' }).primaryKey(),
+    reporterId: bigint('reporter_id', { mode: 'number' })
+      .notNull()
+      .references(() => users.id, { onDelete: 'cascade' }),
+    kind: varchar('kind', { length: 16 }).notNull(),
+    note: varchar('note', { length: 400 }).notNull().default(''),
+    at: geometry('at', { type: 'point', mode: 'tuple', srid: 4326 }).notNull(),
+    seasonStart: smallint('season_start'),
+    seasonEnd: smallint('season_end'),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+    // Null never expires, which only a seasonal closure is.
+    expiresAt: timestamp('expires_at', { withTimezone: true }),
+  },
+  (t) => [
+    index('ix_road_reports_at').using('gist', t.at),
+    index('ix_road_reports_reporter').on(t.reporterId),
+    check('ck_road_report_kind', sql`${t.kind} in ('surface', 'closure', 'hazard')`),
+    check(
+      'ck_road_report_season',
+      sql`(${t.seasonStart} is null) = (${t.seasonEnd} is null) and (${t.seasonStart} is null or ${t.kind} = 'closure')`,
+    ),
+  ],
+)
+
+export type RoadReportRow = typeof roadReports.$inferSelect
