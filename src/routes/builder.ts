@@ -838,6 +838,8 @@ function builderHtml(
                being ticked. -->
           <div class="select-bar" id="select-bar" hidden></div>
 
+          <section class="road-reports" id="road-reports" hidden></section>
+
           <div class="route-list" id="route-list" data-duration-format="${prefs.durationFormat}"></div>
           <p class="route-empty-hint" id="route-empty-hint" hidden>No routes yet.</p>
         </div>`
@@ -1266,6 +1268,8 @@ ${
   <script src="${asset('/js/range-circle.js')}" defer></script>
   <script src="${asset('/js/conditions.js')}" defer></script>
   <script src="${asset('/js/conditions-strip.js')}" defer></script>
+  <script src="${asset('/js/road-season.js')}" defer></script>
+  <script src="${asset('/js/road-reports.js')}" defer></script>
   <script src="${asset('/js/builder.js')}" defer></script>
   ${tourScript()}`,
   })

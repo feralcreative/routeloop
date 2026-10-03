@@ -43,6 +43,7 @@ import { rosterRoutes } from './routes/roster'
 import { followRoutes } from './routes/follows'
 import { rendezvousRoutes } from './routes/rendezvous'
 import { conditionsRoutes } from './routes/conditions'
+import { roadReportRoutes } from './routes/road-reports'
 import { routeRiderRoutes } from './routes/route-riders'
 import { profileRoutes } from './routes/profile'
 import { builderRoutes } from './routes/builder'
@@ -282,6 +283,7 @@ app.route('/', suggestionRoutes)
 app.route('/', followRoutes)
 app.route('/', rendezvousRoutes)
 app.route('/', conditionsRoutes)
+app.route('/', roadReportRoutes)
 app.route('/', routeRiderRoutes)
 app.route('/', friendRoutes)
 // Literal paths, and ahead of pageRoutes whose /:handle{@…} route would not
@@ -826,6 +828,8 @@ function viewerPanel(
             </div>
           )}
         </div>
+        {/* Road reports along this ride (#48, #53), filled by road-reports.js. */}
+        <section class="road-reports" id="road-reports" hidden></section>
         {/*
                     The timeline used to sit here, between the details and the route table. It is
                     now a bar across the bottom edge of the map — rideTimeline() in
@@ -893,6 +897,8 @@ function viewHtml(
       routeColors: ROUTE_COLORS,
       units,
       range,
+      // An approved rider may report the road; anybody may read the reports.
+      canReport: user?.status === 'active',
     },
     // The tour's last part visits the viewer, so it carries the tour's
     // assets while one is running and nothing extra otherwise.
@@ -908,6 +914,8 @@ function viewHtml(
   <script src="${asset('/js/range-circle.js')}" defer></script>
   <script src="${asset('/js/conditions.js')}" defer></script>
   <script src="${asset('/js/conditions-strip.js')}" defer></script>
+  <script src="${asset('/js/road-season.js')}" defer></script>
+  <script src="${asset('/js/road-reports.js')}" defer></script>
   <script src="${asset('/js/viewer.js')}" defer></script>
   ${tourAssets(user).scripts}`,
   })

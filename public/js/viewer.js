@@ -674,6 +674,22 @@
     });
   }
 
+  // Road reports along the ride (#48, #53). Anybody may read them; the report button
+  // is drawn only for an approved rider.
+  function initRoadReports() {
+    if (!window.TBRoadReports) return;
+    const slug = (window.TB.rideUrl.match(/rides\/([^/]+)\/ride\.json/) || [])[1];
+    if (!slug) return;
+    window.TBRoadReports.create({
+      map: state.map,
+      host: document.getElementById("road-reports"),
+      canReport: !!window.TB.canReport,
+      url: () => "/m/" + encodeURIComponent(slug) + "/road-reports.json",
+      routes: () => state.ride.routes,
+      tracks: () => state.ride.routes.map((r) => r.track || []),
+    }).load();
+  }
+
   // Elevation above the timeline and weather in its readout (#23, #24). The axis is
   // the ride-scope slider's: riding hours with the nights left out.
   function initConditions() {
@@ -721,6 +737,7 @@
       renderTimeline();
       wireTimeline();
       initConditions();
+      initRoadReports();
 
       const cloneBtn = document.querySelector("[data-clone]");
       if (cloneBtn) {
