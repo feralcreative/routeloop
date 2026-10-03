@@ -1,5 +1,5 @@
 // Elevation and weather at a moment on the timeline (#23, #24): the pure half,
-// eval'd by test/conditions-client.test.ts. conditions-strip.js is the DOM.
+// eval'd by test/conditions.test.ts. conditions-strip.js is the DOM.
 //
 // Samples come from src/maps/conditions.ts addressed by LEG AND FRACTION, the same
 // terms activeAt() answers in, so `leg + f` is one ordered key along the route and

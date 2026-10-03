@@ -38,9 +38,10 @@
 <p>One thing there is worth saying plainly. Both record the address of the page, which means the link to a shared ride appears in my analytics as its own line. Cloudflare records nothing after a question mark; Google Analytics does, though nothing on this site puts anything secret there—a tab name, a saved flag, an error code. The one page whose address is itself a secret, an invitation link, sends nothing to either. Cloudflare already carries every request to this site and sees those addresses regardless; what I cannot do on the plan this runs on is stop them being listed. If that matters for a particular ride, keep it private rather than unlisted.</p>
 
 <h2>Who else sees it</h2>
-<p>Five services are involved in running the app. None of them is sent your rides as a body of data.</p>
+<p>Six services are involved in running the app. None of them is sent your rides as a body of data.</p>
 <ul>
   <li><strong>Google Maps, Places and Routes</strong> draw the map, answer your place searches, and work out the roads between two stops. That means Google sees the search terms you type and the coordinates it is asked to route between, in the moment it is asked.</li>
+  <li><strong>Open-Meteo</strong> supplies the elevation profile and the forecast on the timeline. The server asks it for points along a route, a few dozen at a time, with nothing that says whose ride they belong to.</li>
   <li><strong>Google Sign-In</strong>, if you use it, tells Routeloop your email address, whether Google has verified it, and your first and last name. Nothing else is requested.</li>
   <li><strong>Google Analytics</strong> is sent the page views described above, filed under the random number in its cookie, and nothing about your account or your rides.</li>
   <li><strong>Resend</strong> carries every email the app sends: the sign-in link if you use a magic link, and whichever notifications you have switched on.</li>
