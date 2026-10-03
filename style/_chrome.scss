@@ -531,20 +531,25 @@ $octagon: polygon(
     // The sign is inline SVG with its field in currentColor, so this is the
     // one place its orange is decided — the palette's, not the file's.
     color: $detour;
+    // The drawing's width and the point it hangs from, in units of the original
+    // 242-wide sign, set inline per file by signSvg(). Defaults are the original.
+    --sw: 1;
+    --nx: 0.7479;
+    --ny: 0.2238;
     // Sits over the page below the header, which is what a hanging sign does.
     z-index: 1;
   }
 
   &[data-mark="hz"] .logo-beta {
-    width: calc(24.5% * var(--sign-scale));
-    left: calc(100% - 24.5% * 0.748 * var(--sign-scale));
-    top: calc(120.6% - 200% * 1.1405 * 0.196 * var(--sign-scale));
+    width: calc(24.5% * var(--sw) * var(--sign-scale));
+    left: calc(100% - 24.5% * var(--nx) * var(--sign-scale));
+    top: calc(120.6% - 200% * var(--ny) * var(--sign-scale));
   }
 
   &[data-mark="stacked"] .logo-beta {
-    width: calc(60.5% * var(--sign-scale));
-    left: calc(98.8% - 60.5% * 0.748 * var(--sign-scale));
-    top: calc(117.3% - 107.5% * 1.1405 * 0.196 * var(--sign-scale));
+    width: calc(60.5% * var(--sw) * var(--sign-scale));
+    left: calc(98.8% - 60.5% * var(--nx) * var(--sign-scale));
+    top: calc(117.3% - 107.5% * var(--ny) * var(--sign-scale));
   }
 
   // Half size, hung beside the LOOP line. EVERY NUMBER IS A PERCENTAGE OF THE
@@ -552,9 +557,9 @@ $octagon: polygon(
     // thing keeping them in register as the mark is sized by its host — 200px on the
     // splash, 150px in the modal — is that both move by the same fractions.
   &--tucked[data-mark="stacked"] .logo-beta {
-    width: 30%;
-    left: 77.4%;
-    top: 83.6%;
+    width: calc(30% * var(--sw));
+    left: calc(99.8% - 30% * var(--nx));
+    top: calc(95.5% - 53.3% * var(--ny));
   }
 }
 

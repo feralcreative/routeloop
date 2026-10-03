@@ -16,8 +16,8 @@
 // WORDMARK.** Ziad's call, 2026-09-20. The composites he drew hang the sign
 // off the wordmark's right end and so change its box — the hz one goes from
 // 8.15:1 to 2.85:1 — and the header sizes the mark by height, so a baked
-// file would shrink the word to a third to fit the sign in. `beta-lockup.svg`
-// is the sign alone; `.logo-beta` in _chrome.scss hangs it from the same
+// file would shrink the word to a third to fit the sign in. The `beta-lockup-NN.svg`
+// files are the sign alone; `.logo-beta` in _chrome.scss hangs it from the same
 // nail the composites use, sized per surface, and it goes with one class when
 // the stage does. The composites stay for the rasters — email and the OG
 // card — where there is no CSS. `BETA_SIGN` in views/stage.ts is the switch.
@@ -39,19 +39,44 @@ import { BETA_SIGN } from './stage'
 
 type Mark = 'hz' | 'stacked'
 
-const SIGN_FILE = join(process.cwd(), 'public', 'img', 'beta-lockup.svg')
-let signCache: { mtimeMs: number; svg: string } | null = null
+// **SEVEN DRAWINGS, ONE PICKED AT RANDOM PER RENDER.** Ziad's call, 2026-10-03:
+// the sign hangs at a different angle on every page. Each file has its own
+// canvas, so each carries the point it hangs from—the center of its silver
+// screw, read off the file's own gradient—and the stylesheet pins THAT point
+// where the original's sat. Two are level with two screws (01, 07); they hang
+// from the right one, as the original did. Everything is in units of the
+// original's 242-wide box, which drew the sign at the same scale as these.
+const SIGN_UNIT = 242
+const SIGNS: { file: string; nail: [number, number] }[] = [
+  { file: 'beta-lockup-01.svg', nail: [200.76, 39.8] },
+  { file: 'beta-lockup-02.svg', nail: [209.97, 47.42] },
+  { file: 'beta-lockup-03.svg', nail: [64.74, 36.44] },
+  { file: 'beta-lockup-04.svg', nail: [46.81, 45.54] },
+  { file: 'beta-lockup-05.svg', nail: [42.27, 47.87] },
+  { file: 'beta-lockup-06.svg', nail: [180.98, 39.18] },
+  { file: 'beta-lockup-07.svg', nail: [208.14, 41.67] },
+]
+const signCache = new Map<string, { mtimeMs: number; svg: string }>()
 
-/** The sign's SVG with the class and aria-hidden on its root tag. The file's
- *  own width/height attributes stay: they are the aspect ratio `height: auto`
- *  sizes the inline element by. */
-function signSvg(): string {
-  const { mtimeMs } = statSync(SIGN_FILE)
-  if (signCache && signCache.mtimeMs === mtimeMs) return signCache.svg
-  const svg = readFileSync(SIGN_FILE, 'utf8')
-    .replace(/^\s*<svg\b/, '<svg class="logo-beta" aria-hidden="true"')
+/** One sign's SVG with the class, aria-hidden and its placement on the root tag.
+ *  The file's own width/height attributes stay: they are the aspect ratio
+ *  `height: auto` sizes the inline element by. The drawings bake the orange in,
+ *  so the field is swapped for currentColor here rather than in eight exports. */
+function signSvg(i: number): string {
+  const { file, nail } = SIGNS[i]
+  const path = join(process.cwd(), 'public', 'img', file)
+  const { mtimeMs } = statSync(path)
+  const hit = signCache.get(file)
+  if (hit && hit.mtimeMs === mtimeMs) return hit.svg
+  const src = readFileSync(path, 'utf8')
+  const w = Number(/<svg[^>]*\bwidth="([\d.]+)"/.exec(src)?.[1] ?? SIGN_UNIT)
+  const r = (n: number) => (n / SIGN_UNIT).toFixed(4)
+  const style = `--sw:${r(w)};--nx:${r(nail[0])};--ny:${r(nail[1])}`
+  const svg = src
+    .replace(/fill="#FF6500"/gi, 'fill="currentColor"')
+    .replace(/^\s*<svg\b/, `<svg class="logo-beta" aria-hidden="true" style="${style}"`)
     .trim()
-  signCache = { mtimeMs, svg }
+  signCache.set(file, { mtimeMs, svg })
   return svg
 }
 
@@ -83,7 +108,7 @@ export function wordmark(mark: Mark, alt: string, className = ''): string {
 }
 
 /** The sign alone, decorative: the wordmark's alt already says beta. */
-const sign = () => raw(signSvg())
+const sign = () => raw(signSvg(Math.floor(Math.random() * SIGNS.length)))
 
 /** The sign for a surface that draws its own wordmark rather than calling
  *  wordmark() — the splash's reversed stacked mark. Empty outside a beta. */
