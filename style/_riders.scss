@@ -375,3 +375,20 @@
     --face: 96px;
   }
 }
+
+// The Most Active board (#192): a card's verb slot holds its rank and figure.
+.board-figure {
+  grid-column: 1 / -1;
+  align-self: center;
+  font-size: 0.85rem;
+  color: $neutral-50;
+
+  b {
+    margin-right: 0.25rem;
+    color: $text;
+  }
+
+  &.is-me b {
+    color: $brand;
+  }
+}

@@ -414,6 +414,9 @@ export const userProfiles = pgTable('user_profiles', {
   bio: varchar('bio', { length: 280 }),
   // Off until asked: a garage is not published by filling one in.
   sharePaddock: boolean('share_paddock').notNull().default(false),
+  // On the Most Active board on /riders (#192). OFF UNTIL ASKED: the roster promises
+  // names and handles only, and a rider's activity is published only by their choice.
+  onLeaderboard: boolean('on_leaderboard').notNull().default(false),
   // The rider's own avatar, counted HERE AND NOWHERE ELSE — never in `users.used_bytes`
   // and never in `rides.size_bytes`'s generated expression. Same rule as
   // `bikes.photo_bytes`: a fourth byte column reaching that expression corrupts quota

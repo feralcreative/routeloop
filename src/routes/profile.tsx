@@ -101,6 +101,7 @@ const profileSchema = z.object({
   sharePhone: checkbox,
   shareSocials: checkbox,
   sharePaddock: checkbox,
+  onLeaderboard: checkbox,
   profileVisibility: z.enum(PROFILE_VISIBILITIES).catch(DEFAULT_PROFILE_VISIBILITY),
 })
 
@@ -354,6 +355,7 @@ function PublicPage({ user, values: v, errors }: { user: UserRow; values: Record
         </span>
       </p>
       <Check name="sharePaddock" label="Show my Paddock on my page" values={v} />
+      <Check name="onLeaderboard" label="List me on the Most Active board on Riders, with my public rides’ miles and counts" values={v} />
     </fieldset>
   )
 }
@@ -904,6 +906,7 @@ profileRoutes.post('/profile', requireActive, async (c) => {
         phone: text(p.phone),
         shareSocials: p.shareSocials,
         sharePaddock: p.sharePaddock,
+        onLeaderboard: p.onLeaderboard,
         profileVisibility: p.profileVisibility,
         bio: text(p.bio),
         instagram: handle(p.instagram),
@@ -990,6 +993,7 @@ const AUTOSAVE_FLAGS = [
   'sharePhone',
   'shareSocials',
   'sharePaddock',
+  'onLeaderboard',
 ] as const
 
 /**
