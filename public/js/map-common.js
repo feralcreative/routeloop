@@ -251,6 +251,23 @@
     map.controls[Core.ControlPosition.RIGHT_BOTTOM].push(btn);
   }
 
+  // A page's own control in the right-hand column, stacked above the locate button.
+  // Road reports (#48) is the first caller.
+  function addMapButton(map, el) {
+    requireInit("addMapButton");
+    map.controls[Core.ControlPosition.RIGHT_BOTTOM].push(el);
+  }
+
+  // Ground meters under one screen pixel at a latitude, at the map's current zoom.
+  function metersPerPixel(map, lat) {
+    return (156543.03392 * Math.cos((lat * Math.PI) / 180)) / Math.pow(2, map.getZoom());
+  }
+
+  // The cursor over the map while a page is waiting for a press; null restores the hand.
+  function setMapCursor(map, cursor) {
+    map.setOptions({ draggableCursor: cursor || null });
+  }
+
   function fitTo(map, lngLats, padding) {
     requireInit("fitTo");
     if (!lngLats.length) return;
@@ -1100,7 +1117,7 @@
       gmpDraggable: !!o.draggable,
       title: o.title || "",
       // Explicit, and the whole point: see the scale above.
-      zIndex: MARKER_Z,
+      zIndex: o.zIndex != null ? o.zIndex : MARKER_Z,
     });
   }
 
@@ -2082,6 +2099,9 @@
     tilesAreDark,
     fitTo,
     onMapClick,
+    addMapButton,
+    setMapCursor,
+    metersPerPixel,
     panTo,
     addRouteLayers,
     removeRouteLayers,

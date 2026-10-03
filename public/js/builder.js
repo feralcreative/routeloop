@@ -1252,6 +1252,9 @@
         // A clean save is what makes the NEXT failure new again.
         lastErrorSeen = null;
         if (conditions) conditions.load();
+        // The first save of a new ride is when it gets an id to ask with.
+        if (roadReports) roadReports.load();
+        else initRoadReports();
         closeErrorDialog();
       }
     }
@@ -5884,6 +5887,24 @@
     return conditions;
   }
 
+  // Road reports (#48, #53) along this ride. Read from what is stored, like the
+  // conditions strip, so a clean save asks again; a ride never saved has none.
+  let roadReports = null;
+  function initRoadReports() {
+    // Not before the map: loading a ride marks it saved before initMap() has run.
+    if (roadReports || !window.TBRoadReports || !state.rideId || !state.map) return;
+    roadReports = window.TBRoadReports.create({
+      map: state.map,
+      host: $("road-reports"),
+      canReport: true,
+      toast,
+      url: () => "/api/rides/" + state.rideId + "/road-reports",
+      routes: () => state.routes,
+      tracks: () => state.routes.flatMap((r) => r.legs.map((l) => l.geometry)),
+    });
+    roadReports.load();
+  }
+
   // Rebuilds the profile when what the slider spans changes, and otherwise only
   // moves the cursor, because this runs on every scrub.
   function paintStrip() {
@@ -9505,7 +9526,10 @@
     initSuggestions();
     offerRecovery();
     onRouteShapeDrag(state.map, shapeAt);
+    initRoadReports();
     onMapClick(state.map, ([lng, lat]) => {
+      // A press made to place a road report is not a new stop.
+      if (roadReports && roadReports.tookClick()) return;
       // A drop at the end of a shape drag also produces a click. Without this the rider
       // bends the line and gets a stop they never asked for.
       if (consumeShapeClick(state.map)) return;

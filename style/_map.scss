@@ -2157,3 +2157,237 @@ body.is-arming #map div {
 .tb-bed-disc:hover + .tb-bed-tip {
   opacity: 1;
 }
+
+// Road reports (#48, #53). A warning diamond, amber for advice and red for a
+// closure, the sign vocabulary the fuel overlay already speaks: amber is advice,
+// red is a verdict. A closure dated outside its season goes quiet rather than away.
+.rr-diamond {
+  display: grid;
+  place-items: center;
+  box-sizing: border-box;
+  width: 18px;
+  height: 18px;
+  transform: rotate(45deg);
+  border: 2px solid $ink-light;
+  border-radius: 3px;
+  background: $warning;
+  color: $ink-dark;
+  box-shadow: rgba(0, 0, 0, 0.35) 0 1px 3px;
+
+  b {
+    transform: rotate(-45deg);
+    font-size: 11px;
+    line-height: 1;
+  }
+}
+
+.rr-pin {
+  .rr-diamond {
+    margin: -9px 0 0 -9px;
+  }
+
+  &.rr-closure .rr-diamond {
+    background: $stop;
+    color: $ink-light;
+  }
+
+  &.is-quiet .rr-diamond {
+    background: $concrete;
+    color: $ink-dark;
+    opacity: 0.8;
+  }
+}
+
+.map-report {
+  display: grid;
+  place-items: center;
+  box-sizing: border-box;
+  width: 28px;
+  height: 28px;
+  margin: 0 22px 8px 0;
+  padding: 0;
+  border: 0;
+  border-radius: 2px;
+  background: $white;
+  box-shadow: rgba(0, 0, 0, 0.3) 0 1px 4px -1px;
+  cursor: pointer;
+
+  .rr-diamond {
+    width: 14px;
+    height: 14px;
+    border-width: 1px;
+    box-shadow: none;
+
+    b {
+      font-size: 9px;
+    }
+  }
+
+  &[aria-pressed="true"] {
+    outline: 2px solid $warning;
+    outline-offset: 1px;
+  }
+
+  &:focus-visible {
+    outline: 2px solid $brand;
+    outline-offset: 2px;
+  }
+}
+
+.rr-pop {
+  display: grid;
+  gap: 0.25rem;
+  max-width: 16rem;
+
+  p {
+    margin: 0;
+  }
+
+  .rr-meta {
+    font-size: 0.8em;
+    color: $neutral-50;
+  }
+
+  .rr-closed {
+    color: $stop;
+    font-weight: 600;
+  }
+
+  .rr-withdraw {
+    justify-self: start;
+    padding: 0;
+    border: 0;
+    background: none;
+    color: $brand;
+    text-decoration: underline;
+    cursor: pointer;
+  }
+}
+
+.road-reports {
+  margin: 0.75rem 0;
+
+  &[hidden] {
+    display: none;
+  }
+
+  .rr-head {
+    margin: 0 0 0.35rem;
+    font-size: 0.95rem;
+  }
+
+  .rr-list {
+    margin: 0;
+    padding: 0;
+    list-style: none;
+  }
+
+  .rr-go {
+    display: flex;
+    gap: 0.5rem;
+    align-items: flex-start;
+    width: 100%;
+    padding: 0.3rem 0;
+    border: 0;
+    background: none;
+    color: inherit;
+    font: inherit;
+    text-align: left;
+    cursor: pointer;
+
+    &:hover strong {
+      text-decoration: underline;
+    }
+  }
+
+  .rr-dot {
+    display: grid;
+    flex: 0 0 auto;
+    place-items: center;
+    width: 1.1rem;
+    height: 1.1rem;
+    margin-top: 0.1rem;
+    border-radius: 3px;
+    background: $warning;
+    color: $ink-dark;
+    font-size: 0.7rem;
+    font-weight: 700;
+
+    &.rr-closure {
+      background: $stop;
+      color: $ink-light;
+    }
+  }
+
+  .rr-closed small {
+    color: $stop;
+  }
+
+  .rr-quiet {
+    opacity: 0.65;
+  }
+}
+
+.rr-dialog {
+  text-align: left;
+
+  .rr-form {
+    display: grid;
+    gap: 0.75rem;
+  }
+
+  fieldset {
+    display: grid;
+    gap: 0.3rem;
+    margin: 0;
+    padding: 0;
+    border: 0;
+  }
+
+  textarea {
+    display: block;
+    box-sizing: border-box;
+    width: 100%;
+    margin-top: 0.25rem;
+  }
+
+  .rr-dates {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.5rem 1rem;
+
+    &[hidden] {
+      display: none;
+    }
+
+    small {
+      flex-basis: 100%;
+      color: $neutral-50;
+    }
+  }
+
+  .rr-season-fields[hidden] {
+    display: none;
+  }
+
+  .rr-public {
+    margin: 0;
+    font-size: 0.85em;
+    color: $neutral-50;
+  }
+
+  .rr-error {
+    margin: 0;
+    color: $stop;
+
+    &:empty {
+      display: none;
+    }
+  }
+
+  .rr-actions {
+    display: flex;
+    gap: 0.75rem;
+    justify-content: flex-end;
+  }
+}
