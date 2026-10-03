@@ -50,7 +50,7 @@ Delivered in phases:
 - [x] **The Paddock and saved places**—bikes with ranges and tanks for fuel planning, and places reused across rides
 - [x] **On the road**—a phone page per ride with the Maps hand-off and GPX files, kept offline on request
 - [x] **Public profiles**—`/@handle`, with a picture, bio, stats and Paddock, and a setting for who can see it
-- [ ] **Later**—PostGIS
+- [x] **Road data**—PostGIS, rider-reported road conditions, seasonal closures, and rides near you
 
 ## What it does
 
@@ -62,6 +62,7 @@ Delivered in phases:
 - **Import**—drop in existing `.kml` / `.kmz` / `.gpx` / `.geojson` / `.csv`, or a `.zip` of them, to migrate from other tools. Several files at once become the days of one ride, and files following the naming convention below arrive already named, ordered and dated.
 - **Export**—download any ride as KML, GPX, GeoJSON or CSV, whatever it was built or imported as, or as Routeloop JSON for a lossless backup that re-imports as the same ride. A multi-day ride can also come down as a zip of one conforming file per day.
 - **Timeline**—scrub a ride by the clock, with an elevation profile above the bar and, for dated routes in the next sixteen days, the forecast where you will be (both from Open-Meteo). An electric ride plans around chargers instead of gas stations.
+- **Road reports**—riders mark a stretch of road as rough, hazardous, or closed, and a closure can be seasonal; every ride passing within 75 m shows it, and a seasonal closure warns only on routes dated inside its window. Explore lists public rides passing near you. Both run on PostGIS.
 - **Roadbook**—a printable stop-by-stop sheet for the tank bag: leg and cumulative miles, miles since fuel, and an estimated clock.
 - **Shape**—drag the route line onto the road you actually meant. The dropped point becomes an ephemeral shaping waypoint on that leg, and only that leg re-routes.
 - **Hand off**—`/m/:slug/go` (the old `/navigate` redirects) turns a route into an ordered series of Google Maps links, with an **Expand** density control that weaves in shaping points so Maps has too little room to pick its own roads. It also states the longest stretch Maps still chooses for itself rather than hiding it.

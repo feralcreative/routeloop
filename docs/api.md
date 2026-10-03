@@ -219,6 +219,12 @@ Wants are deduplicated by Postgres rather than by application code. The composit
 
 Diagnostics are collected client-side, redacted server-side by `src/feedback/diagnostics.ts`, and **never stored unredacted**: query strings and fragments are stripped from every URL, coordinate pairs are dropped wherever they appear, and geolocation is recorded as a permission state and never a position.
 
+## Road reports and Near me (`routes/road-reports.ts`)
+
+`GET /m/:slug/road-reports.json` (behind `viewableRide()`, signed out allowed) and `GET /api/rides/:id/road-reports` (the builder, a member) return every live report within `REPORT_RADIUS_M` (75 m) of one of the ride's stored route lines, each with the route uids it sits on and `mine`. No other identity is sent. `POST /api/road-reports` (`requireActiveApi`, `requireSameOrigin`) takes `{kind, note, at: [lng, lat], season?: {start, end}}` with the season as MMDD and only on a closure; `parseReport()` in `src/road-reports/policy.ts` is the validator. `POST /api/road-reports/:id/withdraw` is the reporter or a rider manager, and answers anyone else exactly like a missing report.
+
+`GET /api/explore/near?lng=&lat=` returns `{count, html}`: rendered ride cards for listed rides whose road passes within 50 miles, nearest first. A fetch rather than a page query so a rider's location never sits in an address analytics records; `/explore?sort=near` renders the same list server-side from the rider's home base.
+
 ## Release notes
 
 | Route | Gate | Returns |
