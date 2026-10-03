@@ -21,9 +21,11 @@
 // `back` rides along so a rider returns to the page they pressed it on. It is
 // validated server-side (safeBack in routes/follows.ts), because a hidden field
 // is a rider-supplied value whatever the page put in it.
-import type { FollowView } from '../follows/policy'
+import { showsFollowControl, type FollowView } from '../follows/policy'
 
 export function FollowForm({ handle, view, back }: { handle: string; view: FollowView; back: string }) {
+  // Nothing beside a friend: they are followed by being a friend (#180).
+  if (!showsFollowControl(view)) return null
   const following = view === 'following'
   return (
     <form method="post" action={`/follows/${following ? 'unfollow' : 'follow'}`} class="friend-act">

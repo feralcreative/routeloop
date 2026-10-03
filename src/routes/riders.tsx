@@ -41,7 +41,7 @@ import {
   viewsOf,
   type RiderCard,
 } from '../friends/service'
-import { followingSet } from '../follows/service'
+import { followViewsOf } from '../follows/service'
 import { FriendActions } from '../views/friend-actions'
 import { FriendForm } from '../views/friend-form'
 import { FollowForm } from '../views/follow-form'
@@ -252,7 +252,7 @@ async function ridersPage(c: Context<AuthEnv>, tab: Tab) {
       me.id,
       roster.map((r) => r.id),
     ),
-    followingSet(
+    followViewsOf(
       me.id,
       roster.map((r) => r.id),
     ),
@@ -377,7 +377,7 @@ async function ridersPage(c: Context<AuthEnv>, tab: Tab) {
             {(r) => (
               <>
                 <FriendActions handle={r.username} view={views.get(r.id) ?? 'none'} back={back} />
-                <FollowForm handle={r.username} view={followed.has(r.id) ? 'following' : 'none'} back={back} />
+                <FollowForm handle={r.username} view={followed.get(r.id) ?? 'none'} back={back} />
               </>
             )}
           </RiderCards>
