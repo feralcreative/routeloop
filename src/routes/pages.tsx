@@ -8,6 +8,8 @@
 // The FAQ copy is maintained in docs/ops/faq.md, which is the source of truth
 // and carries the answers that are not publishable yet. Anything reworded here
 // should go back to that file.
+import { asset } from '../views/assets'
+import { NEAR_MILES, ridesNear, validPoint } from '../rides/near'
 import { Hono } from 'hono'
 import { withAnchors } from '../releases/latest'
 import type { Context } from 'hono'
@@ -70,8 +72,8 @@ const TERMS_EFFECTIVE = '1 August 2026'
 // faqLink in layout.ts) and so does anyone who shares a link. Deriving them
 // from the wording would silently break every one of those the first time a
 // question is rephrased.
-const render = (c: Context, title: string, body: string, bodyClass: string, navKey?: NavKey) =>
-  c.html(page({ title, user: c.get('user') ?? null, bodyClass, body, navKey }))
+const render = (c: Context, title: string, body: string, bodyClass: string, navKey?: NavKey, scripts?: string) =>
+  c.html(page({ title, user: c.get('user') ?? null, bodyClass, body, navKey, scripts }))
 
 // Browsable gallery of public rides.
 //
@@ -83,7 +85,9 @@ const render = (c: Context, title: string, body: string, bodyClass: string, navK
 const PER_PAGE = 24
 
 pageRoutes.get('/explore', async (c) => {
-  const sort = c.req.query('sort') === 'new' ? 'new' : 'popular'
+  const q = c.req.query('sort')
+  const sort = q === 'new' ? 'new' : q === 'near' ? 'near' : 'popular'
+  if (sort === 'near') return exploreNear(c)
   const page_ = Math.max(1, Number(c.req.query('page') ?? 1) || 1)
   const offset = (page_ - 1) * PER_PAGE
 
@@ -134,6 +138,7 @@ pageRoutes.get('/explore', async (c) => {
       <nav class="explore-tabs">
         <Tab key_="popular" label="Most viewed" />
         <Tab key_="new" label="Newest" />
+        <Tab key_="near" label="Near me" />
       </nav>
       {raw(rideCards(cards, sort === 'popular', { units, words: w }))}
       <nav class="explore-pager">
@@ -145,6 +150,54 @@ pageRoutes.get('/explore', async (c) => {
 
   return render(c, 'Explore', body, 'content-page explore-page', 'explore')
 })
+
+// NEAR ME (#37): rides whose road passes within NEAR_MILES. A signed-in rider with a
+// home base gets that list on first paint; anybody can ask for their own location
+// instead, which explore-near.js fetches from /api/explore/near so the coordinates
+// never sit in a page address.
+async function exploreNear(c: Context<AuthEnv>) {
+  const user = c.get('user') ?? null
+  const [home] = user
+    ? await db
+        .select({ lat: userProfiles.homeLat, lng: userProfiles.homeLng })
+        .from(userProfiles)
+        .where(eq(userProfiles.userId, user.id))
+        .limit(1)
+    : []
+  const at = home ? validPoint(home.lng, home.lat) : null
+  const rows = at ? await ridesNear(at) : []
+  const units = await unitsFor(c)
+  const w = wordsOf({ user })
+  const Tab = ({ key_, label }: { key_: string; label: string }) => (
+    <a class={`explore-tab${key_ === 'near' ? ' is-on' : ''}`} href={`/explore?sort=${key_}`}>
+      {label}
+    </a>
+  )
+  const lead = at
+    ? `Public ${wds(w, 'journey')} that pass within ${NEAR_MILES} miles of your home base.`
+    : `Public ${wds(w, 'journey')} that pass within ${NEAR_MILES} miles of you.`
+  const body = (
+    <>
+      <h1>Explore</h1>
+      <p class="lede">{lead}</p>
+      <nav class="explore-tabs">
+        <Tab key_="popular" label="Most viewed" />
+        <Tab key_="new" label="Newest" />
+        <Tab key_="near" label="Near me" />
+      </nav>
+      <p class="explore-near-bar">
+        <button type="button" class="btn" id="explore-near-locate" hidden>
+          Use my location
+        </button>
+        <span class="explore-near-status" id="explore-near-status" aria-live="polite">
+          {at && rows.length === 0 ? `Nothing public passes within ${NEAR_MILES} miles yet.` : ''}
+        </span>
+      </p>
+      <div id="explore-near-list">{raw(rideCards(rows, false, { units, words: w }))}</div>
+    </>
+  ).toString()
+  return render(c, 'Explore', body, 'content-page explore-page', 'explore', `<script src="${asset('/js/explore-near.js')}" defer></script>`)
+}
 
 // The rider roster moved to routes/riders.tsx on 2026-08-29 (#179), where it is
 // one tab of a two-tab screen alongside a rider's own friends list. Nothing of
