@@ -1652,7 +1652,18 @@
     }
 
     function remember() {
-      writeDrawer({ w: current(), collapsed: panel.classList.contains("collapsed") });
+      const d = { w: current(), collapsed: panel.classList.contains("collapsed") };
+      const sh = sheetHeight();
+      if (sh) d.sh = sh;
+      writeDrawer(d);
+    }
+
+    // The phone sheet's height, set by the grab bar and read back for remember().
+    // Only an inline value counts: the stylesheet's clamp() is the default and
+    // is not worth storing.
+    function sheetHeight() {
+      const v = parseFloat(html.style.getPropertyValue("--sheet-height"));
+      return Number.isFinite(v) && v > 0 ? v : null;
     }
 
     // The map keeps its top-left fixed through a resize, which slides the road
@@ -1772,6 +1783,95 @@
       remember();
       restoreCenter(map);
     });
+
+    initSheetGrip();
+
+    // --- The phone sheet's grab bar ----------------------------------------
+    //
+    // The vertical twin of the handle above, for the bottom sheet under 768px.
+    // Drag sets --sheet-height on <html>, which the sheet, the timeline and the
+    // feedback dock all read; pushed under SHEET_MIN it collapses to its head,
+    // pulled up from collapsed it opens at the pointer. A tap toggles. Same
+    // one-gesture-one-direction rule as the drawer's width.
+    function initSheetGrip() {
+      const grip = panel.querySelector(".sheet-grip");
+      if (!grip) return;
+      const SHEET_MIN = 200;
+      const SHEET_STEP = 40;
+      const sheetMax = () => window.innerHeight - 80;
+      // What is showing of the sheet right now, collapsed or not: the panel's
+      // top edge measured from the bottom of the viewport.
+      const visible = () => window.innerHeight - panel.getBoundingClientRect().top;
+      const setSheet = (px) => {
+        const h = Math.round(Math.min(sheetMax(), Math.max(SHEET_MIN, px)));
+        html.style.setProperty("--sheet-height", h + "px");
+        return h;
+      };
+
+      let g = null;
+      grip.addEventListener("pointerdown", (e) => {
+        if (e.button !== 0) return;
+        e.preventDefault();
+        grip.setPointerCapture(e.pointerId);
+        g = { y0: e.clientY, h0: visible(), moved: false, opening: false, closing: false, map: holdCenter() };
+        html.classList.add("is-resizing");
+      });
+      grip.addEventListener("pointermove", (e) => {
+        if (!g) return;
+        const dy = e.clientY - g.y0;
+        if (!g.moved && Math.abs(dy) < 4) return;
+        g.moved = true;
+        if (g.closing) return;
+        const want = g.h0 - dy;
+        if (panel.classList.contains("collapsed")) {
+          if (dy < -12) {
+            setCollapsed(false);
+            g.opening = true;
+            setSheet(want);
+          }
+        } else if (g.opening) {
+          setSheet(want);
+        } else if (want < SHEET_MIN - 40) {
+          setCollapsed(true);
+          g.closing = true;
+        } else {
+          setSheet(want);
+        }
+      });
+      const done = (e) => {
+        if (!g) return;
+        const d = g;
+        g = null;
+        html.classList.remove("is-resizing");
+        try {
+          grip.releasePointerCapture(e.pointerId);
+        } catch (err) {
+          /* already released */
+        }
+        if (!d.moved) setCollapsed(!panel.classList.contains("collapsed"));
+        remember();
+        restoreCenter(d.map);
+      };
+      grip.addEventListener("pointerup", done);
+      grip.addEventListener("pointercancel", done);
+
+      grip.addEventListener("keydown", (e) => {
+        const collapsed = panel.classList.contains("collapsed");
+        const h = sheetHeight() || visible();
+        if (e.key === "ArrowUp") {
+          if (collapsed) setCollapsed(false);
+          else setSheet(h + SHEET_STEP);
+        } else if (e.key === "ArrowDown") {
+          if (collapsed) return;
+          if (h - SHEET_STEP < SHEET_MIN) setCollapsed(true);
+          else setSheet(h - SHEET_STEP);
+        } else if (e.key === "Enter" || e.key === " ") {
+          setCollapsed(!collapsed);
+        } else return;
+        e.preventDefault();
+        remember();
+      });
+    }
 
     // A narrower window than the remembered width: clamp, do not remember —
     // the wide screen's number is still right for the wide screen.
