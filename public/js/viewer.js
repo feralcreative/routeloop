@@ -520,6 +520,18 @@
             twistScale(twistRank(r.twistinessDpm), twistLabel(r.twistinessDpm), twistDetail(r)) +
             "</span>"
           : "";
+        // The route's own mileage either way. A losing alternate really is that
+        // long — it is just not part of the ride, which is what the badge and
+        // the total below say. Under the name with the twistiness since
+        // 2026-10-04, so the right-hand column is free for Navigate.
+        const meta =
+          '<span class="route-meta"><span class="route-miles">' +
+          U.distanceFromMiles(Number(r.distanceMi), UNITS).toFixed(1) +
+          " " +
+          U.distanceUnit(UNITS) +
+          "</span>" +
+          twist +
+          "</span>";
         // The group's own name and color, on routes that belong to one. Nothing at
         // all on a ride with no subgroups, which is nearly every ride.
         const group = (state.ride.subgroups || []).find((g) => g.uid === r.subgroupUid) || null;
@@ -544,16 +556,10 @@
           "</span></label>" +
           badge +
           groupBadge +
-          twist +
-          navButton(r) +
+          meta +
           "</td>" +
-          // The route's own mileage either way. A losing alternate really is that
-          // long — it is just not part of the ride, which is what the badge and
-          // the total below say.
-          '<td class="route-miles">' +
-          U.distanceFromMiles(Number(r.distanceMi), UNITS).toFixed(1) +
-          " " +
-          U.distanceUnit(UNITS) +
+          '<td class="route-nav-cell">' +
+          navButton(r) +
           "</td></tr>"
         );
       })
