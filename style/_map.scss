@@ -1756,6 +1756,17 @@ table.route-table {
     border-bottom-style: solid;
   }
 }
+// A route row's Navigate sign: its own line under the name and badges, small
+// enough that a table of twelve routes is still a table. Four classes deep
+// because sign-field() sets a sign's padding three deep.
+.route-row .btn.btn-sign.route-nav {
+  display: flex;
+  width: max-content;
+  margin: 0.4em 0 0.15em;
+  padding: calc(0.3rem + 0.1em) 0.7rem calc(0.3rem - 0.1em);
+  font-size: 0.8em;
+}
+
 .route-dl-btn {
   display: inline-block;
   padding: 0.3em 0.7em;
