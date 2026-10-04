@@ -3,6 +3,7 @@
 // Mapbox GL version was a const in index.ts but a hardcoded string twice there —
 // so the viewer and the builder could silently load different library versions.
 import 'dotenv/config'
+import { networkInterfaces } from 'node:os'
 
 // `??` only falls back on undefined, and a deploy writes every optional variable
 // into the container's env whether or not it has a value — so an unset one
@@ -102,7 +103,7 @@ const ALLOWED_ORIGINS: ReadonlySet<string> = (() => {
 })()
 
 export function isAllowedOrigin(origin: string | undefined | null): boolean {
-  return origin != null && ALLOWED_ORIGINS.has(origin)
+  return origin != null && (ALLOWED_ORIGINS.has(origin) || LAN_ORIGINS.has(origin))
 }
 
 // The one account that is never left waiting for approval. Both databases have
@@ -157,6 +158,38 @@ export function redactDatabaseUrl(url: string): string {
 export const DEV_LOGIN_EMAIL = env('DEV_LOGIN_EMAIL', '').trim().toLowerCase()
 
 export const DEV_LOGIN_ENABLED = Boolean(DEV_LOGIN_EMAIL) && IS_LOCAL_DATABASE && !IS_HTTPS_ORIGIN
+
+// DEV_LAN_LOGIN=1 widens gate four to this machine's own private LAN addresses,
+// so a phone on the same Wi-Fi can open http://<laptop-ip>:6686/dev/login. It
+// rides on DEV_LOGIN_ENABLED, so every other gate still holds, and it admits the
+// laptop's addresses as same-origin for the CSRF gate or every form the phone
+// posts is refused. Off unless set; on the deploy script's FORBIDDEN list.
+export const DEV_LAN_LOGIN = DEV_LOGIN_ENABLED && env('DEV_LAN_LOGIN', '').trim() === '1'
+
+function isPrivateV4(a: string): boolean {
+  return /^(10\.|192\.168\.|172\.(1[6-9]|2\d|3[01])\.)/.test(a)
+}
+
+export const LAN_HOSTS: ReadonlySet<string> = new Set(
+  DEV_LAN_LOGIN
+    ? Object.values(networkInterfaces())
+        .flat()
+        .filter((i) => i != null && i.family === 'IPv4' && !i.internal && isPrivateV4(i.address))
+        .map((i) => i!.address)
+    : [],
+)
+
+const LAN_ORIGINS: ReadonlySet<string> = (() => {
+  const port = (() => {
+    try {
+      return new URL(APP_ORIGIN).port
+    } catch {
+      return ''
+    }
+  })()
+  const suffix = port ? `:${port}` : ''
+  return new Set([...LAN_HOSTS].map((h) => `http://${h}${suffix}`))
+})()
 
 // Whether the account purge actually destroys accounts, OFF unless set.
 //

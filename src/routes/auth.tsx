@@ -21,6 +21,7 @@ import {
   ALPHA_SIGNAL_URL,
   DEV_LOGIN_EMAIL,
   DEV_LOGIN_ENABLED,
+  LAN_HOSTS,
   MAGIC_LINK_ENABLED,
   isAllowedOrigin,
 } from '../config'
@@ -476,7 +477,8 @@ if (DEV_LOGIN_ENABLED) {
     // database, so all this has to stop is a request that arrived over the LAN
     // by IP or hostname.
     const host = (c.req.header('Host') ?? '').split(':')[0].toLowerCase()
-    if (host !== '127.0.0.1' && host !== 'localhost' && host !== '[::1]') return c.notFound()
+    const local = host === '127.0.0.1' || host === 'localhost' || host === '[::1]'
+    if (!local && !LAN_HOSTS.has(host)) return c.notFound()
 
     const [user] = await db.select().from(users).where(eq(users.email, DEV_LOGIN_EMAIL)).limit(1)
 
