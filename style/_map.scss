@@ -1770,14 +1770,15 @@ table.route-table {
     border-bottom-style: solid;
   }
 }
-// A route row's Navigate sign, in the right-hand column, small enough that a
-// table of twelve routes is still a table. Four classes deep
-// because sign-field() sets a sign's padding three deep.
+// A route row's Navigate sign, in the right-hand column. Big, because sending a
+// route to the nav app is the main thing a rider does on this page from a
+// phone. Four classes deep because sign-field() sets a sign's padding three deep.
 .route-row .btn.btn-sign.route-nav {
   display: inline-flex;
   margin: 0;
-  padding: calc(0.3rem + 0.1em) 0.7rem calc(0.3rem - 0.1em);
-  font-size: 0.8em;
+  padding: calc(0.75rem + 0.1em) 1.1rem calc(0.75rem - 0.1em);
+  font-size: 1.15em;
+  white-space: nowrap;
 }
 
 .route-dl-btn {
