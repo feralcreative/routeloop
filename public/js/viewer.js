@@ -692,6 +692,71 @@
         pin(Number(row.dataset.i));
       });
     });
+    initNavShare(table);
+  }
+
+  // NAVIGATE OPENS THE SHARE SHEET ON iOS, an experiment from 2026-10-04: the
+  // sheet should offer the rider's nav app where a download only lands in Files.
+  // Safari drops the tap's gesture at the first await, so a route's GPX is
+  // fetched AHEAD of the tap, as its row nears the screen, and the tap shares
+  // a File already in hand. Android Chrome refuses to share a .gpx at all, and
+  // a desktop has no use for the sheet, so both keep the plain download—as does
+  // any button whose file has not arrived yet.
+  const navFiles = new Map(); // href -> File
+  function navShareSupported() {
+    const ua = navigator.userAgent;
+    const ios = /iP(hone|ad|od)/.test(ua) || (/Macintosh/.test(ua) && /Mobile/.test(ua));
+    if (!ios || typeof navigator.canShare !== "function") return false;
+    try {
+      return navigator.canShare({ files: [new File(["x"], "probe.gpx", { type: "application/gpx+xml" })] });
+    } catch (e) {
+      return false;
+    }
+  }
+  function prefetchNav(href) {
+    if (navFiles.has(href)) return;
+    navFiles.set(href, null);
+    fetch(href, { credentials: "same-origin" })
+      .then((res) => {
+        if (!res.ok) throw new Error("HTTP " + res.status);
+        const cd = res.headers.get("Content-Disposition") || "";
+        const name = (cd.match(/filename="([^"]+)"/) || [])[1] || "route.gpx";
+        return res.blob().then((blob) => navFiles.set(href, new File([blob], name, { type: "application/gpx+xml" })));
+      })
+      .catch(() => navFiles.delete(href));
+  }
+  function initNavShare(table) {
+    if (!navShareSupported()) return;
+    const btns = table.querySelectorAll(".route-nav");
+    const io =
+      "IntersectionObserver" in window
+        ? new IntersectionObserver(
+            (entries) => {
+              entries.forEach((en) => {
+                if (!en.isIntersecting) return;
+                prefetchNav(en.target.getAttribute("href"));
+                io.unobserve(en.target);
+              });
+            },
+            // The panel's own scroller as the root: against the viewport every
+            // row counts as visible and all of them are fetched at once.
+            { root: table.closest(".panel-contents-wrapper"), rootMargin: "150px 0px" },
+          )
+        : null;
+    btns.forEach((btn) => {
+      if (io) io.observe(btn);
+      else prefetchNav(btn.getAttribute("href"));
+      btn.addEventListener("click", (e) => {
+        const file = navFiles.get(btn.getAttribute("href"));
+        if (!file) return; // not here yet: the plain download, as rendered
+        e.preventDefault();
+        // No await before this line, or Safari refuses the share.
+        navigator.share({ files: [file], title: file.name }).catch((err) => {
+          if (err && err.name === "AbortError") return;
+          location.href = btn.getAttribute("href");
+        });
+      });
+    });
   }
 
   // Road reports along the ride (#48, #53). Anybody may read them; the report button
