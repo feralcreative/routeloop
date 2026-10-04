@@ -399,6 +399,19 @@ export function panelShell(o: {
 }): string {
   return (
     <div id="info-panel" class={`floating-panel map-drawer${o.extraClass ? ` ${o.extraClass}` : ''}`}>
+      {/*
+        The phone sheet's grab bar: drag to set the sheet's height, tap to
+        collapse or open it. Hidden above 767px, where .drawer-resize below is
+        the handle. initPanelResize() in map-common.js drives both.
+      */}
+      <div
+        class="sheet-grip"
+        role="separator"
+        aria-orientation="horizontal"
+        aria-label="Panel height"
+        tabindex={0}
+        title="Drag to resize; tap to collapse"
+      ></div>
       <div class="drawer-head">
         <a class="drawer-logo" href="/" aria-label="Routeloop home">
           {raw(wordmark('hz', 'Routeloop'))}
@@ -964,7 +977,7 @@ function siteFooter(splash: boolean): string {
 // means open.
 const FOLD_RESTORE = `<script>(function(){try{var f=document.querySelectorAll("details[data-fold]");for(var i=0;i<f.length;i++){if(localStorage.getItem("routeloop.fold."+f[i].getAttribute("data-fold"))==="closed")f[i].removeAttribute("open");}}catch(e){}})();</script>`
 
-const DRAWER_RESTORE = `<script>(function(){try{var d=JSON.parse(localStorage.getItem("routeloop.drawer")||"null");if(!d)return;var h=document.documentElement,p=document.getElementById("info-panel");if(d.w>0)h.style.setProperty("--panel-width",d.w+"px");if(d.collapsed&&p){p.classList.add("collapsed");var r=p.querySelector(".drawer-rail");if(r)r.setAttribute("aria-hidden","false");var t=p.querySelector(".collapse-toggle");if(t){t.setAttribute("aria-expanded","false");t.setAttribute("aria-label","Expand panel");}}}catch(e){}})();</script>`
+const DRAWER_RESTORE = `<script>(function(){try{var d=JSON.parse(localStorage.getItem("routeloop.drawer")||"null");if(!d)return;var h=document.documentElement,p=document.getElementById("info-panel");if(d.w>0)h.style.setProperty("--panel-width",d.w+"px");if(d.sh>0&&innerWidth<768)h.style.setProperty("--sheet-height",Math.min(d.sh,innerHeight-80)+"px");if(d.collapsed&&p){p.classList.add("collapsed");var r=p.querySelector(".drawer-rail");if(r)r.setAttribute("aria-hidden","false");var t=p.querySelector(".collapse-toggle");if(t){t.setAttribute("aria-expanded","false");t.setAttribute("aria-label","Expand panel");}}}catch(e){}})();</script>`
 
 // The browser chrome's color on an installed phone (#69): the page surface, which is
 // `$page` — the light gray in a light scheme and the near-black in a dark one. The

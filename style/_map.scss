@@ -628,6 +628,43 @@ html.map-page.is-resizing {
     }
   }
 
+  // THE PHONE SHEET'S GRAB BAR: a strip across the sheet's top edge with the
+  // familiar pill in the middle of it. Drag sets the height, a tap collapses
+  // or opens. Shown only under 768px, where the drawer is a sheet.
+  .sheet-grip {
+    display: none;
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    height: 22px;
+    cursor: row-resize;
+    z-index: 3;
+    touch-action: none;
+
+    &::after {
+      content: "";
+      position: absolute;
+      top: 7px;
+      left: 50%;
+      width: 40px;
+      height: 5px;
+      margin-left: -20px;
+      border-radius: 3px;
+      background: $neutral-70;
+      transition: background-color 0.15s ease;
+    }
+
+    &:hover::after,
+    &:focus-visible::after {
+      background: $brand;
+    }
+
+    &:focus-visible {
+      outline: none;
+    }
+  }
+
   //@ Desktop — the handle is the control and the icon is not
   @media (min-width: 768px) {
     .drawer-resize {
@@ -1275,7 +1312,8 @@ table.route-table {
     // 52px was measured on a phone whose home indicator the page did not
     // extend under. It does now, so the collapsed sheet's head — the only
     // thing left to grab — would sit behind the indicator without this.
-    --sheet-collapsed-height: calc(52px + env(safe-area-inset-bottom, 0px));
+    // 62 since 2026-10-04: the grab bar adds 10px of headroom over the head.
+    --sheet-collapsed-height: calc(62px + env(safe-area-inset-bottom, 0px));
   }
 
   // THE SHEET CLOSES DOWNWARD AT THIS WIDTH, not sideways, so the arrow pair has to
@@ -1285,6 +1323,16 @@ table.route-table {
     // copy of each drawing.
   #info-panel .collapse-icon {
     transform: rotate(-90deg);
+  }
+
+  #info-panel .sheet-grip {
+    display: block;
+  }
+
+  // Room for the grab bar's pill above the wordmark; the collapsed rule below
+  // restates it, since its own padding shorthand comes later.
+  #info-panel .drawer-head {
+    padding-top: calc(0.75em + 10px);
   }
 
   #info-panel {
@@ -1338,7 +1386,7 @@ table.route-table {
 
     .drawer-head {
       justify-content: space-between;
-      padding: 0.75em var(--drawer-pad);
+      padding: calc(0.75em + 10px) var(--drawer-pad) 0.75em;
     }
 
     // The rail is a vertical strip and has no meaning lying on its side. On a
