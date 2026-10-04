@@ -443,7 +443,7 @@ printf '%s\n' \
 # render the analytics as though it were prod, and src/config.ts already refuses
 # to read it outside dev — but that is a property of one `if`, and this makes
 # the exclusion a checked fact about the bytes rather than a trusted one.
-for FORBIDDEN in DEV_LOGIN_EMAIL DEV_AUTH_EMAIL ANALYTICS_DEV_COUNTRY; do
+for FORBIDDEN in DEV_LOGIN_EMAIL DEV_LAN_LOGIN DEV_AUTH_EMAIL ANALYTICS_DEV_COUNTRY; do
   if grep -q "^${FORBIDDEN}=" "$REMOTE_ENV"; then
     log_error "${FORBIDDEN} is in the generated remote .env. That is a dev-only variable and must never reach a server."
     log_error "Remove it from the allow-list in this script. Refusing to continue."
