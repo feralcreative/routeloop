@@ -63,39 +63,27 @@ body.notfound-page::before {
   min-height: 58vh;
 }
 
-// Scrim AND blur, the pairing _splash.scss records: a scrim alone only lowers
-// the photograph's brightness and leaves its detail running under the words,
-// which is what actually costs legibility. The blur removes the detail so the
-// remaining alpha has a smooth wash to darken.
+// The interstate shield in place of a card. No box behind it: the shield is
+// its own field, and the text under it sits on the bottom of the scrim, which
+// is its heaviest band, with a shadow for the stretch where the asphalt is pale.
 .notfound-card {
   max-width: 34rem;
-  padding: 2.25rem 2.25rem 2.5rem;
   text-align: center;
   color: $ink-light;
-  background: color.change($splash-ink, $alpha: 0.6);
-  backdrop-filter: blur(10px);
-  border-radius: 14px;
-}
-
-.notfound-code {
-  margin: 0 0 0.35rem;
-  font-size: 0.8rem;
-  font-weight: 600;
-  text-transform: uppercase;
-  letter-spacing: 0.16em;
-  // Not a token: this is light type held back from the card's own ink, and the
-  // only thing under it is a fixed dark scrim, so there is no palette to follow.
-  color: rgba(255, 255, 255, 0.62);
+  text-shadow: 0 1px 6px rgba(0, 0, 0, 0.6);
 }
 
 .notfound-head {
-  margin: 0 0 0.75rem;
-  font-size: clamp(2rem, 6vw, 3rem);
-  line-height: 1.1;
-  // A headline, not body copy — balance evens the two lines it wraps to on a
-  // phone, where `pretty` would only protect the last word. See typography.md.
-  text-wrap: balance;
-  color: $ink-light;
+  margin: 0 0 1.25rem;
+  line-height: 0;
+}
+
+.notfound-shield {
+  display: block;
+  width: min(20rem, 70vw);
+  height: auto;
+  margin: 0 auto;
+  filter: drop-shadow(0 6px 18px rgba(0, 0, 0, 0.45));
 }
 
 .notfound-lede {

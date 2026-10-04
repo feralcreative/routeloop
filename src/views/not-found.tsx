@@ -36,8 +36,13 @@ export function notFoundPage(user: UserRow | null, detail?: string): string {
     body: (
       <div class="notfound">
         <div class="notfound-card">
-          <p class="notfound-code">Error 404</p>
-          <h1 class="notfound-head">Road closed</h1>
+          {/*
+            The shield IS the heading: it already says Error, Page not found
+            and 404, so the old eyebrow and headline would only repeat it.
+          */}
+          <h1 class="notfound-head">
+            <img class="notfound-shield" src="/img/404.svg" alt="Error 404: page not found" width="2207" height="1818" />
+          </h1>
           <p class="notfound-lede">This one doesn’t go through.</p>
           {detail ? <p class="notfound-detail">{detail}</p> : ''}
           <p class="notfound-actions">
