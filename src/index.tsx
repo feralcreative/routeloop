@@ -528,6 +528,8 @@ app.get('/api/public/rides/:slug/ride.json', async (c) => {
     // could have downloaded directly, which is a worse version of the button
     // sitting next to it.
     routeZipBase: routesOut.length > 1 ? `/api/public/maps/${m.slug}/zip` : null,
+    // Each route's own GPX for its Navigate button: `${routeGpxBase}/${uid}/gpx?dl`.
+    routeGpxBase: `/api/public/maps/${m.slug}/route`,
     // A page, not a file: the printable stop-by-stop sheet.
     roadbookUrl: `/m/${m.slug}/roadbook`,
     // Also a page: the phone surface (#69).
@@ -667,6 +669,30 @@ app.get('/api/public/maps/:slug/zip/:format{kml|gpx|geojson|csv}', async (c) => 
       'Content-Disposition': `attachment; filename="${name}"`,
     },
   })
+})
+
+// ONE ROUTE AS ONE GPX, for the Navigate button on each row of the ride page: a
+// ride is many routes and a nav app wants the one you are about to ride. Built by
+// the same serializer as the per-route zip, so the file is that archive's entry.
+// The whole ride is loaded rather than the viewer's strand, because the row
+// pressed names its route by uid and every row the page draws is pressable.
+app.get('/api/public/maps/:slug/route/:uid/gpx', async (c) => {
+  const spec = DOWNLOADS.gpx
+  const m = await getViewable(c.req.param('slug'), c.get('user'))
+  if (!m || !spec) return c.text('Not found', 404)
+  const ride = await loadRideForExport(m.id, { title: m.title, description: m.description }, undefined, null)
+  const i = ride.routes.findIndex((r) => r.uid === c.req.param('uid'))
+  if (i < 0) return c.text('Not found', 404)
+  const route = ride.routes[i]
+  const headers: Record<string, string> = {
+    'Content-Type': `${spec.type}; charset=utf-8`,
+    'X-Content-Type-Options': 'nosniff',
+  }
+  if (c.req.query('dl') !== undefined) {
+    const name = buildExportName({ ride: m.title, route: i + 1, date: route.startAt, title: route.title, ext: 'gpx' })
+    headers['Content-Disposition'] = `attachment; filename="${name}"`
+  }
+  return new Response(spec.build({ ...ride, routes: [route] }, i + 1), { headers })
 })
 
 app.get('/api/public/maps/:slug/:format{kml|gpx|geojson|csv}', async (c) => {

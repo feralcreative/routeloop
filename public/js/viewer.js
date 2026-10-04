@@ -461,6 +461,19 @@
     return s;
   }
 
+  // THIS ROUTE'S GPX, for the rider's nav app. A ride is many routes and the
+  // app wants the one about to be ridden, so every row carries its own. A plain
+  // download: a page cannot open a file in another app, and the phone's own
+  // handoff does—Files' share sheet on iOS, "open with" on Android.
+  function navButton(r) {
+    if (!state.ride.routeGpxBase || !r.uid) return "";
+    return (
+      '<a class="btn btn-sign route-nav" download href="' +
+      esc(state.ride.routeGpxBase + "/" + encodeURIComponent(r.uid) + "/gpx?dl") +
+      '">Navigate</a>'
+    );
+  }
+
   function buildLegend() {
     const table = document.querySelector(".route-table");
     if (!table) return;
@@ -532,6 +545,7 @@
           badge +
           groupBadge +
           twist +
+          navButton(r) +
           "</td>" +
           // The route's own mileage either way. A losing alternate really is that
           // long — it is just not part of the ride, which is what the badge and

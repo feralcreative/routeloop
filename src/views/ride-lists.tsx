@@ -52,12 +52,11 @@ import { SEP } from './sep'
 function RideCardGo({ ride, minor }: { ride: RideRow; minor: { href: string; label: string; variant: string } }) {
   return (
     <div class="ride-card-go">
-      {/* The GPX itself, as a download: a page cannot open a file in another
-          app, so the phone's own download handoff does it—Files' share sheet
-          on iOS, the "open with" chooser on Android. The card's picture and
-          title still open the ride. */}
-      <a class="btn btn-sign" href={`/api/public/maps/${ride.slug}/gpx?dl`}>
-        Load ride
+      {/* The ride page, not a file: a ride is many routes, and each route's row
+          there carries its own Navigate button that hands its GPX to the
+          rider's nav app. */}
+      <a class="btn btn-sign" href={`/m/${ride.slug}`}>
+        Open ride
       </a>
       <a class={`btn btn-sign ${minor.variant} ride-card-go-minor`} href={minor.href}>
         {minor.label}
@@ -131,7 +130,7 @@ export function JoinedRideCard({
         <RideCardKeep ride={ride} />
         {/* Straight to the roster rather than to the ride, because answering is
             the thing this card is asking for. The text link is the desktop's; on a phone
-            the sign beside Load ride replaces it. */}
+            the sign beside Open ride replaces it. */}
         <a class="editlink" href={`/m/${ride.slug}/riders`}>
           Riders
         </a>
@@ -160,7 +159,7 @@ export function OwnRideCard({ ride, color, units }: { ride: RideRow; color: stri
         {/* Every own ride is editable now, imported ones included — this used to
             test `ride.source === 'native'` because the builder could not open an
             import. It can; see canEditRide in ./maps. The text link is the desktop's; on
-            a phone the amber sign beside Load ride replaces it. */}
+            a phone the amber sign beside Open ride replaces it. */}
         <a class="editlink" href={`/builder/${ride.id}`}>
           Edit
         </a>
