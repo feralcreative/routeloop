@@ -49,25 +49,35 @@ import { SEP } from './sep'
 //
 // OUTSIDE THE CARD'S ANCHOR, like the foot and for the same reason: an <a>
 // inside an <a> is invalid and a browser closes the outer one early.
-function RideCardGo({ ride }: { ride: RideRow }) {
+function RideCardGo({ ride, minor }: { ride: RideRow; minor: { href: string; label: string; variant: string } }) {
   return (
     <div class="ride-card-go">
       <a class="btn btn-sign" href={`/m/${ride.slug}`}>
         Load ride
       </a>
-      {/* data-updated is what lets a kept copy say it has gone stale: the
-          registry row remembers the updatedAt it was kept at, and this is the
-          live one. */}
-      <button
-        type="button"
-        class="btn btn-sign btn-services ride-card-go-minor"
-        data-keep={ride.slug}
-        data-updated={ride.updatedAt.toISOString()}
-        hidden
-      >
-        Keep
-      </button>
+      <a class={`btn btn-sign ${minor.variant} ride-card-go-minor`} href={minor.href}>
+        {minor.label}
+      </a>
     </div>
+  )
+}
+
+// Keep sits in the foot beside the pill since 2026-10-04, when Edit moved up
+// beside Load. It carries `ride-card-foot-sign` so the desktop hides it with
+// the rest of the phone signs.
+function RideCardKeep({ ride }: { ride: RideRow }) {
+  return (
+    // data-updated is what lets a kept copy say it has gone stale: the registry
+    // row remembers the updatedAt it was kept at, and this is the live one.
+    <button
+      type="button"
+      class="btn btn-sign btn-services ride-card-go-minor ride-card-foot-sign"
+      data-keep={ride.slug}
+      data-updated={ride.updatedAt.toISOString()}
+      hidden
+    >
+      Keep
+    </button>
   )
 }
 
@@ -111,16 +121,14 @@ export function JoinedRideCard({
           <span class="ride-card-owner">Planned by {owner}</span>
         </span>
       </a>
-      <RideCardGo ride={ride} />
+      <RideCardGo ride={ride} minor={{ href: `/m/${ride.slug}/riders`, label: 'Riders', variant: 'btn-recreation' }} />
       <div class="ride-card-foot">
         <span class="pill">{RSVP_LABELS[rsvp]}</span>
+        <RideCardKeep ride={ride} />
         {/* Straight to the roster rather than to the ride, because answering is
-            the thing this card is asking for. Twice: the text link for a
-            desktop, the small sign for a phone; _rides.scss shows one. */}
+            the thing this card is asking for. The text link is the desktop's; on a phone
+            the sign beside Load ride replaces it. */}
         <a class="editlink" href={`/m/${ride.slug}/riders`}>
-          Riders
-        </a>
-        <a class="btn btn-sign btn-recreation ride-card-go-minor ride-card-foot-sign" href={`/m/${ride.slug}/riders`}>
           Riders
         </a>
       </div>
@@ -141,18 +149,16 @@ export function OwnRideCard({ ride, color, units }: { ride: RideRow; color: stri
           </span>
         </span>
       </a>
-      <RideCardGo ride={ride} />
+      <RideCardGo ride={ride} minor={{ href: `/builder/${ride.id}`, label: 'Edit', variant: 'btn-warning' }} />
       <div class="ride-card-foot">
         <span class="pill">{ride.visibility}</span>
+        <RideCardKeep ride={ride} />
         {/* Every own ride is editable now, imported ones included — this used to
             test `ride.source === 'native'` because the builder could not open an
-            import. It can; see canEditRide in ./maps. Twice: the text link for
-            a desktop, the small amber sign for a phone; _rides.scss shows one. */}
+            import. It can; see canEditRide in ./maps. The text link is the desktop's; on
+            a phone the amber sign beside Load ride replaces it. */}
         <a class="editlink" href={`/builder/${ride.id}`}>
           Edit
-        </a>
-        <a class="btn btn-sign btn-warning ride-card-go-minor ride-card-foot-sign" href={`/builder/${ride.id}`}>
-          Edit ride
         </a>
         {/* NO "are you sure?". This moves the ride to the recycle bin, where it
             sits for thirty days with a button to undo — the bin is the

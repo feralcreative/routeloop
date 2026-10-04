@@ -138,7 +138,7 @@
 // The picture fills the row's height and is cropped to it — Ziad's call,
 // 2026-09-17, over a 16:10 picture that left a strip of card under itself.
 // `object-fit: cover` is already on the face; what changes here is the box it
-// covers, which is the whole left column. `25vw` is the ask; `minmax(0, 1fr)`
+// covers, which is the whole left column. `34vw` is the ask (25vw until 2026-10-04, when the map read as a sliver); `minmax(0, 1fr)`
 // on the other track is what stops a long title from widening it past the
 // screen.
 @media (max-width: $bp-phone) {
@@ -149,7 +149,7 @@
 
   .rides-page .ride-card {
     display: grid;
-    grid-template-columns: 25vw minmax(0, 1fr);
+    grid-template-columns: 34vw minmax(0, 1fr);
     grid-template-rows: auto auto auto;
     column-gap: 0.6rem;
   }
@@ -172,30 +172,30 @@
     padding: 0.55rem 0.6rem 0.25rem 0;
   }
 
-  // Load takes the width that is left and Keep sits beside it at its own
-  // size — the number one use of a phone here is loading a planned ride into
-  // a GPS, and everything else is deliberately much smaller and off the green
-  // so it cannot compete. A sign is inline-flex and a grid cell blockifies it
-  // to the track, so Load is as wide as its column with no rule on the sign.
-  // Keep ships `hidden` and rides.js un-hides it where a copy can be held;
-  // hidden, the row is Load alone at the full width.
+  // Load ride and Edit ride (Riders, on a ride somebody else planned) side by
+  // side, each at its own width, left-aligned. Load used to stretch across the
+  // column and read as a bar rather than a sign; it stays the big green one
+  // because loading a planned ride into a GPS is the number one use of a phone
+  // here. A grid cell blockifies a sign to its track, so the tracks are `auto`.
   .ride-card-go {
     grid-column: 2;
     grid-row: 2;
     display: grid;
-    grid-template-columns: minmax(0, 1fr) auto;
+    grid-template-columns: auto auto;
+    justify-content: start;
     align-items: center;
     gap: 0.5rem;
     padding: 0 0.6rem 0.4rem 0;
 
     .btn {
       justify-content: center;
-      padding: 0.7rem 0.5rem;
-      font-size: 1.05em;
+      padding: 0.6rem 0.7rem;
+      font-size: 1em;
+      white-space: nowrap;
     }
   }
 
-  // The small signs — Keep beside Load, Edit or Riders in the foot. Four
+  // The small signs — Edit or Riders beside Load, Keep in the foot. Four
   // classes deep because `sign-field()` sets its padding on
   // `.btn.btn-sign.btn-services`, three deep, and a two-deep rule here loses
   // to it silently — the sign stayed 43px tall for a build.
@@ -248,14 +248,15 @@
     padding: 0 0.6rem 0.55rem 0;
   }
 
-  // The foot swaps its text link for the sign: Edit ride in amber, the work
-  // zone, or Riders in brown. The pill and Delete stay: nothing else carries
-  // either. Five deep to beat the four-deep hide above.
+  // The foot drops its text link, which the Edit or Riders sign beside Load
+  // replaces, and shows Keep. The pill and Delete stay: nothing else carries
+  // either. Five deep to beat the four-deep hide above, and `:not([hidden])`
+  // because Keep ships hidden until rides.js finds a Cache API.
   .rides-page .ride-card-foot .editlink {
     display: none;
   }
 
-  .rides-page .ride-card-foot .btn.btn-sign.ride-card-foot-sign {
+  .rides-page .ride-card-foot .btn.btn-sign.ride-card-foot-sign:not([hidden]) {
     display: inline-flex;
   }
 }
