@@ -52,7 +52,11 @@ import { SEP } from './sep'
 function RideCardGo({ ride, minor }: { ride: RideRow; minor: { href: string; label: string; variant: string } }) {
   return (
     <div class="ride-card-go">
-      <a class="btn btn-sign" href={`/m/${ride.slug}`}>
+      {/* The GPX itself, as a download: a page cannot open a file in another
+          app, so the phone's own download handoff does it—Files' share sheet
+          on iOS, the "open with" chooser on Android. The card's picture and
+          title still open the ride. */}
+      <a class="btn btn-sign" href={`/api/public/maps/${ride.slug}/gpx?dl`}>
         Load ride
       </a>
       <a class={`btn btn-sign ${minor.variant} ride-card-go-minor`} href={minor.href}>
