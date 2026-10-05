@@ -53,3 +53,39 @@ describe('matches', () => {
     expect(P.matches('year', '', NOW)).toBe(false)
   })
 })
+
+describe('plan', () => {
+  const never = () => false
+  const rides = [
+    { slug: 'new', updatedAt: day(2), estBytes: 1_000_000 },
+    { slug: 'old', updatedAt: day(200), estBytes: 3_000_000 },
+    { slug: 'kept', updatedAt: day(5), estBytes: 500_000 },
+  ]
+
+  it('offers what matches and is not kept, with its size, and removes nothing it did not keep', () => {
+    const rows = [{ slug: 'kept', via: 'policy' }, { slug: 'old', via: 'hand' }]
+    const p = P.plan('recent', rides, rows, NOW, never)
+    expect(p.fetch.map((r: any) => r.slug)).toEqual(['new'])
+    expect(p.bytes).toBe(1_000_000)
+    expect(p.remove).toEqual([])
+  })
+
+  it('offers a policy-kept ride outside the window for removal, never a hand-kept one', () => {
+    const rows = [{ slug: 'old', via: 'policy' }, { slug: 'kept', via: 'hand' }]
+    const p = P.plan('none', rides, rows, NOW, never)
+    expect(p.fetch).toEqual([])
+    expect(p.remove.map((r: any) => r.slug)).toEqual(['old'])
+  })
+
+  it('counts a kept copy the ride has moved on from as a download', () => {
+    const rows = [{ slug: 'kept', via: 'policy' }]
+    const p = P.plan('recent', rides, rows, NOW, (row: any) => row.slug === 'kept')
+    expect(p.fetch.map((r: any) => r.slug).sort()).toEqual(['kept', 'new'])
+    expect(p.bytes).toBe(1_500_000)
+  })
+
+  it('treats a missing estimate as zero rather than NaN', () => {
+    const p = P.plan('all', [{ slug: 'x', updatedAt: day(1) }], [], NOW, never)
+    expect(p.bytes).toBe(0)
+  })
+})
