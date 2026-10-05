@@ -25,15 +25,16 @@
 // this page draws no stat and pays for none.
 import { Hono } from 'hono'
 import { raw } from 'hono/html'
-import { and, desc, eq, sql } from 'drizzle-orm'
+import { and, desc, eq, inArray, sql } from 'drizzle-orm'
 import { db } from '../db/index'
-import { rides, routes as routesTable } from '../db/schema'
+import { rides, routeLegs, routes as routesTable } from '../db/schema'
 import { currentUser, requireActive, requireActiveApi, type AuthEnv } from '../auth/middleware'
 import { page, wordsOf } from '../views/layout'
 import { asset } from '../views/assets'
 import { rideCards } from '../views/cards'
 import { JoinedRideCard, OwnRideCard } from '../views/ride-lists'
 import { RIDE_CEILING, RIDE_PAGE, pageOwned, rideTabOf } from '../rides/tabs'
+import { keepEstimateBytes } from '../rides/keep-estimate'
 import { followingRides, friendsRides, publicRides } from '../access/query'
 import { LIVE_RIDE, listBinnedRides } from '../trash/service'
 import { binRidesHtml } from '../views/bin'
@@ -89,19 +90,45 @@ ridesRoutes.get('/rides/keep.json', requireActiveApi, async (c) => {
   const user = currentUser(c)
   const [owned, joined] = await Promise.all([
     db
-      .select({ slug: rides.slug, title: rides.title, updatedAt: rides.updatedAt })
+      .select({ id: rides.id, slug: rides.slug, title: rides.title, updatedAt: rides.updatedAt })
       .from(rides)
       .where(and(eq(rides.ownerId, user.id), LIVE_RIDE))
       .orderBy(desc(rides.updatedAt))
       .limit(RIDE_CEILING),
     ridesImOn(user.id),
   ])
+  const all = [
+    ...owned.map((r) => ({ id: r.id, slug: r.slug, title: r.title, updatedAt: r.updatedAt })),
+    ...joined.map((j) => ({ id: j.ride.id, slug: j.ride.slug, title: j.ride.title, updatedAt: j.ride.updatedAt })),
+  ]
+  // Track points and routes per ride, for `estBytes`: the switch quotes what a
+  // download will cost before it starts (src/rides/keep-estimate.ts). One
+  // grouped query over every listed ride, not one per ride.
+  const sizes = new Map<number, { points: number; routes: number }>()
+  if (all.length > 0) {
+    const rows = await db
+      .select({
+        rideId: routesTable.rideId,
+        points: sql<number>`coalesce(sum(jsonb_array_length(${routeLegs.geometry})), 0)::int`,
+        routes: sql<number>`count(distinct ${routesTable.id})::int`,
+      })
+      .from(routesTable)
+      .leftJoin(routeLegs, eq(routeLegs.routeId, routesTable.id))
+      .where(inArray(routesTable.rideId, all.map((r) => r.id)))
+      .groupBy(routesTable.rideId)
+    for (const r of rows) sizes.set(r.rideId, { points: r.points, routes: r.routes })
+  }
   c.header('Cache-Control', 'no-store')
   return c.json({
-    rides: [
-      ...owned.map((r) => ({ slug: r.slug, title: r.title, updatedAt: r.updatedAt.toISOString() })),
-      ...joined.map((j) => ({ slug: j.ride.slug, title: j.ride.title, updatedAt: j.ride.updatedAt.toISOString() })),
-    ],
+    rides: all.map((r) => {
+      const z = sizes.get(r.id)
+      return {
+        slug: r.slug,
+        title: r.title,
+        updatedAt: r.updatedAt.toISOString(),
+        estBytes: keepEstimateBytes(z?.points ?? 0, z?.routes ?? 0),
+      }
+    }),
   })
 })
 
@@ -305,7 +332,9 @@ ridesRoutes.get('/rides', requireActive, async (c) => {
               hold, as a set by when each last changed — the rule is
               keep-policy.js, the keeping is rides.js, and this is server-
               rendered so the pressed state can be painted before the list is
-              walked. Ships `hidden` and rides.js shows it only where a copy
+              walked. Since 2026-10-04 it changes nothing on a press: rides.js offers
+              a Download and a Remove button in `.keep-policy-actions` and only
+              those act. Ships `hidden` and rides.js shows it only where a copy
               can be held, the Keep sign's own rule. A phone-only control: on a
               desktop it stays hidden with the signs. */}
           {(visibleRides.length > 0 || joined.length > 0) && (
@@ -319,6 +348,7 @@ ridesRoutes.get('/rides', requireActive, async (c) => {
                 ))}
               </span>
               <span class="keep-policy-status" role="status" aria-live="polite"></span>
+              <span class="keep-policy-actions"></span>
             </div>
           )}
           {visibleRides.length === 0 && joined.length === 0 ? (

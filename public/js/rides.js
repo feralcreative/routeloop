@@ -229,13 +229,19 @@
 // 2026-09-17. The switch above the list holds four positions — None, Last 30
 // days, This year, All — and keep-policy.js is the rule that turns one into a
 // yes or no per ride, by when the ride last changed. The choice is per phone,
-// in localStorage, and the set is RE-DERIVED ON EVERY VISIT to this page while
-// online: rides that now match and are not kept are kept, kept copies the
-// ride has moved on from are kept again, and rides the POLICY kept that no
-// longer match are removed. That last clause is the whole reason the registry
-// row carries `via`: a ride the rider kept by hand is theirs and no policy
-// touches it, so switching from All to None empties what All filled and
-// leaves a hand-kept ride where it was.
+// in localStorage, and the set is re-derived on every visit to this page while
+// online.
+//
+// NOTHING IS DOWNLOADED OR REMOVED WITHOUT A TAP, since 2026-10-04. The switch
+// used to act the moment it was pressed: narrowing it deleted every ride the
+// policy had kept outside the new window, and widening it, or simply opening
+// this page, started downloading. A rider on the road on metered data pays
+// twice for a mistaken press, once to lose the rides and once to get them
+// back. So pressing the switch, or opening the page, only works out the plan
+// (`TBKeepPolicy.plan`) and offers each half as its own button: "Download N
+// rides · up to X MB", sized from the server's estimate, and "Remove N rides"
+// for what the policy kept and no longer wants. Hand-kept rides are never
+// offered for removal; the registry row's `via` is what says which is which.
 //
 // THE LIST COMES FROM /rides/keep.json, NOT FROM THE CARDS. The page is
 // capped at a screenful and "All" means all. The cards' signs are repainted
@@ -256,6 +262,7 @@
 
   const buttons = Array.from(box.querySelectorAll("button[data-policy]"));
   const status = box.querySelector(".keep-policy-status");
+  const actions = box.querySelector(".keep-policy-actions");
 
   function readPolicy() {
     try {
@@ -282,16 +289,16 @@
     status.textContent = text;
   }
 
+  function rides(n) {
+    return n + (n === 1 ? " ride" : " rides");
+  }
+
   // "3 rides · 4.2 MB on this phone", from the registry — every kept ride,
   // by hand or by policy, because the question is what the phone holds.
   function describe() {
     return K.listRows().then((rows) => {
       const bytes = rows.reduce((n, r) => n + (r.bytes || 0), 0);
-      say(
-        rows.length === 0
-          ? "Nothing kept on this phone"
-          : rows.length + (rows.length === 1 ? " ride" : " rides") + " \u00b7 " + G.fmtBytes(bytes) + " on this phone",
-      );
+      say(rows.length === 0 ? "Nothing kept on this phone" : rides(rows.length) + " · " + G.fmtBytes(bytes) + " on this phone");
     });
   }
 
@@ -310,81 +317,118 @@
     });
   }
 
-  let running = false;
+  function clearActions() {
+    actions.replaceChildren();
+  }
 
-  function sync(policy) {
-    if (running) return Promise.resolve();
-    running = true;
-    buttons.forEach((b) => (b.disabled = true));
+  function action(label, cls, run) {
+    const b = document.createElement("button");
+    b.type = "button";
+    b.className = "keep-policy-act " + cls;
+    b.textContent = label;
+    b.addEventListener("click", run);
+    actions.appendChild(b);
+  }
+
+  let busy = false;
+
+  function setBusy(on) {
+    busy = on;
+    buttons.forEach((b) => (b.disabled = on));
+    actions.querySelectorAll("button").forEach((b) => (b.disabled = on));
+  }
+
+  // Work out what the policy would do and offer it. Downloads nothing and
+  // removes nothing; the two buttons are the only ways either happens.
+  function review(policy) {
+    if (busy) return Promise.resolve();
+    clearActions();
     const now = Date.now();
-    let failed = 0;
-
-    const wanted =
+    const list =
       policy === "none"
         ? Promise.resolve([])
-        : fetch("/rides/keep.json", { credentials: "same-origin", cache: "no-store" })
-            .then((r) => {
-              if (!r.ok) throw new Error("HTTP " + r.status);
-              return r.json();
-            })
-            .then((body) => (body.rides || []).filter((r) => P.matches(policy, r.updatedAt, now)));
-
-    return Promise.all([wanted, K.listRows()])
-      .then(([rides, rows]) => {
-        const kept = new Map(rows.map((r) => [r.slug, r]));
-        const want = new Set(rides.map((r) => r.slug));
-
-        // What the policy kept and no longer wants goes first, so a phone
-        // near its quota frees space before it fills it.
-        const stale = rows.filter((r) => r.via === "policy" && !want.has(r.slug));
-        const todo = rides.filter((r) => {
-          const row = kept.get(r.slug);
-          return !row || (G.staleness(row, r.updatedAt, now) || {}).changed;
-        });
-
-        let step = Promise.resolve();
-        stale.forEach((row, i) => {
-          step = step.then(() => {
-            say("Removing " + (i + 1) + " of " + stale.length);
-            return K.forget(row).catch(() => {
-              failed += 1;
-            });
+        : fetch("/rides/keep.json", { credentials: "same-origin", cache: "no-store" }).then((r) => {
+            if (!r.ok) throw new Error("HTTP " + r.status);
+            return r.json().then((body) => body.rides || []);
           });
+
+    return Promise.all([list, K.listRows()])
+      .then(([all, rows]) => {
+        const p = P.plan(policy, all, rows, now, (row, ride) => !!(G.staleness(row, ride.updatedAt, now) || {}).changed);
+        return describe().then(() => {
+          if (p.fetch.length) {
+            const size = p.bytes > 0 ? " · up to " + G.fmtBytes(p.bytes) : "";
+            action("Download " + rides(p.fetch.length) + size, "is-download", () => download(p.fetch, rows, policy));
+          }
+          if (p.remove.length) {
+            const where = policy === "none" ? "" : " outside " + P.LABELS[policy];
+            action("Remove " + rides(p.remove.length) + where, "is-remove", () => removeRows(p.remove, policy));
+          }
         });
-        todo.forEach((r, i) => {
-          step = step.then(() => {
-            say("Keeping " + (i + 1) + " of " + todo.length + " \u00b7 " + r.title);
-            const row = kept.get(r.slug);
-            // A hand-kept ride being refreshed stays hand-kept.
-            const via = row && row.via === "hand" ? "hand" : "policy";
-            return fetch("/m/" + encodeURIComponent(r.slug) + "/keep.json", {
-              credentials: "same-origin",
-              cache: "no-store",
-            })
-              .then((res) => {
-                if (!res.ok) throw new Error("HTTP " + res.status);
-                return res.json();
-              })
-              .then((m) => K.keep(m, null, via))
-              .catch(() => {
-                failed += 1;
-              });
-          });
-        });
-        return step;
-      })
-      .then(describe)
-      .then(() => {
-        if (failed) say(status.textContent + " \u00b7 " + failed + " could not be kept");
       })
       .catch((err) => {
-        say("Could not sync: " + (err && err.message ? err.message : "unknown error"));
+        say("Could not check: " + (err && err.message ? err.message : "unknown error"));
+      });
+  }
+
+  function finish(failed, verb, policy) {
+    return describe()
+      .then(() => {
+        if (failed) say(status.textContent + " · " + failed + " could not be " + verb);
       })
       .then(() => {
-        running = false;
-        buttons.forEach((b) => (b.disabled = false));
+        setBusy(false);
         repaintSigns();
+        // Offer whatever is still left, without overwriting the failure line.
+        const line = status.textContent;
+        return review(policy).then(() => {
+          if (failed) say(line);
+        });
       });
+  }
+
+  function download(todo, rows, policy) {
+    if (busy) return;
+    setBusy(true);
+    clearActions();
+    const kept = new Map(rows.map((r) => [r.slug, r]));
+    let failed = 0;
+    let step = Promise.resolve();
+    todo.forEach((r, i) => {
+      step = step.then(() => {
+        say("Keeping " + (i + 1) + " of " + todo.length + " · " + r.title);
+        const row = kept.get(r.slug);
+        // A hand-kept ride being refreshed stays hand-kept.
+        const via = row && row.via === "hand" ? "hand" : "policy";
+        return fetch("/m/" + encodeURIComponent(r.slug) + "/keep.json", { credentials: "same-origin", cache: "no-store" })
+          .then((res) => {
+            if (!res.ok) throw new Error("HTTP " + res.status);
+            return res.json();
+          })
+          .then((m) => K.keep(m, null, via))
+          .catch(() => {
+            failed += 1;
+          });
+      });
+    });
+    step.then(() => finish(failed, "kept", policy));
+  }
+
+  function removeRows(stale, policy) {
+    if (busy) return;
+    setBusy(true);
+    clearActions();
+    let failed = 0;
+    let step = Promise.resolve();
+    stale.forEach((row, i) => {
+      step = step.then(() => {
+        say("Removing " + (i + 1) + " of " + stale.length);
+        return K.forget(row).catch(() => {
+          failed += 1;
+        });
+      });
+    });
+    step.then(() => finish(failed, "removed", policy));
   }
 
   const policy = readPolicy();
@@ -394,17 +438,16 @@
   buttons.forEach((b) => {
     b.addEventListener("click", () => {
       const next = b.dataset.policy;
-      if (!P.isPolicy(next)) return;
+      if (!P.isPolicy(next) || busy) return;
       writePolicy(next);
       paintPolicy(next);
-      sync(next);
+      if (navigator.onLine || next === "none") review(next);
+      else describe();
     });
   });
 
-  // On load: say what is held, and if a policy is set and we are online, bring
-  // the phone up to date. A policy of None syncs nothing on load — it removes
-  // only when chosen, so a rider who picked None last month and kept a ride by
-  // hand since is not surprised by a sweep.
-  if (policy !== "none" && navigator.onLine) sync(policy);
+  // On load: say what is held, and if online, offer what the policy would
+  // change. Nothing happens until the rider taps.
+  if (navigator.onLine) review(policy);
   else describe();
 })();

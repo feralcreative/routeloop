@@ -117,6 +117,49 @@
     color: $neutral-57;
     min-height: 1.2em;
   }
+
+  // What the switch would do, offered rather than done (2026-10-04): Download
+  // filled in the Keep sign's blue, Remove outlined, both the pill's metrics.
+  // Empty when there is nothing to offer, and then it takes no room.
+  .keep-policy-actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.4rem;
+    flex-basis: 100%;
+
+    &:empty {
+      display: none;
+    }
+  }
+
+  .keep-policy-act {
+    padding: 0.3em 0.85em;
+    border: 1px solid $grey;
+    border-radius: 999px;
+    background: $white;
+    color: $neutral-29;
+    font: inherit;
+    font-size: 0.8rem;
+    font-weight: 600;
+    line-height: 1.5;
+    cursor: pointer;
+
+    &.is-download {
+      border-color: $disabled;
+      background: $disabled;
+      color: $ink-light;
+    }
+
+    &:focus-visible {
+      outline: 2px solid $brand;
+      outline-offset: 2px;
+    }
+
+    &:disabled {
+      cursor: default;
+      opacity: 0.6;
+    }
+  }
 }
 
 //@ Phone
