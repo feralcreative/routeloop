@@ -125,3 +125,19 @@ describe('canClone', () => {
     expect(canClone(ride('private'), stranger, { isMember: true })).toBe(false)
   })
 })
+
+// #428. A personal ride link opens the ride whatever its visibility, to anybody
+// holding it — joining Routeloop is optional, so an anonymous or pending visitor
+// is exactly who it is for.
+describe('canView with a live invite link', () => {
+  it('opens every level to every viewer holding one', () => {
+    for (const v of LEVELS) {
+      for (const who of [anon, stranger, pending]) expect(canView(ride(v), who, { hasInvite: true })).toBe(true)
+    }
+  })
+
+  it('opens nothing it did not already open without one', () => {
+    expect(canView(ride('private'), anon, { hasInvite: false })).toBe(false)
+    expect(canView(ride('friends'), stranger, {})).toBe(false)
+  })
+})

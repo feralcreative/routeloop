@@ -23,6 +23,7 @@ import { quotaFullEmail } from './quota-full'
 import { releaseEmail } from './release'
 import { rideAddedEmail } from './ride-added'
 import { rideCommentEmail } from './ride-comment'
+import { rideInviteEmail } from './ride-invite'
 import { ridePurgeSoonEmail } from './ride-purge-soon'
 import { rideRsvpEmail } from './ride-rsvp'
 import { rideSuggestionEmail } from './ride-suggestion'
@@ -48,6 +49,9 @@ export const ALL_EMAILS: readonly AnyEmailTemplate[] = [
   suggestionDecidedEmail,
   voteResolvedEmail,
   rideAddedEmail,
+  // Not a catalog event: sent to somebody with no account, so nothing to opt
+  // out of and no notification row (#428).
+  rideInviteEmail,
   rideRsvpEmail,
   newFollowerEmail,
   ridePurgeSoonEmail,
@@ -71,6 +75,7 @@ export {
   releaseEmail,
   rideAddedEmail,
   rideCommentEmail,
+  rideInviteEmail,
   ridePurgeSoonEmail,
   rideRsvpEmail,
   rideSuggestionEmail,

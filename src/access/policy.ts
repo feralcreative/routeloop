@@ -43,6 +43,12 @@ export type ViewGrants = {
   isMember?: boolean
   /** The viewer and the ride's owner have an `accepted` friendship. */
   isFriendOfOwner?: boolean
+  /**
+   * The browser holds a LIVE personal link to this ride (#428) — sent, and not
+   * yet joined, declined or revoked. Somebody an organizer invited who has no
+   * account, or has one and has not joined through it.
+   */
+  hasInvite?: boolean
 }
 
 /** Only the fields the rules read, so a test does not have to build a whole row. */
@@ -74,12 +80,12 @@ const isRider = (v: Viewer): v is { id: number; status: string } => v !== null &
 /**
  * The whole rule. Read it as a table:
  *
- *   | visibility | anonymous | any rider | friend of owner | member | owner |
- *   | ---------- | --------- | --------- | --------------- | ------ | ----- |
- *   | public     | yes       | yes       | yes             | yes    | yes   |
- *   | unlisted   | yes       | yes       | yes             | yes    | yes   |
- *   | friends    | no        | no        | YES             | yes    | yes   |
- *   | private    | no        | no        | no              | YES    | yes   |
+ *   | visibility | anonymous | any rider | friend of owner | invite link | member | owner |
+ *   | ---------- | --------- | --------- | --------------- | ----------- | ------ | ----- |
+ *   | public     | yes       | yes       | yes             | yes         | yes    | yes   |
+ *   | unlisted   | yes       | yes       | yes             | yes         | yes    | yes   |
+ *   | friends    | no        | no        | YES             | YES         | yes    | yes   |
+ *   | private    | no        | no        | no              | YES         | YES    | yes   |
  *
  * `public` and `unlisted` keep their exact previous meanings — both are "anyone
  * holding the link", and the difference between them is whether the ride is
@@ -96,6 +102,14 @@ export function canView(ride: ViewableRide, viewer: Viewer, grants: ViewGrants =
   // owner named this rider — so a member sees a private ride. It is also the
   // only thing that makes `private` usable for a group ride at all.
   if (grants.isMember && isRider(viewer)) return true
+
+  // A LIVE PERSONAL LINK beats visibility too, and does NOT need a rider in good
+  // standing — that is its point (#428). The organizer named this person and
+  // mailed them the link; joining Routeloop is optional, and somebody who only
+  // wants to look at the ride and take the GPX must be able to with no account.
+  // It grants SEEING only: no roster, no comments, no private stop details, all of
+  // which ask for membership or ownership on their own.
+  if (grants.hasInvite) return true
 
   switch (ride.visibility) {
     case 'public':

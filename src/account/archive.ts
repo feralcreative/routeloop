@@ -114,6 +114,8 @@ export type ArchiveMembershipInput = {
   role: string
   perm: string
   rsvp: string
+  /** Absent reads as `invited`, what every membership was before #428. */
+  state?: string
   joinedAt: Date
 }
 export type ArchiveCommentInput = {
@@ -234,7 +236,16 @@ export type AccountArchive = {
   }>
   following: ArchivePerson[]
   followers: ArchivePerson[]
-  memberships: Array<{ ride: string; slug: string; role: string; perm: string; rsvp: string; joinedAt: string | null }>
+  memberships: Array<{
+    ride: string
+    slug: string
+    role: string
+    perm: string
+    rsvp: string
+    /** `invited`, or `declined` for an invitation they said no to (#428). */
+    state: string
+    joinedAt: string | null
+  }>
   comments: Array<{ ride: string; point: string | null; body: string; resolved: boolean; createdAt: string | null }>
   suggestions: Array<Record<string, unknown>>
   votes: Array<{ ride: string; routeUid: string; createdAt: string | null }>
@@ -437,6 +448,7 @@ export function buildAccountJson(input: AccountArchiveInput): AccountArchive {
       role: m.role,
       perm: m.perm,
       rsvp: m.rsvp,
+      state: m.state ?? 'invited',
       joinedAt: iso(m.joinedAt),
     })),
 

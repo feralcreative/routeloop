@@ -17,6 +17,7 @@ import { Hono } from 'hono'
 import { currentUser, requireActiveApi, requireSameOrigin, type AuthEnv } from '../auth/middleware'
 import { ownRide } from './maps'
 import { roster } from '../members/service'
+import { isPlanned } from '../members/policy'
 import { subgroupsOf } from '../subgroups/service'
 import { resolvedRoutes, setRouteRiders } from '../route-riders/service'
 import { groupsOnRoute, riderJunctions, ridersWhoRodeAs } from '../route-riders/policy'
@@ -49,7 +50,10 @@ export const routeRiderRoutes = new Hono<AuthEnv>()
  * last. The picker makes it editable, which covers the two who carry on.
  */
 async function payloadFor(rideId: number) {
-  const [routes, members, groups] = await Promise.all([resolvedRoutes(rideId), roster(rideId), subgroupsOf(rideId)])
+  const [routes, everyone, groups] = await Promise.all([resolvedRoutes(rideId), roster(rideId), subgroupsOf(rideId)])
+  // Drafts ride the routes they are planned on (#428); a declined invitation
+  // rides none, and resolvedRoutes() has already left them out.
+  const members = everyone.filter(isPlanned)
   const home = new Map(members.map((m) => [m.riderId, m.subgroupId]))
   return {
     routes: routes.map((r) => ({ ...r, groups: groupsOnRoute(r, home) })),

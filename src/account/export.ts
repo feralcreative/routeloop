@@ -1,7 +1,7 @@
 // Building the "Download Me" archive. The queries; the shape lives in
 // ./archive.ts, which is pure and tested.
 import { clubsOf } from '../clubs/service'
-import { asc, eq, inArray, or } from 'drizzle-orm'
+import { and, asc, eq, inArray, or } from 'drizzle-orm'
 import { readFile } from 'node:fs/promises'
 import { db } from '../db/index'
 import {
@@ -301,7 +301,10 @@ async function everythingElse(userId: number) {
     .select({ m: rideMembers, ride: { title: rides.title, slug: rides.slug, ownerId: rides.ownerId } })
     .from(rideMembers)
     .innerJoin(rides, eq(rides.id, rideMembers.rideId))
-    .where(eq(rideMembers.riderId, userId))
+    // A ride they were sent, or said no to (#428). A DRAFT, or a row waiting on a
+    // friend request, is the organizer's plan and has told this rider nothing —
+    // their own archive must not be how they first hear of it.
+    .where(and(eq(rideMembers.riderId, userId), inArray(rideMembers.state, ['invited', 'declined'])))
   const memberships = memberRows
     .filter((r) => r.ride.ownerId !== userId)
     .map((r) => ({
@@ -310,6 +313,7 @@ async function everythingElse(userId: number) {
       role: r.m.role,
       perm: r.m.perm,
       rsvp: r.m.rsvp,
+      state: r.m.state,
       joinedAt: r.m.createdAt,
     }))
 

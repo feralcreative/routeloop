@@ -36,6 +36,9 @@ import { LIVE_RIDE } from '../trash/service'
 import { followeeIdsOf } from '../follows/service'
 import { areFriends, pairOf } from '../friends/policy'
 import { canView, isFriendListed, isListed, type ViewGrants, type Viewer } from './policy'
+import { LIVE_MEMBER } from '../members/service'
+import { holdsLiveInvite } from '../ride-invites/service'
+import { viewTokensInFlight } from '../ride-invites/cookie'
 
 /**
  * The levels that appear in a list nobody asked for by name.
@@ -71,15 +74,22 @@ type GrantSubject = { id: number; ownerId: number; visibility: RideRow['visibili
  * not a second change to the access rule.
  */
 export async function grantsFor(ride: GrantSubject, viewer: Viewer): Promise<ViewGrants> {
-  if (!viewer || viewer.status !== 'active') return {}
-  if (viewer.id === ride.ownerId) return {}
+  if (viewer && viewer.id === ride.ownerId) return {}
   if (ride.visibility === 'public' || ride.visibility === 'unlisted') return {}
+
+  // A personal link is the one grant an anonymous or unapproved visitor can
+  // hold (#428), so it is asked BEFORE the rider-in-good-standing return below.
+  // Most requests carry no view cookie at all and this costs nothing for them.
+  const tokens = viewTokensInFlight()
+  const hasInvite = tokens.length > 0 && (await holdsLiveInvite(ride.id, tokens))
+
+  if (!viewer || viewer.status !== 'active') return hasInvite ? { hasInvite } : {}
 
   const [member, friendship] = await Promise.all([
     db
       .select({ id: rideMembers.id })
       .from(rideMembers)
-      .where(and(eq(rideMembers.rideId, ride.id), eq(rideMembers.riderId, viewer.id)))
+      .where(and(eq(rideMembers.rideId, ride.id), eq(rideMembers.riderId, viewer.id), LIVE_MEMBER))
       .limit(1),
     (async () => {
       const { riderA, riderB } = pairOf(viewer.id, ride.ownerId)
@@ -91,7 +101,7 @@ export async function grantsFor(ride: GrantSubject, viewer: Viewer): Promise<Vie
     })(),
   ])
 
-  return { isMember: member.length > 0, isFriendOfOwner: areFriends(friendship[0]) }
+  return { isMember: member.length > 0, isFriendOfOwner: areFriends(friendship[0]), hasInvite }
 }
 
 /**

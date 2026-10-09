@@ -30,6 +30,7 @@ import { adminRoutes } from './routes/admin'
 import { authRoutes } from './routes/auth'
 import { homeRoutes } from './routes/home'
 import { inviteRoutes } from './routes/invites'
+import { rideInviteRoutes } from './routes/ride-invites'
 import { surveyRoutes } from './routes/survey'
 import { feedbackRoutes } from './routes/feedback'
 import { ridesRoutes } from './routes/rides'
@@ -253,6 +254,7 @@ app.route('/', homeRoutes)
 // Both carry literal paths and mount before pageRoutes, whose /:handle{@…}
 // regex param is the greediest thing in the table.
 app.route('/', inviteRoutes)
+app.route('/', rideInviteRoutes)
 app.route('/', surveyRoutes)
 // Ahead of pageRoutes for the same reason as the two above. Its own internal
 // ordering matters too — /feedback/mine and /feedback/thanks are registered

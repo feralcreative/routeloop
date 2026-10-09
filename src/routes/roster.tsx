@@ -20,7 +20,7 @@
 // The rules are src/members/policy.ts and src/votes/policy.ts. Nothing in this
 // file decides whether a verb is allowed; it decides what to show.
 import { Hono } from 'hono'
-import { and, eq } from 'drizzle-orm'
+import { and, eq, inArray } from 'drizzle-orm'
 import { db } from '../db/index'
 import {
   routes as routesTable,
@@ -34,6 +34,7 @@ import {
 } from '../db/schema'
 import { currentUser, requireActive, requireActiveApi, requireSameOrigin, type AuthEnv } from '../auth/middleware'
 import {
+  canDecline,
   canInvite,
   canRemove,
   canRsvp,
@@ -41,22 +42,39 @@ import {
   canSetPerm,
   DEFAULT_PERM,
   isComing,
+  isLiveMember,
   PERM_HELP,
   PERM_LABELS,
   RSVP_LABELS,
+  STATE_LABELS,
   type MemberFields,
 } from '../members/policy'
 import {
+  addDraft,
+  addPlaceholder,
+  declineInvitation,
   invitableFriends,
-  invite,
+  draftsOf,
+  editPlaceholder,
+  onRoster,
+  PLACEHOLDER_NAME_MAX,
   removeMember,
   roleOf,
   roster,
+  sendInvitations,
   setPerm,
   goingCount,
   setRsvp,
   type RosterEntry,
 } from '../members/service'
+import { requestFriend } from '../friends/service'
+import { notifyFriendRequest } from '../friends/notify'
+import { mintRideInvite } from '../ride-invites/service'
+import { rideInvitePath } from '../ride-invites/policy'
+import { sendTemplateDetached } from '../auth/mailer'
+import { rideInviteEmail } from '../emails/index'
+import { normalizeEmail } from '../auth/magic'
+import { rideInvites, users } from '../db/schema'
 import { applyTallies, castVote, voteGroups, type VoteGroup } from '../votes/service'
 import { bikesOnRide, groupRange, setBikeOnRide, type GroupRange } from '../bikes/group-range'
 import { listBikes } from '../bikes/service'
@@ -65,13 +83,13 @@ import { assignRider, subgroupsOf } from '../subgroups/service'
 import type { RideSubgroupRow } from '../db/schema'
 import { hasVotes, votingOpen } from '../votes/policy'
 import { LIVE_RIDE } from '../trash/service'
-import { fmtDateFull } from '../views/date-format'
+import { fmtDateFull, fmtDateNumeric } from '../views/date-format'
 import { dateFormatFor } from '../views/prefs'
 import type { DateFormat } from '../views/date-format'
 import { page, wordsOf } from '../views/layout'
 import { Wds, aWd, cap, wd, wds, wn, type Words } from '../views/vocab'
 import { tourAssets } from '../views/tour-assets'
-import { notifyRideAdded, notifyRsvp } from '../notifications/senders'
+import { notifyInviteDeclined, notifyRideAdded, notifyRsvp } from '../notifications/senders'
 import { ownRide } from './maps'
 
 export const rosterRoutes = new Hono<AuthEnv>()
@@ -211,7 +229,7 @@ function MemberRow({
   subgroups: RideSubgroupRow[]
   canAssign: boolean
 }) {
-  const fields: MemberFields = { riderId: m.riderId, role: m.role, perm: m.perm, rsvp: m.rsvp }
+  const fields: MemberFields = { riderId: m.riderId, role: m.role, perm: m.perm, rsvp: m.rsvp, state: m.state }
   const isMe = m.riderId === viewerId
   return (
     <li class={isComing(fields) ? '' : 'is-out'}>
@@ -263,6 +281,12 @@ function MemberRow({
           <span class="roster-said">{subgroups.find((g) => g.id === m.subgroupId)?.name ?? 'No group'}</span>
         ))}
       {isMe ? <RsvpForm slug={slug} current={m.rsvp} /> : <span class="roster-said">{RSVP_LABELS[m.rsvp]}</span>}
+      {/* DECLINING IS NOT "CAN'T MAKE IT" (#428). The RSVP keeps you on the ride
+          with your access; this says no to the invitation and takes the ride off
+          your lists. Yours only, and never the owner's. */}
+      {isMe && canDecline(viewerId, fields) && (
+        <Verb action="decline" slug={slug} fields={{}} label="Decline invitation" variant="btn-quiet" />
+      )}
       {/* An owner is not on the ladder, so there is nothing to set on one —
           canSetPerm refuses it and the control is not rendered either. */}
       {viewerSeesPerms && canSetPerm(viewerFields, fields) && <PermForm slug={slug} m={m} />}
@@ -390,19 +414,23 @@ rosterRoutes.get('/m/:slug/riders', requireActive, async (c) => {
   // The ride's own words (#321): its vehicle over the viewer's default.
   const w = wordsOf({ user, ride })
 
-  const [members, groups, routeRows, friends, dateFormat, range, myGarage, subgroups] = await Promise.all([
+  const [everyone, groups, routeRows, dateFormat, range, myGarage, subgroups] = await Promise.all([
     roster(ride.id),
     voteGroups(ride.id, user.id),
     db
       .select({ uid: routesTable.uid, title: routesTable.title, position: routesTable.position })
       .from(routesTable)
       .where(eq(routesTable.rideId, ride.id)),
-    canInvite(role) ? invitableFriends(ride.id, user.id) : Promise.resolve([]),
     dateFormatFor(c),
     groupRange(ride.id),
     listBikes(user.id),
     subgroupsOf(ride.id),
   ])
+  // MEMBERS ONLY ON THIS PAGE (#428). Everybody on it can read it, and a draft
+  // is a name the organizer has not sent anything to yet — the Riders tab in the
+  // builder is where those are planned and seen. The owner gets a count.
+  const members = everyone.filter(isLiveMember)
+  const unsent = canInvite(role) ? everyone.filter((m) => !isLiveMember(m) && m.state !== 'declined').length : 0
   const routeTitles = new Map(routeRows.map((d) => [d.uid, d.title || `Route ${d.position + 1}`]))
   // From the roster rather than a second query: the row is already loaded and
   // `null` there means "my default", which the select renders as its first
@@ -477,44 +505,20 @@ rosterRoutes.get('/m/:slug/riders', requireActive, async (c) => {
       {canInvite(role) && (
         <section class="roster-invite">
           <h2>Add {aWd(w, 'person')}</h2>
-          {friends.length > 0 ? (
-            <form method="post" action={`/m/${ride.slug}/riders/invite`} class="roster-row">
-              <label class="visually-hidden" for="who">
-                Which friend
-              </label>
-              <select id="who" name="handle">
-                {friends.map((f) => (
-                  <option value={f.username}>
-                    {f.displayName} (@{f.username})
-                  </option>
-                ))}
-              </select>
-              {/* SET THE LEVEL WHILE ADDING, rather than adding and then
-                  promoting. The default is `suggest` — look, discuss, propose —
-                  and Edit is picked deliberately here or later, never handed out
-                  by an invitation on its own. */}
-              <label class="visually-hidden" for="perm">
-                What they can do
-              </label>
-              <select id="perm" name="perm">
-                {ridePermEnum.enumValues.map((v) => (
-                  <option value={v} selected={v === DEFAULT_PERM}>
-                    {PERM_LABELS[v]}
-                  </option>
-                ))}
-              </select>
-              <button class="btn btn-sm" type="submit">
-                Add
-              </button>
-            </form>
-          ) : (
-            <p class="empty">
-              {/* The whole invite mechanism, said in one line rather than
-                  discovered by pressing something that refuses. */}
-              Everyone you are friends with is already here. Add more on the <a href="/friends">friends</a> page — you
-              can only put a friend on a ride.
-            </p>
-          )}
+          {/* ONE DOOR, AND IT CONTACTS NOBODY (#428). Adding somebody used to be
+              the invitation; now every addition is a draft the organizer plans
+              around in the builder's Riders tab, and nobody hears anything until
+              Send. A second, instant door here would be the one way to tell
+              somebody by accident. */}
+          <p class="empty">
+            {unsent > 0 && (
+              <>
+                {unsent} {wn(w, 'person', unsent)} {unsent === 1 ? 'is' : 'are'} planned but not invited yet.{' '}
+              </>
+            )}
+            Add {wds(w, 'person')} and send the invitations from the{' '}
+            <a href={`/builder/${ride.id}#riders`}>Riders tab in the builder</a>.
+          </p>
         </section>
       )}
 
@@ -569,10 +573,6 @@ const localValue = (d: Date | null): string => (d ? d.toISOString().slice(0, 16)
 
 const ERRORS: Record<string, string> = {
   'not-owner': 'Only the ride owner can do that.',
-  'not-a-friend': 'You can only add a rider you are friends with.',
-  'already-on': 'They are already on this ride.',
-  full: 'This ride is full.',
-  'unknown-rider': 'No such rider.',
   closed: 'Voting has closed on this ride.',
   'not-an-alternate': 'That route is not one of a set of alternatives.',
   refused: 'That is not something you can do here.',
@@ -605,23 +605,17 @@ async function firstDepartureOf(rideId: number): Promise<Date | null> {
 
 const back = (slug: string, error?: string) => `/m/${slug}/riders${error ? `?error=${error}` : ''}`
 
-rosterRoutes.post('/m/:slug/riders/invite', requireActive, requireSameOrigin, async (c) => {
+// DECLINE THE INVITATION (#428). Yours only — canDecline. The row stays, as
+// `declined`, so the organizer sees the answer, and it grants nothing from here:
+// the ride leaves your lists and this roster stops opening for you, which is why
+// the redirect is to the ride page and not back here.
+rosterRoutes.post('/m/:slug/riders/decline', requireActive, requireSameOrigin, async (c) => {
   const user = currentUser(c)
   const found = await memberRide(c.req.param('slug'), user.id)
   if (!found) return c.text('Not found', 404)
-  const form = await c.req.parseBody()
-  const handle = typeof form.handle === 'string' ? form.handle.trim() : ''
-  if (!handle) return c.redirect(back(found.ride.slug), 303)
-  // An unrecognized value falls back to the default rather than refusing. The
-  // rung is a secondary field on somebody else's form post, and the safe answer
-  // to a bad one is the level an invitation grants anyway — never `edit`.
-  const res = await invite(found.ride.id, user.id, handle, isPerm(form.perm) ? form.perm : DEFAULT_PERM)
-  // Only a real addition notifies. `already-on` is a no-op insert, and telling
-  // somebody they were added to a ride they were already on is a message about
-  // nothing. The date comes off the ride's first route, formatted for the
-  // RECIPIENT rather than for whoever pressed the button — see senders.ts.
-  if (res.ok) notifyRideAdded(found.ride.id, res.riderId, user.id, await firstDepartureOf(found.ride.id))
-  return c.redirect(back(found.ride.slug, res.ok ? undefined : res.reason), 303)
+  if (!(await declineInvitation(found.ride.id, user.id))) return c.redirect(back(found.ride.slug, 'refused'), 303)
+  notifyInviteDeclined(found.ride.id, user.id)
+  return c.redirect('/rides', 303)
 })
 
 rosterRoutes.post('/m/:slug/riders/remove', requireActive, requireSameOrigin, async (c) => {
@@ -776,6 +770,14 @@ type RiderJson = {
   isGuide: boolean
   role: RideRole
   rsvp: Rsvp
+  /** Where they are in the organizer's flow (#428), and its label. */
+  state: RosterEntry['state']
+  stateLabel: string
+  /** Somebody with no account. */
+  isPlaceholder: boolean
+  /** A placeholder's address, for the organizer and nobody else — this route
+   *  is behind ownRide. Null for everybody with an account. */
+  email: string | null
   /** The subgroup they are on, by id — `ride_members.subgroup_id`. Null is a
    *  real state: unassigned, or a ride with no subgroups at all. */
   subgroupId: number | null
@@ -788,12 +790,19 @@ rosterRoutes.get('/api/rides/:id/riders', requireActiveApi, async (c) => {
   const ride = await ownRide(user.id, c.req.param('id'))
   if (!ride) return c.json({ error: 'not found' }, 404)
 
-  const [members, groups, range, riding] = await Promise.all([
+  const [members, groups, range, riding, emails, drafts, friends] = await Promise.all([
     roster(ride.id),
     subgroupsOf(ride.id),
-    groupRange(ride.id),
-    bikesOnRide(ride.id),
+    groupRange(ride.id, { planning: true }),
+    bikesOnRide(ride.id, { planning: true }),
+    db
+      .select({ id: rideInvites.placeholderId, email: rideInvites.email })
+      .from(rideInvites)
+      .where(eq(rideInvites.rideId, ride.id)),
+    draftsOf(ride.id, user.id),
+    invitableFriends(ride.id, user.id),
   ])
+  const emailOf = new Map(emails.map((e) => [e.id, e.email]))
   const bikeOf = new Map(riding.map((r) => [r.riderId, r.bike ? bikeLabel(r.bike) : null]))
 
   const owners = members.filter((m) => m.role === 'owner').length
@@ -804,6 +813,10 @@ rosterRoutes.get('/api/rides/:id/riders', requireActiveApi, async (c) => {
     isGuide: m.isGuide,
     role: m.role,
     rsvp: m.rsvp,
+    state: m.state,
+    stateLabel: STATE_LABELS[m.state],
+    isPlaceholder: m.isPlaceholder,
+    email: m.isPlaceholder ? (emailOf.get(m.riderId) ?? null) : null,
     subgroupId: m.subgroupId,
     bike: bikeOf.get(m.riderId) ?? null,
     // From the policy rather than from `role !== 'owner'`, which was the same
@@ -821,7 +834,15 @@ rosterRoutes.get('/api/rides/:id/riders', requireActiveApi, async (c) => {
     riders,
     groups: groups.map((g) => ({ id: g.id, uid: g.uid, name: g.name, color: g.color })),
     range,
-    coming: members.filter(isComing).length,
+    // Members who are coming, not drafts: the line reads "N of M coming", and
+    // nobody who has not been asked has said anything.
+    coming: members.filter((m) => isLiveMember(m) && isComing(m)).length,
+    // What Send would do, row by row — the confirm dialog's whole content, from
+    // the same function sendInvitations() acts on.
+    drafts: drafts.map((d) => ({ riderId: d.riderId, displayName: d.displayName, plan: d.plan })),
+    // Friends not on the roster yet, for the add field's suggestions. Anybody on
+    // Routeloop can be added by handle; friends are just the ones worth listing.
+    friends: friends.map((f) => ({ username: f.username, displayName: f.displayName })),
   })
 })
 
@@ -846,7 +867,9 @@ rosterRoutes.post('/api/rides/:id/riders/group', requireActiveApi, requireSameOr
   if (groupId !== null && !mine) return c.json({ error: 'unknown group' }, 400)
   // Only somebody already on the roster: assignRider's UPDATE matches no row
   // otherwise, which is silent, so the check is here rather than in the service.
-  if (!(await roleOf(ride.id, rider))) return c.json({ error: 'not a member' }, 404)
+  // onRoster and not roleOf: putting a DRAFT in a group is the organizer's whole
+  // job (#428), and roleOf answers for members only.
+  if (!(await onRoster(ride.id, rider))) return c.json({ error: 'not a member' }, 404)
 
   await assignRider(ride.id, rider, groupId)
   return c.json({ ok: true })
@@ -865,4 +888,120 @@ rosterRoutes.post('/api/rides/:id/riders/remove', requireActiveApi, requireSameO
   // refusal here is a 403 rather than a 400 because the request was well formed.
   if (!(await removeMember(ride.id, user.id, rider))) return c.json({ error: 'refused' }, 403)
   return c.json({ ok: true })
+})
+
+// --- The organizer's flow (#428) ---------------------------------------------
+//
+// ADD, EDIT, SEND. Every addition is a draft that contacts nobody; Send is the
+// one press that does. All three behind ownRide like the rest of this block.
+
+const ADD_ERRORS: Record<string, string> = {
+  'not-owner': 'Only the ride owner can add riders.',
+  'already-on': 'They are already on this ride.',
+  full: 'This ride is full.',
+  'unknown-rider': 'No rider by that handle.',
+  'bad-name': 'Give them a name.',
+  'bad-email': 'That email address does not look right.',
+}
+
+/** An address, or null for none — and `false` for one that is not an address,
+ *  so the caller can refuse it rather than store something Send will choke on. */
+function emailOrNull(raw: unknown): string | null | false {
+  if (raw == null) return null
+  if (typeof raw !== 'string') return false
+  if (raw.trim() === '') return null
+  const e = normalizeEmail(raw)
+  return e && e.length <= 255 ? e : false
+}
+
+rosterRoutes.post('/api/rides/:id/riders/add', requireActiveApi, requireSameOrigin, async (c) => {
+  const user = currentUser(c)
+  const ride = await ownRide(user.id, c.req.param('id'))
+  if (!ride) return c.json({ error: 'not found' }, 404)
+  const body = (await c.req.json().catch(() => null)) as {
+    handle?: unknown
+    name?: unknown
+    email?: unknown
+    perm?: unknown
+  } | null
+  if (!body) return c.json({ error: 'bad request' }, 400)
+  const perm = isPerm(body.perm) ? body.perm : DEFAULT_PERM
+
+  // A handle is somebody on Routeloop; a name is somebody who is not.
+  const handle = typeof body.handle === 'string' ? body.handle.trim().replace(/^@/, '') : ''
+  if (handle) {
+    const res = await addDraft(ride.id, user.id, handle, perm)
+    return res.ok ? c.json(res) : c.json({ error: ADD_ERRORS[res.reason] ?? res.reason }, 400)
+  }
+  const email = emailOrNull(body.email)
+  if (email === false) return c.json({ error: ADD_ERRORS['bad-email'] }, 400)
+  const name = typeof body.name === 'string' ? body.name : ''
+  const res = await addPlaceholder(ride.id, user.id, name, email, perm)
+  return res.ok ? c.json(res) : c.json({ error: ADD_ERRORS[res.reason] ?? res.reason }, 400)
+})
+
+rosterRoutes.post('/api/rides/:id/riders/placeholder', requireActiveApi, requireSameOrigin, async (c) => {
+  const user = currentUser(c)
+  const ride = await ownRide(user.id, c.req.param('id'))
+  if (!ride) return c.json({ error: 'not found' }, 404)
+  const body = (await c.req.json().catch(() => null)) as { rider?: unknown; name?: unknown; email?: unknown } | null
+  const rider = Number(body?.rider)
+  if (!body || !Number.isInteger(rider)) return c.json({ error: 'bad request' }, 400)
+  const patch: { name?: string; email?: string | null } = {}
+  if (typeof body.name === 'string') patch.name = body.name.slice(0, PLACEHOLDER_NAME_MAX)
+  if ('email' in body) {
+    const email = emailOrNull(body.email)
+    if (email === false) return c.json({ error: ADD_ERRORS['bad-email'] }, 400)
+    patch.email = email
+  }
+  if (!(await editPlaceholder(ride.id, user.id, rider, patch))) return c.json({ error: 'refused' }, 403)
+  return c.json({ ok: true })
+})
+
+/**
+ * SEND (#428). Every draft goes out at once, each the way sendPlanFor() says,
+ * and then — after every write — the messages: ride_added to friends, a friend
+ * request to everybody else on Routeloop, and the personal link by email to
+ * everybody who is not. A placeholder with no address is left a draft and named
+ * back, so the organizer can fill it in and press Send again.
+ */
+rosterRoutes.post('/api/rides/:id/riders/send', requireActiveApi, requireSameOrigin, async (c) => {
+  const user = currentUser(c)
+  const ride = await ownRide(user.id, c.req.param('id'))
+  if (!ride) return c.json({ error: 'not found' }, 404)
+
+  const out = await sendInvitations(ride.id, user.id, mintRideInvite, requestFriend)
+  if (!out) return c.json({ error: 'refused' }, 403)
+
+  const startAt = await firstDepartureOf(ride.id)
+  for (const id of out.invited) notifyRideAdded(ride.id, id, user.id, startAt)
+  for (const id of out.friendRequested) notifyFriendRequest(user.id, id)
+  if (out.emailed.length > 0) {
+    const names = new Map(
+      (
+        await db
+          .select({ id: users.id, name: users.displayName })
+          .from(users)
+          .where(inArray(users.id, out.emailed.map((e) => e.riderId)))
+      ).map((u) => [u.id, u.name]),
+    )
+    // The recipient has no account and so no date preference; the organizer's
+    // own format is the best guess there is, and it is how they will talk about it.
+    const startsOn = startAt ? `on ${fmtDateNumeric(startAt, await dateFormatFor(c))}` : null
+    for (const e of out.emailed) {
+      sendTemplateDetached(e.email, rideInviteEmail, {
+        fromName: user.displayName,
+        name: names.get(e.riderId) ?? 'there',
+        rideTitle: ride.title,
+        path: rideInvitePath(e.token),
+        startsOn,
+      })
+    }
+  }
+  return c.json({
+    invited: out.invited.length,
+    friendRequested: out.friendRequested.length,
+    emailed: out.emailed.length,
+    needsEmail: out.needsEmail,
+  })
 })

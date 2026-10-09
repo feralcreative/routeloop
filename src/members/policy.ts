@@ -6,7 +6,7 @@
 // THE OWNER IS A MEMBER, with role `owner`, from the moment a ride is created and
 // backfilled for every ride that predates this. That is not bookkeeping: it is what
 // makes "the roster" one question instead of two.
-import type { RidePerm, RideRole, Rsvp } from '../db/schema'
+import type { MemberState, RidePerm, RideRole, Rsvp } from '../db/schema'
 
 /** Only the fields the rules read, so a test does not have to build a whole row. */
 export type MemberFields = {
@@ -14,7 +14,67 @@ export type MemberFields = {
   role: RideRole
   perm: RidePerm
   rsvp: Rsvp
+  /** Where the row is in the organizer's flow (#428). Absent reads as `invited`,
+   *  which is what every row was before the flow existed — so a test or a
+   *  synthesized owner row does not have to name it. */
+  state?: MemberState
 }
+
+// --- The organizer's flow (#428) ---------------------------------------------
+//
+// An organizer adds the riders they expect as DRAFTS, plans around them, and only
+// then sends. Nobody is told anything, and no draft can see the ride, until Send.
+
+/**
+ * Whether this row is a member in the sense every gate means: it can see the
+ * ride, comment, vote, RSVP, and is told about things. ONLY `invited`.
+ *
+ * Planning is the deliberate exception and does NOT ask this: groups, route
+ * riders and the fuel range read every row that is still in play
+ * (isPlanned below), because building the ride around people before telling them
+ * is the whole point.
+ */
+export const isLiveMember = (m: Pick<MemberFields, 'state'> | null): boolean =>
+  m !== null && (m.state ?? 'invited') === 'invited'
+
+/** Whether a row counts when the organizer PLANS — groups, route riders, fuel.
+ *  Everybody but somebody who declined: a draft is exactly who the organizer is
+ *  planning for, and a decline means they are not coming. */
+export const isPlanned = (m: Pick<MemberFields, 'state'>): boolean => (m.state ?? 'invited') !== 'declined'
+
+/** What the Riders tab calls each state. A state with no label renders as its
+ *  identifier, which is the failure RSVP_LABELS exists to prevent. */
+export const STATE_LABELS: Record<MemberState, string> = {
+  draft: 'Draft',
+  pending_friend: 'Waiting',
+  pending_signup: 'Invited',
+  invited: 'Invited',
+  declined: 'Declined',
+}
+
+/** What Send does with one draft. Decided here, from facts the service reads,
+ *  so the confirm dialog and the send itself cannot disagree. */
+export type SendPlan = 'invite' | 'friend-request' | 'email' | 'needs-email' | 'skip'
+
+export function sendPlanFor(row: {
+  state: MemberState
+  /** A placeholder: a person with no account. */
+  placeholder: boolean
+  email: string | null
+  isFriend: boolean
+  isGuide: boolean
+}): SendPlan {
+  if (row.state !== 'draft') return 'skip'
+  if (row.placeholder) return row.email ? 'email' : 'needs-email'
+  // A guide is invitable without a friendship and has none to ask for.
+  return row.isFriend || row.isGuide ? 'invite' : 'friend-request'
+}
+
+/** Whether `viewerId` may decline their own invitation. Yours only, and only
+ *  while it is something you were sent — an owner declining is leaving, and a
+ *  draft has not been sent to anybody. */
+export const canDecline = (viewerId: number, target: MemberFields): boolean =>
+  viewerId === target.riderId && target.role !== 'owner' && (target.state ?? 'invited') === 'invited'
 
 // --- The permission ladder --------------------------------------------------
 //
@@ -267,7 +327,8 @@ export function canRemove(
  * a statement about a person made by someone who is not them, and the roster is
  * read as "who said they are coming" — one forged row and it stops meaning that.
  */
-export const canRsvp = (viewerId: number, target: MemberFields): boolean => viewerId === target.riderId
+export const canRsvp = (viewerId: number, target: MemberFields): boolean =>
+  viewerId === target.riderId && isLiveMember(target)
 
 /**
  * Whether `viewer` may vote on this ride's alternates.

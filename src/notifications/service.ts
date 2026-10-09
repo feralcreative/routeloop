@@ -125,7 +125,9 @@ async function humansOnly(ids: readonly number[]): Promise<number[]> {
   const rows = await db
     .select({ id: users.id })
     .from(users)
-    .where(and(inArray(users.id, [...ids]), eq(users.isGuide, false)))
+    // A placeholder (#428) is a name an organizer typed, with no account and no
+    // address on its row: a notification stored for one is a row nobody can read.
+    .where(and(inArray(users.id, [...ids]), eq(users.isGuide, false), ne(users.status, 'placeholder')))
   return rows.map((r) => r.id)
 }
 

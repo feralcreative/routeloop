@@ -4,6 +4,7 @@ import { and, eq, inArray } from 'drizzle-orm'
 import { db } from '../db/index'
 import { routeRiders, routes as routesTable, rideMembers, rideSubgroups } from '../db/schema'
 import type { Tx } from '../maps/ride-graph'
+import { PLANNED_MEMBER } from '../members/service'
 import { resolveRouteRiders, routesForRider, type RouteRiderRef, type ResolvedRoute } from './policy'
 
 /**
@@ -61,7 +62,12 @@ export async function resolvedRoutes(rideId: number): Promise<ResolvedRoute[]> {
       .where(eq(routesTable.rideId, rideId))
       .orderBy(routesTable.position),
     routeRiderRefs(rideId),
-    db.select({ riderId: rideMembers.riderId }).from(rideMembers).where(eq(rideMembers.rideId, rideId)),
+    // PLANNED, NOT LIVE (#428): a draft rides the routes the organizer put them
+    // on before anybody is told. A declined invitation rides nothing.
+    db
+      .select({ riderId: rideMembers.riderId })
+      .from(rideMembers)
+      .where(and(eq(rideMembers.rideId, rideId), PLANNED_MEMBER)),
   ])
   return resolveRouteRiders(
     routes,
@@ -129,7 +135,10 @@ export async function setRouteRiders(
       // subgroup id from somebody else's ride would pass the foreign key while
       // meaning nothing here.
       const [roster, groups] = await Promise.all([
-        tx.select({ riderId: rideMembers.riderId }).from(rideMembers).where(eq(rideMembers.rideId, rideId)),
+        tx
+          .select({ riderId: rideMembers.riderId })
+          .from(rideMembers)
+          .where(and(eq(rideMembers.rideId, rideId), PLANNED_MEMBER)),
         tx.select({ id: rideSubgroups.id }).from(rideSubgroups).where(eq(rideSubgroups.rideId, rideId)),
       ])
       const allowed = new Set(roster.map((r) => r.riderId))

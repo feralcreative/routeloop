@@ -285,7 +285,7 @@ rendezvousRoutes.post('/api/rides/:id/rendezvous', requireActiveApi, requireSame
   // does not run at all: a fuel plan built on an invented range is worse than no
   // fuel plan, because it looks like one. Read ONCE for the whole press rather
   // than per group: it is a fact about the roster, not about who is joining.
-  const range = await groupRange(ride.id)
+  const range = await groupRange(ride.id, { planning: true })
   // Chargers for an electric ride, gas otherwise (#31).
   const fuelRole = fuelRoleOf(ride.power, range.fuelType, prof?.power ?? null)
   divertOpt.fuelRole = fuelRole
