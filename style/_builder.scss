@@ -1,6 +1,7 @@
 @use "sass:color";
 @use "tokens" as *;
 @use "motion" as *;
+@use "controls";
 
 // Builder
 .builder-panel {
@@ -3471,6 +3472,145 @@
   &:hover {
     color: $stop;
   }
+}
+
+// THE ORGANIZER'S FLOW (#428): the add form above the roster, a state beside each
+// row that has not been asked yet, and the one Send.
+//
+// The add form is outside #riders-body on purpose — renderRiders() replaces that
+// body on every read, and a field inside it would lose what was being typed.
+.riders-add {
+  margin: 0 0 0.75rem;
+}
+
+// Two segments of one pill, the one you are adding filled — the Route | Ride
+// construction, and for its reason: a toggle that names only its own state leaves
+// the other half of the choice invisible.
+.riders-mode {
+  display: inline-flex;
+  margin: 0 0 0.4rem;
+}
+
+.riders-mode-btn {
+  padding: 0.15em 0.7em;
+  border: 1px solid $grey;
+  background: transparent;
+  color: $neutral-43;
+  font: inherit;
+  font-size: 0.72em;
+  font-weight: 600;
+  line-height: 1.5;
+  white-space: nowrap;
+  cursor: pointer;
+
+  &:first-child {
+    border-radius: 999px 0 0 999px;
+  }
+
+  &:last-child {
+    border-radius: 0 999px 999px 0;
+    border-left: 0;
+  }
+
+  &:hover,
+  &:focus-visible {
+    color: $text;
+    border-color: $brand;
+  }
+
+  // $disabled and not $brand, and $ink-light and not $white — the same two
+  // measured reasons the scope pill in _map.scss states (#282).
+  &[aria-pressed="true"],
+  &[aria-pressed="true"]:hover,
+  &[aria-pressed="true"]:focus-visible {
+    background: $disabled;
+    border-color: $disabled;
+    color: $ink-light;
+  }
+}
+
+.riders-add-fields {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.35rem;
+
+  input {
+    @include controls.text-control;
+    flex: 1 1 9rem;
+    min-width: 0;
+    padding: 0.35rem 0.5rem;
+    font-size: 0.85em;
+  }
+
+  // [hidden] loses to an author `display`, the trap .btn[hidden] records.
+  input[hidden] {
+    display: none;
+  }
+}
+
+.riders-add-note {
+  margin: 0.35rem 0 0;
+  font-size: 0.72em;
+  color: $neutral-57;
+  text-wrap: pretty;
+}
+
+.riders-send {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.4rem 0.6rem;
+  margin: 0 0 0.6rem;
+  padding: 0.5rem 0.6rem;
+  border: 1px solid $grey;
+  border-radius: 8px;
+}
+
+.riders-send-line {
+  flex: 1 1 12rem;
+  margin: 0;
+  font-size: 0.8em;
+  color: $neutral-43;
+}
+
+.riders-send-gap {
+  color: $neutral-57;
+}
+
+// WHERE AN INVITATION IS, in the RSVP's column. On the same neutral ramp as the
+// RSVP word and for its reasons: a draft is not a warning and a decline is not an
+// error. Italic is what separates "not asked yet" from an answer.
+.rider-state {
+  font-size: 0.75em;
+  white-space: nowrap;
+  font-style: italic;
+  color: $neutral-50;
+
+  &.is-declined {
+    color: $neutral-63;
+  }
+}
+
+.rider-row.is-declined .rider-name {
+  color: $neutral-57;
+  text-decoration: line-through;
+}
+
+.rider-email {
+  @include controls.text-control;
+  grid-column: 1 / -1;
+  min-width: 0;
+  padding: 0.25rem 0.45rem;
+  font-size: 0.8em;
+}
+
+.rider-email-sent {
+  grid-column: 1 / -1;
+  font-size: 0.72em;
+  color: $neutral-57;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 // A BUILDER SOMEBODY MAY LOOK AT BUT NOT WRITE TO (#190).

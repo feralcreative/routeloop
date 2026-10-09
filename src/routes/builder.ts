@@ -708,7 +708,7 @@ builderRoutes.get('/builder/:id', requireActive, async (c) => {
   // suggestions both hang off the row list and the stop details.
   if (!found || !canViewAsMember(found.member)) return c.text('Not found', 404)
   const { ride, member } = found
-  const [prefs, range] = await Promise.all([builderPrefs(user.id), groupRange(ride.id)])
+  const [prefs, range] = await Promise.all([builderPrefs(user.id), groupRange(ride.id, { planning: true })])
   return c.html(
     builderHtml(
       ride.id,
@@ -896,8 +896,33 @@ function builderHtml(
   // EMPTY UNTIL THE RIDE HAS BEEN SAVED ONCE, because until then there is no ride
   // row and so no roster. The autosave makes that a few seconds, which is why the
   // placeholder says "once it saves".
+  //
+  // THE ADD FORM IS SERVER-RENDERED AND OUTSIDE #riders-body (#428), because
+  // renderRiders() replaces that body on every read and a field inside it would
+  // lose what the organizer was typing the moment the roster refreshed — #188.
+  // Owners only: everything it posts to is behind ownRide.
+  const ridersAdd = standing.isOwner
+    ? `          <form id="riders-add" class="riders-add" autocomplete="off" novalidate>
+            <div class="riders-mode" role="group" aria-label="Who you are adding">
+              <button type="button" class="riders-mode-btn" data-mode="handle" aria-pressed="true">On Routeloop</button>
+              <button type="button" class="riders-mode-btn" data-mode="name" aria-pressed="false">Not on Routeloop</button>
+            </div>
+            <div class="riders-add-fields">
+              <label class="visually-hidden" for="riders-add-handle">Their Routeloop handle</label>
+              <input id="riders-add-handle" name="handle" type="text" list="riders-friends" placeholder="@handle" autocomplete="off" />
+              <datalist id="riders-friends"></datalist>
+              <label class="visually-hidden" for="riders-add-name">Their name</label>
+              <input id="riders-add-name" name="name" type="text" maxlength="80" placeholder="Their name" autocomplete="off" hidden />
+              <label class="visually-hidden" for="riders-add-email">Their email address</label>
+              <input id="riders-add-email" name="email" type="email" maxlength="255" placeholder="Email, by the time you send" autocomplete="off" hidden />
+              <button class="btn btn-sm" type="submit">Add</button>
+            </div>
+            <p class="riders-add-note">Adding somebody tells them nothing. Plan around them, then send every invitation at&nbsp;once.</p>
+          </form>
+`
+    : ''
   const ridersTab = `        <div class="panel-tabpanel" role="tabpanel" id="panel-riders" aria-labelledby="tab-riders" tabindex="0" hidden>
-          <div id="riders-body"></div>
+${ridersAdd}          <div id="riders-body"></div>
         </div>`
 
   // WHAT THIS RIDER MAY DO, said once at the top of the panel, and only for somebody

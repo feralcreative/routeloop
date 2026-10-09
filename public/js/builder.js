@@ -3344,13 +3344,26 @@
     const savedUids = new Set(data.groups.map((g) => g.uid));
     const unsaved = state.meta.subgroups.filter((g) => !savedUids.has(g.uid));
 
+    // THE FRIEND SUGGESTIONS for the add field, refilled on every read so a friend
+    // just added drops out of the list. The datalist lives outside this body.
+    const list = $("riders-friends");
+    if (list) {
+      list.innerHTML = (data.friends || [])
+        .map((f) => '<option value="@' + esc(f.username) + '">' + esc(f.displayName) + "</option>")
+        .join("");
+    }
+
+    // MEMBERS ARE WHO HAS BEEN ASKED (#428). A draft has been told nothing, so the
+    // "N of M coming" line counts members only and the drafts get their own line.
+    const members = data.riders.filter((r) => r.state === "invited");
     host.innerHTML =
       '<p class="riders-summary">' +
       data.coming +
       " of " +
-      data.riders.length +
-      (data.riders.length === 1 ? " " + esc(W("person")) + " is" : " " + esc(Ws("person")) + " are") +
+      members.length +
+      (members.length === 1 ? " " + esc(W("person")) + " is" : " " + esc(Ws("person")) + " are") +
       " coming.</p>" +
+      sendHtml(data.drafts || []) +
       fuelHtml(data.range) +
       '<ul class="riders-list">' +
       data.riders.map((r) => riderRowHtml(r, data.groups)).join("") +
@@ -3374,6 +3387,49 @@
         ? '<a class="btn btn-sm btn-quiet" href="/m/' + encodeURIComponent(state.slug) + '/riders">Roster</a>'
         : "") +
       "</div>";
+  }
+
+  // SEND INVITATIONS (#428): the one press that tells anybody anything. Says what
+  // it will do before it does it — the plan comes from the server, from the same
+  // function the send acts on, so the line and the outcome cannot disagree.
+  function sendHtml(drafts) {
+    if (!drafts.length) return "";
+    const ready = drafts.filter((d) => d.plan !== "needs-email" && d.plan !== "skip");
+    const missing = drafts.filter((d) => d.plan === "needs-email");
+    return (
+      '<div class="riders-send">' +
+      '<p class="riders-send-line">' +
+      drafts.length +
+      (drafts.length === 1 ? " draft" : " drafts") +
+      ", not invited yet." +
+      (missing.length
+        ? ' <span class="riders-send-gap">' +
+          esc(missing.map((d) => d.displayName).join(", ")) +
+          (missing.length === 1 ? " needs" : " need") +
+          " an email address first.</span>"
+        : "") +
+      "</p>" +
+      (ready.length
+        ? '<button type="button" class="btn btn-sm" id="riders-send">Send ' +
+          ready.length +
+          (ready.length === 1 ? " invitation" : " invitations") +
+          "</button>"
+        : "") +
+      "</div>"
+    );
+  }
+
+  /** The sentence the confirm reads, one line per kind of send. */
+  function sendSummary(drafts) {
+    const by = (plan) => drafts.filter((d) => d.plan === plan).map((d) => d.displayName);
+    const lines = [];
+    const inv = by("invite");
+    const fr = by("friend-request");
+    const em = by("email");
+    if (inv.length) lines.push("Added and told: " + inv.join(", "));
+    if (fr.length) lines.push("Sent a friend request first, and added when they accept: " + fr.join(", "));
+    if (em.length) lines.push("Emailed their own link: " + em.join(", "));
+    return lines.join("\n");
   }
 
   // The same claim the roster page makes. `null` miles means nobody coming has a
@@ -3409,19 +3465,35 @@
   }
 
   function riderRowHtml(r, groups) {
+    const member = r.state === "invited";
     return (
-      '<li class="rider-row" data-rider="' +
+      '<li class="rider-row is-' +
+      esc(r.state) +
+      '" data-rider="' +
       r.riderId +
       '">' +
       '<span class="rider-name">' +
       esc(r.displayName) +
       (r.role === "owner" ? '<span class="rider-tag">owner</span>' : "") +
+      (r.isPlaceholder ? '<span class="rider-tag">not on Routeloop</span>' : "") +
       "</span>" +
-      '<span class="rider-rsvp is-' +
-      r.rsvp +
-      '">' +
-      (RSVP_LABELS[r.rsvp] || r.rsvp) +
-      "</span>" +
+      // A MEMBER'S RSVP, OR WHERE THE INVITATION IS. A draft has not been asked,
+      // so "not answered" would be a statement about a question nobody put.
+      (member
+        ? '<span class="rider-rsvp is-' + r.rsvp + '">' + (RSVP_LABELS[r.rsvp] || r.rsvp) + "</span>"
+        : '<span class="rider-state is-' + esc(r.state) + '">' + esc(r.stateLabel) + "</span>") +
+      // A placeholder's address, editable while it is a draft and a fact after.
+      (r.isPlaceholder
+        ? r.state === "draft"
+          ? '<input class="rider-email" type="email" maxlength="255" autocomplete="off" placeholder="Email address" aria-label="Email address for ' +
+            esc(r.displayName) +
+            '" value="' +
+            esc(r.email || "") +
+            '">'
+          : r.email
+            ? '<span class="rider-email-sent">' + esc(r.email) + "</span>"
+            : ""
+        : "") +
       (r.bike ? '<span class="rider-bike">' + esc(r.bike) + "</span>" : "") +
       // NO PICKER WHEN THE RIDE HAS NO GROUPS: a select whose only option is
       // "Everyone" is a control that cannot do anything, on every row.
@@ -3460,6 +3532,7 @@
   function wireRiders() {
     const host = $("riders-body");
     if (!host) return;
+    wireRidersAdd();
 
     // Delegated, because renderRiders replaces every row.
     host.addEventListener("change", async (e) => {
@@ -3496,6 +3569,46 @@
       }
     });
 
+    // A PLACEHOLDER'S ADDRESS, saved on change and patched into the cache rather
+    // than re-rendered: re-rendering would throw away the field the organizer
+    // tabs into next (#188). Only a refusal re-reads.
+    host.addEventListener("change", async (e) => {
+      if (!e.target.classList.contains("rider-email")) return;
+      const row = e.target.closest(".rider-row");
+      if (!row) return;
+      const ok = await riderPost("placeholder", { rider: Number(row.dataset.rider), email: e.target.value.trim() });
+      if (!ok) {
+        toast("That email address does not look right.", true);
+        return ridersStale();
+      }
+      // The send line names who still needs an address, so it has to move.
+      ridersCache = null;
+      ridersAt = 0;
+    });
+
+    host.addEventListener("click", async (e) => {
+      if (e.target.id !== "riders-send") return;
+      const drafts = (ridersCache && ridersCache.drafts) || [];
+      // A confirm, not an undo: this sends email and friend requests, and nothing
+      // takes a message back.
+      if (!window.confirm("Send the invitations now?\n\n" + sendSummary(drafts))) return;
+      e.target.disabled = true;
+      e.target.textContent = "Sending…";
+      try {
+        const res = await fetch("/api/rides/" + state.rideId + "/riders/send", { method: "POST" });
+        const out = await res.json().catch(() => ({}));
+        if (!res.ok) return toast("The invitations could not be sent.", true);
+        const sent = out.invited + out.friendRequested + out.emailed;
+        toast(
+          sent +
+            (sent === 1 ? " invitation sent." : " invitations sent.") +
+            (out.needsEmail.length ? " " + out.needsEmail.join(", ") + " still need an email address." : ""),
+        );
+      } finally {
+        ridersStale();
+      }
+    });
+
     host.addEventListener("click", async (e) => {
       if (!e.target.classList.contains("rider-del")) return;
       const row = e.target.closest(".rider-row");
@@ -3507,6 +3620,54 @@
       const ok = await riderPost("remove", { rider: Number(row.dataset.rider) });
       ridersStale();
       if (!ok) toast("They could not be removed.", true);
+    });
+  }
+
+  // THE ADD FORM (#428). Two kinds of person, one field each: a Routeloop handle,
+  // or a name (and an address, by the time the organizer sends) for somebody who
+  // is not on Routeloop. Either way the result is a draft and nobody is told.
+  function wireRidersAdd() {
+    const form = $("riders-add");
+    if (!form) return;
+    let mode = "handle";
+    const handle = $("riders-add-handle");
+    const name = $("riders-add-name");
+    const email = $("riders-add-email");
+    form.querySelectorAll(".riders-mode-btn").forEach((b) => {
+      b.addEventListener("click", () => {
+        mode = b.dataset.mode;
+        form.querySelectorAll(".riders-mode-btn").forEach((o) => o.setAttribute("aria-pressed", String(o === b)));
+        handle.hidden = mode !== "handle";
+        name.hidden = mode !== "name";
+        email.hidden = mode !== "name";
+        (mode === "handle" ? handle : name).focus();
+      });
+    });
+    form.addEventListener("submit", async (e) => {
+      e.preventDefault();
+      if (!state.rideId) return toast("Save the " + W("journey") + " first.", true);
+      const body =
+        mode === "handle"
+          ? { handle: handle.value.trim() }
+          : { name: name.value.trim(), email: email.value.trim() || null };
+      if (mode === "handle" ? !body.handle : !body.name) return;
+      const btn = form.querySelector('button[type="submit"]');
+      btn.disabled = true;
+      try {
+        const res = await fetch("/api/rides/" + state.rideId + "/riders/add", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(body),
+        });
+        const out = await res.json().catch(() => ({}));
+        if (!res.ok) return toast(out.error || "They could not be added.", true);
+        handle.value = "";
+        name.value = "";
+        email.value = "";
+        ridersStale();
+      } finally {
+        btn.disabled = false;
+      }
     });
   }
 
@@ -9460,6 +9621,9 @@
     wireMeta();
     initTabs();
     wireRiders();
+    // `/builder/:id#riders` is where the roster page sends an organizer to add and
+    // invite people (#428), so that link opens on the tab it names.
+    if (location.hash === "#riders" && $("tab-riders")) $("tab-riders").click();
     wireRoutes();
     // Delegated on the container rather than on each list, so the handlers survive
     // renderRoutes() replacing every list. Sortable cannot work that way — it binds
