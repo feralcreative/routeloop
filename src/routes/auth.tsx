@@ -9,6 +9,8 @@ import { raw } from 'hono/html'
 import { existsSync } from 'node:fs'
 import { currentUser, requireAuth, type AuthEnv } from '../auth/middleware'
 import { readInviteCookie } from '../invites/cookie'
+import { readJoinCookie } from '../ride-invites/cookie'
+import { rideInvitePath } from '../ride-invites/policy'
 import { normalizeInviteToken } from '../invites/policy'
 import { completeGoogleLogin, GoogleAuthError, GOOGLE_ENABLED, startGoogleLogin } from '../auth/google'
 import { resolveUser } from '../auth/identity'
@@ -52,6 +54,10 @@ export const authRoutes = new Hono<AuthEnv>()
  * from a cookie, which is attacker-supplied like any other header.
  */
 function afterSignIn(c: Context<AuthEnv>): string {
+  // A personal ride link first (#428): somebody who pressed Join on a ride an
+  // organizer invited them to comes back to that page, where one button joins.
+  const ride = normalizeInviteToken(readJoinCookie(c))
+  if (ride) return rideInvitePath(ride)
   const token = normalizeInviteToken(readInviteCookie(c))
   return token ? `/i/${token}` : '/'
 }

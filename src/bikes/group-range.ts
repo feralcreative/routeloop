@@ -15,6 +15,16 @@ import { db } from '../db/index'
 import { bikes, rideMembers, users, type BikeRow } from '../db/schema'
 import { bikeLabel, bindingRange, metersToMiles } from './policy'
 import { DEFAULT_PERM, isComing } from '../members/policy'
+import { LIVE_MEMBER, PLANNED_MEMBER } from '../members/service'
+
+/**
+ * WHOSE BIKES (#428). `planning` is the organizer's view — the builder and its
+ * meeting-point proposer — and counts drafts and riders still waiting on a link,
+ * because building the ride around the people you expect is the whole point. Every
+ * other reader is somebody ON the ride, and counts members only: a range named for
+ * a draft would publish a name the organizer has not sent anything to yet.
+ */
+export type RangeScope = { planning?: boolean }
 
 export type RidingBike = {
   riderId: number
@@ -38,7 +48,7 @@ export type RidingBike = {
  * could be wrong. A `maybe` COUNTS, for the mirror-image reason: planning for
  * one fewer bike because somebody was honest is the wrong way round.
  */
-export async function bikesOnRide(rideId: number): Promise<RidingBike[]> {
+export async function bikesOnRide(rideId: number, scope: RangeScope = {}): Promise<RidingBike[]> {
   const rows = await db
     .select({
       riderId: rideMembers.riderId,
@@ -49,7 +59,7 @@ export async function bikesOnRide(rideId: number): Promise<RidingBike[]> {
     })
     .from(rideMembers)
     .innerJoin(users, eq(users.id, rideMembers.riderId))
-    .where(eq(rideMembers.rideId, rideId))
+    .where(and(eq(rideMembers.rideId, rideId), scope.planning ? PLANNED_MEMBER : LIVE_MEMBER))
     .orderBy(users.displayName)
 
   // `perm` is in MemberFields and isComing does not read it, so the query does
@@ -111,8 +121,8 @@ export type GroupRange = {
  * measured it, and a format that guesses is indistinguishable from one that
  * knows.
  */
-export async function groupRange(rideId: number): Promise<GroupRange> {
-  return rangeOver(await bikesOnRide(rideId))
+export async function groupRange(rideId: number, scope: RangeScope = {}): Promise<GroupRange> {
+  return rangeOver(await bikesOnRide(rideId, scope))
 }
 
 /**

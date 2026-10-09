@@ -121,6 +121,11 @@ describe('the archive covers every table that holds rider data', () => {
     // theirs, and an invite names an email address that is not the exporter's.
     invites: 'not rider data',
     invite_redemptions: 'not rider data',
+    // #428. A personal ride link: somebody ELSE'S address, typed by the organizer,
+    // and a token hash. The organizer's ride ships with their rides; the person
+    // invited has no account to export until they join, at which point the link
+    // is spent and their membership ships as `memberships`.
+    ride_invites: 'other people, and a credential',
     // Already inside each ride, in five formats — a better record than a
     // flattened row, and the reason the ride directories exist.
     routes: 'inside the ride files',

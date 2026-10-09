@@ -14,9 +14,9 @@
 // row with its files already removed, and the stale-claim reclaim below picks it
 // up and finishes the job. deleteMapFiles is best-effort and idempotent, so
 // running it twice costs nothing.
-import { and, isNotNull, isNull, lte, or, sql } from 'drizzle-orm'
+import { and, eq, isNotNull, isNull, lte, or, sql } from 'drizzle-orm'
 import { db } from '../db/index'
-import { placeGroups, places, rides } from '../db/schema'
+import { placeGroups, places, rideMembers, rides, users } from '../db/schema'
 import { deleteMapFiles } from '../maps/storage'
 import { collapseBinWarnings, warnRidePurges } from '../notifications/warnings'
 import { destroyAbandonedTourRides } from '../tour/service'
@@ -136,7 +136,31 @@ export async function purgeTrash(now: Date = new Date()): Promise<TrashPurgeResu
   // any other ride. Its own failure is swallowed for the reason the warnings'
   // is.
   await destroyAbandonedTourRides(now).catch((err) => console.warn('[purge] tour sweep failed', err))
+  // AND THE PLACEHOLDERS THOSE RIDES LEFT (#428). A placeholder is a users row
+  // that belongs to one ride's roster and nothing else, and nothing cascades
+  // from a ride to a user — so a purged ride, or a purged owner's rides, leave
+  // theirs behind. Swallowed like the rest: a stray name is not worth stopping
+  // the bin for.
+  await purgeOrphanPlaceholders().catch((err) => console.warn('[purge] placeholder sweep failed', err))
   return { rides: rideCount, places: placeCount, groups: groupCount }
+}
+
+/**
+ * Deletes every placeholder that is on no ride's roster any more. Idempotent and
+ * one statement; the `status` predicate is what makes it safe — nothing here can
+ * reach an account somebody signs in to.
+ */
+export async function purgeOrphanPlaceholders(): Promise<number> {
+  const rows = await db
+    .delete(users)
+    .where(
+      and(
+        eq(users.status, 'placeholder'),
+        sql`not exists (select 1 from ${rideMembers} where ${rideMembers.riderId} = ${users.id})`,
+      ),
+    )
+    .returning({ id: users.id })
+  return rows.length
 }
 
 /**

@@ -9,6 +9,8 @@
 // The rules are in src/friends/policy.ts and the queries in service.ts. Nothing
 // in this file decides whether a verb is allowed; it decides what to show.
 import { Hono } from 'hono'
+import { promotePendingFriends } from '../members/service'
+import { notifyRideAdded } from '../notifications/senders'
 import { eq, sql } from 'drizzle-orm'
 import { db } from '../db/index'
 import { users } from '../db/schema'
@@ -118,7 +120,15 @@ friendRoutes.post(
       if (verb === 'request') notifyFriendRequest(user.id, other.id)
       // Reversed on purpose: the rider who pressed Accept is `user`, and the one
       // who hears about it is the one who asked.
-      else if (verb === 'accept') notifyFriendAccepted(user.id, other.id)
+      else if (verb === 'accept') {
+        notifyFriendAccepted(user.id, other.id)
+        // A ride invitation that was WAITING on this friendship goes out now
+        // (#428): the organizer sent it, the friend request was its first half,
+        // and accepting is the second. Either of the two may be the organizer.
+        for (const p of await promotePendingFriends(user.id, other.id)) {
+          notifyRideAdded(p.rideId, p.riderId, p.by, null)
+        }
+      }
     }
     return c.redirect(back, 303)
   },

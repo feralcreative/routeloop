@@ -124,7 +124,8 @@ adminRoutes.get('/admin/approvals', requireManageRiders, async (c) => {
 
   // Pending first (they are the ones waiting on an action), then active, then
   // blocked; newest within each group.
-  const riders: RiderRow[] = await db
+  // The WHERE below excludes `placeholder`, which the column's type cannot know.
+  const riders = (await db
     .select({
       id: users.id,
       email: users.email,
@@ -136,7 +137,10 @@ adminRoutes.get('/admin/approvals', requireManageRiders, async (c) => {
       lastLoginAt: users.lastLoginAt,
     })
     .from(users)
-    .orderBy(sql`case ${users.status} when 'pending' then 0 when 'active' then 1 else 2 end`, desc(users.createdAt))
+    // A placeholder (#428) is a name an organizer put on a ride, not an account:
+    // nothing here can approve or block one.
+    .where(ne(users.status, 'placeholder'))
+    .orderBy(sql`case ${users.status} when 'pending' then 0 when 'active' then 1 else 2 end`, desc(users.createdAt))) as RiderRow[]
 
   const pending = riders.filter((r) => r.status === 'pending').length
 
@@ -186,7 +190,7 @@ adminRoutes.post('/admin/riders/:id', requireManageRiders, requireSameOrigin, as
     .from(users)
     .where(eq(users.id, id))
     .limit(1)
-  if (!target) return c.notFound()
+  if (!target || target.status === 'placeholder') return c.notFound()
 
   const next = parsed.data.status
   const notify = shouldSendApproval(target.status, next, target.approvedEmailAt)
@@ -230,7 +234,7 @@ adminRoutes.get('/admin', requireManageRiders, async (c) => {
 
   const [counts] = await db
     .select({
-      riders: sql<number>`count(*)::int`,
+      riders: sql<number>`count(*) filter (where ${users.status} <> 'placeholder')::int`,
       pending: sql<number>`count(*) filter (where ${users.status} = 'pending')::int`,
     })
     .from(users)

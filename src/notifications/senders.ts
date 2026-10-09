@@ -26,6 +26,7 @@ import { db } from '../db/index'
 import { rideMembers, rides, userProfiles, users } from '../db/schema'
 import type { Rsvp } from '../db/schema'
 import { RSVP_LABELS } from '../members/policy'
+import { goingCount, LIVE_MEMBER } from '../members/service'
 import { fmtDateNumeric, toDateFormat, type DateFormat } from '../views/date-format'
 import { newFollowerEmail } from '../emails/new-follower'
 import { quotaFullEmail } from '../emails/quota-full'
@@ -81,10 +82,12 @@ async function rosterOf(rideId: number, except: number | null): Promise<number[]
   const rows = await db
     .select({ id: rideMembers.riderId })
     .from(rideMembers)
+    // Members only (#428): a draft has been told nothing, and the first thing it
+    // hears must be the invitation, not a vote result on a ride it is not on.
     .where(
       except === null
-        ? eq(rideMembers.rideId, rideId)
-        : and(eq(rideMembers.rideId, rideId), ne(rideMembers.riderId, except)),
+        ? and(eq(rideMembers.rideId, rideId), LIVE_MEMBER)
+        : and(eq(rideMembers.rideId, rideId), ne(rideMembers.riderId, except), LIVE_MEMBER),
     )
   return rows.map((r) => r.id)
 }
@@ -310,6 +313,41 @@ export function notifyRsvp(rideId: number, riderId: number, rsvp: Rsvp, goingCou
       'ride_rsvp',
     )
   })().catch((err) => console.warn('[notify] ride_rsvp failed:', err))
+}
+
+/**
+ * Somebody said no to an invitation (#428). To the owners, through the RSVP
+ * event, because it is an answer to "are you coming" — the strongest one — and
+ * a rider who switched RSVPs off does not want this either.
+ *
+ * Works for a placeholder: it is a users row with the name the organizer typed,
+ * which is the name they will recognize.
+ */
+export function notifyInviteDeclined(rideId: number, riderId: number): void {
+  void (async () => {
+    const [ride, riderName, owners, going] = await Promise.all([
+      rideCard(rideId),
+      nameOf(riderId),
+      ownersOf(rideId, riderId),
+      goingCount(rideId),
+    ])
+    if (!ride || owners.length === 0) return
+    const answer = 'Declined the invitation'
+    notifyMany(
+      owners,
+      () => ({
+        event: 'ride_rsvp' as const,
+        title: `${riderName} declined ${ride.title}`,
+        body: 'They will not be on this one.',
+        url: `/builder/${rideId}`,
+        email: {
+          template: rideRsvpEmail,
+          props: { riderName, rideTitle: ride.title, rideSlug: ride.slug, answer, goingCount: going },
+        },
+      }),
+      'ride_rsvp',
+    )
+  })().catch((err) => console.warn('[notify] invite declined failed:', err))
 }
 
 // ── People ───────────────────────────────────────────────────────────────────
