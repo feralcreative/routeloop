@@ -27,7 +27,13 @@ import {
 export const providerEnum = pgEnum('provider', ['google', 'github', 'cloudflare', 'email'])
 // Cloudflare Access authenticates; this authorizes. Access admits any Google
 // account, so a new rider lands 'pending' and waits for approval.
-export const userStatusEnum = pgEnum('user_status', ['pending', 'active', 'blocked'])
+//
+// `placeholder` (#428) is a person an organizer put on a ride who has no account yet:
+// a name on a roster, nothing more. It can never sign in — it has no email and no
+// identity row — and every query that asks for `status = 'active'` (the profile,
+// /riders, the friend verbs, the invite lookup) excludes it without being told.
+// Appended, so the migration is a plain ADD VALUE.
+export const userStatusEnum = pgEnum('user_status', ['pending', 'active', 'blocked', 'placeholder'])
 // FOUR LEVELS, and the order here is not the order of openness — a pgEnum's member
 // order is fixed once created, and adding `friends` at the end keeps the migration a
 // plain ALTER TYPE ADD VALUE. `private` gains "and invited riders", a SUPERSET, so no
@@ -1482,6 +1488,22 @@ export const ridePermEnum = pgEnum('ride_perm', ['view', 'comment', 'suggest', '
 // that is the whole reason the two are separate columns.
 export const rsvpEnum = pgEnum('rsvp', ['invited', 'going', 'maybe', 'declined'])
 
+// WHERE A ROSTER ROW IS IN THE ORGANIZER'S FLOW (#428). An organizer builds a ride
+// around the people they expect and nobody hears anything until they press Send.
+//
+//   draft           on the roster for planning — groups, routes, fuel — and told nothing
+//   pending_friend  sent, but they are not friends yet: a friend request went out, and
+//                   accepting it is what puts them on the ride
+//   pending_signup  a placeholder whose personal link has been emailed
+//   invited         a member. Every row before #428 is one, which is why it is the default
+//   declined        they said no to the invitation. Kept as a row so the organizer can
+//                   see the answer; grants nothing. NOT rsvp = 'declined', which is a
+//                   member saying "not this time" while keeping their access
+//
+// ONLY `invited` GRANTS ANYTHING. isLiveMember() in src/members/policy.ts is the rule
+// and LIVE_MEMBER in src/members/service.ts is its SQL half.
+export const memberStateEnum = pgEnum('member_state', ['draft', 'pending_friend', 'pending_signup', 'invited', 'declined'])
+
 export const friendshipStatusEnum = pgEnum('friendship_status', ['pending', 'accepted', 'blocked'])
 
 // A NAMED SET OF RIDERS SHARING AN APPROACH — the Oakland contingent, the
@@ -1544,6 +1566,10 @@ export const rideMembers = pgTable(
     // stamped to `edit`, so demoting a co-owner is one column changing and not two.
     perm: ridePermEnum('perm').notNull().default('suggest'),
     rsvp: rsvpEnum('rsvp').notNull().default('invited'),
+    // Where this row is in the organizer's flow — see memberStateEnum. Defaulted to
+    // `invited` so every row before #428, and every row the previous release inserts
+    // during a blue/green cutover, is the member it always was.
+    state: memberStateEnum('state').notNull().default('invited'),
     // Which approach this rider is on. NULLABLE AND THAT IS LOAD-BEARING: a
     // club secretary planning a joint rally is not in any of the groups, and
     // #67 says so explicitly. `set null` rather than cascade, so deleting a
@@ -1569,6 +1595,55 @@ export const rideMembers = pgTable(
     // What canView's EXISTS subquery probes, and it reads rider-first because
     // the question is always "is THIS viewer on this ride".
     index('idx_ride_member_rider').on(t.riderId, t.rideId),
+  ],
+)
+
+// ONE PERSON'S PERSONAL LINK TO ONE RIDE (#428), for somebody an organizer put on a
+// ride who has no account. Not the site-level `invites` table: that is an admin's
+// beta grant with a seat budget, and this is a ride invitation that one organizer
+// sends one person.
+//
+// The placeholder is a real `users` row (status `placeholder`) so groups, route
+// riders and the fuel arithmetic need no second shape of rider; this row holds what
+// only the organizer should see — the address — and the token. The token follows
+// login_tokens: random bytes mailed out, only the SHA-256 hash stored, minted at Send
+// rather than at add, so a draft has no live link.
+//
+// What the link does, in order of how far the invitee goes:
+//   view     a cookie carrying the token; grantsFor() lets them see and download the
+//            ride at any visibility while the row is live (sent, not declined,
+//            revoked or redeemed)
+//   join     sign in through it and the placeholder is merged into their account,
+//            which is activated — the one door past the beta waitlist
+//   decline  stamps declined_at and the link stops working
+//
+// `placeholder_id` and `redeemed_by` are set null rather than cascaded, so the row
+// survives the merge (which deletes the placeholder) as the record of who joined.
+export const rideInvites = pgTable(
+  'ride_invites',
+  {
+    id: bigserial('id', { mode: 'number' }).primaryKey(),
+    rideId: bigint('ride_id', { mode: 'number' })
+      .notNull()
+      .references(() => rides.id, { onDelete: 'cascade' }),
+    placeholderId: bigint('placeholder_id', { mode: 'number' }).references(() => users.id, { onDelete: 'set null' }),
+    // Visible to the organizer and nobody else, and never exported to anyone but
+    // them: it is somebody else's address.
+    email: varchar('email', { length: 255 }),
+    tokenHash: varchar('token_hash', { length: 64 }),
+    createdBy: bigint('created_by', { mode: 'number' }).references(() => users.id, { onDelete: 'set null' }),
+    sentAt: timestamp('sent_at'),
+    redeemedAt: timestamp('redeemed_at'),
+    redeemedBy: bigint('redeemed_by', { mode: 'number' }).references(() => users.id, { onDelete: 'set null' }),
+    declinedAt: timestamp('declined_at'),
+    revokedAt: timestamp('revoked_at'),
+    createdAt: timestamp('created_at').notNull().defaultNow(),
+    updatedAt: timestamp('updated_at').notNull().defaultNow(),
+  },
+  (t) => [
+    uniqueIndex('uq_ride_invite_token').on(t.tokenHash),
+    uniqueIndex('uq_ride_invite_placeholder').on(t.placeholderId),
+    index('idx_ride_invite_ride').on(t.rideId),
   ],
 )
 
@@ -1744,6 +1819,7 @@ export const routeRiders = pgTable(
 
 export type PlaceRow = typeof places.$inferSelect
 export type RideMemberRow = typeof rideMembers.$inferSelect
+export type RideInviteRow = typeof rideInvites.$inferSelect
 // WHAT A RIDER HAS TURNED OFF, AND ONLY WHAT THEY HAVE TURNED OFF.
 //
 // **A ROW IS AN ANSWER; THE ABSENCE OF ONE IS "NEVER ASKED".** The default lives in
@@ -1880,6 +1956,7 @@ export type RideRole = (typeof rideRoleEnum.enumValues)[number]
 export type RidePerm = (typeof ridePermEnum.enumValues)[number]
 /** The four RSVP states, likewise. */
 export type Rsvp = (typeof rsvpEnum.enumValues)[number]
+export type MemberState = (typeof memberStateEnum.enumValues)[number]
 export type BikeRow = typeof bikes.$inferSelect
 export type RideRow = typeof rides.$inferSelect
 export type RouteRow = typeof routes.$inferSelect
