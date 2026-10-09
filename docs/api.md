@@ -57,7 +57,7 @@ The rules are `src/friends/policy.ts` and the queries `service.ts`. One row per 
 
 ## The roster (`routes/roster.tsx`)
 
-`GET /m/:slug/riders` is the page—who is on a ride, what they said, and the ballot for its alternates. Its verbs are `POST /m/:slug/riders/{invite,remove,rsvp,perm,vote,resolve,deadline}`, all behind `requireActive` and `requireSameOrigin`, all form posts answering 303 back to the page with any refusal in `?error=`.
+`GET /m/:slug/riders` is the page—who is on a ride, what they said, and the ballot for its alternates. It shows **members only**: drafts and riders still waiting on an invitation are the organizer's, in the builder (#428). Its verbs are `POST /m/:slug/riders/{remove,decline,rsvp,perm,vote,resolve,deadline}`, all behind `requireActive` and `requireSameOrigin`, all form posts answering 303 back to the page with any refusal in `?error=`. `decline` is yours only and turns your row `declined`, which takes the ride off your lists. The old `invite` verb is gone: every addition is a draft made from the builder.
 
 **Gated on MEMBERSHIP, not visibility.** A public ride is readable by anyone and its roster is not: who is coming on a ride is a fact about people, and a share link is permission to see a route. Not-found rather than forbidden, the same as every other refusal that touches a slug.
 
@@ -85,7 +85,11 @@ It accepts an optional `rev`—the ride revision the edit is based on—and refu
 
 `GET /api/rides/:id/suggestions` reads every suggestion on a ride with its state derived against what the ride says right now—`pending`, `stale`, or the outcome. `POST /api/rides/:id/suggestions` proposes one day; `POST /api/rides/:id/suggestions/:sid/{accept,discard,withdraw}` decides it. Accept is owner-only and answers **409** when the target day has changed since the proposal was made. Every rider on the roster sees every pending suggestion, deliberately—two riders proposing the same reroute and neither knowing is the failure that avoids.
 
-`GET /api/rides/:id/riders` reads the roster for the builder's Riders tab: every rider with their role, RSVP, bike label and `subgroup_id`, plus the ride's subgroups by **both id and uid**, the group's binding fuel range, and how many are coming. Its two verbs are `POST /api/rides/:id/riders/{group,remove}`, behind `requireActiveApi` and `requireSameOrigin`.
+`GET /api/rides/:id/riders` reads the roster for the builder's Riders tab: every rider in **every state** with their role, RSVP, `state`, whether they are a placeholder (and its address), bike label and `subgroup_id`, plus the ride's subgroups by **both id and uid**, the group's binding fuel range counted over drafts too, how many members are coming, what Send would do with each draft, and friends not yet on the roster. Its verbs are `POST /api/rides/:id/riders/{group,remove,add,placeholder,send}`, behind `requireActiveApi` and `requireSameOrigin`. `add` takes `{handle}` for a Routeloop rider or `{name, email?}` for somebody who is not, and always makes a draft. `placeholder` edits a draft placeholder's name or address. `send` sends every draft at once and answers with the counts and the names still needing an address.
+
+### Personal ride links (`routes/ride-invites.tsx`)
+
+`GET /ride-invite/:token` is the landing page for somebody invited by email (#428). It is inert, like `/i/:token`. `GET /ride-invite/:token/view` adds the token to the `routeloop_ride_view` cookie and opens the ride; `grantsFor()` turns a live token in that cookie into `hasInvite`, which `canView()` honors at every visibility with no account. `POST /ride-invite/join` is behind `requireAuth`, not `requireActive`. It merges the placeholder into the signed-in account, activates it if it is pending, and befriends the organizer. `POST /ride-invite/decline` needs no account. Both POSTs are origin-checked.
 
 **Owner-gated and keyed by ride id**, not membership and not by slug—the same gate and the same key as `/api/rides/:id/rendezvous`, because only an owner reaches the builder. A rider who is on a ride but does not own it has the page.
 
