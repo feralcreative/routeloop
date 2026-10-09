@@ -285,6 +285,24 @@ The colorblind theme was a hue shift: pull go toward blue and stop toward orange
 
 It is now the result of a search: each of the nine sign fields held to its hue family and to the legend ink the table gives it at 4.5:1, maximizing the smallest separation under normal vision and all three dichromacies at once. Nine colors with five dark white-legend fields and four light black-legend ones cannot all be far apart, so the floors in the test (15, and 10 for tritanopia, which is rare) are what the search reached with room to spare rather than an ideal.
 
+## The organizer: plan with everyone, then send, 2026-10-08
+
+#428 adds a second way to use Routeloop. A ride used to be planned by a group working on it together, and putting somebody on it was the invitation. Now one or two organizers can plan a big ride the way you would set up an Evite or a Paperless Post. They add every rider they expect as a **draft**, plan groups, routes and meeting points around them, and press **Send invitations** once. Until then nobody is told anything, and a draft can see nothing.
+
+A draft can be a friend, any other Routeloop rider, or somebody with no account: a **placeholder**, which is a `users` row with status `placeholder` and a name. Send handles each kind differently:
+
+- A friend is put on the ride and gets `ride_added`.
+- Anybody else on Routeloop gets a friend request, and is put on the ride when they accept it.
+- A placeholder is emailed a **personal link**.
+
+That link offers three things, and joining is optional:
+
+- **Look.** The link lets them view the ride and download its files at any visibility, with no account.
+- **Join.** Signing in through the link merges the placeholder into their account, so they land in their group and on their routes, and activates the account. This is the one door past the beta waitlist.
+- **Decline.** This voids the invitation. A member can decline too.
+
+This reverses two entries above, "The access layer ships without invites" and "A ride invite is a friend, and nothing else". Any rider can now bring an active account into existence by inviting somebody. A personal link goes to one address, works once, and dies when the person declines or is removed.
+
 ## Appendix: auth and place-search cost analysis, 2026-07-26
 
 Written before either migration, as analysis for a decision with nothing yet implemented. Both recommendations were followed on the auth side; the search side went to Google rather than trying Mapbox Search Box first. Retained because the cost model and the Apple-specific hazards are still the best record of what was weighed.
