@@ -16,3 +16,10 @@ export function generateSlug(length = 22): string {
   }
   return out
 }
+
+/** True for a string shaped like a slug: base62 and no longer than the column.
+ *  Shape only, never existence. It lets a slug travel through a query string and
+ *  be spliced into a redirect without becoming a path somebody else chose. */
+export function isSlug(raw: unknown): raw is string {
+  return typeof raw === 'string' && /^[A-Za-z0-9]{1,22}$/.test(raw)
+}

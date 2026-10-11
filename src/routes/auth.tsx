@@ -10,6 +10,7 @@ import { existsSync } from 'node:fs'
 import { currentUser, requireAuth, type AuthEnv } from '../auth/middleware'
 import { readInviteCookie } from '../invites/cookie'
 import { readJoinCookie } from '../ride-invites/cookie'
+import { isSlug } from '../maps/slug'
 import { rideInvitePath } from '../ride-invites/policy'
 import { normalizeInviteToken } from '../invites/policy'
 import { completeGoogleLogin, GoogleAuthError, GOOGLE_ENABLED, startGoogleLogin } from '../auth/google'
@@ -274,6 +275,7 @@ function chooseNameHtml(
   user: { displayName: string },
   values: { username: string; displayName: string },
   errors: Record<string, string>,
+  ride?: string,
 ): string {
   function Field({
     name,
@@ -314,6 +316,7 @@ function chooseNameHtml(
           Pick a handle and the name you want other riders to see. Both are yours to change later.
         </p>
         <form class="name-form" method="post" action="/choose-name">
+          {ride && <input type="hidden" name="ride" value={ride} />}
           <Field
             name="username"
             label="Username"
@@ -333,7 +336,10 @@ function chooseNameHtml(
 authRoutes.get('/choose-name', requireAuth, (c) => {
   const user = currentUser(c)
   if (user.username) return c.redirect('/', 302)
-  return c.html(chooseNameHtml(user, { username: '', displayName: '' }, {}))
+  // A rider who just joined through a personal ride link (#428) carries that
+  // ride's slug here, so naming themselves lands them on it rather than on /.
+  const ride = c.req.query('ride')
+  return c.html(chooseNameHtml(user, { username: '', displayName: '' }, {}, isSlug(ride) ? ride : undefined))
 })
 
 authRoutes.post('/choose-name', requireAuth, async (c) => {
@@ -356,11 +362,14 @@ authRoutes.post('/choose-name', requireAuth, async (c) => {
     username: String(raw.username ?? ''),
     displayName: String(raw.displayName ?? ''),
   }
+  // Only ever a slug, and the path is built here: a field holding a path would
+  // be an open redirect waiting for somebody to loosen its check.
+  const ride = isSlug(raw.ride) ? raw.ride : undefined
   const parsed = nameFields.safeParse(values)
   if (!parsed.success) {
     const errors: Record<string, string> = {}
     for (const issue of parsed.error.issues) errors[String(issue.path[0])] = issue.message
-    return c.html(chooseNameHtml(user, values, errors))
+    return c.html(chooseNameHtml(user, values, errors, ride))
   }
 
   const free = await checkAvailability(parsed.data.username, user.id)
@@ -369,7 +378,7 @@ authRoutes.post('/choose-name', requireAuth, async (c) => {
       free.reason === 'taken'
         ? 'that username is taken'
         : `that username was recently released and is held until ${free.until.toISOString().slice(0, 10)}`
-    return c.html(chooseNameHtml(user, values, { username: message }))
+    return c.html(chooseNameHtml(user, values, { username: message }, ride))
   }
 
   try {
@@ -389,14 +398,19 @@ authRoutes.post('/choose-name', requireAuth, async (c) => {
     const message = err instanceof Error ? err.message : String(err)
     if (message.includes('uq_username_lower')) {
       return c.html(
-        chooseNameHtml(user, values, {
-          username: 'that username was just taken',
-        }),
+        chooseNameHtml(
+          user,
+          values,
+          {
+            username: 'that username was just taken',
+          },
+          ride,
+        ),
       )
     }
     throw err
   }
-  return c.redirect('/', 302)
+  return c.redirect(ride ? `/m/${ride}/riders` : '/', 302)
 })
 
 // --- Holding page -----------------------------------------------------------

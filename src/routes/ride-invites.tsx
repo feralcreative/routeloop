@@ -166,6 +166,9 @@ rideInviteRoutes.post('/ride-invite/join', requireAuth, async (c) => {
     if (res.notifyEmail) sendTemplateDetached(res.notifyEmail, approvedEmail, { displayName: res.displayName })
     if (res.by !== null && res.by !== user.id) notifyRideAdded(res.ride.id, user.id, res.by, null)
     // A redirect, so withSession re-reads the row: this request still says pending.
+    // A brand-new account has no username yet, and every active page would bounce
+    // it to /choose-name and on to /, so it goes there first carrying the ride.
+    if (!user.username) return c.redirect(`/choose-name?ride=${res.ride.slug}`, 302)
     return c.redirect(`/m/${res.ride.slug}/riders`, 302)
   } catch (err) {
     if (err instanceof RideInviteError) {
