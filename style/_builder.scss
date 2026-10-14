@@ -2201,6 +2201,8 @@
     //
     // A BACKGROUND RATHER THAN A SCROLL: a list that jumps to the hovered item while
     // the pointer is what is driving it fights the rider.
+  li.hit-saved.is-lit,
+  li.hit-google.is-lit,
   li.hit-nearby.is-lit {
     background: $neutral-94;
   }
@@ -2691,6 +2693,27 @@
   }
 }
 
+// THE ROW'S NUMBER, drawn like its dot on the map (.tb-hit-dot) so the eye pairs
+// them: same field, same ink, same weight, at the size of a line of text.
+.hit-num {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  box-sizing: border-box;
+  min-width: 1.5em;
+  height: 1.5em;
+  margin-right: 0.45em;
+  padding: 0 0.3em;
+  border-radius: 0.75em;
+  background: $brand;
+  color: $white;
+  font-size: 0.75em;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  line-height: 1;
+  vertical-align: 0.1em;
+}
+
 .split-hit {
   display: block;
   width: 100%;
@@ -2703,7 +2726,8 @@
   cursor: pointer;
 
   &:hover,
-  &:focus-visible {
+  &:focus-visible,
+  &.is-lit {
     background: rgba(0, 0, 0, 0.05);
   }
 }
@@ -3070,7 +3094,8 @@
   cursor: pointer;
 
   &:hover,
-  &:focus-visible {
+  &:focus-visible,
+  &.is-lit {
     background: color-mix(in srgb, $brand 10%, transparent);
   }
 }

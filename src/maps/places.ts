@@ -79,6 +79,10 @@ export type PlaceSearch = {
   near?: LngLat
   radiusM?: number
   wide?: boolean
+  // A RESTRICTION, where `near` is a bias: only places inside this box come back.
+  // The builder's name search sends the visible map, so "76 gas" answers with the
+  // stations on screen rather than the best-known ones in the state.
+  within?: { sw: LngLat; ne: LngLat }
 }
 
 /**
@@ -96,6 +100,7 @@ export async function searchPlaces(req: PlaceSearch, apiKey: string): Promise<Pl
     req.near ? req.near.map(round6).join(',') : '',
     req.radiusM ?? '',
     req.wide ? 'w' : '',
+    req.within ? [...req.within.sw, ...req.within.ne].map(round6).join(',') : '',
   ].join('|')
   const cached = placesCache.get(key)
   if (cached) return { ok: true, places: cached }
@@ -104,7 +109,14 @@ export async function searchPlaces(req: PlaceSearch, apiKey: string): Promise<Pl
     textQuery: req.query,
     maxResultCount: req.wide ? MAX_CORRIDOR_RESULTS : MAX_PLACE_RESULTS,
   }
-  if (req.near) {
+  if (req.within) {
+    body.locationRestriction = {
+      rectangle: {
+        low: { latitude: req.within.sw[1], longitude: req.within.sw[0] },
+        high: { latitude: req.within.ne[1], longitude: req.within.ne[0] },
+      },
+    }
+  } else if (req.near) {
     body.locationBias = {
       circle: {
         center: { latitude: req.near[1], longitude: req.near[0] },

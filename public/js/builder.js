@@ -24,6 +24,7 @@
     setMomentOverlay,
     setSearchPreview,
     highlightSearchPreview,
+    mapBounds,
     setBedtimeMarks,
     setMeetApproaches,
     highlightMeetApproaches,
@@ -33,7 +34,6 @@
     addMarker,
     removeMarker,
     onMarkerDragEnd,
-    searchPlaces,
     mapCenter,
     viewportCircle,
     containerPixel,
@@ -4212,8 +4212,8 @@
          * IT LIVES IN `.tab-actions` AND NOT IN `#sg-body`, which renderSubgroups()
          * rebuilds: a form inside would lose the half-typed search it holds (#188).
          *
-         * NAME SEARCH ONLY: the question is which town a group sets off from, which
-         * also keeps it to the Autocomplete SKU.
+         * NAME SEARCH ONLY: the question is which town a group sets off from. Numbered
+         * rows with matching dots on the map, like every place search.
          */
   function openNewGroup() {
     const add = $("sg-add");
@@ -4260,6 +4260,7 @@
       if (q.length < MIN_QUERY) {
         hitList.hidden = true;
         hitList.innerHTML = "";
+        clearPickDots();
         return;
       }
       timer = setTimeout(async () => {
@@ -4269,12 +4270,13 @@
         if (!state.map) return;
         let found = [];
         try {
-          found = await searchPlaces(state.map, q);
+          found = await nameSearch(q);
         } catch (err) {
           console.warn("[builder] group start search:", err.message);
         }
         if (mine !== seq || !box.isConnected) return;
         hits = found;
+        clearPickDots();
         if (!hits.length) {
           // NAMES THE VIEWPORT, as the route's search does: the search is RESTRICTED
           // to what is on screen, so "no matches" is a fact about the map.
@@ -4287,14 +4289,21 @@
             (h, i) =>
               '<li><button type="button" class="sg-new-hit" data-i="' +
               i +
-              '"><strong>' +
+              '">' +
+              hitNumHtml(i + 1) +
+              "<strong>" +
               esc(h.name) +
               "</strong>" +
-              (h.context ? ' <span class="sg-new-ctx">' + esc(h.context) + "</span>" : "") +
+              (h.address ? ' <span class="sg-new-ctx">' + esc(h.address) + "</span>" : "") +
               "</button></li>",
           )
           .join("");
         hitList.hidden = false;
+        previewRows(
+          Array.from(hitList.querySelectorAll(".sg-new-hit")),
+          hits.map((h) => ({ lngLat: h.lngLat, name: h.name, label: "Start here: " + h.name })),
+          "pick",
+        );
       }, 300);
     });
 
@@ -4303,15 +4312,13 @@
       if (!btn) return;
       const h = hits[Number(btn.dataset.i)];
       if (!h) return;
-      // Coordinates are fetched only for the pick — Place Details is billed per call,
-      // so resolving every prediction would cost five times as much.
-      const picked = await h.resolve().catch(() => null);
-      if (!picked) return toast("Could not locate that place", true);
-      createGroup(picked, nameField.value.trim());
+      clearPickDots();
+      createGroup(h, nameField.value.trim());
     });
   }
 
   function closeNewGroup() {
+    clearPickDots();
     const box = document.querySelector(".sg-new");
     if (box) box.remove();
     const add = $("sg-add");
@@ -5195,10 +5202,9 @@
   /**
       * The dialog's own events, bound once when it is built.
       *
-      * The destination search is `openNewGroup()`'s in shape: a 300ms debounce, a
-      * three-character floor, and a `seq` counter so a slow response for an old query
-      * cannot overwrite a fast one. Coordinates are fetched only for the PICK,
-      * because Place Details bills per call.
+      * The destination search is `openNewGroup()`'s in shape: a 300ms debounce, the
+      * MIN_QUERY floor, a `seq` counter so a slow response for an old query cannot
+      * overwrite a fast one, and numbered rows with matching dots on the map.
       */
   function wireSplitDialog(el) {
     const close = () => {
@@ -5207,6 +5213,9 @@
     };
     const destField = el.querySelector(".split-dest");
     const hitList = el.querySelector(".split-hits");
+    // Escape closes a <dialog> without going through close(), so the dots are
+    // cleared on the dialog's own event.
+    el.addEventListener("close", clearPickDots);
     let hits = [];
     let seq = 0;
     let timer = null;
@@ -5225,13 +5234,15 @@
       const q = destField.value.trim();
       if (q.length < MIN_QUERY) {
         hitList.hidden = true;
+        clearPickDots();
         return;
       }
       timer = setTimeout(async () => {
         const mine = ++seq;
-        const found = await searchPlaces(state.map, q).catch(() => []);
+        const found = await nameSearch(q).catch(() => []);
         if (mine !== seq) return;
         hits = found || [];
+        clearPickDots();
         hitList.innerHTML = hits.length
           ? hits
               .map(
@@ -5239,13 +5250,19 @@
                   '<li><button type="button" class="split-hit" data-i="' +
                   n +
                   '">' +
+                  hitNumHtml(n + 1) +
                   esc(h.name) +
-                  (h.context ? ' <span class="split-ctx">' + esc(h.context) + "</span>" : "") +
+                  (h.address ? ' <span class="split-ctx">' + esc(h.address) + "</span>" : "") +
                   "</button></li>",
               )
               .join("")
           : '<li class="split-empty">No matches on screen—zoom out to search wider.</li>';
         hitList.hidden = false;
+        previewRows(
+          Array.from(hitList.querySelectorAll(".split-hit")),
+          hits.map((h) => ({ lngLat: h.lngLat, name: h.name, label: "Go to " + h.name })),
+          "pick",
+        );
       }, 300);
     });
 
@@ -5254,11 +5271,11 @@
       if (!btn) return;
       const h = hits[Number(btn.dataset.i)];
       if (!h) return;
-      const picked = await h.resolve().catch(() => null);
-      if (!picked) return toast("Could not locate that place", true);
+      const picked = { lngLat: h.lngLat, name: h.name, address: h.address };
       destField.value = picked.name;
       el.dataset.dest = JSON.stringify(picked);
       hitList.hidden = true;
+      clearPickDots();
       refreshSplitGo(el);
     });
 
@@ -7948,6 +7965,75 @@
     return resultsEl;
   }
 
+  /** Text Search through the server proxy. `near` biases; `opts.within` restricts to
+   *  a box; `opts.wide` asks for the corridor's twenty. One billed request each. */
+  async function placesTextSearch(query, near, opts) {
+    const body = near ? { query: query, near: near } : { query: query };
+    if (opts && opts.wide) body.wide = true;
+    if (opts && opts.radiusM) body.radiusM = opts.radiusM;
+    if (opts && opts.within) body.within = opts.within;
+    const res = await fetch("/api/places/search", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(body),
+    });
+    const data = await res.json().catch(() => null);
+    if (!res.ok) {
+      const err = new Error((data && data.error) || "search failed (" + res.status + ")");
+      err.status = res.status;
+      throw err;
+    }
+    return (data && data.places) || [];
+  }
+
+  /**
+        * A search by NAME, restricted to the visible map. Text Search rather than
+        * Autocomplete, so every result arrives with coordinates and can be drawn as a
+        * numbered dot beside its numbered row. The price is one Text Search request per
+        * pause in typing, where Autocomplete billed a whole lookup as one session.
+        */
+  async function nameSearch(q) {
+    const b = state.map ? mapBounds(state.map) : null;
+    const within = b ? { sw: [b.west, b.south], ne: [b.east, b.north] } : null;
+    const places = await placesTextSearch(q, null, within ? { within: within } : null);
+    return places.map((p) => ({ name: p.name, address: p.address, lngLat: p.lngLat, type: p.type }));
+  }
+
+  /** The number a result row carries, matching its dot on the map. */
+  const hitNumHtml = (n) => '<span class="hit-num" aria-hidden="true">' + n + "</span>";
+
+  /**
+        * EVERY PLACE SEARCH NUMBERS ITS ROWS AND DRAWS THE SAME NUMBERS ON THE MAP.
+        * `rows` and `items` are in display order, so row n is dot n. Hovering either
+        * lights the other, and pressing a dot presses its row, so the row's own handler
+        * stays the one place a pick is acted on.
+        *
+        * `owner` is "search" for the route dropdown, which hideSearchResults() clears,
+        * and "pick" for the group and split forms, which clear their own.
+        */
+  function previewRows(rows, items, owner) {
+    if (!state.map) return;
+    state.previewOwner = owner || "search";
+    setMeetApproaches(state.map, []);
+    setSearchPreview(
+      state.map,
+      items,
+      (i) => rows.forEach((li, j) => li.classList.toggle("is-lit", j === i)),
+      (i) => rows[i] && rows[i].click(),
+    );
+    rows.forEach((li, j) => {
+      li.addEventListener("pointerenter", () => highlightSearchPreview(state.map, j));
+      li.addEventListener("pointerleave", () => highlightSearchPreview(state.map, null));
+    });
+  }
+
+  function clearPickDots() {
+    if (state.map && state.previewOwner === "pick") {
+      setSearchPreview(state.map, []);
+      state.previewOwner = null;
+    }
+  }
+
   function hideSearchResults() {
     if (resultsEl && !resultsEl.hidden) resultsEl.hidden = true;
     // THE DOTS LIVE EXACTLY AS LONG AS THE DROPDOWN, and every path that closes it
@@ -8160,7 +8246,7 @@
 
     async function corridorPlaces(query, samples) {
       const settled = await Promise.allSettled(
-        samples.map((s) => nearbySearch(query, s.near, { wide: true, radiusM: s.radiusM })),
+        samples.map((s) => placesTextSearch(query, s.near, { wide: true, radiusM: s.radiusM })),
       );
       const failed = settled.filter((r) => r.status === "rejected");
       if (samples.length && failed.length === settled.length) throw failed[0].reason;
@@ -8182,7 +8268,7 @@
     }
 
     /**
-          * The anchor arguments for a typed category query, spread into nearbySearch.
+          * The anchor arguments for a typed category query, spread into placesTextSearch.
           *
           * NO ANCHOR WHEN THE TEXT NAMES A PLACE: Text Search reads "gas station in
           * oakdale ca" itself, and biasing to the viewport would pull the answer back to
@@ -8211,11 +8297,11 @@
             * resolved, and Place Details bills per call.
             */
     async function typedCategoryHits(cat, q, r, at, rep) {
-      if (namesAPlace(q)) return nearbySearch(cat.text, null);
+      if (namesAPlace(q)) return placesTextSearch(cat.text, null);
       // A REPLACE SEARCHES AROUND THE POINT BEING REPLACED: the one anchor the rider
       // has unambiguously pointed at, and it outranks the scope as a slot does.
       const old = rep == null ? null : state.routes[r] && state.routes[r].points[rep];
-      if (old) return nearbySearch(cat.text, [old.lng, old.lat]);
+      if (old) return placesTextSearch(cat.text, [old.lng, old.lat]);
       const leg = at == null ? null : legAnchor(state.routes[r], at);
       if (leg) return corridorRun(cat.text, leg.track, leg.totalM, leg.near);
       if (state.corridorOn) {
@@ -8224,7 +8310,7 @@
         placeAlongRoute(hits, args.spans);
         return hits;
       }
-      return nearbySearch(cat.text, ...namedOrViewport(q));
+      return placesTextSearch(cat.text, ...namedOrViewport(q));
     }
 
     /**
@@ -8243,31 +8329,12 @@
       return "No matches for " + named + " on screen. Zoom out to search wider.";
     }
 
-    async function nearbySearch(query, near, opts) {
-      const body = near ? { query: query, near: near } : { query: query };
-      // A corridor search asks for the wider result set and a bias radius that covers
-      // the route. Both are the same single billed call.
-      if (opts && opts.wide) body.wide = true;
-      if (opts && opts.radiusM) body.radiusM = opts.radiusM;
-      const res = await fetch("/api/places/search", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(body),
-      });
-      const data = await res.json().catch(() => null);
-      if (!res.ok) {
-        const err = new Error((data && data.error) || "search failed (" + res.status + ")");
-        err.status = res.status;
-        throw err;
-      }
-      return (data && data.places) || [];
-    }
-
     // A heading above the nearby block: two kinds of answer in one list with nothing
     // between them reads as one ranked list. Above are places matching what you
     // typed, below are places OF the kind you asked for.
-    function nearbyResultsHtml(hits) {
+    function nearbyResultsHtml(hits, from) {
       if (!hits.length && !corridorPartial) return "";
+      const first = from || 1;
       return (
         '<li class="hit-head" aria-hidden="true">Nearby' +
         // SAYS THE ROUTE WAS ONLY PARTLY SEARCHED, because the alternative is a short
@@ -8280,7 +8347,9 @@
             (h, i) =>
               '<li class="hit-nearby" data-nearby="' +
               i +
-              '"><strong>' +
+              '">' +
+              hitNumHtml(first + i) +
+              "<strong>" +
               esc(h.name) +
               "</strong> " +
               // THE NUMBER THE RIDER IS DECIDING ON, when there is one: a corridor
@@ -8301,42 +8370,16 @@
     // wins over the place's own type — the rider said "gas", so a convenience store
     // among the stations is still the answer. roleForType() fills in only when
     // nothing was asked for.
-    /**
-            * Paint one numbered dot per result and couple it to its row, both ways.
-            *
-            * A NUMBER RATHER THAN A NAME ON THE MAP, with the name on hover: twelve labels
-            * overlapping each other is what would be unreadable. The row highlight is a
-            * class rather than a scroll — a list that jumps under the pointer fights the
-            * rider.
-            */
-    function showPreview(host, hits) {
-      if (!state.map) return;
-      // The search takes the slot, which also clears any meeting-point dots: the rider
-      // has moved on to adding a place, and two sets of numbered dots on one map
-      // would be unreadable.
-      state.previewOwner = "search";
-      setMeetApproaches(state.map, []);
-      const rows = Array.from(host.querySelectorAll("li.hit-nearby"));
-      setSearchPreview(
-        state.map,
-        // THE SAME TWO FACTS THE ROW SHOWS, in the same words. Built here rather than in
-        // map-common.js so that file stays out of miles-versus-kilometers.
-        hits.map((h) => ({
-          lngLat: h.lngLat,
-          name: h.name,
-          tip: typeof h.offRouteM === "number" ? h.name + " · " + fmtDist(h.offRouteM) + " off" : h.name,
-        })),
-        (i) => rows.forEach((li, j) => li.classList.toggle("is-lit", j === i)),
-        // PRESSING THE DOT PRESSES THE ROW, rather than repeating what the row's handler
-        // does: that mints the point with its category role, reads the open insert
-        // slot, pans and moves focus — four things a second copy would drift from.
-        (i) => rows[i] && rows[i].click(),
-      );
-      rows.forEach((li, j) => {
-        li.addEventListener("pointerenter", () => highlightSearchPreview(state.map, j));
-        li.addEventListener("pointerleave", () => highlightSearchPreview(state.map, null));
-      });
-    }
+    // The dots for one block of results, in the shape previewRows() takes. THE SAME
+    // TWO FACTS THE ROW SHOWS, in the same words.
+    const nearbyItems = (hits) =>
+      hits.map((h) => ({
+        lngLat: h.lngLat,
+        name: h.name,
+        tip: typeof h.offRouteM === "number" ? h.name + " · " + fmtDist(h.offRouteM) + " off" : h.name,
+      }));
+    const savedItems = (list) => list.map((pl) => ({ lngLat: [pl.lng, pl.lat], name: pl.name }));
+    const hitRows = (host) => Array.from(host.querySelectorAll("li.hit-saved, li.hit-google, li.hit-nearby"));
 
     function wireNearbyResults(host, hits, role) {
       host.querySelectorAll("li.hit-nearby").forEach((li) => {
@@ -8386,6 +8429,7 @@
             '<li class="hit-saved" data-saved="' +
             i +
             '">' +
+            hitNumHtml(i + 1) +
             '<span class="hit-badge">Saved</span> <strong>' +
             esc(pl.name) +
             "</strong> " +
@@ -8476,6 +8520,7 @@
         results.hidden = false;
         placeResults(input, results);
         wireSavedResults(results, saved);
+        previewRows(hitRows(results), savedItems(saved));
       } else if (q.length < MIN_QUERY) {
         hideSearchResults();
       }
@@ -8484,10 +8529,10 @@
       searchTimer = setTimeout(async () => {
         // Predictions come back out of order often enough to matter.
         const mine = ++searchSeq;
-        // A CATEGORY QUERY RUNS BOTH SEARCHES. Autocomplete still answers, because
-        // "coffee" might be the name of the place the rider means. parse() returns null
-        // for anything that reads as a name, which is the common case — a Text Search
-        // call is the expensive one.
+        // ONE SEARCH OR THE OTHER. Both halves are Text Search now, so a category
+        // query asking the name half as well would pay twice for nearly the same list;
+        // the category half is the one that honors the scope. parse() returns null for
+        // anything that reads as a name, which is the common case.
         const cat = QUERY.parse(q);
         // CLEARED BEFORE EVERY SEARCH, the reason categorySearch() clears it: a typed
         // query can run the corridor, so it can raise the partial-coverage note, and
@@ -8500,7 +8545,7 @@
           // no Places API on it — and with Promise.all one rejection took the other
           // answer down with it.
           const [nameRes, nearRes] = await Promise.allSettled([
-            searchPlaces(state.map, q),
+            cat ? [] : nameSearch(q),
             // No anchor when the text names a place: Text Search reads it out of the
             // query, and biasing as well would pull the answer back home.
             cat ? typedCategoryHits(cat, q, route, at, rep) : [],
@@ -8528,15 +8573,17 @@
                 (h, i) =>
                   '<li class="hit-google" data-i="' +
                   i +
-                  '"><strong>' +
+                  '">' +
+                  hitNumHtml(savedNow.length + i + 1) +
+                  "<strong>" +
                   esc(h.name) +
                   "</strong> " +
                   '<span class="hit-ctx">' +
-                  esc(h.context) +
+                  esc(h.address) +
                   "</span></li>",
               )
               .join("") +
-            nearbyResultsHtml(nearby) +
+            nearbyResultsHtml(nearby, savedNow.length + hits.length + 1) +
             // SAID OUT LOUD, not left as an empty box: "nothing matched" and "the
             // search broke" were pixel-identical before this. NAMES THE VIEWPORT,
             // because the search is restricted to it and a rider told only "no
@@ -8550,15 +8597,10 @@
           placeResults(input, results);
           wireSavedResults(results, savedNow);
           wireNearbyResults(results, nearby, cat && cat.role);
-          // ONLY THE CATEGORY BLOCK GETS DOTS HERE, a limit rather than an oversight: a
-          // name match carries no coordinates until it is picked, because Place
-          // Details bills per call.
-          showPreview(results, nearby);
           results.querySelectorAll("li.hit-google").forEach((li) => {
-            li.addEventListener("click", async () => {
-              // Coordinates are fetched only for the pick — Place Details bills per call.
-              const picked = await hits[Number(li.dataset.i)].resolve().catch(() => null);
-              if (!picked) return toast("Could not locate that place", true);
+            li.addEventListener("click", () => {
+              const picked = hits[Number(li.dataset.i)];
+              if (!picked) return;
               const [lng, lat] = picked.lngLat;
               // Read the route off the open list rather than the closure, so a stale
               // closure can never put a stop on the wrong route.
@@ -8573,6 +8615,11 @@
               panTo(state.map, picked.lngLat, 11);
             });
           });
+          previewRows(hitRows(results), [
+            ...savedItems(savedNow),
+            ...hits.map((h) => ({ lngLat: h.lngLat, name: h.name })),
+            ...nearbyItems(nearby),
+          ]);
         } catch (e) {
           console.warn("[builder] search:", e.status || "", e.message);
           if (mine !== searchSeq || !input.isConnected) return;
@@ -8718,7 +8765,7 @@
             placeAlongRoute(nearby, args.spans);
           } else {
             const view = screenAnchor(r);
-            nearby = await nearbySearch(spec.query, view && view.near, view && { radiusM: view.radiusM });
+            nearby = await placesTextSearch(spec.query, view && view.near, view && { radiusM: view.radiusM });
           }
         }
         if (mine !== searchSeq) return;
@@ -8733,7 +8780,7 @@
         results.hidden = false;
         if (input) placeResults(input, results);
         wireNearbyResults(results, nearby, spec.role);
-        showPreview(results, nearby);
+        previewRows(hitRows(results), nearbyItems(nearby));
       } catch (err) {
         console.warn("[builder] chip search:", err.status || "", err.message);
         if (mine !== searchSeq) return;

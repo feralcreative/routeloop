@@ -2227,6 +2227,7 @@
     setMomentOverlay,
     setSearchPreview,
     highlightSearchPreview,
+    mapBounds,
     setBedtimeMarks,
     setMeetApproaches,
     highlightMeetApproaches,
