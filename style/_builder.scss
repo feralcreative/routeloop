@@ -1840,6 +1840,18 @@
       color: $neutral-50;
     }
 
+    // When the rider gets here. Ink rather than gray: it is the figure a planner
+    // reads down the list. Empty on an undated route, and an empty flex item would
+    // still take a gap.
+    .row-dist-eta {
+      color: $neutral-36;
+      font-weight: 600;
+
+      &:empty {
+        display: none;
+      }
+    }
+
     // The tank figure is the one being scanned for, so it is the one that is not
     // gray. It appears only once it differs from the distance into the route —
     // see distReadoutHtml — so when it is here it is saying something new.
