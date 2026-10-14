@@ -454,6 +454,7 @@ const placeSearchRequest = z.object({
   // Opt-in, so every existing caller keeps the eight-result dropdown it was
   // written for and only the corridor search asks for the wider set.
   wide: z.boolean().optional(),
+  within: z.object({ sw: coord, ne: coord }).optional(),
 })
 
 routingRoutes.post('/api/places/search', requireAuthApi, requireActiveApi, requireSameOrigin, async (c) => {
