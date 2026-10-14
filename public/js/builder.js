@@ -1773,6 +1773,10 @@
   // MEMOIZED, BECAUSE THE ROUTE LIST ASKS ONCE PER ROW: each uncached call walks
   // every route's whole track. Cleared from refreshDerived() and the setting's own
   // handler; a stale answer at worst puts the offer one row out.
+  // The shortest text any place search sends to Google. Two, not three: "76" and
+  // "BP" are whole brand names, and three made them unsearchable.
+  const MIN_QUERY = 2;
+
   let stopByCache = null;
 
   function stopByPoints() {
@@ -4253,7 +4257,7 @@
     startField.addEventListener("input", () => {
       clearTimeout(timer);
       const q = startField.value.trim();
-      if (q.length < 3) {
+      if (q.length < MIN_QUERY) {
         hitList.hidden = true;
         hitList.innerHTML = "";
         return;
@@ -5219,7 +5223,7 @@
       refreshSplitGo(el);
       clearTimeout(timer);
       const q = destField.value.trim();
-      if (q.length < 3) {
+      if (q.length < MIN_QUERY) {
         hitList.hidden = true;
         return;
       }
@@ -8472,11 +8476,11 @@
         results.hidden = false;
         placeResults(input, results);
         wireSavedResults(results, saved);
-      } else if (q.length < 3) {
+      } else if (q.length < MIN_QUERY) {
         hideSearchResults();
       }
 
-      if (q.length < 3) return;
+      if (q.length < MIN_QUERY) return;
       searchTimer = setTimeout(async () => {
         // Predictions come back out of order often enough to matter.
         const mine = ++searchSeq;
