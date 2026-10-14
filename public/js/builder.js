@@ -1845,6 +1845,35 @@
     });
   }
 
+  /** When the rider arrives at point `i`: "11:42 AM", or "" on an undated route.
+   *  The departure is a wall clock carried as UTC, so this formats in UTC like
+   *  fmtClockMin. A "+1d" marks an arrival past midnight. */
+  function arrivalLabel(route, i) {
+    const startS = route ? routeStartS(route) : null;
+    if (startS == null) return "";
+    const toS = elapsedToPointS(route, i);
+    if (toS == null) return "";
+    const atS = startS + toS;
+    var pref = (window.TBFmt && window.TBFmt.timePrefs()) || {};
+    const clock = new Date(atS * 1000).toLocaleTimeString(pref.locale, {
+      timeStyle: "short",
+      hour12: pref.hour12,
+      timeZone: "UTC",
+    });
+    const days = Math.floor(atS / 86400) - Math.floor(startS / 86400);
+    return days > 0 ? clock + " +" + days + "d" : clock;
+  }
+
+  /** Refill every row's arrival in place. Never a re-render, which would cost a
+   *  rider the dwell field they are typing in (#188). */
+  function patchArrivals() {
+    document.querySelectorAll(".point-row[data-route]").forEach((row) => {
+      const span = row.querySelector(".row-dist-eta");
+      if (!span) return;
+      span.textContent = arrivalLabel(state.routes[Number(row.dataset.route)], Number(row.dataset.i));
+    });
+  }
+
   function renderMarkers() {
     clearMarkers();
     state.markers = state.routes.map((route, r) => ({
@@ -5961,6 +5990,7 @@
     state.routes.forEach(syncEnd);
     renderTotals();
     renderTimes();
+    patchArrivals();
     renderTimeline();
     // Where the rider will be at bedtime moves with every schedule change, so it is
     // recomputed from the one pass every such change already goes through.
@@ -6421,14 +6451,19 @@
         * DIFFERS from the distance into the route, or the same number is printed twice.
         * The dry marker is absent entirely when no range is on file — never a guess.
         */
-  function distReadoutHtml(point, i, dist) {
+  function distReadoutHtml(point, i, dist, route) {
     if (!dist || i <= 0) return "";
     const into = dist.cum[i];
     if (!(into > 0)) return "";
     const since = dist.since[i];
     const dry = dist.dryAt === i;
     const range = window.TB.range || {};
-    const parts = ['<span class="row-dist-into">' + esc(fmtDist(into)) + " in</span>"];
+    // The arrival goes first and is ALWAYS rendered, empty on an undated route, so
+    // patchArrivals() can fill it in place when a dwell or a leg changes.
+    const parts = [
+      '<span class="row-dist-eta">' + esc(arrivalLabel(route, i)) + "</span>",
+      '<span class="row-dist-into">' + esc(fmtDist(into)) + " in</span>",
+    ];
     // Rounded before comparing, or two figures a mile apart print identically. AND
     // NEVER ZERO: at a fuel stop `since` resets to 0 by design, so the pair differs
     // and would print "0 mi on this tank" under every fuel stop in the ride.
@@ -6614,7 +6649,7 @@
       (isStop ? "stop" : "POI") +
       '" aria-haspopup="menu" aria-expanded="false">⋮</button>' +
       "</span></div>" +
-      distReadoutHtml(point, i, dist) +
+      distReadoutHtml(point, i, dist, state.routes[routeIndex]) +
       bedtimeOfferHtml(i, routeIndex) +
       lodgingOfferHtml(point, i, routeIndex) +
       '<div class="row-roles"' +
