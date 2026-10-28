@@ -32,7 +32,8 @@ import { asset } from '../views/assets'
 import { esc } from '../views/esc'
 import { POWERS, POWER_CHOICES, VEHICLES, VEHICLE_CHOICES, Wd, Wds, aWd, cap, wd } from '../views/vocab'
 import { TOUR_HEAD, tourScript } from '../views/tour-assets'
-import { GMAPS_KEY, GMAPS_MAP_ID } from '../config'
+import { ANTHROPIC_API_KEY, GMAPS_KEY, GMAPS_MAP_ID } from '../config'
+import { BYO_ENABLED } from '../agent/usage'
 import { generateSlug } from '../maps/slug'
 import { canClone } from '../access/policy'
 import { memberOrOwner, seedOwner } from '../members/service'
@@ -125,14 +126,12 @@ const jsonLimit = bodyLimit({ maxSize: BODY_LIMIT, onError: (c) => c.json({ erro
 // If a bot check is ever wanted here the answer is rate limiting (#16), not a
 // widget: a token is single-use and expires in five minutes, so it cannot ride on
 // an autosave that fires every three seconds.
-builderRoutes.post('/api/rides', requireActiveApi, requireSameOrigin, jsonLimit, async (c) => {
-  const user = currentUser(c)
-
-  const body = await parseRideBody(c)
-  if (!body.data) return c.json({ error: body.error }, 400)
-  const p = body.data
-
-  const created = await db.transaction(async (tx) => {
+/** A new ride owned by `user`, with its owner row and main group seeded in the same
+ *  transaction. Shared by the builder's POST and the MCP server's create_ride, for
+ *  the reason saveRide() is: a second insert path is a second place to forget the
+ *  seeding. */
+export async function createRide(user: { id: number }, p: RidePayload): Promise<RideRow> {
+  return db.transaction(async (tx) => {
     const [ride] = await tx
       .insert(rides)
       .values({
@@ -156,6 +155,16 @@ builderRoutes.post('/api/rides', requireActiveApi, requireSameOrigin, jsonLimit,
     await seedMainGroup(tx, ride.id)
     return ride
   })
+}
+
+builderRoutes.post('/api/rides', requireActiveApi, requireSameOrigin, jsonLimit, async (c) => {
+  const user = currentUser(c)
+
+  const body = await parseRideBody(c)
+  if (!body.data) return c.json({ error: body.error }, 400)
+  const p = body.data
+
+  const created = await createRide(user, p)
   console.log(`[rides] user ${user.id} created ride ${created.id} (${created.stopCount} stops)`)
   return c.json({ id: created.id, slug: created.slug }, 201)
 })
@@ -344,21 +353,24 @@ export async function builderRide(
   return { ride, member: await memberOrOwner(ride, userId) }
 }
 
-builderRoutes.put('/api/rides/:id', requireActiveApi, requireSameOrigin, jsonLimit, async (c) => {
-  const user = currentUser(c)
-  const found = await builderRide(user.id, c.req.param('id'))
-  // 404 rather than 403 for a rider who may see the ride but not write to it: a 403
-  // confirms the ride exists to somebody holding a guessed id.
-  if (!found || !canEditAsMember(found.member)) return c.json({ error: 'not found' }, 404)
-  const { ride, member } = found
-  const isOwner = canAdminister(member)
-
-  const body = await parseRideBody(c)
-  if (!body.data) return c.json({ error: body.error }, 400)
-  const p = body.data
-  const p_rev = body.rev
-  const p_base = body.base
-
+/**
+ * THE ONE WRITE PATH FOR A WHOLE RIDE, shared by the builder's PUT and the MCP
+ * server (src/mcp/). Extracted from the PUT on 2026-10-27 rather than copied: the
+ * rev check, the per-route merge and the order of the three merge steps are what
+ * keep concurrent planning safe, and a second copy would drift from the first.
+ *
+ * `agent` marks the live notice as an assistant's save, which the saver's own
+ * open builder applies instead of ignoring as its own echo.
+ */
+export async function saveRide(
+  ride: RideRow,
+  user: { id: number },
+  isOwner: boolean,
+  p: RidePayload,
+  p_rev: number | undefined,
+  p_base: Record<string, string> | undefined,
+  opts: { agent?: boolean } = {},
+): Promise<{ stale: number } | { rev: number; merge: MergeResult | null; after: Array<{ uid: string; hash: string | null }> }> {
   // THE STALE-WRITE CHECK, AND IT HAS TO BE INSIDE THE TRANSACTION. Read-then-write
   // outside one is the race it exists to close: two saves both read rev 7, both find
   // it current, and both write. A missing `rev` means unchecked — see revField.
@@ -448,13 +460,7 @@ builderRoutes.put('/api/rides/:id', requireActiveApi, requireSameOrigin, jsonLim
     return { rev: written.rev, merge, after }
   })
 
-  // 409 CARRYING THE CURRENT STATE, so the builder can show what it collided
-  // with rather than only that it did. The rider's own work is still in their
-  // browser and untouched — nothing was written — which is the whole point of
-  // refusing rather than merging at this level.
-  if ('stale' in result) {
-    return c.json({ error: 'stale', rev: result.stale, ride: await loadRidePayload(ride, isOwner ? user : null) }, 409)
-  }
+  if ('stale' in result) return result
   // TELL THE ROOM WHAT CHANGED. Fire-and-forget and deliberately after the
   // transaction: a live notification is not worth failing a save for, and a
   // publish inside the transaction would announce a write that could still roll
@@ -465,10 +471,38 @@ builderRoutes.put('/api/rides/:id', requireActiveApi, requireSameOrigin, jsonLim
   // else. The client ignores events carrying its own rider id.
   publish(ride.id, 'routes', {
     by: user.id,
+    ...(opts.agent ? { agent: true } : {}),
     rev: result.rev,
     routes: result.after.filter((d) => d.hash !== null).map((d) => ({ uid: d.uid, hash: d.hash })),
   })
 
+  return result
+}
+
+builderRoutes.put('/api/rides/:id', requireActiveApi, requireSameOrigin, jsonLimit, async (c) => {
+  const user = currentUser(c)
+  const found = await builderRide(user.id, c.req.param('id'))
+  // 404 rather than 403 for a rider who may see the ride but not write to it: a 403
+  // confirms the ride exists to somebody holding a guessed id.
+  if (!found || !canEditAsMember(found.member)) return c.json({ error: 'not found' }, 404)
+  const { ride, member } = found
+  const isOwner = canAdminister(member)
+
+  const body = await parseRideBody(c)
+  if (!body.data) return c.json({ error: body.error }, 400)
+  const p = body.data
+  const p_rev = body.rev
+  const p_base = body.base
+
+  const result = await saveRide(ride, user, isOwner, p, p_rev, p_base)
+
+  // 409 CARRYING THE CURRENT STATE, so the builder can show what it collided
+  // with rather than only that it did. The rider's own work is still in their
+  // browser and untouched — nothing was written — which is the whole point of
+  // refusing rather than merging at this level.
+  if ('stale' in result) {
+    return c.json({ error: 'stale', rev: result.stale, ride: await loadRidePayload(ride, isOwner ? user : null) }, 409)
+  }
   // routeBase goes straight back out so the builder can rebase without a reload:
   // without it the SECOND save of a session is based on hashes the first save
   // invalidated, and every route reads as contested.
@@ -800,6 +834,7 @@ function builderHtml(
   // and aria-selected are wired by initTabs().
   // The words for this page (#321): the ride's own pair over the rider's default.
   const words = wordsOf({ user, ride: vehicle })
+  const agentOffered = standing.canEdit && (ANTHROPIC_API_KEY !== '' || BYO_ENABLED)
 
   const tabs = `        <div class="panel-tabs" role="tablist" aria-label="Builder sections">
           <button type="button" class="panel-tab is-active" role="tab" id="tab-routes"
@@ -807,7 +842,13 @@ function builderHtml(
           <button type="button" class="panel-tab" role="tab" id="tab-groups"
                   aria-controls="panel-groups" aria-selected="false" tabindex="-1">Groups <span class="tab-count" id="sg-count"></span></button>
           <button type="button" class="panel-tab" role="tab" id="tab-riders"
-                  aria-controls="panel-riders" aria-selected="false" tabindex="-1">${Wds(words, 'person')} <span class="tab-count" id="riders-count"></span></button>
+                  aria-controls="panel-riders" aria-selected="false" tabindex="-1">${Wds(words, 'person')} <span class="tab-count" id="riders-count"></span></button>${
+            agentOffered
+              ? `
+          <button type="button" class="panel-tab" role="tab" id="tab-ask"
+                  aria-controls="panel-ask" aria-selected="false" tabindex="-1">Ask</button>`
+              : ''
+          }
         </div>`
 
   // ROUTES. Everything that was in the panel about the road: the route list, the
@@ -925,6 +966,24 @@ function builderHtml(
 ${ridersAdd}          <div id="riders-body"></div>
         </div>`
 
+  // THE ASSISTANT (2026-10-27). A FOURTH TAB, which reverses the three-tab call
+  // recorded beside the comments below: Ziad approved it with the agent plan. Only
+  // for a rider who may edit, and only when this server has a free-tier key or can
+  // store a rider's own. The transcript lives in the tab and nowhere else.
+  const askTab = agentOffered
+    ? `        <div class="panel-tabpanel" role="tabpanel" id="panel-ask" aria-labelledby="tab-ask" tabindex="0" hidden>
+          <p class="ask-status" id="ask-status" aria-live="polite"></p>
+          <ol class="ask-log" id="ask-log" aria-live="polite"></ol>
+          <form class="ask-form" id="ask-form">
+            <label class="visually-hidden" for="ask-input">Ask the assistant</label>
+            <textarea id="ask-input" rows="2" maxlength="4000" autocomplete="off"
+                      placeholder="Find gas every 120 miles on day two"></textarea>
+            <button type="submit" class="btn" id="ask-send">Ask</button>
+          </form>
+          <p class="ask-note">Anything it changes is one step on Undo. It reads this ride and searches Google for places; it never deletes a ride or changes who can see it.</p>
+        </div>`
+    : ''
+
   // WHAT THIS RIDER MAY DO, said once at the top of the panel, and only for somebody
   // who is not the owner: a line saying you own your own ride is one every rider
   // reads once and then stops seeing, which is how a banner that DOES matter gets
@@ -984,6 +1043,7 @@ ${routesTab}
 ${groupsTab}
 
 ${ridersTab}
+${askTab}
 ${
   // COMMENTS ARE RIDE-LEVEL AND SIT BELOW THE TABS, not in a fourth one.
   //
@@ -1296,6 +1356,7 @@ ${
   <script src="${asset('/js/road-season.js')}" defer></script>
   <script src="${asset('/js/road-reports.js')}" defer></script>
   <script src="${asset('/js/builder.js')}" defer></script>
+  <script src="${asset('/js/agent-chat.js')}" defer></script>
   ${tourScript()}`,
   })
 }
