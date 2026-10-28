@@ -35,6 +35,10 @@ import { quietUnread, savePrefs } from '../notifications/service'
 import { accountPage, type AccountTab } from '../views/account-page'
 import { loadProfile, profilePanel, PROFILE_SCRIPTS } from './profile'
 import { usernameHistoryFor } from '../auth/username'
+import Anthropic from '@anthropic-ai/sdk'
+import { BYO_MODELS, DEFAULT_BYO_MODEL, type ByoModel } from '../agent/policy'
+import { looksLikeAnthropicKey } from '../agent/sealed-key'
+import { BYO_ENABLED, forgetKey, setKeyModel, storedKeyOf, storeKey } from '../agent/usage'
 
 export const settingsRoutes = new Hono<AuthEnv>()
 
@@ -530,4 +534,39 @@ settingsRoutes.post('/settings/notifications', requireActive, requireSameOrigin,
 
   const anchor = `notify-${group.id}`
   return c.redirect(`/settings?saved=${anchor}#${anchor}`, 303)
+})
+
+// THE RIDER'S OWN ANTHROPIC KEY. Checked against Anthropic once before it is
+// stored, with the cheapest call there is (one page of the model list), so a typo
+// is refused here rather than at the first question in the builder. An empty key
+// box with a stored key changes only the model.
+settingsRoutes.post('/settings/ai', requireActive, requireSameOrigin, async (c) => {
+  const user = currentUser(c)
+  if (!BYO_ENABLED) return c.redirect('/settings#ai', 303)
+  const body = await c.req.parseBody()
+  const model = BYO_MODELS.includes(body.model as ByoModel) ? (body.model as ByoModel) : DEFAULT_BYO_MODEL
+  const key = typeof body.key === 'string' ? body.key.trim() : ''
+
+  if (key === '') {
+    if (await storedKeyOf(user.id)) {
+      await setKeyModel(user.id, model)
+      return c.redirect('/settings?saved=ai#ai', 303)
+    }
+    return c.redirect('/settings?saved=ai-bad#ai', 303)
+  }
+  if (!looksLikeAnthropicKey(key)) return c.redirect('/settings?saved=ai-bad#ai', 303)
+  try {
+    await new Anthropic({ apiKey: key, maxRetries: 0, timeout: 10_000 }).models.list({ limit: 1 })
+  } catch {
+    // Every failure reads the same to the rider: Anthropic did not take it. The
+    // key is never logged, so neither is the error that carries it.
+    return c.redirect('/settings?saved=ai-bad#ai', 303)
+  }
+  await storeKey(user.id, key, model)
+  return c.redirect('/settings?saved=ai#ai', 303)
+})
+
+settingsRoutes.post('/settings/ai/forget', requireActive, requireSameOrigin, async (c) => {
+  await forgetKey(currentUser(c).id)
+  return c.redirect('/settings?saved=ai-gone#ai', 303)
 })

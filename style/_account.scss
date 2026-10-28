@@ -1463,3 +1463,9 @@
     }
   }
 }
+
+// A refusal beside a Save button, the red counterpart of the Saved chip.
+.form-error {
+  color: $stop-d10;
+  font-size: 0.85em;
+}

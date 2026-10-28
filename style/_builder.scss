@@ -3851,3 +3851,87 @@
     }
   }
 }
+
+// --- The Ask tab (the assistant) -----------------------------------------------
+//
+// A short conversation and a box. The rider's lines sit right on a light well, the
+// assistant's on the card, so the two read apart without a name on every line.
+
+.ask-status {
+  margin: 0.5rem 0;
+  font-size: 0.78em;
+  color: $neutral-57;
+  text-wrap: pretty;
+}
+
+.ask-log {
+  display: flex;
+  flex-direction: column;
+  gap: 0.45rem;
+  margin: 0 0 0.6rem;
+  padding: 0;
+  list-style: none;
+}
+
+.ask-line {
+  max-width: 92%;
+  padding: 0.45rem 0.65rem;
+  border-radius: 0.6rem;
+  font-size: 0.88em;
+  line-height: 1.4;
+
+  .ask-text {
+    margin: 0;
+    white-space: pre-wrap;
+    text-wrap: pretty;
+  }
+}
+
+.ask-rider {
+  align-self: flex-end;
+  background: $neutral-94;
+  color: $text;
+}
+
+.ask-assistant {
+  align-self: flex-start;
+  background: $white;
+  border: 1px solid $grey;
+  color: $text;
+
+  &.is-working .ask-text {
+    color: $neutral-57;
+  }
+}
+
+.ask-form {
+  display: flex;
+  gap: 0.4rem;
+  align-items: flex-end;
+
+  textarea {
+    @include controls.text-control;
+    flex: 1;
+    min-width: 0;
+    resize: vertical;
+    font: inherit;
+    font-size: 0.9em;
+  }
+}
+
+.ask-note {
+  margin: 0.45rem 0 0;
+  font-size: 0.72em;
+  color: $neutral-57;
+  text-wrap: pretty;
+}
+
+// While a turn runs the map and the route list hold still: the assistant is
+// editing a copy taken when the turn started, so an edit made now would be lost.
+html.ask-busy {
+  #map,
+  #route-list {
+    pointer-events: none;
+    opacity: 0.75;
+  }
+}

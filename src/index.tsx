@@ -49,6 +49,9 @@ import { clubRoutes } from './routes/clubs'
 import { routeRiderRoutes } from './routes/route-riders'
 import { profileRoutes } from './routes/profile'
 import { builderRoutes } from './routes/builder'
+import { agentRoutes } from './routes/agent'
+import { oauthRoutes } from './routes/oauth'
+import { mcpRoutes } from './mcp/server'
 import { importRoutes } from './routes/import'
 import { trashRoutes } from './routes/trash'
 import { goRoutes } from './routes/go'
@@ -249,6 +252,8 @@ app.use('*', withSession)
 app.get('/dashboard', (c) => c.redirect('/', 301))
 
 app.route('/', authRoutes)
+app.route('/', oauthRoutes)
+app.route('/', mcpRoutes)
 app.route('/', adminRoutes)
 app.route('/', homeRoutes)
 // Both carry literal paths and mount before pageRoutes, whose /:handle{@…}
@@ -269,6 +274,7 @@ app.route('/', placesRoutes)
 app.route('/', bikesRoutes)
 app.route('/', mapsRoutes)
 app.route('/', builderRoutes)
+app.route('/', agentRoutes)
 app.route('/', importRoutes)
 app.route('/', trashRoutes)
 app.route('/', roadbookRoutes)

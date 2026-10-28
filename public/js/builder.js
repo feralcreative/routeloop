@@ -981,8 +981,10 @@
         } catch (_) {
           return;
         }
-        // Our own save, arriving back. The response already rebased us.
-        if (msg.by === window.TB.riderId) return;
+        // Our own save, arriving back. The response already rebased us. UNLESS AN
+        // ASSISTANT MADE IT: an MCP client saves as this rider from somewhere else,
+        // so this tab has never seen the change and has to take it like anybody's.
+        if (msg.by === window.TB.riderId && !msg.agent) return;
         onRemoteSave(msg);
       });
       // EventSource reconnects on its own — closing here would turn a blip into a
@@ -1046,14 +1048,16 @@
     for (const d of changed) {
       const at = state.routes.findIndex((x) => x.uid === d.uid);
       // A route this builder has never seen has no position to be spliced into, so it
-      // is a reload rather than a refresh.
-      if (at === -1) {
+      // is a reload rather than a refresh. EXCEPT FROM AN ASSISTANT, whose add_route
+      // always appends, so the end of the list IS its position.
+      if (at === -1 && !(msg.agent && !state.dirty && !typing)) {
         blocked = true;
         continue;
       }
       // The route under the rider's hands, or unsaved work anywhere: either way this
-      // builder holds something the server has not got.
-      if (d.uid === mine || state.dirty || typing) {
+      // builder holds something the server has not got. An assistant's save skips
+      // the first test: it is this rider's own work, made from another window.
+      if ((d.uid === mine && !msg.agent) || state.dirty || typing) {
         blocked = true;
         continue;
       }
@@ -1074,14 +1078,17 @@
         }
         // Re-read the index: an await happened and the route may have moved. Splicing
         // at a stale index replaces the wrong one.
-        const at = state.routes.findIndex((x) => x.uid === r.uid);
-        if (at === -1) {
+        let at = state.routes.findIndex((x) => x.uid === r.uid);
+        if (at === -1 && msg.agent && !state.dirty) {
+          at = state.routes.length;
+          state.legSeq[at] = [];
+        } else if (at === -1) {
           blocked = true;
           continue;
         }
         // Still not mid-edit, and still clean — both can have changed in flight.
         const nowMine = state.routes[state.active] && state.routes[state.active].uid;
-        if (state.dirty || r.uid === nowMine) {
+        if (state.dirty || (r.uid === nowMine && !msg.agent)) {
           blocked = true;
           continue;
         }
@@ -9872,6 +9879,36 @@
     return ok;
   }
 
+  // THE ASSISTANT'S EDIT, AS ONE UNDO STEP (agent-chat.js). The server edits a copy
+    // of what payload() sent and hands it back; this swaps the routes in through the
+    // LOAD path, the way tourApply() does, and leaves the save to the ordinary
+    // autosave, so the edit goes through the PUT with the rev check and the merge.
+    //
+    // ROUTES ONLY: the agent edits nothing ride-level, so state.meta stays exactly as
+    // the rider has it. And REFUSED IF THE RIDER EDITED DURING THE TURN, because the
+    // copy was taken before that edit and applying it would silently undo it.
+  function agentApply(ride, sentSeq) {
+    if (!CAN_EDIT || !ride || !Array.isArray(ride.routes) || ride.routes.length === 0) return false;
+    if (sentSeq !== editSeq) return false;
+    beginEdit("assistant");
+    const activeUid = state.routes[state.active] && state.routes[state.active].uid;
+    state.routes = ride.routes.map(routeFromPayload);
+    state.routes.forEach(fillMissingLegs);
+    state.routes.forEach((r) => {
+      r.endManual = inferEndManual(r);
+    });
+    state.legSeq = [];
+    const keep = state.routes.findIndex((r) => r.uid === activeUid);
+    state.active = keep >= 0 ? keep : 0;
+    state.select = null;
+    state.rolesOpen = null;
+    state.insertAt = null;
+    renderEverything();
+    renderSelectBar();
+    markDirty();
+    return true;
+  }
+
   // Resolved once init() has loaded the ride and made the map. THE TOUR AWAITS IT
     // BEFORE ITS FIRST FRAME: this object exists from the moment the file runs while
     // the ride arrives by fetch inside init(), so a tour resuming on a page whose
@@ -9888,6 +9925,14 @@
     // `padding` is optional; the tour passes one to keep a card off the road.
     fitTo: (lngLats, padding) => fitTo(state.map, lngLats, padding),
     apply: tourApply,
+    // The assistant's three doors (agent-chat.js): what to send, saving first so a
+    // brand-new ride has an id to post to, and applying what comes back.
+    agentSnapshot: () => ({ seq: editSeq, ride: payload(), rideId: state.rideId }),
+    agentEnsureSaved: async () => {
+      if (!state.rideId) await saveNow();
+      return state.rideId;
+    },
+    applyAgent: agentApply,
     // Awaited before the tour leaves the page, so the beforeunload guard has nothing
     // to hold the rider for.
     settled: () => saveNow(),
