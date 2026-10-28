@@ -5,6 +5,7 @@ import { and, asc, eq, inArray, or } from 'drizzle-orm'
 import { readFile } from 'node:fs/promises'
 import { db } from '../db/index'
 import {
+  aiUsage,
   altVotes,
   bikes,
   feedback,
@@ -237,7 +238,7 @@ async function everythingElse(userId: number) {
   // A person's public identity, for the several places one is named.
   const person = { displayName: users.displayName, username: users.username }
 
-  const [prefs, groups, saved, friendRows, followingRows, followerRows, survey] = await Promise.all([
+  const [prefs, groups, saved, friendRows, followingRows, followerRows, survey, assistant] = await Promise.all([
     db.select().from(notificationPrefs).where(eq(notificationPrefs.userId, userId)),
     // BINNED ONES INCLUDED, here and for places: a row in the recycle bin is
     // still theirs for thirty days and still restorable, so filtering it would
@@ -263,6 +264,9 @@ async function everythingElse(userId: number) {
       .innerJoin(users, eq(users.id, follows.followerId))
       .where(eq(follows.followeeId, userId)),
     db.select().from(surveyResponses).where(eq(surveyResponses.userId, userId)),
+    // What the AI assistant spent on their behalf. The KEY they may have stored
+    // is deliberately absent: it is a credential, and a zip is not where one goes.
+    db.select().from(aiUsage).where(eq(aiUsage.userId, userId)).orderBy(asc(aiUsage.day)),
   ])
 
   // The friend on the OTHER side of each row, resolved in one query rather than
@@ -358,6 +362,15 @@ async function everythingElse(userId: number) {
   }
 
   return {
+    assistantUsage: assistant.map((a) => ({
+      day: a.day,
+      source: a.source,
+      costMicros: a.costMicros,
+      inputTokens: a.inputTokens,
+      outputTokens: a.outputTokens,
+      googleCalls: a.googleCalls,
+      turns: a.turns,
+    })),
     notificationPrefs: prefs.map((p) => ({
       event: p.event,
       channel: p.channel,

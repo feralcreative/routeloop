@@ -351,6 +351,13 @@
       "when": 1791521660365,
       "tag": "0049_ambitious_sugar_man",
       "breakpoints": true
+    },
+    {
+      "idx": 50,
+      "version": "7",
+      "when": 1793166225845,
+      "tag": "0050_quiet_inertia",
+      "breakpoints": true
     }
   ]
 }

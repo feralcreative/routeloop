@@ -113,6 +113,14 @@ describe('the archive covers every table that holds rider data', () => {
     // whoever opens it.
     sessions: 'credential',
     login_tokens: 'credential',
+    // A rider's own Anthropic key, encrypted. Theirs, but a secret, and they
+    // already hold it. What the assistant SPENT is exported as assistantUsage.
+    ai_keys: 'credential',
+    // The MCP server's OAuth grants. A client registration is the outside app's
+    // record, and codes and tokens are credentials.
+    oauth_clients: 'not rider data',
+    oauth_codes: 'credential',
+    oauth_tokens: 'credential',
     // #288. WHICH RELEASES HAVE BEEN ANNOUNCED, keyed by the release, with no
     // rider in it at all — one row per build, not per person. What the rider
     // actually received is in `notifications`, which IS exported.

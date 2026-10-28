@@ -289,3 +289,24 @@ export const ALPHA_GITHUB_URL = process.env.ALPHA_GITHUB_URL ?? 'https://github.
 export const ALPHA_SIGNAL_URL = process.env.ALPHA_SIGNAL_URL ?? 'https://feral.ly/signal'
 export const ALPHA_DISCORD_URL = process.env.ALPHA_DISCORD_URL ?? 'https://discord.gg/5wqFRxqzxN'
 export const ALPHA_VMC_URL = process.env.ALPHA_VMC_URL ?? 'https://vampiresmc.com'
+
+// --- The AI assistant -----------------------------------------------------------
+//
+// THREE OPTIONAL KEYS, the TURNSTILE_* shape: in the deploy's printf block and both
+// compose color blocks, never in REMOTE_ENV_KEYS. With none of them set the
+// assistant hides itself; it never errors.
+//
+// ANTHROPIC_API_KEY pays for the free tier and nothing else. A rider's own key is
+// stored per rider in `ai_keys` and never touches this one.
+export const ANTHROPIC_API_KEY = env('ANTHROPIC_API_KEY', '')
+
+// 32 bytes, base64. The master key a rider's own Anthropic key is sealed under with
+// AES-256-GCM. Losing it makes every stored key unreadable, which costs each rider
+// one paste; leaking it with a database dump exposes them all. It lives in
+// 1Password and in the server's .env, and nowhere else.
+export const AI_KEY_ENCRYPTION_KEY = env('AI_KEY_ENCRYPTION_KEY', '')
+
+// The app-wide monthly ceiling on free-tier spend, in dollars. 0 switches the free
+// tier off for everybody without a deploy-time code change; a rider's own key keeps
+// working regardless.
+export const AI_FREE_MONTHLY_USD = Number(env('AI_FREE_MONTHLY_USD', '25'))
