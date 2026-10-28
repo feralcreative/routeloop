@@ -2111,3 +2111,99 @@ export const clubMembers = pgTable(
 export type ClubRow = typeof clubs.$inferSelect
 export type ClubMemberRow = typeof clubMembers.$inferSelect
 export type ClubPosition = (typeof clubPositionEnum.enumValues)[number]
+
+// --- The AI assistant -------------------------------------------------------
+
+// WHAT THE ASSISTANT SPENT, per rider per UTC day per source. One table carries
+// both budgets: the free tier's dollars are summed over the month, and the Google
+// calls are read for today alone. `source` is `free` (Routeloop's key), `byo` (the
+// rider's own key, recorded so a rider can see it but never capped) or `mcp`
+// (an outside client, which spends no tokens here and only Google calls).
+//
+// Cascades from users, because the row is about that rider and nothing else.
+export const aiUsage = pgTable(
+  'ai_usage',
+  {
+    userId: bigint('user_id', { mode: 'number' })
+      .notNull()
+      .references(() => users.id, { onDelete: 'cascade' }),
+    day: varchar('day', { length: 10 }).notNull(),
+    source: varchar('source', { length: 8 }).notNull(),
+    costMicros: bigint('cost_micros', { mode: 'number' }).notNull().default(0),
+    inputTokens: bigint('input_tokens', { mode: 'number' }).notNull().default(0),
+    outputTokens: bigint('output_tokens', { mode: 'number' }).notNull().default(0),
+    googleCalls: integer('google_calls').notNull().default(0),
+    turns: integer('turns').notNull().default(0),
+  },
+  (t) => [
+    primaryKey({ columns: [t.userId, t.day, t.source] }),
+    // The global ceiling sums every rider's free spend for the month, which is a
+    // range over `day` with no user in it.
+    index('ix_ai_usage_day').on(t.day, t.source),
+    check('ck_ai_usage_source', sql`${t.source} in ('free', 'byo', 'mcp')`),
+  ],
+)
+
+// A RIDER'S OWN ANTHROPIC KEY, encrypted at rest with AES-256-GCM under
+// AI_KEY_ENCRYPTION_KEY. Only `last4` is ever shown back; the key is decrypted in
+// memory for one turn and never logged, exported or returned to a page.
+export const aiKeys = pgTable('ai_keys', {
+  userId: bigint('user_id', { mode: 'number' })
+    .primaryKey()
+    .references(() => users.id, { onDelete: 'cascade' }),
+  ciphertext: varchar('ciphertext', { length: 512 }).notNull(),
+  iv: varchar('iv', { length: 32 }).notNull(),
+  tag: varchar('tag', { length: 32 }).notNull(),
+  last4: varchar('last4', { length: 8 }).notNull(),
+  model: varchar('model', { length: 40 }).notNull(),
+  createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
+})
+
+// OAUTH FOR THE MCP SERVER. Claude and ChatGPT connect to a remote MCP server
+// through OAuth 2.1 with dynamic client registration, so Routeloop is a minimal
+// authorization server: a registered client, a short-lived code, and access and
+// refresh tokens. Every secret is stored as its SHA-256 (`hashToken`), never as
+// itself, the arrangement `sessions` already uses.
+export const oauthClients = pgTable('oauth_clients', {
+  id: varchar('id', { length: 40 }).primaryKey(),
+  name: varchar('name', { length: 120 }).notNull().default(''),
+  redirectUris: jsonb('redirect_uris').$type<string[]>().notNull(),
+  createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+})
+
+export const oauthCodes = pgTable('oauth_codes', {
+  codeHash: varchar('code_hash', { length: 64 }).primaryKey(),
+  clientId: varchar('client_id', { length: 40 })
+    .notNull()
+    .references(() => oauthClients.id, { onDelete: 'cascade' }),
+  userId: bigint('user_id', { mode: 'number' })
+    .notNull()
+    .references(() => users.id, { onDelete: 'cascade' }),
+  redirectUri: varchar('redirect_uri', { length: 2000 }).notNull(),
+  codeChallenge: varchar('code_challenge', { length: 128 }).notNull(),
+  expiresAt: timestamp('expires_at', { withTimezone: true }).notNull(),
+})
+
+export const oauthTokens = pgTable(
+  'oauth_tokens',
+  {
+    id: bigserial('id', { mode: 'number' }).primaryKey(),
+    tokenHash: varchar('token_hash', { length: 64 }).notNull(),
+    kind: varchar('kind', { length: 8 }).notNull(),
+    clientId: varchar('client_id', { length: 40 })
+      .notNull()
+      .references(() => oauthClients.id, { onDelete: 'cascade' }),
+    userId: bigint('user_id', { mode: 'number' })
+      .notNull()
+      .references(() => users.id, { onDelete: 'cascade' }),
+    expiresAt: timestamp('expires_at', { withTimezone: true }).notNull(),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+    lastUsedAt: timestamp('last_used_at', { withTimezone: true }),
+  },
+  (t) => [
+    uniqueIndex('uq_oauth_token_hash').on(t.tokenHash),
+    index('ix_oauth_tokens_user').on(t.userId),
+    check('ck_oauth_token_kind', sql`${t.kind} in ('access', 'refresh')`),
+  ],
+)
