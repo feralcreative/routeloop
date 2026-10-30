@@ -2,8 +2,11 @@
 //
 // The server runs the turn and streams it back (src/routes/agent.ts); this file
 // sends the ride the builder is holding, shows the progress lines as they arrive,
-// and hands any edited ride to TBBuilder.applyAgent(), which makes it one step on
-// Undo and leaves the save to the builder's own autosave.
+// and shows any edit as a PROPOSAL: the list of changes with Apply and Discard.
+// Nothing touches the ride until Apply, which hands it to TBBuilder.applyAgent()
+// as one step on Undo and leaves the save to the builder's own autosave. That gate
+// is what keeps text planted in a ride or a place result from reaching a write the
+// rider never looked at.
 //
 // THE TRANSCRIPT LIVES IN THIS TAB AND NOWHERE ELSE. It is never stored, so there
 // is nothing to export, purge or leak; a reload starts a fresh conversation, and
@@ -22,6 +25,9 @@
   const status = document.getElementById("ask-status");
   const history = [];
   let busy = false;
+  // The proposal still waiting for an answer, if any. A new message supersedes it:
+  // the next turn is sent the ride as it stands, without it.
+  let pending = null;
 
   async function refreshStatus() {
     try {
@@ -85,9 +91,57 @@
     }
   }
 
+  function settle(card, note) {
+    card.querySelectorAll("button").forEach((b) => (b.disabled = true));
+    const p = card.querySelector(".ask-proposal-note");
+    if (p) p.textContent = note;
+    card.classList.add("is-settled");
+    if (pending && pending.card === card) pending = null;
+  }
+
+  function propose(li, proposal, snap) {
+    const card = document.createElement("div");
+    card.className = "ask-proposal";
+    const head = document.createElement("p");
+    head.className = "ask-proposal-head";
+    head.textContent = "Proposed changes";
+    const list = document.createElement("ul");
+    for (const c of proposal.changes || []) {
+      const item = document.createElement("li");
+      item.textContent = c;
+      list.appendChild(item);
+    }
+    const row = document.createElement("p");
+    row.className = "ask-proposal-acts";
+    const apply = document.createElement("button");
+    apply.type = "button";
+    apply.className = "btn";
+    apply.textContent = "Apply";
+    const discard = document.createElement("button");
+    discard.type = "button";
+    discard.className = "btn-quiet";
+    discard.textContent = "Discard";
+    row.append(apply, " ", discard);
+    const note = document.createElement("p");
+    note.className = "ask-proposal-note";
+    note.setAttribute("aria-live", "polite");
+    card.append(head, list, row, note);
+    li.appendChild(card);
+    li.scrollIntoView({ block: "end" });
+    pending = { card };
+
+    apply.addEventListener("click", () => {
+      const B = window.TBBuilder;
+      if (B && B.applyAgent(proposal.payload, snap)) settle(card, "Applied. Undo takes it back.");
+      else settle(card, "The ride changed since I made this, so it can’t be applied. Ask again.");
+    });
+    discard.addEventListener("click", () => settle(card, "Discarded."));
+  }
+
   async function ask(message) {
     const B = window.TBBuilder;
     if (!B || !B.agentSnapshot) return;
+    if (pending) settle(pending.card, "Left out: you asked something else.");
     line("rider", message);
     const reply = line("assistant", "Thinking…");
     reply.classList.add("is-working");
@@ -119,9 +173,13 @@
         else if (event === "done" && data) {
           answer = data.reply;
           text.textContent = answer;
-          if (data.payload && !B.applyAgent(data.payload, snap.seq)) {
-            text.textContent = answer +=
-              " (You edited the ride while I was working, so I left my changes out. Ask again.)";
+          if (data.proposal) {
+            if (B.agentStillCurrent && !B.agentStillCurrent(snap)) {
+              text.textContent = answer +=
+                " (The ride changed while I was working, so I left my changes out. Ask again.)";
+            } else {
+              propose(reply, data.proposal, snap);
+            }
           }
         }
       }

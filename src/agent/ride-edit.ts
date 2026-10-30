@@ -17,7 +17,14 @@
 //   - Deleting a point carries its neighbors' shaping points onto the leg that
 //     replaces them (`rejoinRouteLegs`); moving one clears them, because a move
 //     changes an END of the pair and the hint no longer describes anything.
-import type { PointInput, RidePayload, RoutePayload } from '../maps/ride-graph'
+import {
+  MAX_POINTS,
+  MAX_ROUTES,
+  MAX_STOPS,
+  type PointInput,
+  type RidePayload,
+  type RoutePayload,
+} from '../maps/ride-graph'
 import { haversineM, type Track } from '../maps/kml'
 import type { Role } from '../maps/roles'
 import { ROUTE_COLORS } from '../maps/palette'
@@ -75,6 +82,18 @@ export function pointIndex(route: RoutePayload, pointUid: string): number {
   const i = route.points.findIndex((p) => p.uid === pointUid)
   if (i < 0) throw new EditError(`no point with uid ${pointUid} on route "${route.title || route.uid}"`)
   return i
+}
+
+// The schema's own caps, checked BEFORE the edit rather than discovered by the
+// save: an agent edit that breaks one is a proposal the PUT would 400 forever.
+function roomForPoint(route: RoutePayload): void {
+  if (route.points.length >= MAX_POINTS)
+    throw new EditError(`a route holds at most ${MAX_POINTS} points; start a new route instead`)
+}
+
+function roomForStop(route: RoutePayload): void {
+  if (route.points.filter((p) => p.kind === 'stop').length >= MAX_STOPS)
+    throw new EditError(`a route holds at most ${MAX_STOPS} stops; leave this one as a point to ride past`)
 }
 
 function ensureRouteHasStop(route: RoutePayload): void {
@@ -135,6 +154,8 @@ export function addPoint(
 ): { point: PointInput; stale: Stale[] } {
   const r = routeIndex(ride, routeUid)
   const route = ride.routes[r]
+  roomForPoint(route)
+  if ((opts.roles ?? []).length > 0) roomForStop(route)
   const before = route.points.slice()
   const legs = route.legs.slice()
   const point = newPoint(place, opts.roles ?? [])
@@ -193,17 +214,33 @@ export function removePoint(
   return { stale: releg(r, route, before, legs, carry), trimmed }
 }
 
-/** Reorder a point within its route. Shaping points around both the old and the
- *  new position are cleared, as a drag in the builder clears them. */
+/**
+ * Reorder a point within its route, as builder.js `reorderPoint()` does: every leg
+ * from the one arriving at the earlier index through the one leaving the later
+ * is rebuilt straight with its shaping points cleared, EVEN WHERE ITS PAIR HAPPENS
+ * TO SURVIVE, because a move is the edit that says the road in that span is up
+ * for grabs. Legs outside the span keep their road and their vias.
+ */
 export function movePoint(ride: RidePayload, routeUid: string, pointUid: string, to: number): Stale[] {
   const r = routeIndex(ride, routeUid)
   const route = ride.routes[r]
   const from = pointIndex(route, pointUid)
-  const before = route.points.slice()
-  const legs = route.legs.slice()
+  // Refused rather than clamped, as the builder refuses it: an index past the end
+  // is the model miscounting, and a silently different position is a wrong answer.
+  if (!Number.isInteger(to) || to < 0 || to >= route.points.length)
+    throw new EditError(`position ${to} is outside this route, which has positions 0 to ${route.points.length - 1}`)
+  const dest = to
+  if (dest === from) return []
   const [p] = route.points.splice(from, 1)
-  route.points.splice(Math.max(0, Math.min(route.points.length, to)), 0, p)
-  return releg(r, route, before, legs)
+  route.points.splice(dest, 0, p)
+  const stale: Stale[] = []
+  const lo = Math.max(0, Math.min(from, dest) - 1)
+  const hi = Math.min(route.points.length - 2, Math.max(from, dest))
+  for (let k = lo; k <= hi; k++) {
+    route.legs[k] = straightLeg(route.points[k], route.points[k + 1])
+    stale.push({ route: r, leg: k })
+  }
+  return stale
 }
 
 /** Give a point categories. Any role makes it a stop; clearing them all makes it
@@ -214,6 +251,7 @@ export function setRoles(ride: RidePayload, routeUid: string, pointUid: string, 
   if (roles.length === 0 && p.kind === 'stop' && route.points.filter((q) => q.kind === 'stop').length === 1) {
     throw new EditError('that is the route’s only stop, so it has to keep being one')
   }
+  if (roles.length > 0 && p.kind !== 'stop') roomForStop(route)
   p.roles = roles
   p.kind = roles.length > 0 ? 'stop' : 'poi'
 }
@@ -242,7 +280,12 @@ export function setDeparture(ride: RidePayload, routeUid: string, local: string 
   }
   const m = /^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2})$/.exec(local)
   if (!m) throw new EditError('departure must be a local wall clock like 2026-11-02T09:00')
-  route.startAt = `${m[1]}-${m[2]}-${m[3]}T${m[4]}:${m[5]}:00.000Z`
+  const iso = `${m[1]}-${m[2]}-${m[3]}T${m[4]}:${m[5]}:00.000Z`
+  // A real moment, not just the right shape: 2026-13-45T25:99 matches the pattern,
+  // and a Date built from it rolls over to somewhere else or is invalid outright.
+  const d = new Date(iso)
+  if (Number.isNaN(d.getTime()) || d.toISOString() !== iso) throw new EditError(`${local} is not a real date and time`)
+  route.startAt = iso
   route.endAt = null
 }
 
@@ -253,7 +296,7 @@ export function renameRoute(ride: RidePayload, routeUid: string, title: string):
 /** A new route, appended, starting at one place. Its first point is a stop tagged
  *  `start`, which is the rule the builder applies to the first point of a route. */
 export function addRoute(ride: RidePayload, title: string, start: Place): RoutePayload {
-  if (ride.routes.length >= 31) throw new EditError('a ride holds at most 31 routes')
+  if (ride.routes.length >= MAX_ROUTES) throw new EditError(`a ride holds at most ${MAX_ROUTES} routes`)
   const used = new Set(ride.routes.map((r) => r.color.toLowerCase()))
   const color =
     ROUTE_COLORS.find((c) => !used.has(c.toLowerCase())) ?? ROUTE_COLORS[ride.routes.length % ROUTE_COLORS.length]

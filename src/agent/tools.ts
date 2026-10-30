@@ -44,7 +44,11 @@ export type AgentContext = {
   budget: Budget
   favor: string[]
   avoid: string[]
-  isOwner: boolean
+  /** Whether private stop notes go into what the model reads: the ride's creator
+   *  only, by canSeeDetails(). NOT "can administer", which a co-owner also passes. */
+  includeDetails: boolean
+  /** One line a rider reads on the proposal for each edit that landed. */
+  changes: string[]
   /** One line a rider watching the chat sees while the turn runs. */
   progress: (line: string) => void
   /** Set by any tool that changed the ride. */
@@ -92,7 +96,7 @@ export const TOOLS = [
     description:
       'Read the ride as it stands: every route with its uid, departure and length, and every point in order with its uid, kind (STOP or poi), categories, position, miles from the start of its route and estimated arrival. Call this again after edits if you need the new numbers.',
     schema: z.object({}).strict(),
-    run: async (ctx) => rideSummary(ctx.ride, { units: ctx.units, includeDetails: ctx.isOwner }),
+    run: async (ctx) => rideSummary(ctx.ride, { units: ctx.units, includeDetails: ctx.includeDetails }),
   }),
 
   tool({
@@ -127,6 +131,7 @@ export const TOOLS = [
         { query: input.query, near, radiusM: input.radius_km ? input.radius_km * 1000 : DEFAULT_BIAS_RADIUS_M },
         GMAPS_SERVER_KEY,
       )
+      if (out.ok && out.cached) ctx.budget.refund('search')
       if (!out.ok) return `Place search failed (${out.error}).`
       // The rider's own favor and avoid lists, the weighting /api/places/search applies.
       const hits: PlaceHit[] = rankPlaces(out.places, ctx.favor, ctx.avoid)
@@ -202,6 +207,8 @@ export const TOOLS = [
     schema: z.object({ route_uid: uid, point_uid: uid, to_index: z.number().int().min(0) }).strict(),
     run: async (ctx, input) => {
       const stale = movePoint(ctx.ride, input.route_uid, input.point_uid, input.to_index)
+      // An empty answer is a point already where it was asked to go: nothing changed.
+      if (stale.length === 0) return 'That point is already at that position.'
       ctx.progress('Reordering')
       return settle(ctx, stale, `Moved point ${input.point_uid} to position ${input.to_index}.`)
     },
@@ -271,6 +278,9 @@ export const TOOLS = [
 
 const BY_NAME = new Map(TOOLS.map((t) => [t.name, t]))
 
+/** The tools that never change the ride. Everything else is an edit. */
+export const READS = new Set(['get_ride', 'search_places'])
+
 /** The JSON Schema the model is shown for one tool's input. */
 export function inputSchemaOf(t: (typeof TOOLS)[number]): Record<string, unknown> {
   const { $schema: _drop, ...schema } = z.toJSONSchema(t.schema) as Record<string, unknown>
@@ -290,9 +300,24 @@ export async function runTool(ctx: AgentContext, name: string, rawInput: unknown
       text: `Invalid arguments: ${parsed.error.issues.map((i) => `${i.path.join('.')}: ${i.message}`).join('; ')}`,
       isError: true,
     }
+  // A REFUSED EDIT LEAVES THE RIDE AS IT WAS. Every check in ride-edit.ts runs
+  // before it mutates, but an unexpected throw part-way through would otherwise
+  // leave a half-made edit in the draft with nothing on the proposal naming it.
+  const mutates = !READS.has(name)
+  const before = mutates ? structuredClone(ctx.ride) : null
+  const changedBefore = ctx.changed
+  // Cleared for the call so `changed` afterwards says whether THIS call edited.
+  ctx.changed = false
   try {
-    return { text: await (t.run as Tool<z.ZodObject>['run'])(ctx, parsed.data), isError: false }
+    const text = await (t.run as Tool<z.ZodObject>['run'])(ctx, parsed.data)
+    if (ctx.changed) ctx.changes.push(text)
+    ctx.changed ||= changedBefore
+    return { text, isError: false }
   } catch (err) {
+    if (before) {
+      ctx.ride = before
+      ctx.changed = changedBefore
+    }
     if (err instanceof EditError) return { text: err.message, isError: true }
     console.error(`[agent] tool ${name} failed:`, err instanceof Error ? err.stack : err)
     return { text: 'That tool failed on the server.', isError: true }

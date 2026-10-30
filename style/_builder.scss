@@ -3904,6 +3904,45 @@
   }
 }
 
+// A proposal sits inside the assistant's bubble, under its answer, and touches the
+// ride only on Apply. Settled, it keeps its list and says what happened to it.
+.ask-proposal {
+  margin-top: 0.5rem;
+  padding-top: 0.45rem;
+  border-top: 1px solid $grey;
+
+  ul {
+    margin: 0.2rem 0 0.4rem;
+    padding-left: 1.1rem;
+  }
+
+  li {
+    text-wrap: pretty;
+  }
+
+  &.is-settled ul {
+    color: $neutral-57;
+  }
+}
+
+.ask-proposal-head {
+  margin: 0;
+  font-weight: 700;
+}
+
+.ask-proposal-acts {
+  margin: 0;
+}
+
+.ask-proposal-note {
+  margin: 0.3rem 0 0;
+  color: $neutral-57;
+
+  &:empty {
+    display: none;
+  }
+}
+
 .ask-form {
   display: flex;
   gap: 0.4rem;

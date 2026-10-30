@@ -19,6 +19,8 @@ import {
 import { rideSummary } from '../src/agent/summary'
 import { costMicros, freeTierAllows, FREE_MONTHLY_MICROS } from '../src/agent/policy'
 import { Budget } from '../src/agent/budget'
+import { claimTurn } from '../src/agent/inflight'
+import { runTool, type AgentContext } from '../src/agent/tools'
 import { DAILY_GOOGLE_CALLS, TURN_LIMITS } from '../src/agent/policy'
 
 function pt(uid: string, lng: number, lat: number, kind: 'stop' | 'poi' = 'poi') {
@@ -126,13 +128,36 @@ describe('ride-edit', () => {
     expect(() => removePoint(ride, 'route0000001', 'cccccccccccc')).toThrow(EditError)
   })
 
-  it('a move clears the shaping points around it', () => {
+  it('a move clears every leg whose ends moved, as the builder does, even a surviving pair', () => {
     const ride = fixture()
     const stale = movePoint(ride, 'route0000001', 'aaaaaaaaaaaa', 2)
     expect(ride.routes[0].points.map((p) => p.uid)).toEqual(['bbbbbbbbbbbb', 'cccccccccccc', 'aaaaaaaaaaaa'])
-    expect(ride.routes[0].legs[0].viaPoints).toEqual([[-122.05, 37.31]])
-    expect(ride.routes[0].legs[1].viaPoints).toEqual([])
-    expect(stale).toEqual([{ route: 0, leg: 1 }])
+    // b-c is the same pair as before, and it is cleared anyway: it is inside the span.
+    expect(ride.routes[0].legs.map((l) => l.viaPoints)).toEqual([[], []])
+    expect(stale).toEqual([
+      { route: 0, leg: 0 },
+      { route: 0, leg: 1 },
+    ])
+    expect(valid(ride)).toBe(true)
+  })
+
+  it('a move keeps the road and the vias on legs outside the span', () => {
+    const ride = fixture()
+    const route = ride.routes[0]
+    addPoint(ride, 'route0000001', { name: 'd', lng: -121.9, lat: 36.9 })
+    addPoint(ride, 'route0000001', { name: 'e', lng: -121.8, lat: 36.8 })
+    route.legs[3] = leg([-121.9, 36.9], [-121.8, 36.8], [[-121.85, 36.85]])
+    // a b c d e: move b to index 2, so a c b d e. Legs 0..2 change; leg 3 (d-e) does not.
+    const stale = movePoint(ride, 'route0000001', 'bbbbbbbbbbbb', 2)
+    expect(stale.map((s) => s.leg)).toEqual([0, 1, 2])
+    expect(route.legs[3].viaPoints).toEqual([[-121.85, 36.85]])
+    expect(route.legs).toHaveLength(route.points.length - 1)
+  })
+
+  it('a move to where the point already is changes nothing', () => {
+    const ride = fixture()
+    expect(movePoint(ride, 'route0000001', 'bbbbbbbbbbbb', 1)).toEqual([])
+    expect(ride.routes[0].legs[0].viaPoints).toEqual([[-122.21, 37.71]])
   })
 
   it('replacing a point keeps its uid and re-routes both neighbors', () => {
@@ -163,6 +188,39 @@ describe('ride-edit', () => {
     expect(route.points[0].roles).toEqual(['start'])
     expect(route.color).not.toBe(ride.routes[0].color)
     expect(valid(ride)).toBe(true)
+  })
+
+  it('refuses the 401st point and the 201st stop rather than leaving an unsaveable ride', () => {
+    const ride = fixture()
+    const route = ride.routes[0]
+    while (route.points.length < 400) {
+      const n = route.points.length
+      route.points.push(pt(`p${String(n).padStart(11, '0')}`, -122 + n / 1000, 37, n <= 200 ? 'stop' : 'poi'))
+      route.legs.push(leg([-122, 37], [-122, 37]))
+    }
+    expect(valid(ride)).toBe(true)
+    expect(() => addPoint(ride, 'route0000001', { name: 'one more', lng: -121, lat: 37 })).toThrow(EditError)
+    route.points.pop()
+    route.legs.pop()
+    // A refusal leaves the ride exactly as it was, not half-edited.
+    const before = JSON.stringify(ride)
+    expect(() => addPoint(ride, 'route0000001', { name: 'gas', lng: -121, lat: 37 }, { roles: ['gas'] })).toThrow(
+      EditError,
+    )
+    expect(() => setRoles(ride, 'route0000001', route.points[route.points.length - 1].uid as string, ['food'])).toThrow(
+      EditError,
+    )
+    expect(JSON.stringify(ride)).toBe(before)
+    expect(valid(ride)).toBe(true)
+  })
+
+  it('refuses a departure that has the right shape but is not a real time', () => {
+    const ride = fixture()
+    expect(() => setDeparture(ride, 'route0000001', '2026-13-45T09:00')).toThrow(EditError)
+    expect(() => setDeparture(ride, 'route0000001', '2026-02-30T09:00')).toThrow(EditError)
+    expect(() => setDeparture(ride, 'route0000001', '2026-11-07T25:00')).toThrow(EditError)
+    setDeparture(ride, 'route0000001', '2028-02-29T08:30')
+    expect(ride.routes[0].startAt).toBe('2028-02-29T08:30:00.000Z')
   })
 
   it('an unknown uid is an EditError, never a crash', () => {
@@ -224,6 +282,79 @@ describe('policy', () => {
     const day = new Budget(DAILY_GOOGLE_CALLS - 1)
     expect(day.take('leg')).toBe(true)
     expect(day.take('leg')).toBe(false)
+  })
+
+  it('a cache hit is refunded, and a refund never goes below zero', () => {
+    const b = new Budget(0)
+    b.take('search')
+    b.refund('search')
+    b.refund('search')
+    expect(b.googleCalls).toBe(0)
+    for (let i = 0; i < TURN_LIMITS.placeSearches; i++) expect(b.take('search')).toBe(true)
+  })
+
+  it('MCP has no turn, so only the day bounds it', () => {
+    const b = new Budget(0, { perTurn: false })
+    for (let i = 0; i < TURN_LIMITS.placeSearches + 5; i++) expect(b.take('search')).toBe(true)
+    const day = new Budget(DAILY_GOOGLE_CALLS - 1, { perTurn: false })
+    expect(day.take('search')).toBe(true)
+    expect(day.take('search')).toBe(false)
+  })
+
+  it('a turn may spend the smaller of what is left of the rider’s month and the app’s', () => {
+    const base = { configured: true, riderSpentMicros: 100_000, globalSpentMicros: 0, globalCeilingMicros: 25_000_000 }
+    expect(freeTierAllows(base)).toEqual({ ok: true, remainingMicros: FREE_MONTHLY_MICROS - 100_000 })
+    expect(freeTierAllows({ ...base, globalSpentMicros: 25_000_000 - 1_000 })).toEqual({
+      ok: true,
+      remainingMicros: 1_000,
+    })
+  })
+})
+
+describe('one turn at a time', () => {
+  it('refuses a second claim until the first is released, and a double release is harmless', () => {
+    const release = claimTurn(41)
+    expect(release).not.toBeNull()
+    expect(claimTurn(41)).toBeNull()
+    expect(claimTurn(42)).not.toBeNull()
+    release!()
+    release!()
+    const again = claimTurn(41)
+    expect(again).not.toBeNull()
+    again!()
+  })
+})
+
+describe('runTool', () => {
+  const ctx = (): AgentContext => ({
+    ride: fixture(),
+    units: 'mi',
+    budget: new Budget(0),
+    favor: [],
+    avoid: [],
+    includeDetails: false,
+    changes: [],
+    progress: () => {},
+    changed: false,
+  })
+
+  it('records one change line per edit that landed, and none for a read or a no-op', async () => {
+    const c = ctx()
+    await runTool(c, 'get_ride', {})
+    await runTool(c, 'set_dwell', { route_uid: 'route0000001', point_uid: 'bbbbbbbbbbbb', minutes: 30 })
+    await runTool(c, 'move_stop', { route_uid: 'route0000001', point_uid: 'bbbbbbbbbbbb', to_index: 1 })
+    expect(c.changes).toEqual(['Dwell time set.'])
+    expect(c.changed).toBe(true)
+  })
+
+  it('a refused edit leaves the ride and the change list as they were', async () => {
+    const c = ctx()
+    const before = JSON.stringify(c.ride)
+    const out = await runTool(c, 'move_stop', { route_uid: 'route0000001', point_uid: 'bbbbbbbbbbbb', to_index: 9 })
+    expect(out.isError).toBe(true)
+    expect(JSON.stringify(c.ride)).toBe(before)
+    expect(c.changes).toEqual([])
+    expect(c.changed).toBe(false)
   })
 })
 
