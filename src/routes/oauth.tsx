@@ -162,6 +162,7 @@ oauthRoutes.get('/oauth/authorize', async (c) => {
       user,
       body: `<section class="narrow oauth-consent">
   <h1>Let ${escapeHtml(read.name)} plan with you?</h1>
+  <p class="oauth-where">If you allow it, you will be sent back to <strong>${escapeHtml(new URL(read.req.redirectUri).host)}</strong>. “${escapeHtml(read.name)}” is the name the app gave itself, so only allow it if you just asked an app you trust to connect to&nbsp;Routeloop.</p>
   <p>It will be able to read the rides you are on, search for places, and add, move and remove stops on rides you can edit, as you. It cannot delete a ride, change who can see one, or read your private stop details on anyone else’s&nbsp;ride.</p>
   <p>You can disconnect it any time in Preferences.</p>
   <form method="post" action="/oauth/authorize">
@@ -189,6 +190,7 @@ oauthRoutes.post('/oauth/authorize', requireActive, requireSameOrigin, async (c)
 })
 
 oauthRoutes.post('/oauth/token', async (c) => {
+  void pruneExpired().catch(() => {})
   const body = (await c.req.parseBody()) as Record<string, string | undefined>
   const fail = (error: string) => c.json({ error }, 400)
   if (!body.client_id) return fail('invalid_client')
