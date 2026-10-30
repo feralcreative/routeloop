@@ -44,6 +44,14 @@ How to work:
 
 Answer in plain, short sentences: say what you changed or found, with the numbers that matter (miles, arrival times). No headings, no bullet lists unless the rider asks for a list.`
 
+export const emptyTurn = (): TurnResult => ({
+  reply: '',
+  stop: 'done',
+  costMicros: 0,
+  inputTokens: 0,
+  outputTokens: 0,
+})
+
 export async function runTurn(opts: {
   client: Anthropic
   model: string
@@ -54,6 +62,9 @@ export async function runTurn(opts: {
   /** Stop starting new iterations once the turn has cost this much. */
   maxCostMicros?: number
   onEvent: (e: TurnEvent) => void
+  /** The caller's meter, written as each response lands, so a turn that throws on
+   *  its third call still reports what the first two cost. */
+  out?: TurnResult
 }): Promise<TurnResult> {
   const { client, model, ctx } = opts
   const tools: Anthropic.Tool[] = TOOLS.map((t, i) => ({
@@ -71,14 +82,14 @@ export async function runTurn(opts: {
     .join('\n')
   const opening = [
     transcript ? `Conversation so far:\n${transcript}` : '',
-    `The ride right now:\n${rideSummary(ctx.ride, { units: ctx.units, includeDetails: ctx.isOwner })}`,
+    `The ride right now:\n${rideSummary(ctx.ride, { units: ctx.units, includeDetails: ctx.includeDetails })}`,
     `Rider: ${opts.message.slice(0, 4000)}`,
   ]
     .filter(Boolean)
     .join('\n\n')
 
   const messages: Anthropic.MessageParam[] = [{ role: 'user', content: opening }]
-  const out: TurnResult = { reply: '', stop: 'done', costMicros: 0, inputTokens: 0, outputTokens: 0 }
+  const out: TurnResult = opts.out ?? emptyTurn()
   ctx.progress = (text) => opts.onEvent({ type: 'progress', text })
 
   for (let i = 0; i < TURN_LIMITS.iterations; i++) {

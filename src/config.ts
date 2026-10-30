@@ -309,4 +309,14 @@ export const AI_KEY_ENCRYPTION_KEY = env('AI_KEY_ENCRYPTION_KEY', '')
 // The app-wide monthly ceiling on free-tier spend, in dollars. 0 switches the free
 // tier off for everybody without a deploy-time code change; a rider's own key keeps
 // working regardless.
-export const AI_FREE_MONTHLY_USD = Number(env('AI_FREE_MONTHLY_USD', '25'))
+//
+// FAILS CLOSED: a value that is not a finite, non-negative number switches the free
+// tier off. Number('25 USD') is NaN, and every comparison against NaN is false, so
+// the ceiling would otherwise refuse nobody.
+export const AI_FREE_MONTHLY_USD = (() => {
+  const raw = env('AI_FREE_MONTHLY_USD', '25')
+  const n = Number(raw)
+  if (Number.isFinite(n) && n >= 0) return n
+  console.warn(`[config] AI_FREE_MONTHLY_USD="${raw}" is not a dollar amount; the free assistant is off`)
+  return 0
+})()

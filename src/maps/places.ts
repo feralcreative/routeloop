@@ -58,7 +58,8 @@ export type PlaceHit = { name: string; address: string; lngLat: LngLat; type: st
  *  because a meeting point without a forecourt is still a meeting point. */
 export type PlacesError = 'unconfigured' | 'unreachable' | 'blocked' | 'rejected'
 
-export type PlacesResult = { ok: true; places: PlaceHit[] } | { ok: false; error: PlacesError }
+// `cached` says Google was not asked, which is what the agent's budget counts by.
+export type PlacesResult = { ok: true; places: PlaceHit[]; cached?: true } | { ok: false; error: PlacesError }
 
 const round6 = (n: number) => Math.round(n * 1e6) / 1e6
 
@@ -103,7 +104,7 @@ export async function searchPlaces(req: PlaceSearch, apiKey: string): Promise<Pl
     req.within ? [...req.within.sw, ...req.within.ne].map(round6).join(',') : '',
   ].join('|')
   const cached = placesCache.get(key)
-  if (cached) return { ok: true, places: cached }
+  if (cached) return { ok: true, places: cached, cached: true }
 
   const body: Record<string, unknown> = {
     textQuery: req.query,

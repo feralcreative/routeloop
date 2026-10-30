@@ -74,13 +74,18 @@ export type FreeTierState = {
 export type FreeTierAnswer =
   { ok: true; remainingMicros: number } | { ok: false; reason: 'off' | 'rider-cap' | 'global-cap' }
 
-/** Whether a free-tier turn may START. A turn already running finishes even if it
- *  crosses the line, which bounds the overshoot to one turn's worth. */
+/** Whether a free-tier turn may START, and the most it may spend: the smaller of
+ *  what is left of the rider's month and of the app's. The turn stops starting new
+ *  model calls at that line, so a running turn overshoots by at most one call, and
+ *  riders running turns at the same moment by one call each. */
 export function freeTierAllows(s: FreeTierState): FreeTierAnswer {
   if (!s.configured || s.globalCeilingMicros <= 0) return { ok: false, reason: 'off' }
   if (s.globalSpentMicros >= s.globalCeilingMicros) return { ok: false, reason: 'global-cap' }
   if (s.riderSpentMicros >= FREE_MONTHLY_MICROS) return { ok: false, reason: 'rider-cap' }
-  return { ok: true, remainingMicros: FREE_MONTHLY_MICROS - s.riderSpentMicros }
+  return {
+    ok: true,
+    remainingMicros: Math.min(FREE_MONTHLY_MICROS - s.riderSpentMicros, s.globalCeilingMicros - s.globalSpentMicros),
+  }
 }
 
 export const REFUSALS: Record<'off' | 'rider-cap' | 'global-cap' | 'google-cap', string> = {

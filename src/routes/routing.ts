@@ -15,7 +15,13 @@ import { twistiness } from '../maps/twist'
 import { requireActiveApi, requireAuthApi, requireSameOrigin, type AuthEnv } from '../auth/middleware'
 import { GMAPS_SERVER_KEY } from '../config'
 import { MAX_VIAS_PER_LEG } from '../maps/ride-graph'
-import { type AddressHit, type GoogleComponent, addressParts, fromPlacesComponents, isNamedPlace } from '../maps/address'
+import {
+  type AddressHit,
+  type GoogleComponent,
+  addressParts,
+  fromPlacesComponents,
+  isNamedPlace,
+} from '../maps/address'
 import { autocompletePlaces, placeDetails, searchPlaces, type PlacesError } from '../maps/places'
 import { parseTerms, rankPlaces } from '../places/ranking'
 import { placeListsFor } from '../views/prefs'
@@ -171,7 +177,8 @@ routingRoutes.post('/api/route', requireAuthApi, requireActiveApi, requireSameOr
  *  caller that can carry on without a road treats them all the same. */
 export type RouteError = 'unconfigured' | 'unreachable' | 'rejected' | 'no-route'
 
-export type RouteResult = { ok: true; leg: RouteLeg } | { ok: false; error: RouteError }
+// `cached` says Google was not asked, which is what the agent's budget counts by.
+export type RouteResult = { ok: true; leg: RouteLeg; cached?: true } | { ok: false; error: RouteError }
 
 /**
  * One routed leg, from the cache or from Google.
@@ -182,6 +189,17 @@ export type RouteResult = { ok: true; leg: RouteLeg } | { ok: false; error: Rout
  *
  * Never throws: every failure is `{ ok: false, error }`.
  */
+/** A leg the cache already holds, or null. Free to ask, so a caller holding a
+ *  budget can serve these before claiming any of it for the ones Google must draw. */
+export function cachedRouteLeg(
+  origin: LngLat,
+  destination: LngLat,
+  vias: LngLat[] = [],
+  prefs: RoutePrefs | null = null,
+): RouteLeg | null {
+  return cache.get(cacheKey(origin, destination, vias, prefs)) ?? null
+}
+
 export async function fetchRouteLeg(
   origin: LngLat,
   destination: LngLat,
@@ -192,7 +210,7 @@ export async function fetchRouteLeg(
 
   const key = cacheKey(origin, destination, vias, prefs)
   const hit = cache.get(key)
-  if (hit) return { ok: true, leg: hit }
+  if (hit) return { ok: true, leg: hit, cached: true }
 
   const modifiers = toRouteModifiers(prefs)
   const twisty = wantsTwisty(prefs)
