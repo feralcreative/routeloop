@@ -7,10 +7,11 @@
 // use. That is deliberate: a second write path for "apply a route" would be a
 // second place for the graph's invariants to be got wrong, and this one already
 // handles uids, alts, subgroups, votes, details and comments correctly.
-import { and, asc, eq, isNull } from 'drizzle-orm'
+import { and, asc, eq, isNull, sql } from 'drizzle-orm'
 import { db } from '../db/index'
 import { routes as routesTable, points as pointsTable, rideSuggestions, rides, users, type RideRow } from '../db/schema'
 import { membershipOf } from '../members/service'
+import { publish } from '../live/hub'
 import { routePayload, insertRideGraph, rideTotals, type RoutePayload } from '../maps/ride-graph'
 import { loadRidePayload } from '../routes/builder'
 import {
@@ -172,31 +173,56 @@ export async function accept(rideId: number, viewerId: number, id: number, ride:
   if (!row) return { ok: false, reason: 'not-found' }
   if (!canDecide(viewer)) return { ok: false, reason: 'refused' }
 
-  const shapes = await routeShapes(rideId)
-  const shape = shapes.get(row.routeUid)
-  if (!isActionable(suggestionState(row, shape ? routeFingerprint(shape) : null))) {
-    return { ok: false, reason: 'stale' }
-  }
+  // THE WHOLE ACCEPT RUNS UNDER THE RIDE'S ROW LOCK, the one saveRide() takes, and
+  // the read happens AFTER it. Read first and a builder save landing in between is
+  // deleted by the replace below, with both writes reporting success; and the rev
+  // is bumped, or a builder still holding the old rev overwrites the accepted route.
+  const after = await db.transaction(async (tx) => {
+    await tx.select({ rev: rides.rev }).from(rides).where(eq(rides.id, rideId)).for('update')
 
-  // The ride as it stands, with the one route swapped for the proposal. Read
-  // through the builder's own loader so the shape is exactly what the save path
-  // expects — details included, because the accepting rider is the owner.
-  const current = await loadRidePayload(ride, { id: viewerId })
-  const proposed = row.payload as RoutePayload
-  const routes = (current.routes as RoutePayload[]).map((d) => (d.uid === row.routeUid ? proposed : d))
+    const shapes = await routeShapes(rideId)
+    const shape = shapes.get(row.routeUid)
+    if (!isActionable(suggestionState(row, shape ? routeFingerprint(shape) : null))) return null
 
-  await db.transaction(async (tx) => {
+    // The ride as it stands, with the one route swapped for the proposal. Read
+    // through the builder's own loader so the shape is exactly what the save path
+    // expects. Reads go through `db` rather than `tx`, which is safe because every
+    // writer takes the lock held above first and so cannot be part-way through.
+    const current = await loadRidePayload(ride, { id: viewerId })
+    const proposed = row.payload as RoutePayload
+    const routes = (current.routes as RoutePayload[]).map((d) => (d.uid === row.routeUid ? proposed : d))
     const payload = { ...current, routes } as Parameters<typeof insertRideGraph>[2]
-    await tx
+    const [written] = await tx
       .update(rides)
-      .set({ ...rideTotals(payload), updatedAt: new Date() })
+      .set({ ...rideTotals(payload), rev: sql`${rides.rev} + 1`, updatedAt: new Date() })
       .where(eq(rides.id, rideId))
+      .returning({ rev: rides.rev })
     await tx.delete(routesTable).where(eq(routesTable.rideId, rideId))
-    await insertRideGraph(tx, rideId, payload)
+    // PRESERVE, NEVER RECONCILE. The proposed route came from a rider who was sent
+    // no private details, so it carries none, and a reconciling write would delete
+    // every gate code on the route it replaces; a co-owner accepting would lose the
+    // creator's details on every route. A suggestion cannot edit details, so
+    // leaving them untouched is the whole policy; a detail on a point the
+    // suggestion dropped lingers until the creator's next save reconciles it.
+    await insertRideGraph(tx, rideId, payload, 'preserve')
     await tx
       .update(rideSuggestions)
       .set({ resolvedAt: new Date(), outcome: 'accepted' })
       .where(eq(rideSuggestions.id, id))
+    const stored = await tx
+      .select({ uid: routesTable.uid, hash: routesTable.contentHash })
+      .from(routesTable)
+      .where(eq(routesTable.rideId, rideId))
+    return { rev: written.rev, stored }
+  })
+  if (!after) return { ok: false, reason: 'stale' }
+
+  // Told to every open builder, the shape saveRide() publishes, so a rider with the
+  // ride open takes the accepted route instead of saving over it.
+  publish(rideId, 'routes', {
+    by: viewerId,
+    rev: after.rev,
+    routes: after.stored.filter((d) => d.hash !== null).map((d) => ({ uid: d.uid, hash: d.hash })),
   })
   return { ok: true }
 }
