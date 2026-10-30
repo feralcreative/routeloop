@@ -70,6 +70,18 @@ export function canSeeDetails(ownerId: number, viewer: { id: number } | null): b
 }
 
 /**
+ * How a save treats `point_details`, decided by THE SAME RULE that decided what
+ * the saver was sent. Only a saver who was given the details may reconcile them:
+ * anybody else's payload carries none, and a reconciling write reads that as every
+ * one being cleared. A CO-OWNER IS ANYBODY ELSE HERE. `canAdminister()` is true for
+ * them and picked this mode until 2026-10-29, so a co-owner's save deleted every
+ * gate code and confirmation number the creator had stored.
+ */
+export function detailsModeFor(ownerId: number, saver: { id: number }): 'reconcile' | 'preserve' {
+  return canSeeDetails(ownerId, saver) ? 'reconcile' : 'preserve'
+}
+
+/**
  * Every detail row on a ride, with no permission check.
  *
  * For callers that have ALREADY established ownership — the builder's own load

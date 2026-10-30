@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { canSeeDetails, hasDetails, type PointDetailsOut } from '../src/maps/point-details'
+import { canSeeDetails, detailsModeFor, hasDetails, type PointDetailsOut } from '../src/maps/point-details'
 import { ensureUids, isUid, newUid, UID_LENGTH } from '../src/maps/uid'
 import { ridePayload } from '../src/maps/ride-graph'
 
@@ -15,6 +15,18 @@ const blank: PointDetailsOut = {
 
 // The privacy boundary for gate codes and confirmation numbers. Everything else
 // in this file is mechanics; this describe block is the feature.
+// A co-owner passes canAdminister() but is sent no details, so their save has to
+// preserve them. Reconciling there deleted the creator's gate codes until 2026-10-29.
+describe('detailsModeFor', () => {
+  it('reconciles only for the creator, who was sent the details', () => {
+    expect(detailsModeFor(7, { id: 7 })).toBe('reconcile')
+  })
+
+  it('preserves for anybody else, a co-owner included', () => {
+    expect(detailsModeFor(7, { id: 8 })).toBe('preserve')
+  })
+})
+
 describe('canSeeDetails', () => {
   it('lets the owner in', () => {
     expect(canSeeDetails(7, { id: 7 })).toBe(true)

@@ -23,7 +23,7 @@ import { currentUser, requireActive, requireActiveApi, requireSameOrigin, type A
 import { METERS_PER_MILE, distFromStartAlongTrack, sanitizeText, trackMeters, type Track } from '../maps/kml'
 import { toDurationFormat, type DurationFormat } from '../maps/duration'
 import { ROUTE_COLORS } from '../maps/palette'
-import { detailsForViewer } from '../maps/point-details'
+import { detailsForViewer, detailsModeFor } from '../maps/point-details'
 import { MAX_ROLES_PER_POINT, ROLES, ROLE_META } from '../maps/roles'
 import { twistiness } from '../maps/twist'
 import { faqLink, googleMapsLoader, page, panelShell, rideTimeline, wordsOf } from '../views/layout'
@@ -447,10 +447,10 @@ export async function saveRide(
       .returning({ rev: rides.rev })
     // Full replace: routes cascade to points and legs.
     await tx.delete(routesTable).where(eq(routesTable.rideId, ride.id))
-    // `preserve` for a non-owner — see DetailsMode in ride-graph.ts. Their
-    // payload carries no details because they were never sent any, and a
-    // reconciling write would read that as the rider clearing every one.
-    await insertRideGraph(tx, ride.id, p, isOwner ? 'reconcile' : 'preserve')
+    // `preserve` for anybody who was not sent the details, a co-owner included —
+    // see detailsModeFor(). Their payload carries none, and a reconciling write
+    // would read that as the rider clearing every one.
+    await insertRideGraph(tx, ride.id, p, detailsModeFor(ride.ownerId, user))
     // Read back AFTER the write, so the client's next save is based on what is
     // actually stored rather than on what this request believed it wrote.
     const after = await tx
