@@ -2200,10 +2200,19 @@ export const oauthTokens = pgTable(
     expiresAt: timestamp('expires_at', { withTimezone: true }).notNull(),
     createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
     lastUsedAt: timestamp('last_used_at', { withTimezone: true }),
+    // The grant every token descends from: minted when a code is redeemed and
+    // inherited by every refresh, so a replayed refresh token can revoke the whole
+    // line, the attacker's copy included. Nullable only so the column is additive.
+    familyId: varchar('family_id', { length: 32 }),
+    // Set when a refresh token is rotated, instead of deleting it: a spent token
+    // presented again is the signal that one of two parties holding it is not the
+    // rider. Swept with the rest once it expires.
+    usedAt: timestamp('used_at', { withTimezone: true }),
   },
   (t) => [
     uniqueIndex('uq_oauth_token_hash').on(t.tokenHash),
     index('ix_oauth_tokens_user').on(t.userId),
+    index('ix_oauth_tokens_family').on(t.familyId),
     check('ck_oauth_token_kind', sql`${t.kind} in ('access', 'refresh')`),
   ],
 )

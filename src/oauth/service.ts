@@ -2,7 +2,7 @@
 // is stored as its SHA-256, the arrangement `sessions` uses, so a database dump
 // holds nothing anybody can present.
 import { randomBytes } from 'node:crypto'
-import { and, desc, eq, gt, lt } from 'drizzle-orm'
+import { and, desc, eq, gt, isNull, lt } from 'drizzle-orm'
 import { db } from '../db/index'
 import { oauthClients, oauthCodes, oauthTokens, users, type UserRow } from '../db/schema'
 import { hashToken } from '../auth/session'
@@ -41,17 +41,31 @@ export async function issueCode(
 
 export type Tokens = { access_token: string; refresh_token: string; token_type: 'Bearer'; expires_in: number }
 
-async function issueTokens(clientId: string, userId: number): Promise<Tokens> {
+type Tx = Parameters<Parameters<typeof db.transaction>[0]>[0]
+
+const newFamily = () => randomBytes(16).toString('hex')
+
+/** A fresh pair in one family, written through the caller's transaction so the
+ *  credential that paid for it and the pair it bought commit or fail together. */
+async function issueTokens(tx: Tx, clientId: string, userId: number, familyId: string): Promise<Tokens> {
   const access = secret()
   const refresh = secret()
   const now = Date.now()
-  await db.insert(oauthTokens).values([
-    { tokenHash: await hashToken(access), kind: 'access', clientId, userId, expiresAt: new Date(now + ACCESS_TTL_MS) },
+  await tx.insert(oauthTokens).values([
+    {
+      tokenHash: await hashToken(access),
+      kind: 'access',
+      clientId,
+      userId,
+      familyId,
+      expiresAt: new Date(now + ACCESS_TTL_MS),
+    },
     {
       tokenHash: await hashToken(refresh),
       kind: 'refresh',
       clientId,
       userId,
+      familyId,
       expiresAt: new Date(now + REFRESH_TTL_MS),
     },
   ])
@@ -60,7 +74,11 @@ async function issueTokens(clientId: string, userId: number): Promise<Tokens> {
 
 /**
  * Redeem an authorization code. ONE USE: the row is deleted in the same statement
- * that reads it, so a code replayed after a successful exchange finds nothing.
+ * that reads it, so a code replayed after an exchange finds nothing. A code
+ * presented with the wrong verifier or client is spent too, which is the rule
+ * rather than a side effect: whoever sent it does not hold the verifier. The
+ * delete and the new tokens share a transaction, so a failed insert does not burn
+ * a code that paid for nothing.
  */
 export async function redeemCode(opts: {
   code: string
@@ -68,26 +86,51 @@ export async function redeemCode(opts: {
   redirectUri: string
   verifier: string
 }): Promise<Tokens | null> {
-  const [row] = await db
-    .delete(oauthCodes)
-    .where(eq(oauthCodes.codeHash, await hashToken(opts.code)))
-    .returning()
-  if (!row) return null
-  if (row.expiresAt.getTime() < Date.now()) return null
-  if (row.clientId !== opts.clientId || row.redirectUri !== opts.redirectUri) return null
-  if (s256(opts.verifier) !== row.codeChallenge) return null
-  return issueTokens(row.clientId, row.userId)
+  const codeHash = await hashToken(opts.code)
+  return db.transaction(async (tx) => {
+    const [row] = await tx.delete(oauthCodes).where(eq(oauthCodes.codeHash, codeHash)).returning()
+    if (!row) return null
+    if (row.expiresAt.getTime() < Date.now()) return null
+    if (row.clientId !== opts.clientId || row.redirectUri !== opts.redirectUri) return null
+    if (s256(opts.verifier) !== row.codeChallenge) return null
+    return issueTokens(tx, row.clientId, row.userId, newFamily())
+  })
 }
 
-/** Trade a refresh token for a new pair. ROTATED: the old one is deleted, so a
- *  stolen refresh token stops working the first time either party uses it. */
+/**
+ * Trade a refresh token for a new pair. ROTATED WITH REPLAY DETECTION: the old
+ * token is marked used rather than deleted, and a used one presented again
+ * revokes its whole family. Two parties holding one refresh token means one of
+ * them stole it, and the server cannot tell which, so both lose the grant and the
+ * rider reconnects; deleting the old row instead would let whoever used it first
+ * keep a working pair forever.
+ */
 export async function refresh(token: string, clientId: string): Promise<Tokens | null> {
-  const [row] = await db
-    .delete(oauthTokens)
-    .where(and(eq(oauthTokens.tokenHash, await hashToken(token)), eq(oauthTokens.kind, 'refresh')))
-    .returning()
-  if (!row || row.clientId !== clientId || row.expiresAt.getTime() < Date.now()) return null
-  return issueTokens(row.clientId, row.userId)
+  const tokenHash = await hashToken(token)
+  return db.transaction(async (tx) => {
+    const [row] = await tx
+      .select()
+      .from(oauthTokens)
+      .where(and(eq(oauthTokens.tokenHash, tokenHash), eq(oauthTokens.kind, 'refresh')))
+      .for('update')
+    if (!row) return null
+    if (row.usedAt) {
+      // A family minted before families existed has none to revoke, so its own
+      // client's tokens for this rider go instead.
+      await tx
+        .delete(oauthTokens)
+        .where(
+          row.familyId
+            ? eq(oauthTokens.familyId, row.familyId)
+            : and(eq(oauthTokens.userId, row.userId), eq(oauthTokens.clientId, row.clientId)),
+        )
+      return null
+    }
+    if (row.clientId !== clientId || row.expiresAt.getTime() < Date.now()) return null
+    const family = row.familyId ?? newFamily()
+    await tx.update(oauthTokens).set({ usedAt: new Date(), familyId: family }).where(eq(oauthTokens.id, row.id))
+    return issueTokens(tx, row.clientId, row.userId, family)
+  })
 }
 
 /** The rider an access token acts as, or null. Only an ACTIVE account passes, the
@@ -120,7 +163,7 @@ export async function connectedApps(userId: number) {
     })
     .from(oauthTokens)
     .innerJoin(oauthClients, eq(oauthClients.id, oauthTokens.clientId))
-    .where(and(eq(oauthTokens.userId, userId), gt(oauthTokens.expiresAt, new Date())))
+    .where(and(eq(oauthTokens.userId, userId), gt(oauthTokens.expiresAt, new Date()), isNull(oauthTokens.usedAt)))
     .orderBy(desc(oauthTokens.createdAt))
   const seen = new Map<string, (typeof rows)[number]>()
   for (const r of rows) if (!seen.has(r.clientId)) seen.set(r.clientId, r)
@@ -131,9 +174,14 @@ export async function revokeApp(userId: number, clientId: string): Promise<void>
   await db.delete(oauthTokens).where(and(eq(oauthTokens.userId, userId), eq(oauthTokens.clientId, clientId)))
 }
 
-/** Expired codes and tokens, swept on registration so the tables cannot grow
- *  without bound and no sixth timer is needed. */
+let prunedAt = 0
+
+/** Expired codes and tokens, used refresh tokens included once they expire. Swept
+ *  from registration and from the token endpoint, at most every ten minutes, so the
+ *  tables cannot grow without bound and no sixth timer is needed. */
 export async function pruneExpired(): Promise<void> {
+  if (Date.now() - prunedAt < 10 * 60 * 1000) return
+  prunedAt = Date.now()
   const now = new Date()
   await db.delete(oauthCodes).where(lt(oauthCodes.expiresAt, now))
   await db.delete(oauthTokens).where(lt(oauthTokens.expiresAt, now))
