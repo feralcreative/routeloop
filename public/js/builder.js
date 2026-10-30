@@ -776,6 +776,11 @@
     // after. (A boolean set by flushNow() was the first version and missed the
     // common case: typing does not call flushNow().)
   let editSeq = 0;
+  // Bumped whenever ANOTHER rider's route is installed by onRemoteSave(). editSeq
+  // counts only this rider's edits, so an assistant proposal built from a snapshot
+  // taken before a collaborator's save would otherwise pass agentApply()'s check
+  // and replace their route with the older copy.
+  let remoteSeq = 0;
 
   // Why a flush cannot happen, in the rider's words, or null. save() used to
     // enforce these with a toast and a focus jump, which is wrong for autosave: a
@@ -1094,6 +1099,7 @@
         }
         state.routes[at] = routeFromPayload(body.route, at);
         state.routes[at].endManual = inferEndManual(state.routes[at]);
+        remoteSeq++;
         // Rebase, or the next save sends this route with its pre-refresh hash and the
         // merge reads it as contested.
         if (r.hash) state.routeBase[r.uid] = r.hash;
@@ -2195,8 +2201,11 @@
     const [moved] = route.points.splice(from, 1);
     route.points.splice(to, 0, moved);
 
+    // Legs lo..hi are the ones whose ends moved: the leg arriving at the earlier
+    // index through the one leaving the later. `+ 1` here cleared the shaping points
+    // on the leg after that too, whose two ends had not moved at all.
     const lo = Math.min(from, to) - 1;
-    const hi = Math.max(from, to) + 1;
+    const hi = Math.max(from, to);
     const idx = [];
     for (let k = lo; k <= hi; k++) {
       // Shaping points belong to the pair the leg used to join, so they are
@@ -9879,17 +9888,19 @@
     return ok;
   }
 
-  // THE ASSISTANT'S EDIT, AS ONE UNDO STEP (agent-chat.js). The server edits a copy
-    // of what payload() sent and hands it back; this swaps the routes in through the
-    // LOAD path, the way tourApply() does, and leaves the save to the ordinary
-    // autosave, so the edit goes through the PUT with the rev check and the merge.
+  // THE ASSISTANT'S PROPOSAL, APPLIED AS ONE UNDO STEP when the rider presses Apply
+    // (agent-chat.js). The server edits a copy of what payload() sent and hands it
+    // back; this swaps the routes in through the LOAD path, the way tourApply() does,
+    // and leaves the save to the ordinary autosave, so the edit goes through the PUT
+    // with the rev check and the merge.
     //
     // ROUTES ONLY: the agent edits nothing ride-level, so state.meta stays exactly as
-    // the rider has it. And REFUSED IF THE RIDER EDITED DURING THE TURN, because the
-    // copy was taken before that edit and applying it would silently undo it.
-  function agentApply(ride, sentSeq) {
+    // the rider has it. And REFUSED IF ANYTHING CHANGED SINCE THE SNAPSHOT, this
+    // rider's edit or another rider's save taken by onRemoteSave(), because the copy
+    // was taken before it and applying it would silently undo it.
+  function agentApply(ride, sent) {
     if (!CAN_EDIT || !ride || !Array.isArray(ride.routes) || ride.routes.length === 0) return false;
-    if (sentSeq !== editSeq) return false;
+    if (!sent || sent.seq !== editSeq || sent.remote !== remoteSeq) return false;
     beginEdit("assistant");
     const activeUid = state.routes[state.active] && state.routes[state.active].uid;
     state.routes = ride.routes.map(routeFromPayload);
@@ -9927,7 +9938,10 @@
     apply: tourApply,
     // The assistant's three doors (agent-chat.js): what to send, saving first so a
     // brand-new ride has an id to post to, and applying what comes back.
-    agentSnapshot: () => ({ seq: editSeq, ride: payload(), rideId: state.rideId }),
+    agentSnapshot: () => ({ seq: editSeq, remote: remoteSeq, ride: payload(), rideId: state.rideId }),
+    // Whether a proposal built from `snap` could still be applied, so the chat can
+    // say so before the rider presses Apply rather than after.
+    agentStillCurrent: (snap) => !!snap && snap.seq === editSeq && snap.remote === remoteSeq,
     agentEnsureSaved: async () => {
       if (!state.rideId) await saveNow();
       return state.rideId;
