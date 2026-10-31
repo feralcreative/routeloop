@@ -164,7 +164,7 @@ oauthRoutes.get('/oauth/authorize', async (c) => {
   <h1>Let ${escapeHtml(read.name)} plan with you?</h1>
   <p class="oauth-where">If you allow it, you will be sent back to <strong>${escapeHtml(new URL(read.req.redirectUri).host)}</strong>. “${escapeHtml(read.name)}” is the name the app gave itself, so only allow it if you just asked an app you trust to connect to&nbsp;Routeloop.</p>
   <p>It will be able to read the rides you are on, search for places, and add, move and remove stops on rides you can edit, as you. It cannot delete a ride, change who can see one, or read your private stop details on anyone else’s&nbsp;ride.</p>
-  <p>You can disconnect it any time in Preferences.</p>
+  <p>You can disconnect it any time under Robots in your account&nbsp;settings.</p>
   <form method="post" action="/oauth/authorize">
     ${hidden}
     <button type="submit" class="btn" name="decision" value="allow">Allow</button>
@@ -216,5 +216,5 @@ oauthRoutes.post('/oauth/token', async (c) => {
 oauthRoutes.post('/settings/apps/revoke', requireActive, requireSameOrigin, async (c) => {
   const body = await c.req.parseBody()
   if (typeof body.client_id === 'string') await revokeApp(currentUser(c).id, body.client_id)
-  return c.redirect('/settings?saved=apps#apps', 303)
+  return c.redirect('/robots?saved=apps#apps', 303)
 })

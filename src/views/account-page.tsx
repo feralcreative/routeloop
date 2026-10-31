@@ -62,7 +62,7 @@ import { BYO_ENABLED, freeTierState, storedKeyOf } from '../agent/usage'
 import { BYO_MODELS, dollars, FREE_MONTHLY_MICROS } from '../agent/policy'
 import { connectedApps } from '../oauth/service'
 
-export type AccountTab = 'preferences' | 'profile' | 'paddock' | 'places'
+export type AccountTab = 'preferences' | 'profile' | 'paddock' | 'places' | 'robots'
 
 // The Paddock and Places tabs are static markup driven by paddock.js and
 // places.js against their APIs, so they render here rather than arriving from a
@@ -205,7 +205,7 @@ async function prefsFor(userId: number) {
 }
 
 /**
- * The whole page, with one of its four tabs open.
+ * The whole page, with one of its five tabs open.
  *
  * `profile` is the rendered Profile panel, `scripts` what it needs loaded. Both
  * come from profile.tsx, which owns that form's validation and its error
@@ -325,7 +325,7 @@ export async function accountPage(
           rider who pressed "Your profile" and landed on a page headed Account
           settings has been told they went somewhere else — which is the
           confusion the merge exists to remove, arriving from the other side.
-          The tab strip under it says which of the four they are on either way.
+          The tab strip under it says which of the five they are on either way.
           "Account settings" rather than "Settings" since #320, when the menu
           item became My Account.
 
@@ -396,6 +396,17 @@ export async function accountPage(
           tabindex={tabOn('places') ? undefined : -1}
         >
           Places
+        </button>
+        <button
+          type="button"
+          class={`page-tab${tabOn('robots') ? ' is-active' : ''}`}
+          role="tab"
+          id="tab-robots"
+          aria-controls="panel-robots"
+          aria-selected={tabOn('robots') ? 'true' : 'false'}
+          tabindex={tabOn('robots') ? undefined : -1}
+        >
+          Robots
         </button>
       </div>
 
@@ -1161,125 +1172,6 @@ export async function accountPage(
           them would make every save rewrite every answer, which is a race
           between two open tabs. A group is the unit a rider thinks in anyway.
         */}
-        {/*
-          OUTSIDE AI APPS (the MCP server, 2026-10-27). A rider who plans in Claude
-          or ChatGPT adds this address as a connector there and signs in; the app
-          then plans as them, on their own subscription. Listed here so it can be
-          disconnected from the side that granted it.
-        */}
-        <section class="setting-topic" id="apps">
-          <h2>Plan from Claude or ChatGPT</h2>
-          <p>
-            Add Routeloop as a connector in Claude or ChatGPT with this address, then sign in when it asks. It can read
-            your rides and edit the ones you can edit, and costs Routeloop&nbsp;nothing.
-          </p>
-          <p>
-            <code>{`${APP_ORIGIN}/mcp`}</code>
-          </p>
-          {apps.length ? (
-            <ul class="cards">
-              {apps.map((a) => (
-                <li>
-                  <b>{a.name}</b>
-                  <span class="field-hint"> connected {a.createdAt.toISOString().slice(0, 10)}</span>
-                  <form method="post" action="/settings/apps/revoke" class="setting-form">
-                    <input type="hidden" name="client_id" value={a.clientId} />
-                    <button type="submit" class="btn-quiet">
-                      Disconnect
-                    </button>
-                  </form>
-                </li>
-              ))}
-            </ul>
-          ) : (
-            <p class="field-hint">No apps connected.</p>
-          )}
-          <Saved when={on('apps')} />
-        </section>
-
-        {/*
-          THE ASSISTANT (2026-10-27). The free allowance is shown as a sentence
-          rather than a meter: it is a courtesy, not a balance anybody is billed
-          against. A rider's own key is pasted, checked against Anthropic once,
-          sealed, and only ever shown again as its last four characters. NO
-          AUTOSAVE: a key half-pasted is not a key, and checking one costs a call.
-        */}
-        {aiOffered ? (
-          <section class="setting-topic" id="ai">
-            <h2>Planning assistant</h2>
-            <p>
-              The Ask tab in the builder plans with you: it reads the ride, searches for places, and changes routes as
-              one step you can undo. Its messages go to Anthropic, who run the model, and are not kept by&nbsp;Routeloop.
-            </p>
-            {ownKey ? (
-              <p>
-                <b>Using your own Anthropic key</b> (ending {ownKey.last4}). It is charged to your Anthropic account, with
-                no Routeloop&nbsp;limit.
-              </p>
-            ) : freeState && ANTHROPIC_API_KEY !== '' ? (
-              <p>
-                Free: {dollars(freeState.riderSpentMicros)} of {dollars(FREE_MONTHLY_MICROS)} used this month. It resets on
-                the 1st. Add your own key for more, on any&nbsp;model.
-              </p>
-            ) : (
-              <p>There is no free allowance on this server. Add your own Anthropic key to use the&nbsp;assistant.</p>
-            )}
-            {BYO_ENABLED ? (
-              <section class="setting" id="ai-key">
-                <h3>Your Anthropic key</h3>
-                <form method="post" action="/settings/ai" class="setting-form">
-                  <p class="field">
-                    <label for="f-ai-key">{ownKey ? 'Replace your key (leave empty to keep it)' : 'API key'}</label>
-                    <input
-                      id="f-ai-key"
-                      name="key"
-                      type="password"
-                      autocomplete="off"
-                      spellcheck={false}
-                      placeholder={ownKey ? `sk-ant-…${ownKey.last4}` : 'sk-ant-…'}
-                    />
-                  </p>
-                  <p class="field">
-                    <label for="f-ai-model">Model</label>
-                    <select id="f-ai-model" name="model">
-                      {BYO_MODELS.map((m) => (
-                        <option value={m} selected={(ownKey?.model ?? 'claude-sonnet-5-5') === m}>
-                          {m === 'claude-opus-5-5'
-                            ? 'Claude Opus 5.5, the most capable'
-                            : m === 'claude-sonnet-5-5'
-                              ? 'Claude Sonnet 5.5, balanced'
-                              : 'Claude Haiku 5.5, the cheapest'}
-                        </option>
-                      ))}
-                    </select>
-                  </p>
-                  <div class="setting-actions">
-                    <button type="submit" class="btn btn-sign arrow-right arrow-n">
-                      Save
-                    </button>
-                    <Saved when={on('ai')} />
-                    {on('ai-bad') ? <span class="form-error">Anthropic did not accept that key.</span> : <></>}
-                    {on('ai-gone') ? <span class="form-ok">Key removed</span> : <></>}
-                  </div>
-                </form>
-                {ownKey ? (
-                  <form method="post" action="/settings/ai/forget" class="setting-form">
-                    <button type="submit" class="btn-quiet">
-                      Remove my key
-                    </button>
-                  </form>
-                ) : (
-                  <></>
-                )}
-              </section>
-            ) : (
-              <></>
-            )}
-          </section>
-        ) : (
-          <></>
-        )}
-
         <section class="setting-topic" id="notifications">
           <h2>Notifications</h2>
           <p>
@@ -1506,6 +1398,137 @@ export async function accountPage(
         hidden={!tabOn('places')}
       >
         {raw(placesPanel(placesBin))}
+      </div>
+
+      {/* ROBOTS IS EVERY AI SETTING, AND ONLY THOSE (2026-10-30). The connector
+          for Claude or ChatGPT and the builder's own assistant are two doors to
+          one feature, so they sit together rather than between Meeting points
+          and Notifications on Preferences. */}
+      <div
+        class="page-tabpanel"
+        id="panel-robots"
+        role="tabpanel"
+        aria-labelledby="tab-robots"
+        hidden={!tabOn('robots')}
+      >
+        {/*
+          OUTSIDE AI APPS (the MCP server, 2026-10-27). A rider who plans in Claude
+          or ChatGPT adds this address as a connector there and signs in; the app
+          then plans as them, on their own subscription. Listed here so it can be
+          disconnected from the side that granted it.
+        */}
+        <section class="setting-topic" id="apps">
+          <h2>Plan from Claude or ChatGPT</h2>
+          <p>
+            Add Routeloop as a connector in Claude or ChatGPT with this address, then sign in when it asks. It can read
+            your rides and edit the ones you can edit, and costs Routeloop&nbsp;nothing.
+          </p>
+          <p>
+            <code>{`${APP_ORIGIN}/mcp`}</code>
+          </p>
+          {apps.length ? (
+            <ul class="cards">
+              {apps.map((a) => (
+                <li>
+                  <b>{a.name}</b>
+                  <span class="field-hint"> connected {a.createdAt.toISOString().slice(0, 10)}</span>
+                  <form method="post" action="/settings/apps/revoke" class="setting-form">
+                    <input type="hidden" name="client_id" value={a.clientId} />
+                    <button type="submit" class="btn-quiet">
+                      Disconnect
+                    </button>
+                  </form>
+                </li>
+              ))}
+            </ul>
+          ) : (
+            <p class="field-hint">No apps connected.</p>
+          )}
+          <Saved when={on('apps')} />
+        </section>
+
+        {/*
+          THE ASSISTANT (2026-10-27). The free allowance is shown as a sentence
+          rather than a meter: it is a courtesy, not a balance anybody is billed
+          against. A rider's own key is pasted, checked against Anthropic once,
+          sealed, and only ever shown again as its last four characters. NO
+          AUTOSAVE: a key half-pasted is not a key, and checking one costs a call.
+        */}
+        {aiOffered ? (
+          <section class="setting-topic" id="ai">
+            <h2>Planning assistant</h2>
+            <p>
+              The Ask tab in the builder plans with you: it reads the ride, searches for places, and changes routes as
+              one step you can undo. Its messages go to Anthropic, who run the model, and are not kept by&nbsp;Routeloop.
+            </p>
+            {ownKey ? (
+              <p>
+                <b>Using your own Anthropic key</b> (ending {ownKey.last4}). It is charged to your Anthropic account, with
+                no Routeloop&nbsp;limit.
+              </p>
+            ) : freeState && ANTHROPIC_API_KEY !== '' ? (
+              <p>
+                Free: {dollars(freeState.riderSpentMicros)} of {dollars(FREE_MONTHLY_MICROS)} used this month. It resets on
+                the 1st. Add your own key for more, on any&nbsp;model.
+              </p>
+            ) : (
+              <p>There is no free allowance on this server. Add your own Anthropic key to use the&nbsp;assistant.</p>
+            )}
+            {BYO_ENABLED ? (
+              <section class="setting" id="ai-key">
+                <h3>Your Anthropic key</h3>
+                <form method="post" action="/settings/ai" class="setting-form">
+                  <p class="field">
+                    <label for="f-ai-key">{ownKey ? 'Replace your key (leave empty to keep it)' : 'API key'}</label>
+                    <input
+                      id="f-ai-key"
+                      name="key"
+                      type="password"
+                      autocomplete="off"
+                      spellcheck={false}
+                      placeholder={ownKey ? `sk-ant-…${ownKey.last4}` : 'sk-ant-…'}
+                    />
+                  </p>
+                  <p class="field">
+                    <label for="f-ai-model">Model</label>
+                    <select id="f-ai-model" name="model">
+                      {BYO_MODELS.map((m) => (
+                        <option value={m} selected={(ownKey?.model ?? 'claude-sonnet-5-5') === m}>
+                          {m === 'claude-opus-5-5'
+                            ? 'Claude Opus 5.5, the most capable'
+                            : m === 'claude-sonnet-5-5'
+                              ? 'Claude Sonnet 5.5, balanced'
+                              : 'Claude Haiku 5.5, the cheapest'}
+                        </option>
+                      ))}
+                    </select>
+                  </p>
+                  <div class="setting-actions">
+                    <button type="submit" class="btn btn-sign arrow-right arrow-n">
+                      Save
+                    </button>
+                    <Saved when={on('ai')} />
+                    {on('ai-bad') ? <span class="form-error">Anthropic did not accept that key.</span> : <></>}
+                    {on('ai-gone') ? <span class="form-ok">Key removed</span> : <></>}
+                  </div>
+                </form>
+                {ownKey ? (
+                  <form method="post" action="/settings/ai/forget" class="setting-form">
+                    <button type="submit" class="btn-quiet">
+                      Remove my key
+                    </button>
+                  </form>
+                ) : (
+                  <></>
+                )}
+              </section>
+            ) : (
+              <></>
+            )}
+          </section>
+        ) : (
+          <></>
+        )}
       </div>
     </>
   ).toString()
