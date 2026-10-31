@@ -9947,6 +9947,14 @@
       return state.rideId;
     },
     applyAgent: agentApply,
+    // The assistant's launcher joins the map's control column, above zoom and locate.
+    // False before the map exists, which TBBuilder.ready rules out for a caller that
+    // waits on it.
+    addMapButton: (el) => {
+      if (!state.map) return false;
+      window.TBMap.addMapButton(state.map, el);
+      return true;
+    },
     // Awaited before the tour leaves the page, so the beforeunload guard has nothing
     // to hold the rider for.
     settled: () => saveNow(),

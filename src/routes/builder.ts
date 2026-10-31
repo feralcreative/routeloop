@@ -842,13 +842,7 @@ function builderHtml(
           <button type="button" class="panel-tab" role="tab" id="tab-groups"
                   aria-controls="panel-groups" aria-selected="false" tabindex="-1">Groups <span class="tab-count" id="sg-count"></span></button>
           <button type="button" class="panel-tab" role="tab" id="tab-riders"
-                  aria-controls="panel-riders" aria-selected="false" tabindex="-1">${Wds(words, 'person')} <span class="tab-count" id="riders-count"></span></button>${
-            agentOffered
-              ? `
-          <button type="button" class="panel-tab" role="tab" id="tab-ask"
-                  aria-controls="panel-ask" aria-selected="false" tabindex="-1">Ask</button>`
-              : ''
-          }
+                  aria-controls="panel-riders" aria-selected="false" tabindex="-1">${Wds(words, 'person')} <span class="tab-count" id="riders-count"></span></button>
         </div>`
 
   // ROUTES. Everything that was in the panel about the road: the route list, the
@@ -966,22 +960,31 @@ function builderHtml(
 ${ridersAdd}          <div id="riders-body"></div>
         </div>`
 
-  // THE ASSISTANT (2026-10-27). A FOURTH TAB, which reverses the three-tab call
-  // recorded beside the comments below: Ziad approved it with the agent plan. Only
-  // for a rider who may edit, and only when this server has a free-tier key or can
-  // store a rider's own. The transcript lives in the tab and nowhere else.
-  const askTab = agentOffered
-    ? `        <div class="panel-tabpanel" role="tabpanel" id="panel-ask" aria-labelledby="tab-ask" tabindex="0" hidden>
-          <p class="ask-status" id="ask-status" aria-live="polite"></p>
-          <ol class="ask-log" id="ask-log" aria-live="polite"></ol>
-          <form class="ask-form" id="ask-form">
-            <label class="visually-hidden" for="ask-input">Ask the assistant</label>
-            <textarea id="ask-input" rows="2" maxlength="4000" autocomplete="off"
-                      placeholder="Find gas every 120 miles on day two"></textarea>
-            <button type="submit" class="btn" id="ask-send">Ask</button>
-          </form>
-          <p class="ask-note">Anything it changes is one step on Undo. It reads this ride and searches Google for places; it never deletes a ride or changes who can see it.</p>
-        </div>`
+  // THE ASSISTANT (2026-10-27) IS A FLOATING WINDOW OVER THE MAP, NOT A TAB. It was
+  // a fourth tab first; Ziad's call on 2026-10-31 moved it out, because a chat on a
+  // tab hides the route list the conversation is about. It minimizes to a button in
+  // the map's own control column, bottom right above zoom and locate, which
+  // agent-chat.js adds once the map exists. Only for a rider who may edit, and only
+  // when this server has a free-tier key or can store a rider's own. The transcript
+  // lives in the window and nowhere else.
+  const askWindow = agentOffered
+    ? `  <section class="ask-window" id="ask-window" aria-labelledby="ask-title" hidden>
+    <header class="ask-head">
+      <h2 class="ask-title" id="ask-title">Assistant</h2>
+      <button type="button" class="ask-min" id="ask-min" aria-label="Minimize the assistant" title="Minimize"></button>
+    </header>
+    <div class="ask-body" id="ask-body">
+      <p class="ask-status" id="ask-status" aria-live="polite"></p>
+      <ol class="ask-log" id="ask-log" aria-live="polite"></ol>
+    </div>
+    <form class="ask-form" id="ask-form">
+      <label class="visually-hidden" for="ask-input">Ask the assistant</label>
+      <textarea id="ask-input" rows="2" maxlength="4000" autocomplete="off"
+                placeholder="Find gas every 120 miles on day two"></textarea>
+      <button type="submit" class="btn" id="ask-send">Ask</button>
+    </form>
+    <p class="ask-note">Anything it changes is one step on Undo. It reads this ride and searches Google for places; it never deletes a ride or changes who can see it.</p>
+  </section>`
     : ''
 
   // WHAT THIS RIDER MAY DO, said once at the top of the panel, and only for somebody
@@ -1043,7 +1046,6 @@ ${routesTab}
 ${groupsTab}
 
 ${ridersTab}
-${askTab}
 ${
   // COMMENTS ARE RIDE-LEVEL AND SIT BELOW THE TABS, not in a fourth one.
   //
@@ -1244,7 +1246,7 @@ ${
       // The rail keeps a dot per route, but as a jump-to rather than a picker:
       // clicking one scrolls that route's section into view and makes it active.
       rail: `<div class="rail-routes" id="rail-routes"></div>`,
-    })}\n\n  ${rideTimeline({ scopeToggle: true, words })}`,
+    })}\n\n  ${rideTimeline({ scopeToggle: true, words })}${askWindow ? `\n\n${askWindow}` : ''}`,
     tb: {
       gmapsKey: GMAPS_KEY,
       mapId: GMAPS_MAP_ID,

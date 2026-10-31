@@ -1458,7 +1458,7 @@ export async function accountPage(
           <section class="setting-topic" id="ai">
             <h2>Planning assistant</h2>
             <p>
-              The Ask tab in the builder plans with you: it reads the ride, searches for places, and changes routes as
+              The assistant in the builder plans with you: it reads the ride, searches for places, and changes routes as
               one step you can undo. Its messages go to Anthropic, who run the model, and are not kept by&nbsp;Routeloop.
             </p>
             {ownKey ? (

@@ -3852,10 +3852,155 @@
   }
 }
 
-// --- The Ask tab (the assistant) -----------------------------------------------
+// --- The assistant ---------------------------------------------------------------
 //
-// A short conversation and a box. The rider's lines sit right on a light well, the
-// assistant's on the card, so the two read apart without a name on every line.
+// A window floating over the map, bottom right, minimized to a button in the map's
+// control column (.map-ask, above zoom and locate). It stops at the same gutter the
+// timeline does, so it never covers those controls, and sits above the timeline
+// when the bar is on screen. Inside: a short conversation and a box. The rider's
+// lines sit right on a light well, the assistant's on the card, so the two read
+// apart without a name on every line.
+
+// 0px until the bar is actually on screen, so an undated ride gets the corner.
+// :has() for the reason _feedback.scss gives: nothing has to keep two things in step.
+html.map-page {
+  --ask-timeline-clear: 0px;
+}
+
+html.map-page:has(.map-timeline:not([hidden])) {
+  --ask-timeline-clear: calc(var(--timeline-height) + 0.5rem);
+}
+
+// The elevation profile stands on top of the bar, outside what --timeline-height
+// reserves: its 64px plus the 6px gap in _map.scss.
+html.map-page:has(.map-timeline:not([hidden]) .time-profile:not([hidden])) {
+  --ask-timeline-clear: calc(var(--timeline-height) + 70px + 0.5rem);
+}
+
+.ask-window {
+  position: fixed;
+  // One above the drawer and the timeline, so on a phone it covers the sheet
+  // rather than sliding under it. Below the header, the toast and every dialog.
+  z-index: $z-map-panel + 1;
+  right: calc(var(--panel-inset) + var(--map-control-gutter));
+  bottom: calc(var(--panel-inset) + var(--ask-timeline-clear));
+  display: flex;
+  flex-direction: column;
+  box-sizing: border-box;
+  // Narrows rather than sliding under the drawer, which a rider can widen.
+  width: min(360px, calc(100vw - var(--drawer-current) - 2 * var(--panel-inset) - var(--map-control-gutter)));
+  height: 480px;
+  max-height: calc(100vh - var(--banner-h) - var(--panel-top-clearance) - var(--panel-inset) - var(--ask-timeline-clear));
+  border: 1px solid $card-edge;
+  border-radius: 0.6rem;
+  background: $white;
+  box-shadow: 0 6px 24px $panel-shadow;
+  color: $text;
+  overflow: hidden;
+
+  // Author `display` beats the UA's [hidden]; the .btn[hidden] note in _chrome.scss.
+  &[hidden] {
+    display: none;
+  }
+
+  //@ SM ≤767px — the width of the screen, from under the header to the bottom edge
+  @media (max-width: $bp-phone) {
+    top: calc(var(--banner-h) + var(--panel-top-clearance));
+    right: var(--panel-inset);
+    bottom: calc(var(--panel-inset) + env(safe-area-inset-bottom, 0px));
+    left: var(--panel-inset);
+    width: auto;
+    height: auto;
+    max-height: none;
+  }
+}
+
+.ask-head {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.45rem 0.5rem 0.45rem 0.8rem;
+  border-bottom: 1px solid $grey;
+}
+
+.ask-title {
+  flex: 1;
+  margin: 0;
+  font-size: 0.95em;
+  font-weight: 700;
+}
+
+// A bar drawn in CSS: the conventional minimize glyph, and one less file.
+.ask-min {
+  display: grid;
+  place-items: center;
+  width: 32px;
+  height: 32px;
+  padding: 0;
+  border: 0;
+  border-radius: 4px;
+  background: none;
+  color: $neutral-57;
+  cursor: pointer;
+
+  &::before {
+    content: "";
+    width: 12px;
+    height: 2px;
+    border-radius: 1px;
+    background: currentColor;
+  }
+
+  &:hover {
+    background: $neutral-94;
+    color: $text;
+  }
+
+  &:focus-visible {
+    outline: 2px solid $brand;
+    outline-offset: 1px;
+  }
+}
+
+// The only part that scrolls, so the box stays put under the conversation.
+.ask-body {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  padding: 0 0.8rem;
+}
+
+// In the map's control column, matching .map-report and .map-locate.
+.map-ask {
+  display: grid;
+  place-items: center;
+  box-sizing: border-box;
+  width: 28px;
+  height: 28px;
+  margin: 0 22px 8px 0;
+  padding: 0;
+  border: 0;
+  border-radius: 2px;
+  background: $white;
+  color: $interstate-text;
+  box-shadow: rgba(0, 0, 0, 0.3) 0 1px 4px -1px;
+  cursor: pointer;
+
+  svg {
+    width: 18px;
+    height: 18px;
+  }
+
+  &.is-open {
+    outline: 2px solid $interstate;
+    outline-offset: 1px;
+  }
+
+  &:focus-visible {
+    outline: 2px solid $brand;
+    outline-offset: 2px;
+  }
+}
 
 .ask-status {
   margin: 0.5rem 0;
@@ -3932,6 +4077,33 @@
 
 .ask-proposal-acts {
   margin: 0;
+
+  // .builder-panel's quiet button, which the window is no longer inside.
+  .btn-quiet {
+    padding: 0.5em 0.9em;
+    border: 1px solid $grey;
+    border-radius: 6px;
+    background: none;
+    color: $text;
+    font: inherit;
+    font-weight: 600;
+    cursor: pointer;
+
+    &:hover:not(:disabled) {
+      border-color: $stop;
+      color: $stop;
+    }
+
+    &:disabled {
+      opacity: 0.4;
+      cursor: default;
+    }
+
+    &:focus-visible {
+      outline: 2px solid $brand;
+      outline-offset: 1px;
+    }
+  }
 }
 
 .ask-proposal-note {
@@ -3947,6 +4119,8 @@
   display: flex;
   gap: 0.4rem;
   align-items: flex-end;
+  padding: 0.5rem 0.8rem 0;
+  border-top: 1px solid $grey;
 
   textarea {
     @include controls.text-control;
@@ -3959,7 +4133,8 @@
 }
 
 .ask-note {
-  margin: 0.45rem 0 0;
+  margin: 0;
+  padding: 0.4rem 0.8rem 0.6rem;
   font-size: 0.72em;
   color: $neutral-57;
   text-wrap: pretty;
@@ -3972,5 +4147,10 @@ html.ask-busy {
   #route-list {
     pointer-events: none;
     opacity: 0.75;
+  }
+
+  // The launcher lives inside #map; minimizing and reopening mid-turn is fine.
+  .map-ask {
+    pointer-events: auto;
   }
 }

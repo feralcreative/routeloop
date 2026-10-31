@@ -44,7 +44,7 @@ const turnBody = z.object({
   payload: z.unknown(),
 })
 
-/** What the chat tab shows before anybody types: which key would answer, and how
+/** What the assistant window shows before anybody types: which key would answer, and how
  *  much of the free month is left. */
 agentRoutes.get('/api/agent/status', requireActiveApi, async (c) => {
   const user = currentUser(c)
