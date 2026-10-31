@@ -971,6 +971,7 @@ ${ridersAdd}          <div id="riders-body"></div>
     ? `  <section class="ask-window" id="ask-window" aria-labelledby="ask-title" hidden>
     <header class="ask-head">
       <h2 class="ask-title" id="ask-title">Assistant</h2>
+      <div class="ask-switch" id="ask-switch" role="group" aria-label="Which of your keys answers" hidden></div>
       <button type="button" class="ask-min" id="ask-min" aria-label="Minimize the assistant" title="Minimize"></button>
     </header>
     <div class="ask-body" id="ask-body">

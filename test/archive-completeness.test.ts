@@ -113,7 +113,7 @@ describe('the archive covers every table that holds rider data', () => {
     // whoever opens it.
     sessions: 'credential',
     login_tokens: 'credential',
-    // A rider's own Anthropic key, encrypted. Theirs, but a secret, and they
+    // A rider's own Anthropic and OpenAI keys, encrypted. Theirs, but a secret, and they
     // already hold it. What the assistant SPENT is exported as assistantUsage.
     ai_keys: 'credential',
     // The MCP server's OAuth grants. A client registration is the outside app's

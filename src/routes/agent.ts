@@ -7,14 +7,17 @@
 // way a rider's own is and concurrent planning keeps working. A second write path
 // for "the assistant changed something" is the thing this shape avoids.
 //
-// WHOSE MONEY: the rider's own key when they stored one, uncapped; otherwise the
-// free tier on Routeloop's key, refused once the rider's month or the app's month
-// is spent. Google calls are budgeted either way (see policy.ts).
+// WHOSE MONEY: the rider's own key when they stored one, uncapped, Anthropic or
+// OpenAI (the window's switch picks between the two when they hold both, and the
+// default on Robots otherwise); else the free tier on Routeloop's Anthropic key,
+// refused once the rider's month or the app's month is spent. Google calls are
+// budgeted either way (see policy.ts).
 import { Hono } from 'hono'
 import { bodyLimit } from 'hono/body-limit'
 import { streamSSE } from 'hono/streaming'
 import { z } from 'zod'
 import Anthropic from '@anthropic-ai/sdk'
+import OpenAI from 'openai'
 import { ANTHROPIC_API_KEY } from '../config'
 import { currentUser, requireActiveApi, requireSameOrigin, type AuthEnv } from '../auth/middleware'
 import { canEditAsMember } from '../members/policy'
@@ -28,9 +31,22 @@ import { isDraining } from '../shutdown'
 import { builderRide } from './builder'
 import { Budget } from '../agent/budget'
 import { emptyTurn, runTurn, type ChatLine } from '../agent/loop'
+import { runTurnOpenAI } from '../agent/loop-openai'
 import { claimTurn } from '../agent/inflight'
-import { dollars, FREE_MODEL, FREE_MONTHLY_MICROS, freeTierAllows, REFUSALS, type Source } from '../agent/policy'
-import { BYO_ENABLED, freeTierState, googleCallsToday, openKeyOf, recordTurn, storedKeyOf } from '../agent/usage'
+import {
+  dollars,
+  FREE_MODEL,
+  FREE_MONTHLY_MICROS,
+  freeTierAllows,
+  pickProvider,
+  PROVIDER_NAMES,
+  PROVIDER_SHORT,
+  PROVIDERS,
+  REFUSALS,
+  type Provider,
+  type Source,
+} from '../agent/policy'
+import { BYO_ENABLED, freeTierState, googleCallsToday, openKeyOf, recordTurn, storedKeysOf } from '../agent/usage'
 import type { AgentContext } from '../agent/tools'
 
 export const agentRoutes = new Hono<AuthEnv>()
@@ -41,20 +57,28 @@ const turnBody = z.object({
     .array(z.object({ role: z.enum(['rider', 'assistant']), text: z.string().max(8000) }))
     .max(40)
     .default([]),
+  /** The window's switch, for a rider holding both keys. Ignored for one they lack. */
+  provider: z.enum(PROVIDERS).optional(),
   payload: z.unknown(),
 })
 
 /** What the assistant window shows before anybody types: which key would answer, and how
- *  much of the free month is left. */
+ *  much of the free month is left. `keys` drives the window's switch, which is drawn
+ *  only when there are two; `lines` is what the status line says for each. */
 agentRoutes.get('/api/agent/status', requireActiveApi, async (c) => {
   const user = currentUser(c)
-  const own = await storedKeyOf(user.id)
-  if (own)
+  const own = await storedKeysOf(user.id)
+  const picked = pickProvider(own)
+  if (picked)
     return c.json({
       available: true,
       source: 'byo',
-      model: own.model,
-      line: `Using your Anthropic key (…${own.last4}).`,
+      provider: picked,
+      keys: own.map((k) => ({ provider: k.provider, short: PROVIDER_SHORT[k.provider] })),
+      lines: Object.fromEntries(
+        own.map((k) => [k.provider, `Using your ${PROVIDER_NAMES[k.provider]} key (…${k.last4}).`]),
+      ),
+      line: `Using your ${PROVIDER_NAMES[picked]} key (…${own.find((k) => k.provider === picked)!.last4}).`,
     })
   const free = await freeTierState(user.id)
   const answer = freeTierAllows(free)
@@ -97,14 +121,19 @@ agentRoutes.post(
     try {
       // Whose key. A stored key that will not open (rotated master, tampered row)
       // falls through to the free tier rather than failing the turn.
-      const own = await openKeyOf(user.id)
+      const own = await openKeyOf(user.id, body.data.provider)
       let source: Source
-      let client: Anthropic
+      let provider: Provider = 'anthropic'
+      let client: Anthropic | OpenAI
       let model: string
       let maxCostMicros: number | undefined
       if (own) {
         source = 'byo'
-        client = new Anthropic({ apiKey: own.key, maxRetries: 1 })
+        provider = own.provider
+        client =
+          own.provider === 'openai'
+            ? new OpenAI({ apiKey: own.key, maxRetries: 1 })
+            : new Anthropic({ apiKey: own.key, maxRetries: 1 })
         model = own.model
       } else {
         const answer = freeTierAllows(await freeTierState(user.id))
@@ -137,17 +166,18 @@ agentRoutes.post(
         // throws part-way had already spent is still recorded.
         const meter = emptyTurn()
         try {
-          const out = await runTurn({
+          const turn = {
             out: meter,
-            client,
             model,
-            effort: source === 'free' ? 'low' : 'medium',
+            effort: source === 'free' ? ('low' as const) : ('medium' as const),
             ctx,
             history: body.data.history as ChatLine[],
             message: body.data.message,
             maxCostMicros,
-            onEvent: (e) => void send(e.type, { text: e.text }),
-          })
+            onEvent: (e: { type: string; text: string }) => void send(e.type, { text: e.text }),
+          }
+          const out =
+            client instanceof OpenAI ? await runTurnOpenAI({ ...turn, client }) : await runTurn({ ...turn, client })
           const note =
             out.stop === 'iterations' || out.stop === 'budget'
               ? ' (I stopped there to keep this turn small. Ask me to carry on.)'
@@ -173,7 +203,7 @@ agentRoutes.post(
           }
           await send('done', { reply, proposal })
         } catch (err) {
-          await send('error', { text: describe(err, source) })
+          await send('error', { text: describe(err, source, provider) })
         } finally {
           const spend = {
             costMicros: meter.costMicros,
@@ -194,19 +224,29 @@ agentRoutes.post(
   },
 )
 
-function describe(err: unknown, source: Source): string {
-  if (err instanceof Anthropic.AuthenticationError || err instanceof Anthropic.PermissionDeniedError) {
+// Both SDKs name their errors the same way, so one check per kind covers either.
+function describe(err: unknown, source: Source, provider: Provider): string {
+  const name = PROVIDER_NAMES[provider]
+  if (
+    err instanceof Anthropic.AuthenticationError ||
+    err instanceof Anthropic.PermissionDeniedError ||
+    err instanceof OpenAI.AuthenticationError ||
+    err instanceof OpenAI.PermissionDeniedError
+  ) {
     return source === 'byo'
-      ? 'Anthropic rejected your key. Check it under Robots in your account settings.'
+      ? `${name} rejected your key. Check it under Robots in your account settings.`
       : 'The assistant is misconfigured right now.'
   }
-  if (err instanceof Anthropic.RateLimitError) {
+  if (err instanceof Anthropic.RateLimitError || err instanceof OpenAI.RateLimitError) {
     return source === 'byo'
-      ? 'Your Anthropic account is rate limited or out of credit.'
+      ? `Your ${name} account is rate limited or out of credit.`
       : 'The assistant is busy. Try again in a minute.'
   }
-  if (err instanceof Anthropic.APIError) {
-    console.error('[agent] API error', err.status, err.message)
+  // A model the key cannot use (an OpenAI project without access to it) is a 404.
+  if (err instanceof OpenAI.NotFoundError && source === 'byo')
+    return `Your ${name} key cannot use that model. Pick another under Robots in your account settings.`
+  if (err instanceof Anthropic.APIError || err instanceof OpenAI.APIError) {
+    console.error('[agent] API error', provider, err.status, err.message)
     return 'The assistant could not answer just now.'
   }
   console.error('[agent] turn failed:', err instanceof Error ? err.stack : err)

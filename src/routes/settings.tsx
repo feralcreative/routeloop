@@ -36,9 +36,10 @@ import { accountPage, type AccountTab } from '../views/account-page'
 import { loadProfile, profilePanel, PROFILE_SCRIPTS } from './profile'
 import { usernameHistoryFor } from '../auth/username'
 import Anthropic from '@anthropic-ai/sdk'
-import { BYO_MODELS, DEFAULT_BYO_MODEL, type ByoModel } from '../agent/policy'
-import { looksLikeAnthropicKey } from '../agent/sealed-key'
-import { BYO_ENABLED, forgetKey, setKeyModel, storedKeyOf, storeKey } from '../agent/usage'
+import OpenAI from 'openai'
+import { isProvider, modelFor, type Provider } from '../agent/policy'
+import { LOOKS_LIKE } from '../agent/sealed-key'
+import { BYO_ENABLED, forgetKey, setDefaultProvider, setKeyModel, storedKeysOf, storeKey } from '../agent/usage'
 
 export const settingsRoutes = new Hono<AuthEnv>()
 
@@ -537,37 +538,59 @@ settingsRoutes.post('/settings/notifications', requireActive, requireSameOrigin,
   return c.redirect(`/settings?saved=${anchor}#${anchor}`, 303)
 })
 
-// THE RIDER'S OWN ANTHROPIC KEY. Checked against Anthropic once before it is
-// stored, with the cheapest call there is (one page of the model list), so a typo
-// is refused here rather than at the first question in the builder. An empty key
-// box with a stored key changes only the model.
+// THE RIDER'S OWN KEYS, one per provider, each its own form posting `provider`.
+// Checked against the provider once before it is stored, with the cheapest call
+// there is (one page of the model list), so a typo is refused here rather than at
+// the first question in the builder. An empty key box with a stored key changes
+// only the model. Every refusal lands on `ai-bad-<provider>`, so the message sits
+// under the form that was sent.
+async function providerTakes(provider: Provider, key: string): Promise<boolean> {
+  try {
+    if (provider === 'openai') await new OpenAI({ apiKey: key, maxRetries: 0, timeout: 10_000 }).models.list()
+    else await new Anthropic({ apiKey: key, maxRetries: 0, timeout: 10_000 }).models.list({ limit: 1 })
+    return true
+  } catch {
+    // Every failure reads the same to the rider: the provider did not take it. The
+    // key is never logged, so neither is the error that carries it.
+    return false
+  }
+}
+
 settingsRoutes.post('/settings/ai', requireActive, requireSameOrigin, async (c) => {
   const user = currentUser(c)
   if (!BYO_ENABLED) return c.redirect('/robots#ai', 303)
   const body = await c.req.parseBody()
-  const model = BYO_MODELS.includes(body.model as ByoModel) ? (body.model as ByoModel) : DEFAULT_BYO_MODEL
+  if (!isProvider(body.provider)) return c.redirect('/robots#ai', 303)
+  const provider = body.provider
+  const model = modelFor(provider, body.model)
   const key = typeof body.key === 'string' ? body.key.trim() : ''
+  const back = (saved: string) => c.redirect(`/robots?saved=${saved}#ai-${provider}`, 303)
 
   if (key === '') {
-    if (await storedKeyOf(user.id)) {
-      await setKeyModel(user.id, model)
-      return c.redirect('/robots?saved=ai#ai', 303)
+    if ((await storedKeysOf(user.id)).some((k) => k.provider === provider)) {
+      await setKeyModel(user.id, provider, model)
+      return back(`ai-${provider}`)
     }
-    return c.redirect('/robots?saved=ai-bad#ai', 303)
+    return back(`ai-bad-${provider}`)
   }
-  if (!looksLikeAnthropicKey(key)) return c.redirect('/robots?saved=ai-bad#ai', 303)
-  try {
-    await new Anthropic({ apiKey: key, maxRetries: 0, timeout: 10_000 }).models.list({ limit: 1 })
-  } catch {
-    // Every failure reads the same to the rider: Anthropic did not take it. The
-    // key is never logged, so neither is the error that carries it.
-    return c.redirect('/robots?saved=ai-bad#ai', 303)
-  }
-  await storeKey(user.id, key, model)
-  return c.redirect('/robots?saved=ai#ai', 303)
+  if (!LOOKS_LIKE[provider](key) || !(await providerTakes(provider, key))) return back(`ai-bad-${provider}`)
+  await storeKey(user.id, provider, key, model)
+  return back(`ai-${provider}`)
+})
+
+// Which key answers when a rider holds both. Only offered then, and a provider
+// they do not hold is refused rather than marked.
+settingsRoutes.post('/settings/ai/default', requireActive, requireSameOrigin, async (c) => {
+  const user = currentUser(c)
+  const body = await c.req.parseBody()
+  if (isProvider(body.provider) && (await storedKeysOf(user.id)).some((k) => k.provider === body.provider))
+    await setDefaultProvider(user.id, body.provider)
+  return c.redirect('/robots?saved=ai-default#ai-default', 303)
 })
 
 settingsRoutes.post('/settings/ai/forget', requireActive, requireSameOrigin, async (c) => {
-  await forgetKey(currentUser(c).id)
-  return c.redirect('/robots?saved=ai-gone#ai', 303)
+  const body = await c.req.parseBody()
+  if (!isProvider(body.provider)) return c.redirect('/robots#ai', 303)
+  await forgetKey(currentUser(c).id, body.provider)
+  return c.redirect(`/robots?saved=ai-gone-${body.provider}#ai-${body.provider}`, 303)
 })

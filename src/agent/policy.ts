@@ -3,8 +3,8 @@
 // THE FREE TIER IS A CEILING, NOT A PRICE. Nobody is billed and nothing is marked
 // up: Routeloop pays for a small monthly allowance per rider on the cheapest model,
 // stops when it is spent, and stops for everybody when the app-wide ceiling is
-// reached. A rider who wants more brings their own Anthropic key, which carries no
-// cap here because it is their money.
+// reached. A rider who wants more brings their own Anthropic or OpenAI key, which
+// carries no cap here because it is their money. The free tier is Anthropic only.
 //
 // GOOGLE IS THE EXPOSURE THAT EVERY SURFACE SHARES. A rider's own key pays for
 // tokens and an MCP client pays for none, but every place search and every routed
@@ -14,9 +14,49 @@
 export type Source = 'free' | 'byo' | 'mcp'
 
 export const FREE_MODEL = 'claude-haiku-5-5'
-export const BYO_MODELS = ['claude-opus-5-5', 'claude-sonnet-5-5', 'claude-haiku-5-5'] as const
-export type ByoModel = (typeof BYO_MODELS)[number]
-export const DEFAULT_BYO_MODEL: ByoModel = 'claude-sonnet-5-5'
+
+/** Whose API a rider's own key is for. Order is the fallback when a rider holds
+ *  both and has marked neither as the default. */
+export const PROVIDERS = ['anthropic', 'openai'] as const
+export type Provider = (typeof PROVIDERS)[number]
+export const isProvider = (v: unknown): v is Provider => PROVIDERS.includes(v as Provider)
+
+export const PROVIDER_NAMES: Record<Provider, string> = { anthropic: 'Anthropic', openai: 'OpenAI' }
+/** What the assistant window's switch says: the model family, not the company. */
+export const PROVIDER_SHORT: Record<Provider, string> = { anthropic: 'Claude', openai: 'GPT' }
+
+/** Each provider's models, most capable first, with how Robots describes them. */
+export const BYO_MODELS: Record<Provider, readonly { id: string; label: string }[]> = {
+  anthropic: [
+    { id: 'claude-opus-5-5', label: 'Claude Opus 5.5, the most capable' },
+    { id: 'claude-sonnet-5-5', label: 'Claude Sonnet 5.5, balanced' },
+    { id: 'claude-haiku-5-5', label: 'Claude Haiku 5.5, the cheapest' },
+  ],
+  openai: [
+    { id: 'gpt-6-astra', label: 'GPT-6 Astra, the most capable' },
+    { id: 'gpt-6.1-sol', label: 'GPT-6.1 Sol, balanced' },
+    { id: 'gpt-6.1-terra', label: 'GPT-6.1 Terra, lighter' },
+    { id: 'gpt-6-luna', label: 'GPT-6 Luna, the cheapest' },
+  ],
+}
+export const DEFAULT_BYO_MODEL: Record<Provider, string> = { anthropic: 'claude-sonnet-5-5', openai: 'gpt-6.1-sol' }
+
+/** A posted model id if it belongs to that provider, its default otherwise. */
+export const modelFor = (provider: Provider, asked: unknown): string =>
+  BYO_MODELS[provider].some((m) => m.id === asked) ? (asked as string) : DEFAULT_BYO_MODEL[provider]
+
+/** Which stored key answers a turn: the one the rider switched to in the window if
+ *  they hold it, else the one marked default, else the first in PROVIDERS order.
+ *  Null when they hold none. */
+export function pickProvider(
+  stored: readonly { provider: Provider; isDefault: boolean }[],
+  asked?: Provider | null,
+): Provider | null {
+  if (asked && stored.some((k) => k.provider === asked)) return asked
+  const marked = stored.find((k) => k.isDefault)
+  if (marked) return marked.provider
+  return PROVIDERS.find((p) => stored.some((k) => k.provider === p)) ?? null
+}
 
 /** Per rider per calendar month (UTC), in micro-dollars. $0.50. */
 export const FREE_MONTHLY_MICROS = 500_000
@@ -34,14 +74,20 @@ export const TURN_LIMITS = {
 export const DAILY_GOOGLE_CALLS = 300
 
 // Dollars per million tokens: [input, output, cache read, cache write (5 min)].
-// From the Anthropic price list as of 2026-10; a model missing here is costed as
-// the most expensive one listed, so an unknown model can never read as free.
+// From the Anthropic and OpenAI price lists as of 2026-10-31. OpenAI's cache write
+// is 1.25 times its input price, which its table does not print as a column.
+// A model missing here is costed as the most expensive one listed, so an unknown
+// model can never read as free.
 const PRICES: Record<string, [number, number, number, number]> = {
   'claude-haiku-5-5': [0.1, 0.5, 0.01, 0.125],
   'claude-sonnet-5-5': [2, 10, 0.2, 2.5],
   'claude-opus-5-5': [4, 20, 0.2, 5],
+  'gpt-6-astra': [10, 50, 1, 12.5],
+  'gpt-6.1-sol': [2, 10, 0.1, 2.5],
+  'gpt-6.1-terra': [1, 5, 0.05, 1.25],
+  'gpt-6-luna': [0.1, 0.5, 0.01, 0.125],
 }
-const WORST = PRICES['claude-opus-5-5']
+const WORST = PRICES['gpt-6-astra']
 
 export type Usage = {
   input_tokens: number
@@ -89,11 +135,11 @@ export function freeTierAllows(s: FreeTierState): FreeTierAnswer {
 }
 
 export const REFUSALS: Record<'off' | 'rider-cap' | 'global-cap' | 'google-cap', string> = {
-  off: 'The free assistant is switched off right now. You can add your own Anthropic key under Robots in your account settings.',
+  off: 'The free assistant is switched off right now. You can add your own Anthropic or OpenAI key under Robots in your account settings.',
   'rider-cap':
-    'You have used this month’s free assistant allowance. It resets on the 1st, or you can add your own Anthropic key under Robots in your account settings.',
+    'You have used this month’s free assistant allowance. It resets on the 1st, or you can add your own Anthropic or OpenAI key under Robots in your account settings.',
   'global-cap':
-    'The free assistant has used its budget for this month. It resets on the 1st, or you can add your own Anthropic key under Robots in your account settings.',
+    'The free assistant has used its budget for this month. It resets on the 1st, or you can add your own Anthropic or OpenAI key under Robots in your account settings.',
   'google-cap': 'The assistant has made as many map searches as it can for you today. It resets at midnight UTC.',
 }
 

@@ -4,8 +4,8 @@ import { and, eq, like, sql } from 'drizzle-orm'
 import { db } from '../db/index'
 import { aiKeys, aiUsage } from '../db/schema'
 import { AI_FREE_MONTHLY_USD, AI_KEY_ENCRYPTION_KEY, ANTHROPIC_API_KEY } from '../config'
-import { dayOf, monthOf, type FreeTierState, type Source } from './policy'
-import { masterKey, open, seal } from './sealed-key'
+import { dayOf, isProvider, monthOf, pickProvider, PROVIDERS, type FreeTierState, type Provider, type Source } from './policy'
+import { LOOKS_LIKE, masterKey, open, seal } from './sealed-key'
 
 const MASTER = masterKey(AI_KEY_ENCRYPTION_KEY)
 
@@ -60,41 +60,67 @@ export async function recordTurn(userId: number, source: Source, spend: TurnSpen
     })
 }
 
-// --- A rider's own key ----------------------------------------------------------
+// --- A rider's own keys ----------------------------------------------------------
 
-export type StoredKey = { last4: string; model: string }
+export type StoredKey = { provider: Provider; last4: string; model: string; isDefault: boolean }
 
-export async function storedKeyOf(userId: number): Promise<StoredKey | null> {
-  const [row] = await db
-    .select({ last4: aiKeys.last4, model: aiKeys.model })
+/** Every key the rider holds, in PROVIDERS order. A row whose provider this
+ *  release does not know is skipped rather than trusted. */
+export async function storedKeysOf(userId: number): Promise<StoredKey[]> {
+  const rows = await db
+    .select({ provider: aiKeys.provider, last4: aiKeys.last4, model: aiKeys.model, isDefault: aiKeys.isDefault })
     .from(aiKeys)
     .where(eq(aiKeys.userId, userId))
-  return row ?? null
+  return PROVIDERS.flatMap((p) => rows.filter((r): r is StoredKey => r.provider === p))
 }
 
-/** The rider's key in the clear, for one turn. Null when there is none, no master
- *  key, or it will not open; all three mean the same thing to the caller. */
-export async function openKeyOf(userId: number): Promise<{ key: string; model: string } | null> {
+/** The key that answers a turn, in the clear: `asked` when the rider holds it (the
+ *  window's switch), else their default, else their other key if that one will not
+ *  open. A key that opens to something not shaped like its provider's is skipped,
+ *  so a row whose sealed fields were swapped cannot send one company's key to the
+ *  other. Null when none is usable, or there is no master key; both mean the same
+ *  thing to the caller. */
+export async function openKeyOf(
+  userId: number,
+  asked?: Provider | null,
+): Promise<{ provider: Provider; key: string; model: string } | null> {
   if (!MASTER) return null
-  const [row] = await db.select().from(aiKeys).where(eq(aiKeys.userId, userId))
-  if (!row) return null
-  const key = open(row, MASTER)
-  return key ? { key, model: row.model } : null
+  const rows = (await db.select().from(aiKeys).where(eq(aiKeys.userId, userId))).filter((r) =>
+    isProvider(r.provider),
+  ) as (typeof aiKeys.$inferSelect & { provider: Provider })[]
+  const first = pickProvider(rows, asked)
+  const order = [...rows].sort((a, b) => Number(b.provider === first) - Number(a.provider === first))
+  for (const row of order) {
+    const key = open(row, MASTER)
+    if (key && LOOKS_LIKE[row.provider](key)) return { provider: row.provider, key, model: row.model }
+  }
+  return null
 }
 
-export async function storeKey(userId: number, key: string, model: string): Promise<void> {
+export async function storeKey(userId: number, provider: Provider, key: string, model: string): Promise<void> {
   if (!MASTER) throw new Error('AI_KEY_ENCRYPTION_KEY is not configured')
   const s = seal(key, MASTER)
   await db
     .insert(aiKeys)
-    .values({ userId, ...s, model })
-    .onConflictDoUpdate({ target: aiKeys.userId, set: { ...s, model, updatedAt: new Date() } })
+    .values({ userId, provider, ...s, model })
+    .onConflictDoUpdate({ target: [aiKeys.userId, aiKeys.provider], set: { ...s, model, updatedAt: new Date() } })
 }
 
-export async function setKeyModel(userId: number, model: string): Promise<void> {
-  await db.update(aiKeys).set({ model, updatedAt: new Date() }).where(eq(aiKeys.userId, userId))
+export async function setKeyModel(userId: number, provider: Provider, model: string): Promise<void> {
+  await db
+    .update(aiKeys)
+    .set({ model, updatedAt: new Date() })
+    .where(and(eq(aiKeys.userId, userId), eq(aiKeys.provider, provider)))
 }
 
-export async function forgetKey(userId: number): Promise<void> {
-  await db.delete(aiKeys).where(eq(aiKeys.userId, userId))
+/** Marks one provider as the rider's default and clears the other, in one write. */
+export async function setDefaultProvider(userId: number, provider: Provider): Promise<void> {
+  await db
+    .update(aiKeys)
+    .set({ isDefault: sql`${aiKeys.provider} = ${provider}` })
+    .where(eq(aiKeys.userId, userId))
+}
+
+export async function forgetKey(userId: number, provider: Provider): Promise<void> {
+  await db.delete(aiKeys).where(and(eq(aiKeys.userId, userId), eq(aiKeys.provider, provider)))
 }

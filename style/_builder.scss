@@ -3930,6 +3930,45 @@ html.map-page:has(.map-timeline:not([hidden]) .time-profile:not([hidden])) {
   font-weight: 700;
 }
 
+// Claude | GPT, for a rider holding both keys: two segments of one pill, the one
+// answering filled, the Route | Ride construction. $disabled is the field because
+// it carries white ink in every palette (see the time-scope note in _map.scss).
+.ask-switch {
+  display: inline-flex;
+  border: 1px solid $grey;
+  border-radius: 999px;
+  overflow: hidden;
+
+  &[hidden] {
+    display: none;
+  }
+
+  button {
+    padding: 0.2em 0.7em;
+    border: 0;
+    background: none;
+    color: $text;
+    font: inherit;
+    font-size: 0.78em;
+    font-weight: 600;
+    cursor: pointer;
+
+    & + button {
+      border-left: 1px solid $grey;
+    }
+
+    &[aria-pressed="true"] {
+      background: $disabled;
+      color: $ink-light;
+    }
+
+    &:focus-visible {
+      outline: 2px solid $brand;
+      outline-offset: -2px;
+    }
+  }
+}
+
 // A bar drawn in CSS: the conventional minimize glyph, and one less file.
 .ask-min {
   display: grid;

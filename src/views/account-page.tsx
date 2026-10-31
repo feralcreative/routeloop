@@ -58,8 +58,8 @@ import { DEFAULT_DIVERT_MI, MAX_DIVERT_MI, MIN_DIVERT_MI } from '../subgroups/re
 import { tourAssets } from './tour-assets'
 import { asset } from './assets'
 import { ANTHROPIC_API_KEY, APP_ORIGIN } from '../config'
-import { BYO_ENABLED, freeTierState, storedKeyOf } from '../agent/usage'
-import { BYO_MODELS, dollars, FREE_MONTHLY_MICROS } from '../agent/policy'
+import { BYO_ENABLED, freeTierState, storedKeysOf } from '../agent/usage'
+import { BYO_MODELS, DEFAULT_BYO_MODEL, dollars, FREE_MONTHLY_MICROS, pickProvider, PROVIDER_NAMES, PROVIDERS } from '../agent/policy'
 import { connectedApps } from '../oauth/service'
 
 export type AccountTab = 'preferences' | 'profile' | 'paddock' | 'places' | 'robots'
@@ -267,9 +267,11 @@ export async function accountPage(
   } = await prefsFor(user.id)
   // The assistant's topic renders only where this server offers one at all.
   const aiOffered = ANTHROPIC_API_KEY !== '' || BYO_ENABLED
-  const [ownKey, freeState] = aiOffered
-    ? await Promise.all([storedKeyOf(user.id), freeTierState(user.id)])
-    : [null, null]
+  const [ownKeys, freeState] = aiOffered
+    ? await Promise.all([storedKeysOf(user.id), freeTierState(user.id)])
+    : [[], null]
+  const answering = pickProvider(ownKeys)
+  const answeringKey = ownKeys.find((k) => k.provider === answering)
   // Outside AI apps connected to the MCP server. Offered whatever the assistant's
   // own keys are, because a connector spends none of them.
   const apps = await connectedApps(user.id)
@@ -1450,78 +1452,120 @@ export async function accountPage(
         {/*
           THE ASSISTANT (2026-10-27). The free allowance is shown as a sentence
           rather than a meter: it is a courtesy, not a balance anybody is billed
-          against. A rider's own key is pasted, checked against Anthropic once,
-          sealed, and only ever shown again as its last four characters. NO
-          AUTOSAVE: a key half-pasted is not a key, and checking one costs a call.
+          against. A rider's own key, Anthropic or OpenAI (2026-10-31), is pasted,
+          checked against its provider once, sealed, and only ever shown again as
+          its last four characters. One form per provider, so each refusal sits
+          under the key it is about. NO AUTOSAVE on a key: half-pasted is not a
+          key, and checking one costs a call. The default between two keys does
+          autosave, because it is a flag and checks nothing.
         */}
         {aiOffered ? (
           <section class="setting-topic" id="ai">
             <h2>Planning assistant</h2>
             <p>
               The assistant in the builder plans with you: it reads the ride, searches for places, and changes routes as
-              one step you can undo. Its messages go to Anthropic, who run the model, and are not kept by&nbsp;Routeloop.
+              one step you can undo. Its messages go to whoever runs the model (Anthropic on the free allowance, or the
+              provider of your own key) and are not kept by&nbsp;Routeloop.
             </p>
-            {ownKey ? (
+            {answeringKey ? (
               <p>
-                <b>Using your own Anthropic key</b> (ending {ownKey.last4}). It is charged to your Anthropic account, with
-                no Routeloop&nbsp;limit.
+                <b>Using your own {PROVIDER_NAMES[answeringKey.provider]} key</b> (ending {answeringKey.last4}). It is
+                charged to your {PROVIDER_NAMES[answeringKey.provider]} account, with no Routeloop&nbsp;limit.
               </p>
             ) : freeState && ANTHROPIC_API_KEY !== '' ? (
               <p>
                 Free: {dollars(freeState.riderSpentMicros)} of {dollars(FREE_MONTHLY_MICROS)} used this month. It resets on
-                the 1st. Add your own key for more, on any&nbsp;model.
+                the 1st. Add your own Anthropic or OpenAI key for more, on any&nbsp;model.
               </p>
             ) : (
-              <p>There is no free allowance on this server. Add your own Anthropic key to use the&nbsp;assistant.</p>
+              <p>There is no free allowance on this server. Add your own Anthropic or OpenAI key to use the&nbsp;assistant.</p>
             )}
-            {BYO_ENABLED ? (
-              <section class="setting" id="ai-key">
-                <h3>Your Anthropic key</h3>
-                <form method="post" action="/settings/ai" class="setting-form">
-                  <p class="field">
-                    <label for="f-ai-key">{ownKey ? 'Replace your key (leave empty to keep it)' : 'API key'}</label>
-                    <input
-                      id="f-ai-key"
-                      name="key"
-                      type="password"
-                      autocomplete="off"
-                      spellcheck={false}
-                      placeholder={ownKey ? `sk-ant-…${ownKey.last4}` : 'sk-ant-…'}
-                    />
-                  </p>
-                  <p class="field">
-                    <label for="f-ai-model">Model</label>
-                    <select id="f-ai-model" name="model">
-                      {BYO_MODELS.map((m) => (
-                        <option value={m} selected={(ownKey?.model ?? 'claude-sonnet-5-5') === m}>
-                          {m === 'claude-opus-5-5'
-                            ? 'Claude Opus 5.5, the most capable'
-                            : m === 'claude-sonnet-5-5'
-                              ? 'Claude Sonnet 5.5, balanced'
-                              : 'Claude Haiku 5.5, the cheapest'}
-                        </option>
-                      ))}
-                    </select>
-                  </p>
+            {BYO_ENABLED && ownKeys.length > 1 ? (
+              <section class="setting" id="ai-default">
+                <h3>Which key answers</h3>
+                <form method="post" action="/settings/ai/default" class="setting-form" data-autosave>
+                  <fieldset class="choice-set">
+                    <legend class="visually-hidden">Which key answers by default</legend>
+                    {ownKeys.map((k) => (
+                      <Choice
+                        name="provider"
+                        id={k.provider}
+                        checked={k.provider === answering}
+                        label={PROVIDER_NAMES[k.provider]}
+                        tip={`Your ${PROVIDER_NAMES[k.provider]} key answers unless you switch in the assistant window.`}
+                      />
+                    ))}
+                  </fieldset>
                   <div class="setting-actions">
-                    <button type="submit" class="btn btn-sign arrow-right arrow-n">
+                    <button type="submit" class="btn btn-sign arrow-right arrow-n" data-js-hide>
                       Save
                     </button>
-                    <Saved when={on('ai')} />
-                    {on('ai-bad') ? <span class="form-error">Anthropic did not accept that key.</span> : <></>}
-                    {on('ai-gone') ? <span class="form-ok">Key removed</span> : <></>}
+                    <Saved when={on('ai-default')} />
                   </div>
                 </form>
-                {ownKey ? (
-                  <form method="post" action="/settings/ai/forget" class="setting-form">
-                    <button type="submit" class="btn-quiet">
-                      Remove my key
-                    </button>
-                  </form>
-                ) : (
-                  <></>
-                )}
               </section>
+            ) : (
+              <></>
+            )}
+            {BYO_ENABLED ? (
+              PROVIDERS.map((provider) => {
+                const name = PROVIDER_NAMES[provider]
+                const own = ownKeys.find((k) => k.provider === provider)
+                const prefix = provider === 'anthropic' ? 'sk-ant-' : 'sk-'
+                return (
+                  <section class="setting" id={`ai-${provider}`}>
+                    <h3>Your {name} key</h3>
+                    <form method="post" action="/settings/ai" class="setting-form">
+                      <input type="hidden" name="provider" value={provider} />
+                      <p class="field">
+                        <label for={`f-ai-key-${provider}`}>
+                          {own ? 'Replace your key (leave empty to keep it)' : 'API key'}
+                        </label>
+                        <input
+                          id={`f-ai-key-${provider}`}
+                          name="key"
+                          type="password"
+                          autocomplete="off"
+                          spellcheck={false}
+                          placeholder={own ? `${prefix}…${own.last4}` : `${prefix}…`}
+                        />
+                      </p>
+                      <p class="field">
+                        <label for={`f-ai-model-${provider}`}>Model</label>
+                        <select id={`f-ai-model-${provider}`} name="model">
+                          {BYO_MODELS[provider].map((m) => (
+                            <option value={m.id} selected={(own?.model ?? DEFAULT_BYO_MODEL[provider]) === m.id}>
+                              {m.label}
+                            </option>
+                          ))}
+                        </select>
+                      </p>
+                      <div class="setting-actions">
+                        <button type="submit" class="btn btn-sign arrow-right arrow-n">
+                          Save
+                        </button>
+                        <Saved when={on(`ai-${provider}`)} />
+                        {on(`ai-bad-${provider}`) ? (
+                          <span class="form-error">{name} did not accept that key.</span>
+                        ) : (
+                          <></>
+                        )}
+                        {on(`ai-gone-${provider}`) ? <span class="form-ok">Key removed</span> : <></>}
+                      </div>
+                    </form>
+                    {own ? (
+                      <form method="post" action="/settings/ai/forget" class="setting-form">
+                        <input type="hidden" name="provider" value={provider} />
+                        <button type="submit" class="btn-quiet">
+                          Remove my {name} key
+                        </button>
+                      </form>
+                    ) : (
+                      <></>
+                    )}
+                  </section>
+                )
+              })
             ) : (
               <></>
             )}
