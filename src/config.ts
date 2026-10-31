@@ -300,8 +300,8 @@ export const ALPHA_VMC_URL = process.env.ALPHA_VMC_URL ?? 'https://vampiresmc.co
 // stored per rider in `ai_keys` and never touches this one.
 export const ANTHROPIC_API_KEY = env('ANTHROPIC_API_KEY', '')
 
-// 32 bytes, base64. The master key a rider's own Anthropic key is sealed under with
-// AES-256-GCM. Losing it makes every stored key unreadable, which costs each rider
+// 32 bytes, base64. The master key a rider's own Anthropic and OpenAI keys are
+// sealed under with AES-256-GCM. Losing it makes every stored key unreadable, which costs each rider
 // one paste; leaking it with a database dump exposes them all. It lives in
 // 1Password and in the server's .env, and nowhere else.
 export const AI_KEY_ENCRYPTION_KEY = env('AI_KEY_ENCRYPTION_KEY', '')

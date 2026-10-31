@@ -29,7 +29,7 @@ export type TurnResult = {
   outputTokens: number
 }
 
-const SYSTEM = `You are the planning assistant inside Routeloop, an app for planning group motorcycle rides.
+export const SYSTEM = `You are the planning assistant inside Routeloop, an app for planning group motorcycle rides.
 
 Vocabulary: a ride is a list of routes (usually a day or a stretch each). A route is an ordered list of points joined by legs of road. A point marked STOP is somewhere the group stops; a "poi" is somewhere they ride past. Categories (gas, food, hotel, coffee, view, and so on) say what kind of stop it is.
 
@@ -52,8 +52,24 @@ export const emptyTurn = (): TurnResult => ({
   outputTokens: 0,
 })
 
-export async function runTurn(opts: {
-  client: Anthropic
+/** The first user message of every turn, on either provider: the transcript so
+ *  far, the ride as it stands, and what the rider just said. */
+export function openingMessage(ctx: AgentContext, history: ChatLine[], message: string): string {
+  const transcript = history
+    .slice(-12)
+    .map((l) => `${l.role === 'rider' ? 'Rider' : 'You'}: ${l.text.slice(0, 2000)}`)
+    .join('\n')
+  return [
+    transcript ? `Conversation so far:\n${transcript}` : '',
+    `The ride right now:\n${rideSummary(ctx.ride, { units: ctx.units, includeDetails: ctx.includeDetails })}`,
+    `Rider: ${message.slice(0, 4000)}`,
+  ]
+    .filter(Boolean)
+    .join('\n\n')
+}
+
+export type TurnOptions<Client> = {
+  client: Client
   model: string
   effort: 'low' | 'medium' | 'high'
   ctx: AgentContext
@@ -65,7 +81,10 @@ export async function runTurn(opts: {
   /** The caller's meter, written as each response lands, so a turn that throws on
    *  its third call still reports what the first two cost. */
   out?: TurnResult
-}): Promise<TurnResult> {
+}
+
+/** One turn on Anthropic. loop-openai.ts is the same loop on OpenAI. */
+export async function runTurn(opts: TurnOptions<Anthropic>): Promise<TurnResult> {
   const { client, model, ctx } = opts
   const tools: Anthropic.Tool[] = TOOLS.map((t, i) => ({
     name: t.name,
@@ -76,18 +95,7 @@ export async function runTurn(opts: {
     ...(i === TOOLS.length - 1 ? { cache_control: { type: 'ephemeral' as const } } : {}),
   }))
 
-  const transcript = opts.history
-    .slice(-12)
-    .map((l) => `${l.role === 'rider' ? 'Rider' : 'You'}: ${l.text.slice(0, 2000)}`)
-    .join('\n')
-  const opening = [
-    transcript ? `Conversation so far:\n${transcript}` : '',
-    `The ride right now:\n${rideSummary(ctx.ride, { units: ctx.units, includeDetails: ctx.includeDetails })}`,
-    `Rider: ${opts.message.slice(0, 4000)}`,
-  ]
-    .filter(Boolean)
-    .join('\n\n')
-
+  const opening = openingMessage(ctx, opts.history, opts.message)
   const messages: Anthropic.MessageParam[] = [{ role: 'user', content: opening }]
   const out: TurnResult = opts.out ?? emptyTurn()
   ctx.progress = (text) => opts.onEvent({ type: 'progress', text })

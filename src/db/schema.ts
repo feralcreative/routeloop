@@ -2144,21 +2144,36 @@ export const aiUsage = pgTable(
   ],
 )
 
-// A RIDER'S OWN ANTHROPIC KEY, encrypted at rest with AES-256-GCM under
-// AI_KEY_ENCRYPTION_KEY. Only `last4` is ever shown back; the key is decrypted in
-// memory for one turn and never logged, exported or returned to a page.
-export const aiKeys = pgTable('ai_keys', {
-  userId: bigint('user_id', { mode: 'number' })
-    .primaryKey()
-    .references(() => users.id, { onDelete: 'cascade' }),
-  ciphertext: varchar('ciphertext', { length: 512 }).notNull(),
-  iv: varchar('iv', { length: 32 }).notNull(),
-  tag: varchar('tag', { length: 32 }).notNull(),
-  last4: varchar('last4', { length: 8 }).notNull(),
-  model: varchar('model', { length: 40 }).notNull(),
-  createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
-  updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
-})
+// A RIDER'S OWN API KEYS, one per provider (Anthropic, OpenAI), encrypted at rest
+// with AES-256-GCM under AI_KEY_ENCRYPTION_KEY. Only `last4` is ever shown back;
+// a key is decrypted in memory for one turn and never logged, exported or
+// returned to a page. `is_default` marks which one answers when a rider holds
+// both; with none marked, `pickProvider()` in src/agent/policy.ts decides.
+//
+// KEYED ON (rider, provider) since drizzle/0052, which moved the primary key off
+// `user_id` alone. That is not expand/contract-safe in general and is safe here
+// only because 0050, which created the table, shipped in the same release.
+export const aiKeys = pgTable(
+  'ai_keys',
+  {
+    userId: bigint('user_id', { mode: 'number' })
+      .notNull()
+      .references(() => users.id, { onDelete: 'cascade' }),
+    provider: varchar('provider', { length: 12 }).notNull().default('anthropic'),
+    ciphertext: varchar('ciphertext', { length: 512 }).notNull(),
+    iv: varchar('iv', { length: 32 }).notNull(),
+    tag: varchar('tag', { length: 32 }).notNull(),
+    last4: varchar('last4', { length: 8 }).notNull(),
+    model: varchar('model', { length: 40 }).notNull(),
+    isDefault: boolean('is_default').notNull().default(false),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [
+    primaryKey({ columns: [t.userId, t.provider] }),
+    check('ck_ai_keys_provider', sql`${t.provider} in ('anthropic', 'openai')`),
+  ],
+)
 
 // OAUTH FOR THE MCP SERVER. Claude and ChatGPT connect to a remote MCP server
 // through OAuth 2.1 with dynamic client registration, so Routeloop is a minimal

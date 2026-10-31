@@ -17,7 +17,16 @@ import {
   setRoles,
 } from '../src/agent/ride-edit'
 import { rideSummary } from '../src/agent/summary'
-import { costMicros, freeTierAllows, FREE_MONTHLY_MICROS } from '../src/agent/policy'
+import {
+  BYO_MODELS,
+  costMicros,
+  DEFAULT_BYO_MODEL,
+  freeTierAllows,
+  FREE_MONTHLY_MICROS,
+  modelFor,
+  pickProvider,
+  PROVIDERS,
+} from '../src/agent/policy'
 import { Budget } from '../src/agent/budget'
 import { claimTurn } from '../src/agent/inflight'
 import { runTool, type AgentContext } from '../src/agent/tools'
@@ -260,7 +269,49 @@ describe('policy', () => {
   })
 
   it('an unknown model is never free', () => {
-    expect(costMicros('mystery', { input_tokens: 1_000_000, output_tokens: 0 })).toBe(4_000_000)
+    // Costed as the most expensive model listed, GPT-6 Astra at $10 in.
+    expect(costMicros('mystery', { input_tokens: 1_000_000, output_tokens: 0 })).toBe(10_000_000)
+  })
+
+  it('prices an OpenAI turn with its cached input apart', () => {
+    expect(
+      costMicros('gpt-6.1-sol', { input_tokens: 1_000_000, output_tokens: 100_000, cache_read_input_tokens: 1_000_000 }),
+    ).toBe(2_000_000 + 1_000_000 + 100_000)
+  })
+
+  it('every offered model has a price and every default is offered', () => {
+    for (const p of PROVIDERS) {
+      expect(BYO_MODELS[p].some((m) => m.id === DEFAULT_BYO_MODEL[p])).toBe(true)
+      for (const m of BYO_MODELS[p])
+        expect(costMicros(m.id, { input_tokens: 1_000_000, output_tokens: 0 })).toBeLessThanOrEqual(10_000_000)
+    }
+    // A model priced as WORST because it is missing would also pass the line above
+    // for Astra itself, so check a cheap one is not costed at the ceiling.
+    expect(costMicros('gpt-6-luna', { input_tokens: 1_000_000, output_tokens: 0 })).toBe(100_000)
+  })
+
+  it('accepts a model only from its own provider', () => {
+    expect(modelFor('openai', 'gpt-6-luna')).toBe('gpt-6-luna')
+    expect(modelFor('openai', 'claude-opus-5-5')).toBe(DEFAULT_BYO_MODEL.openai)
+    expect(modelFor('anthropic', 'gpt-6-astra')).toBe(DEFAULT_BYO_MODEL.anthropic)
+    expect(modelFor('anthropic', undefined)).toBe(DEFAULT_BYO_MODEL.anthropic)
+  })
+
+  it('picks the switched-to key, then the default, then provider order', () => {
+    const both = [
+      { provider: 'anthropic' as const, isDefault: false },
+      { provider: 'openai' as const, isDefault: true },
+    ]
+    expect(pickProvider([])).toBeNull()
+    expect(pickProvider(both)).toBe('openai')
+    expect(pickProvider(both, 'anthropic')).toBe('anthropic')
+    expect(pickProvider([{ provider: 'openai', isDefault: false }], 'anthropic')).toBe('openai')
+    expect(
+      pickProvider([
+        { provider: 'openai', isDefault: false },
+        { provider: 'anthropic', isDefault: false },
+      ]),
+    ).toBe('anthropic')
   })
 
   it('stops at the rider cap and the global cap', () => {
@@ -375,6 +426,14 @@ describe('sealed keys', () => {
     expect(masterKey('short')).toBeNull()
     expect(looksLikeAnthropicKey(key)).toBe(true)
     expect(looksLikeAnthropicKey('sk-proj-abc')).toBe(false)
+  })
+
+  it('tells an OpenAI key from an Anthropic one', async () => {
+    const { looksLikeOpenAIKey } = await import('../src/agent/sealed-key')
+    expect(looksLikeOpenAIKey('sk-proj-' + 'a'.repeat(40))).toBe(true)
+    expect(looksLikeOpenAIKey('sk-svcacct-' + 'a'.repeat(40))).toBe(true)
+    expect(looksLikeOpenAIKey('sk-ant-api03-' + 'a'.repeat(40))).toBe(false)
+    expect(looksLikeOpenAIKey('sk-short')).toBe(false)
   })
 })
 

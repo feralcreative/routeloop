@@ -1,7 +1,7 @@
 // The remote MCP server: Routeloop's planning tools for an outside AI client
 // (Claude, ChatGPT, the MCP Inspector) acting as a rider who connected it.
 //
-// THE SAME TOOLS AS THE BUILDER'S ASK TAB (src/agent/tools.ts), each given a
+// THE SAME TOOLS AS THE BUILDER'S ASSISTANT (src/agent/tools.ts), each given a
 // `ride_id`. What differs is where the ride comes from and goes: here there is no
 // open builder holding it, so every call loads the stored ride, runs the tool, and
 // saves through saveRide(), the one write path the builder's PUT also uses, with

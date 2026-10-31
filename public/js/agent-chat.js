@@ -30,12 +30,41 @@
   const win = document.getElementById("ask-window");
   const body = document.getElementById("ask-body");
   const minimize = document.getElementById("ask-min");
+  const switcher = document.getElementById("ask-switch");
   const OPEN_KEY = "routeloop.askOpen";
   const history = [];
   let busy = false;
   // The proposal still waiting for an answer, if any. A new message supersedes it:
   // the next turn is sent the ride as it stands, without it.
   let pending = null;
+  // THE SWITCH between a rider's two keys, drawn only when they hold both. It
+  // starts on their default and is never stored: it is a choice about this
+  // conversation, and Robots is where the lasting one lives. Switching mid-way
+  // costs nothing, because every turn sends the conversation as plain text.
+  let chosen = null;
+  let lines = {};
+
+  function paintSwitch() {
+    for (const b of switcher.querySelectorAll("button"))
+      b.setAttribute("aria-pressed", String(b.dataset.provider === chosen));
+    if (chosen && lines[chosen]) status.textContent = lines[chosen];
+  }
+
+  function buildSwitch(keys) {
+    if (switcher.childElementCount) return;
+    for (const k of keys) {
+      const b = document.createElement("button");
+      b.type = "button";
+      b.dataset.provider = k.provider;
+      b.textContent = k.short;
+      b.addEventListener("click", () => {
+        chosen = k.provider;
+        paintSwitch();
+      });
+      switcher.appendChild(b);
+    }
+    switcher.hidden = false;
+  }
 
   async function refreshStatus() {
     try {
@@ -45,6 +74,12 @@
       status.textContent = s.line || "";
       input.disabled = !s.available;
       send.disabled = !s.available || busy;
+      if (s.keys && s.keys.length > 1) {
+        lines = s.lines || {};
+        if (!chosen || !s.keys.some((k) => k.provider === chosen)) chosen = s.provider;
+        buildSwitch(s.keys);
+        paintSwitch();
+      }
     } catch {
       /* The window still works; the line is a courtesy. */
     }
@@ -173,7 +208,12 @@
         method: "POST",
         credentials: "same-origin",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ message, history: history.slice(-12), payload: snap.ride }),
+        body: JSON.stringify({
+          message,
+          history: history.slice(-12),
+          payload: snap.ride,
+          ...(chosen ? { provider: chosen } : {}),
+        }),
       });
       if (!res.ok) {
         const err = await res.json().catch(() => ({}));

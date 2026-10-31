@@ -1,8 +1,8 @@
-// Seals a rider's own Anthropic key at rest. PURE apart from node:crypto.
+// Seals a rider's own Anthropic or OpenAI key at rest. PURE apart from node:crypto.
 //
 // AES-256-GCM under AI_KEY_ENCRYPTION_KEY: GCM rather than CBC because it is
 // authenticated, so a row edited in the database fails to open instead of opening
-// to garbage that is then sent to Anthropic as somebody's key. A fresh 12-byte IV
+// to garbage that is then sent to a provider as somebody's key. A fresh 12-byte IV
 // per seal, never reused under one master key.
 import { createCipheriv, createDecipheriv, randomBytes } from 'node:crypto'
 
@@ -40,3 +40,13 @@ export function open(s: Pick<Sealed, 'ciphertext' | 'iv' | 'tag'>, master: Buffe
 
 /** The shape of an Anthropic API key, checked before anything is spent on it. */
 export const looksLikeAnthropicKey = (v: string) => /^sk-ant-[A-Za-z0-9_-]{20,300}$/.test(v)
+
+/** The shape of an OpenAI API key (`sk-proj-…`, `sk-svcacct-…`, or a legacy
+ *  `sk-…`), and never an Anthropic one pasted into the wrong box. */
+export const looksLikeOpenAIKey = (v: string) => /^sk-[A-Za-z0-9_-]{20,300}$/.test(v) && !v.startsWith('sk-ant-')
+
+/** Each provider's key shape, by provider, for the store and the open. */
+export const LOOKS_LIKE: Record<'anthropic' | 'openai', (v: string) => boolean> = {
+  anthropic: looksLikeAnthropicKey,
+  openai: looksLikeOpenAIKey,
+}
