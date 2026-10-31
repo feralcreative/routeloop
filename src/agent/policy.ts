@@ -89,11 +89,11 @@ export function freeTierAllows(s: FreeTierState): FreeTierAnswer {
 }
 
 export const REFUSALS: Record<'off' | 'rider-cap' | 'global-cap' | 'google-cap', string> = {
-  off: 'The free assistant is switched off right now. You can add your own Anthropic key in Preferences.',
+  off: 'The free assistant is switched off right now. You can add your own Anthropic key under Robots in your account settings.',
   'rider-cap':
-    'You have used this month’s free assistant allowance. It resets on the 1st, or you can add your own Anthropic key in Preferences.',
+    'You have used this month’s free assistant allowance. It resets on the 1st, or you can add your own Anthropic key under Robots in your account settings.',
   'global-cap':
-    'The free assistant has used its budget for this month. It resets on the 1st, or you can add your own Anthropic key in Preferences.',
+    'The free assistant has used its budget for this month. It resets on the 1st, or you can add your own Anthropic key under Robots in your account settings.',
   'google-cap': 'The assistant has made as many map searches as it can for you today. It resets at midnight UTC.',
 }
 

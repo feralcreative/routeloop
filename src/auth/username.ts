@@ -40,6 +40,7 @@ export const RESERVED_USERNAMES: ReadonlySet<string> = new Set([
   'places',
   'profile',
   'rides',
+  'robots',
   'static',
   'style',
   'survey',

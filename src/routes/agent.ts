@@ -197,7 +197,7 @@ agentRoutes.post(
 function describe(err: unknown, source: Source): string {
   if (err instanceof Anthropic.AuthenticationError || err instanceof Anthropic.PermissionDeniedError) {
     return source === 'byo'
-      ? 'Anthropic rejected your key. Check it in Preferences.'
+      ? 'Anthropic rejected your key. Check it under Robots in your account settings.'
       : 'The assistant is misconfigured right now.'
   }
   if (err instanceof Anthropic.RateLimitError) {
