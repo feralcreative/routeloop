@@ -1,4 +1,4 @@
-// The builder's Ask tab: a short conversation with the planning assistant.
+// The builder's assistant: a short conversation in a window floating over the map.
 //
 // The server runs the turn and streams it back (src/routes/agent.ts); this file
 // sends the ride the builder is holding, shows the progress lines as they arrive,
@@ -8,7 +8,11 @@
 // is what keeps text planted in a ride or a place result from reaching a write the
 // rider never looked at.
 //
-// THE TRANSCRIPT LIVES IN THIS TAB AND NOWHERE ELSE. It is never stored, so there
+// THE WINDOW MINIMIZES TO A BUTTON IN THE MAP'S CONTROL COLUMN, bottom right above
+// zoom and locate, and whether it is open is remembered per browser. Minimizing
+// hides it and keeps everything in it, a turn in flight included.
+//
+// THE TRANSCRIPT LIVES IN THIS WINDOW AND NOWHERE ELSE. It is never stored, so there
 // is nothing to export, purge or leak; a reload starts a fresh conversation, and
 // the ride, which is what actually carries the work, is re-read on every turn.
 //
@@ -23,6 +27,10 @@
   const send = document.getElementById("ask-send");
   const log = document.getElementById("ask-log");
   const status = document.getElementById("ask-status");
+  const win = document.getElementById("ask-window");
+  const body = document.getElementById("ask-body");
+  const minimize = document.getElementById("ask-min");
+  const OPEN_KEY = "routeloop.askOpen";
   const history = [];
   let busy = false;
   // The proposal still waiting for an answer, if any. A new message supersedes it:
@@ -38,7 +46,7 @@
       input.disabled = !s.available;
       send.disabled = !s.available || busy;
     } catch {
-      /* The tab still works; the line is a courtesy. */
+      /* The window still works; the line is a courtesy. */
     }
   }
 
@@ -50,8 +58,14 @@
     body.textContent = text;
     li.appendChild(body);
     log.appendChild(li);
-    li.scrollIntoView({ block: "end" });
+    toBottom();
     return li;
+  }
+
+  // scrollIntoView would scroll the page and the map's container along with the
+  // log; only the window's own body should move.
+  function toBottom() {
+    body.scrollTop = body.scrollHeight;
   }
 
   function setBusy(on) {
@@ -127,7 +141,7 @@
     note.setAttribute("aria-live", "polite");
     card.append(head, list, row, note);
     li.appendChild(card);
-    li.scrollIntoView({ block: "end" });
+    toBottom();
     pending = { card };
 
     apply.addEventListener("click", () => {
@@ -212,15 +226,70 @@
     }
   });
 
-  // Status on the first look at the tab, not on page load: a rider who never
+  // Status on the first look at the window, not on page load: a rider who never
   // opens it costs the server nothing.
-  const tab = document.getElementById("tab-ask");
   let looked = false;
-  if (tab) {
-    tab.addEventListener("click", () => {
-      if (looked) return;
+  const launcher = document.createElement("button");
+  launcher.type = "button";
+  launcher.className = "map-ask";
+  launcher.title = "Ask the assistant";
+  launcher.setAttribute("aria-label", "Ask the assistant");
+  launcher.setAttribute("aria-controls", "ask-window");
+  launcher.setAttribute("aria-expanded", "false");
+  // icon-comment.svg's bubble alone; that file is a disc with the bubble knocked
+  // out in white, which as a mask or an <img> cannot take currentColor.
+  launcher.innerHTML =
+    '<svg viewBox="110 130 280 272" aria-hidden="true"><path fill="currentColor" fill-rule="evenodd" d="M346.165 140C364.823 140 380 155.218 380 173.924V309.615C380 328.323 364.822 343.539 346.166 343.539H217.985L182.729 387.724C180.566 390.449 177.327 392 173.859 392C167.6 392 162.501 386.887 162.501 380.611V343.539H152.834C134.176 343.539 119 328.321 119 309.615V173.924C119 155.217 134.178 140 152.834 140H346.165ZM178 218C164.745 218 154 228.745 154 242C154 255.255 164.745 266 178 266C191.255 266 202 255.255 202 242C202 228.745 191.255 218 178 218ZM250 218C236.745 218 226 228.745 226 242C226 255.255 236.745 266 250 266C263.255 266 274 255.255 274 242C274 228.745 263.255 218 250 218ZM322 218C308.745 218 298 228.745 298 242C298 255.255 308.745 266 322 266C335.255 266 346 255.255 346 242C346 228.745 335.255 218 322 218Z"/></svg>';
+
+  function remember(open) {
+    try {
+      localStorage.setItem(OPEN_KEY, open ? "1" : "0");
+    } catch {
+      /* Private window: it just opens minimized next time. */
+    }
+  }
+
+  function setOpen(open, focus) {
+    win.hidden = !open;
+    launcher.setAttribute("aria-expanded", String(open));
+    launcher.classList.toggle("is-open", open);
+    remember(open);
+    if (!open) {
+      if (focus) launcher.focus();
+      return;
+    }
+    if (!looked) {
       looked = true;
       refreshStatus();
+    }
+    toBottom();
+    if (focus && !input.disabled) input.focus();
+  }
+
+  launcher.addEventListener("click", () => setOpen(win.hidden, true));
+  minimize.addEventListener("click", () => setOpen(false, true));
+  win.addEventListener("keydown", (e) => {
+    if (e.key === "Escape" && !e.isComposing) {
+      // Or the builder's own Escape chain closes a row menu behind the window too.
+      e.preventDefault();
+      e.stopPropagation();
+      setOpen(false, true);
+    }
+  });
+
+  // The launcher goes in once the map exists. Without one the window has no way
+  // to be reopened, so it stays shut.
+  const B = window.TBBuilder;
+  if (B && B.ready) {
+    B.ready.then(() => {
+      if (!B.addMapButton || !B.addMapButton(launcher)) return;
+      let open = false;
+      try {
+        open = localStorage.getItem(OPEN_KEY) === "1";
+      } catch {
+        /* Minimized, then. */
+      }
+      if (open) setOpen(true, false);
     });
   }
 })();

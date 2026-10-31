@@ -9,7 +9,7 @@
 // builder takes the change instead of ignoring it as its own echo.
 //
 // NO TOKENS ARE SPENT HERE. The client runs its own model on its own account; the
-// only cost to Routeloop is Google. THERE IS NO TURN HERE, so the Ask tab's per-turn
+// only cost to Routeloop is Google. THERE IS NO TURN HERE, so the builder assistant's per-turn
 // limits do not apply: each tool call is its own request, bounded by the rider's
 // daily Google ceiling, the 120-a-minute request limit, and one call at a time.
 //
@@ -85,7 +85,7 @@ const text = (t: string, isError = false) => ({
 /** One tool call against one stored ride, saved if it changed anything. A save
  *  that loses the rev race is retried once against the fresh ride. */
 async function onRide(user: UserRow, prefs: Prefs, rideId: number, name: string, args: unknown) {
-  // ONE CALL AT A TIME PER RIDER, the Ask tab's lock: the daily Google ceiling is
+  // ONE CALL AT A TIME PER RIDER, the builder assistant's lock: the daily Google ceiling is
   // read before the call and recorded after it (see src/agent/inflight.ts).
   const release = claimTurn(user.id)
   if (!release) return text('Another Routeloop request of yours is still running. Retry in a moment.', true)
