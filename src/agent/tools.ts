@@ -60,6 +60,9 @@ export type AgentContext = {
   progress: (line: string) => void
   /** Set by any tool that changed the ride. */
   changed: boolean
+  /** Sees every tool call and what it answered. The eval harness uses it to check
+   *  that every added place came from a search; nothing in the app sets it. */
+  trace?: (name: string, input: unknown, out: ToolOutcome) => void
 }
 
 const uid = z.string().min(1).max(12)
@@ -389,6 +392,17 @@ export async function runRideless(name: string, rawInput: unknown): Promise<Tool
 /** Runs one tool call. Never throws: a bad argument or a refused edit comes back
  *  as an error result the model can read and correct. */
 export async function runTool(ctx: AgentContext, name: string, rawInput: unknown): Promise<ToolOutcome> {
+  const out = await runToolInner(ctx, name, rawInput)
+  // An observer must never change what a tool did or said.
+  try {
+    ctx.trace?.(name, rawInput, out)
+  } catch {
+    /* ignored */
+  }
+  return out
+}
+
+async function runToolInner(ctx: AgentContext, name: string, rawInput: unknown): Promise<ToolOutcome> {
   const t = BY_NAME.get(name)
   if (!t) return { text: `Unknown tool ${name}.`, isError: true }
   if (!mayCall(ctx.role, t.cap.needs))
