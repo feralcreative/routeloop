@@ -18,6 +18,7 @@ import { and, eq, isNotNull, isNull, lte, or, sql } from 'drizzle-orm'
 import { db } from '../db/index'
 import { placeGroups, places, rideMembers, rides, users } from '../db/schema'
 import { deleteMapFiles } from '../maps/storage'
+import { pruneNotifications } from '../notifications/service'
 import { collapseBinWarnings, warnRidePurges } from '../notifications/warnings'
 import { destroyAbandonedTourRides } from '../tour/service'
 
@@ -130,6 +131,11 @@ export async function purgeTrash(now: Date = new Date()): Promise<TrashPurgeResu
   // AND THE PILE THE PER-RIDE WARNING LEFT, folded to one row per rider on the
   // same sweep — a no-op once it has run, and swallowed like the warning.
   await collapseBinWarnings(now).catch((err) => console.warn('[purge] collapsing bin warnings failed', err))
+  // AND EVERY RIDER'S NOTIFICATIONS PAST THE FORTNIGHT the center promises
+  // (#450). It ran inside the browser poll until then, so only riders who had
+  // granted browser permission were ever pruned. After the collapse, so a
+  // folded row whose clock is past the window goes in the same pass.
+  await pruneNotifications(now).catch((err) => console.warn('[purge] notification prune failed', err))
   // AND THE TOUR'S LEFTOVERS, on the same sweep for the same reason: a tour
   // ride abandoned by a closed tab is binned here a day later, and binning
   // is all this does — the purge above takes it thirty days after that like

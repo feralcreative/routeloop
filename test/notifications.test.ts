@@ -25,7 +25,9 @@ import {
   enabledFor,
   isMuted,
   MUTE,
+  NOTIFICATION_RETENTION_DAYS,
   prefMap,
+  retentionCutoff,
   rowsFromForm,
 } from '../src/notifications/policy'
 import { ALL_EMAILS } from '../src/emails/index'
@@ -303,5 +305,31 @@ describe('the emails behind the catalog', () => {
     const imported = [...src.matchAll(/from '\.\.\/emails\/([a-z-]+)'/g)].map((m) => m[1])
     expect(imported.length).toBeGreaterThan(0)
     for (const key of imported) expect(registered.has(key)).toBe(true)
+  })
+})
+
+describe('pruning old notifications (#450)', () => {
+  const read = (f: string) => readFileSync(new URL(`../${f}`, import.meta.url), 'utf8')
+
+  it('keeps a fortnight, which is what the center tells riders', () => {
+    expect(NOTIFICATION_RETENTION_DAYS).toBe(14)
+    expect(read('src/routes/notifications.tsx')).toContain('kept for a fortnight')
+  })
+
+  it('cuts off exactly the retention window before now', () => {
+    const now = new Date('2026-11-01T12:00:00Z')
+    expect(retentionCutoff(now).toISOString()).toBe('2026-10-18T12:00:00.000Z')
+    expect(now.getTime() - retentionCutoff(now).getTime()).toBe(NOTIFICATION_RETENTION_DAYS * 86_400_000)
+  })
+
+  it('runs on the hourly trash sweep, not inside the browser poll', () => {
+    // The poll only runs for riders who granted browser permission, so a prune
+    // there left everybody else's rows forever.
+    const service = read('src/notifications/service.ts')
+    const claim = service.slice(service.indexOf('export async function claimPending'))
+    const claimBody = claim.slice(0, claim.indexOf('\n}\n'))
+    expect(claimBody).not.toMatch(/\.delete\(notifications\)/)
+    expect(service).toMatch(/export async function pruneNotifications/)
+    expect(read('src/trash/purge.ts')).toMatch(/await pruneNotifications\(now\)/)
   })
 })

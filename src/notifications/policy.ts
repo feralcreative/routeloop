@@ -37,6 +37,18 @@ import { CHANNELS, isChannel, isEvent, type Channel, type NotificationEvent } fr
  * muting is not somewhere a notification is delivered.
  */
 export const MUTE = 'mute'
+
+/** How long a notification is kept before the hourly sweep prunes it. Long
+ *  enough that a rider who left a tab open over a weekend does not lose the
+ *  record, short enough that the table is not a log. The center tells riders
+ *  "a fortnight", so the two have to move together. */
+export const NOTIFICATION_RETENTION_DAYS = 14
+
+/** The instant before which a notification is pruned: anything created earlier
+ *  than this goes. Pure so the arithmetic is testable with no database. */
+export function retentionCutoff(now: Date): Date {
+  return new Date(now.getTime() - NOTIFICATION_RETENTION_DAYS * 86_400_000)
+}
 const isPrefKey = (v: unknown): boolean => isChannel(v) || v === MUTE
 
 /** One stored answer. Exactly the columns the rules read, so a test does not
