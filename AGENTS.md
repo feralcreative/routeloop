@@ -47,6 +47,8 @@ This section outranks everything else in this file and everything in the codebas
 | Regenerate the email wordmarks | `node utils/build-email-logos.mjs --beta` (the beta composite; without the flag, the plain mark). Prints the `LOGO_W`/`LOGO_H` to set in `src/emails/shell.tsx` |
 | Record the sign-in page's sneak peek | `npx tsx utils/record-tour-replay.ts` against a dev server on the seeded `routeloop_tour` database—**never the prod copy dev carries**; `--steps a,b` for a subset, `--headed` to watch. Writes `public/tour/replay.json` and the frames |
 | Cut splash clips from raw footage | `utils/splash-clips.sh --scan` fills the sheet, a bare run encodes every changed row, `--only <NN\|name>` one clip, `--sheets` a contact sheet per source, `--prune` drops outputs whose rows are gone, `--dry-run` says what it would do |
+| Smoke-test the MCP server against the dev server | `npx tsx utils/mcp-smoke.ts` (dev only: mints a token for `DEV_LOGIN_EMAIL`, walks every tool, resource and prompt, makes and discards a proposal, revokes the client) |
+| Run the assistant evals | `npx tsx utils/agent-eval.ts --list`, then `EVAL_ANTHROPIC_KEY=… npx tsx utils/agent-eval.ts --yes` (**spends money**; `--max-usd`, `--provider openai`, `--google` for real Google calls; results in `_PLANS/evals/`) |
 | Report who the account purge would destroy | `npx tsx utils/purge-accounts.ts --dry-run` |
 | Compress stored originals already on disk | `npx tsx utils/compress-originals.ts` (`--dry-run` first) |
 | Back up a database before anything destructive | `utils/deploy/deploy-utils.sh db-backup` (writes to `data/`) |
