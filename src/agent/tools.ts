@@ -37,6 +37,7 @@ import {
   type Stale,
 } from './ride-edit'
 import { rideSummary, type Units } from './summary'
+import { TOPIC_NAMES, TOPICS, topicText } from './knowledge'
 
 export type AgentContext = {
   ride: RidePayload
@@ -97,6 +98,13 @@ export const TOOLS = [
       'Read the ride as it stands: every route with its uid, departure and length, and every point in order with its uid, kind (STOP or poi), categories, position, miles from the start of its route and estimated arrival. Call this again after edits if you need the new numbers.',
     schema: z.object({}).strict(),
     run: async (ctx) => rideSummary(ctx.ride, { units: ctx.units, includeDetails: ctx.includeDetails }),
+  }),
+
+  tool({
+    name: 'guide',
+    description: `Read one topic from Routeloop’s guide. Read ready-to-ride before saying a ride is ready, and the matching topic before advising on pacing, fuel, weather, groups, or how a part of Routeloop works. Topics: ${TOPIC_NAMES.map((t) => `${t} (${TOPICS[t]})`).join(' ')}`,
+    schema: z.object({ topic: z.enum(TOPIC_NAMES) }).strict(),
+    run: async (_ctx, input) => topicText(input.topic),
   }),
 
   tool({
@@ -279,7 +287,11 @@ export const TOOLS = [
 const BY_NAME = new Map(TOOLS.map((t) => [t.name, t]))
 
 /** The tools that never change the ride. Everything else is an edit. */
-export const READS = new Set(['get_ride', 'search_places'])
+export const READS = new Set(['get_ride', 'guide', 'search_places'])
+
+/** The tools that need no ride at all. The MCP server registers these without a
+ *  `ride_id`, so a client can read the guide before it has picked one. */
+export const RIDELESS = new Set(['guide'])
 
 /** The JSON Schema the model is shown for one tool's input. */
 export function inputSchemaOf(t: (typeof TOOLS)[number]): Record<string, unknown> {
@@ -288,6 +300,17 @@ export function inputSchemaOf(t: (typeof TOOLS)[number]): Record<string, unknown
 }
 
 export type ToolOutcome = { text: string; isError: boolean }
+
+/** Runs a RIDELESS tool, which reads nothing from a ride and so is given none. */
+export async function runRideless(name: string, rawInput: unknown): Promise<ToolOutcome> {
+  const t = BY_NAME.get(name)
+  if (!t || !RIDELESS.has(name)) return { text: `Unknown tool ${name}.`, isError: true }
+  const parsed = t.schema.safeParse(rawInput)
+  if (!parsed.success) return { text: 'Invalid arguments.', isError: true }
+  // Its run() never touches the context, which is the whole meaning of RIDELESS.
+  const text = await (t.run as Tool<z.ZodObject>['run'])(undefined as unknown as AgentContext, parsed.data)
+  return { text, isError: false }
+}
 
 /** Runs one tool call. Never throws: a bad argument or a refused edit comes back
  *  as an error result the model can read and correct. */
