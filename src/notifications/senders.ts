@@ -429,8 +429,8 @@ export function notifyAccountPurgeSoon(userId: number, purgeAfter: Date, now: Da
     notify(userId, {
       event: 'account_purge_soon',
       title: daysLeft === 1 ? 'Your account is deleted tomorrow' : `Your account is deleted in ${daysLeft} days`,
-      body: 'Signing in cancels it. Doing nothing goes ahead with it.',
-      url: '/login',
+      body: 'To keep it, press Save Me on the page this opens. Signing in alone does not cancel it.',
+      url: '/account/gone',
       email: { template: accountPurgeSoonEmail, props: { daysLeft, purgeOn } },
     })
   })().catch((err) => console.warn('[notify] account_purge_soon failed:', err))

@@ -1,6 +1,10 @@
 // The account deletion a rider asked for is about to happen.
 //
-// **SIGNING IN IS WHAT CANCELS IT, AND THE MESSAGE EXISTS TO SAY THAT ONCE MORE.**
+// **SAVE ME IS WHAT CANCELS IT, AND THE MESSAGE EXISTS TO SAY THAT ONCE MORE.**
+// Signing in only takes the rider to /account/gone; the cancel is the Save Me
+// button there, deliberately not automatic (see src/routes/account.tsx). The
+// copy said "signing in cancels it" until #449, and a rider who signed in, saw a
+// page and left believed they were safe.
 // The rider was told the date when they asked, on a page they may not have read
 // carefully, thirty days before it meant anything — and what happens on the date
 // is that every ride, every saved place, every bike and every uploaded file is
@@ -13,7 +17,7 @@
 // that tries to talk somebody out of leaving is the reason people distrust the
 // unsubscribe link on everything else.
 //
-// **THE CANCEL IS A SIGN-IN, NOT A LINK IN THIS MESSAGE.** A GET that cancels a
+// **THE CANCEL IS A BUTTON BEHIND A SIGN-IN, NOT A LINK IN THIS MESSAGE.** A GET that cancels a
 // deletion is a one-click undo handed to anyone who reads the mailbox, which for
 // an account somebody is deliberately walking away from is exactly the wrong
 // person to hand it to.
@@ -40,7 +44,7 @@ export const accountPurgeSoonEmail = defineEmail<Props>({
       ? 'Your Routeloop account is deleted tomorrow'
       : `Your Routeloop account is deleted in ${daysLeft} days`,
 
-  preheader: () => 'Signing in cancels it. Doing nothing goes ahead with it.',
+  preheader: () => 'To keep it, sign in and press Save Me. Doing nothing goes ahead with it.',
 
   text: ({ daysLeft, purgeOn, ...p }) =>
     [
@@ -48,7 +52,7 @@ export const accountPurgeSoonEmail = defineEmail<Props>({
       '',
       `Everything goes: every ${wd(wordsIn(p), 'journey')}, every saved place, every ${wd(wordsIn(p), 'vehicle')}, and every file you uploaded. There is nothing to restore from afterwards.`,
       '',
-      `If you have changed your mind, sign in and the deletion is canceled:`,
+      `If you have changed your mind, sign in and press Save Me on the page you land on. Signing in alone does not cancel the deletion.`,
       SIGN_IN_URL,
       '',
       `If you have not, you need do nothing. This is the only reminder we will send.`,
@@ -65,10 +69,14 @@ export const accountPurgeSoonEmail = defineEmail<Props>({
           Everything goes: every {wd(wordsIn(p), 'journey')}, every saved place, every {wd(wordsIn(p), 'vehicle')}, and
           every file you uploaded. There is nothing to restore from&nbsp;afterwards.
         </P>
-        <Button href={SIGN_IN_URL}>Sign in to cancel it</Button>
+        <P>
+          If you have changed your mind, sign in and press <b>Save Me</b> on the page you land on. Signing in alone does
+          not cancel the&nbsp;deletion.
+        </P>
+        <Button href={SIGN_IN_URL}>Sign in to keep it</Button>
         <Muted>
-          Signing in at <A href={SIGN_IN_URL}>{SIGN_IN_URL}</A> is all it takes. If you have not changed your mind, you
-          need do nothing — this is the only reminder we will&nbsp;send.
+          Or sign in at <A href={SIGN_IN_URL}>{SIGN_IN_URL}</A>. If you have not changed your mind, you need do nothing
+          — this is the only reminder we will&nbsp;send.
         </Muted>
       </>
     ).toString(),
