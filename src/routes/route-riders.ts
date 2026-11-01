@@ -15,7 +15,7 @@
 // is one reorder away from the same trap. See the filename.ts gotcha.
 import { Hono } from 'hono'
 import { currentUser, requireActiveApi, requireSameOrigin, type AuthEnv } from '../auth/middleware'
-import { ownRide } from './maps'
+import { editableRide } from './builder'
 import { roster } from '../members/service'
 import { isPlanned } from '../members/policy'
 import { subgroupsOf } from '../subgroups/service'
@@ -80,7 +80,7 @@ async function payloadFor(rideId: number) {
  */
 routeRiderRoutes.get('/api/rides/:id/route-riders', requireActiveApi, async (c) => {
   const user = currentUser(c)
-  const ride = await ownRide(user.id, c.req.param('id'))
+  const ride = await editableRide(user.id, c.req.param('id'))
   if (!ride) return c.json({ error: 'not found' }, 404)
 
   return c.json(await payloadFor(ride.id))
@@ -94,7 +94,7 @@ routeRiderRoutes.get('/api/rides/:id/route-riders', requireActiveApi, async (c) 
  * this one" — the only way to undo an answer, and what makes the absence of rows
  * unambiguous everywhere else.
  *
- * `ownRide` IS THE GATE AND IT IS DELIBERATELY NOT `canDecide`. Saying who rides
+ * `editableRide` IS THE GATE AND IT IS DELIBERATELY NOT `canDecide`. Saying who rides
  * a stretch is planning, which is what an edit-level member is trusted with —
  * the same trust that lets them move a stop. It is not the roster: nobody is
  * added to or removed from the RIDE here, and a rider who is not a member is
@@ -103,7 +103,7 @@ routeRiderRoutes.get('/api/rides/:id/route-riders', requireActiveApi, async (c) 
  */
 routeRiderRoutes.put('/api/rides/:id/route-riders/:uid', requireActiveApi, requireSameOrigin, async (c) => {
   const user = currentUser(c)
-  const ride = await ownRide(user.id, c.req.param('id'))
+  const ride = await editableRide(user.id, c.req.param('id'))
   if (!ride) return c.json({ error: 'not found' }, 404)
 
   // `riders` is [{id, group}]; `group` null means riding as the MAIN group,

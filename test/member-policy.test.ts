@@ -172,6 +172,16 @@ describe('canAdminister', () => {
     expect(canAdminister(member({ perm: 'edit' }))).toBe(false)
     expect(canAdminister(null)).toBe(false)
   })
+
+  // #443: the roster and meeting points are owner-ROLE powers, so a co-owner who
+  // did not create the ride holds them, and route riders are planning, which an
+  // editor holds too. The gates in routes/builder.ts are these two calls.
+  it('holds for a co-owner who is not the creator, and route riders reach an editor', () => {
+    expect(canAdminister(otherOwner)).toBe(true)
+    expect(canEditAsMember(otherOwner)).toBe(true)
+    expect(canEditAsMember(member({ perm: 'edit' }))).toBe(true)
+    expect(canEditAsMember(member({ perm: 'suggest' }))).toBe(false)
+  })
 })
 
 describe('canSetPerm', () => {
