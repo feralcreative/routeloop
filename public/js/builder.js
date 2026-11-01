@@ -109,7 +109,7 @@
   /** Meters as the rider's unit, whole: panel distances are read at a glance
    *  against a tank, so a decimal is noise. */
   const fmtDist = (m) => Math.round(window.TBUnits.distanceFrom(m, UNITS)) + " " + distUnit;
-  const MAX_ROUTES = 31; // matches MAX_ROUTES in src/routes/rides.ts
+  const MAX_ROUTES = 31; // matches MAX_ROUTES in src/maps/ride-graph.ts
     // Mirrors MAX_POINTS / MAX_STOPS in src/maps/ride-graph.ts: one cap over the
     // list plus a ceiling on routing anchors, since promoting 400 POIs would be
     // 399 Directions calls.
