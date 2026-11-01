@@ -36,9 +36,13 @@ const route = (points: ExportPoint[], over: Partial<ExportRoute> = {}): ExportRo
   ...over,
 })
 
+// A gas ride, which is what every case below was written against. The fuel role
+// is an argument since #446; the pedal and electric cases are at the bottom.
+const gasRows = (r: ExportRoute) => routeRows(r, 'gas')
+
 describe('routeRows', () => {
   it('numbers stops and leaves POIs unnumbered', () => {
-    const rows = routeRows(
+    const rows = gasRows(
       route([
         pt({ distFromStartM: 0, name: 'A' }),
         pt({ distFromStartM: 10 * MI, name: 'View', kind: 'poi' }),
@@ -54,7 +58,7 @@ describe('routeRows', () => {
   // that could place it. Every point carries a position now, loadRideForExport
   // reads by it, and the printed sheet says what the rider planned.
   it("keeps the order the points arrive in, which is the rider's own", () => {
-    const rows = routeRows(
+    const rows = gasRows(
       route([
         pt({ distFromStartM: 30 * MI, name: 'C' }),
         pt({ distFromStartM: 10 * MI, name: 'A' }),
@@ -65,7 +69,7 @@ describe('routeRows', () => {
   })
 
   it('measures each leg from the point before it', () => {
-    const rows = routeRows(
+    const rows = gasRows(
       route([pt({ distFromStartM: 0 }), pt({ distFromStartM: 40 * MI }), pt({ distFromStartM: 55 * MI })]),
     )
     expect(rows.map((r) => (r.fromPrevM == null ? null : Math.round(r.fromPrevM / MI)))).toEqual([null, 40, 15])
@@ -74,12 +78,12 @@ describe('routeRows', () => {
   // The column that earns the sheet its place.
   describe('miles since fuel', () => {
     it('says nothing before the first fuel stop, because there is no answer yet', () => {
-      const rows = routeRows(route([pt({ distFromStartM: 0 }), pt({ distFromStartM: 50 * MI })]))
+      const rows = gasRows(route([pt({ distFromStartM: 0 }), pt({ distFromStartM: 50 * MI })]))
       expect(rows.map((r) => r.sinceFuelM)).toEqual([null, null])
     })
 
     it('counts from the last gas stop', () => {
-      const rows = routeRows(
+      const rows = gasRows(
         route([
           pt({ distFromStartM: 0 }),
           pt({ distFromStartM: 20 * MI, roles: ['gas'] }),
@@ -100,7 +104,7 @@ describe('routeRows', () => {
     // number worth printing. Resetting to 0 there would say nothing the word
     // "Gas" in the same row does not already say.
     it('reads as-you-arrive, so a fuel stop shows the tank it just used', () => {
-      const rows = routeRows(
+      const rows = gasRows(
         route([
           pt({ distFromStartM: 0, roles: ['gas'] }),
           pt({ distFromStartM: 100 * MI }),
@@ -118,7 +122,7 @@ describe('routeRows', () => {
 
     // An EV rider is asking the same question with a different verb.
     it('treats a charger as fuel', () => {
-      const rows = routeRows(route([pt({ distFromStartM: 0, roles: ['charge'] }), pt({ distFromStartM: 60 * MI })]))
+      const rows = gasRows(route([pt({ distFromStartM: 0, roles: ['charge'] }), pt({ distFromStartM: 60 * MI })]))
       expect(Math.round((rows[1].sinceFuelM ?? 0) / MI)).toBe(60)
     })
   })
@@ -131,7 +135,7 @@ describe('routeRows', () => {
   // point stays where the rider put it and reports nothing, which is the honest
   // pair: we know the order, we do not know the mileage.
   describe('a point with no measured distance', () => {
-    const rows = routeRows(
+    const rows = gasRows(
       route([
         pt({ distFromStartM: 0, name: 'A' }),
         pt({ distFromStartM: null, name: 'Unknown', kind: 'poi' }),
@@ -157,13 +161,13 @@ describe('routeRows', () => {
 
   describe('the clock', () => {
     it('is absent when the route has no start time', () => {
-      const rows = routeRows(route([pt({ distFromStartM: 0 }), pt({ distFromStartM: 100 * MI })]))
+      const rows = gasRows(route([pt({ distFromStartM: 0 }), pt({ distFromStartM: 100 * MI })]))
       expect(rows.every((r) => r.arrive === null)).toBe(true)
     })
 
     it('advances with distance at the route’s average pace', () => {
       // 200 mi in 4 h, so the 100-mile mark is 2 h in.
-      const rows = routeRows(
+      const rows = gasRows(
         route([pt({ distFromStartM: 0 }), pt({ distFromStartM: 100 * MI })], {
           startAt: new Date('2026-08-03T15:00:00Z'),
         }),
@@ -173,7 +177,7 @@ describe('routeRows', () => {
     })
 
     it('adds the time planned at each stop to everything after it', () => {
-      const rows = routeRows(
+      const rows = gasRows(
         route(
           [
             pt({ distFromStartM: 0 }),
@@ -188,10 +192,38 @@ describe('routeRows', () => {
     })
 
     it('does not divide by zero on a route with no distance', () => {
-      const rows = routeRows(
+      const rows = gasRows(
         route([pt({ distFromStartM: 0 })], { distanceM: 0, startAt: new Date('2026-08-03T15:00:00Z') }),
       )
       expect(rows[0].arrive?.toISOString()).toBe('2026-08-03T15:00:00.000Z')
+    })
+  })
+
+  // A bicycle has no tank (#446). A point tagged Gas on a pedal ride is a stop
+  // for coffee, not a refill, and the sheet has no since-fuel figure to print.
+  describe('the fuel role', () => {
+    const tagged = route([
+      pt({ distFromStartM: 0, roles: ['gas'] }),
+      pt({ distFromStartM: 40 * MI }),
+      pt({ distFromStartM: 70 * MI, roles: ['charge'] }),
+      pt({ distFromStartM: 100 * MI }),
+    ])
+    const since = (rows: ReturnType<typeof routeRows>) =>
+      rows.map((r) => (r.sinceFuelM == null ? null : Math.round(r.sinceFuelM / MI)))
+
+    it('prints no since-fuel figure anywhere on a pedal ride', () => {
+      expect(since(routeRows(tagged, null))).toEqual([null, null, null, null])
+    })
+
+    it('leaves every other figure on a pedal ride alone', () => {
+      const pedal = routeRows(tagged, null)
+      const gas = routeRows(tagged, 'gas')
+      expect(pedal.map((r) => [r.n, r.fromPrevM, r.atM])).toEqual(gas.map((r) => [r.n, r.fromPrevM, r.atM]))
+    })
+
+    it('refills at either tag on a gas or an electric ride, as before', () => {
+      expect(since(routeRows(tagged, 'gas'))).toEqual([null, 40, 70, 30])
+      expect(since(routeRows(tagged, 'charge'))).toEqual([null, 40, 70, 30])
     })
   })
 })

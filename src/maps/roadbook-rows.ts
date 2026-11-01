@@ -5,6 +5,7 @@
 // walk would disagree the first time one of them was touched. No Hono, no
 // formatting — a caller renders a Row in its own units and its own clock.
 import type { ExportPoint, ExportRoute } from './export'
+import type { FuelRole } from '../subgroups/rendezvous'
 
 // A row is a stop or a POI, already in along-the-route order.
 export type Row = {
@@ -38,7 +39,13 @@ export function fmtDuration(seconds: number): string {
 // on that tank rather than the 0 you are about to reset to. That is the number
 // worth printing: it tells you what the bike actually did on the last tank, and
 // the 0 says nothing you did not already know from the word "Gas" in the row.
-export function routeRows(route: ExportRoute): Row[] {
+//
+// `fuel` is the ride's resolved fuel role, `fuelRoleOf()` in
+// src/subgroups/rendezvous.ts. NULL IS A PEDAL RIDE AND IT HAS NO SUCH COLUMN
+// (#446): a bicycle has no tank, so `sinceFuelM` is null on every row even where
+// a point is tagged Gas, and the callers drop the column and the figure with it.
+// A gas or electric ride still refills at either tag, as it always has.
+export function routeRows(route: ExportRoute, fuel: FuelRole | null): Row[] {
   // THE RIDER'S OWN ORDER, which is the order the rows arrive in — every point
   // carries a position now and loadRideForExport reads by it.
   //
@@ -90,7 +97,7 @@ export function routeRows(route: ExportRoute): Row[] {
     })
 
     // Charge counts: an EV rider's range question is the same question.
-    if (p.roles.includes('gas') || p.roles.includes('charge')) {
+    if (fuel && (p.roles.includes('gas') || p.roles.includes('charge'))) {
       fuelAtM = at
       sawFuel = true
     }

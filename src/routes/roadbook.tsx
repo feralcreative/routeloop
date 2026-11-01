@@ -25,9 +25,13 @@ import { page, wordsOf } from '../views/layout'
 import { StrandSwitch } from '../views/strand-switch'
 import { viewableRide } from '../access/query'
 import { resolveStrand } from '../subgroups/service'
+import { fuelRoleOf, type FuelRole } from '../subgroups/rendezvous'
+import { groupRange } from '../bikes/group-range'
+import { memberOrOwner } from '../members/service'
+import type { RideRow, UserRow } from '../db/schema'
 import { type Units, distanceFrom, distanceUnit, twistFrom, twistUnit } from '../views/units'
 import { unitsFor } from '../views/prefs'
-import { Wd, wd, wn } from '../views/vocab'
+import { Wd, vocabOf, wd, wn } from '../views/vocab'
 import { SEP } from '../views/sep'
 
 export const roadbookRoutes = new Hono<AuthEnv>()
@@ -50,6 +54,29 @@ const fmtMi = (m: number, units: Units) => distanceFrom(m, units).toFixed(1)
 export { fmtDuration, routeRows, type Row } from '../maps/roadbook-rows'
 
 const roleTitles = (roles: Role[]) => roles.map((r) => ROLE_META[r]?.title ?? r).join(SEP)
+
+/**
+ * What refuels on this ride, for the reader in front of it: `gas`, `charge`, or
+ * null on a pedal ride, which prints no since-fuel figures at all (#446). The
+ * on-the-road page reads it too.
+ *
+ * THE SAME INPUTS THE VIEWER'S `fuelRole()` READS, so the sheet and the map agree:
+ * the ride's own power and vehicle, the binding bike's fuel type for a member only
+ * (the roster is gated on membership, src/index.tsx), and the reader's own default
+ * from their session row, the pair `TBVocabData.profile` is built from.
+ */
+export async function readerFuelRole(m: RideRow, user: UserRow | null): Promise<FuelRole | null> {
+  const onRoster = (await memberOrOwner(m, user?.id ?? null)) !== null
+  const range = onRoster ? await groupRange(m.id) : null
+  const prof = vocabOf(user as unknown as { vehicle?: unknown; power?: unknown } | null)
+  return fuelRoleOf({
+    ridePower: m.power,
+    rideVehicle: m.vehicle,
+    bikeFuel: range?.fuelType ?? null,
+    profilePower: prof.power,
+    profileVehicle: prof.vehicle,
+  })
+}
 
 roadbookRoutes.get('/m/:slug/roadbook', async (c) => {
   // c.get('user'), not currentUser() — this route is open to anyone with the
@@ -95,6 +122,7 @@ roadbookRoutes.get('/m/:slug/roadbook', async (c) => {
   if (ride.routes.length === 0) return c.text('Not found', 404)
 
   const units = await unitsFor(c)
+  const fuel = await readerFuelRole(m, user)
   const w = wordsOf({ user, ride: m })
   const totalM = ride.routes.reduce((n, r) => n + r.distanceM, 0)
   const totalS = ride.routes.reduce((n, r) => n + r.durationS, 0)
@@ -136,7 +164,7 @@ roadbookRoutes.get('/m/:slug/roadbook', async (c) => {
           </header>
 
           {ride.routes.map((r, i) => {
-            const rows = routeRows(r)
+            const rows = routeRows(r, fuel)
             return (
               <section class="rb-route">
                 <h2>
@@ -191,7 +219,9 @@ roadbookRoutes.get('/m/:slug/roadbook', async (c) => {
                           <th>Stop</th>
                           <th class="rb-num">Leg</th>
                           <th class="rb-num">Total</th>
-                          <th class="rb-num">Fuel</th>
+                          {/* No column at all on a pedal ride (#446), rather than
+                              a column of dashes that reads as "not known yet". */}
+                          {fuel && <th class="rb-num">Fuel</th>}
                           {r.startAt && <th class="rb-num">At</th>}
                           <th class="rb-num">Stay</th>
                         </tr>
@@ -211,7 +241,9 @@ roadbookRoutes.get('/m/:slug/roadbook', async (c) => {
                             <td class="rb-num">{row.atM == null ? '—' : fmtMi(row.atM, units)}</td>
                             {/* Blank until the first fuel stop: "miles since fuel" has no
                               answer before there has been any. */}
-                            <td class="rb-num">{row.sinceFuelM == null ? '—' : fmtMi(row.sinceFuelM, units)}</td>
+                            {fuel && (
+                              <td class="rb-num">{row.sinceFuelM == null ? '—' : fmtMi(row.sinceFuelM, units)}</td>
+                            )}
                             {r.startAt && (
                               <td class="rb-num">{row.arrive ? fmtClock(row.arrive, dateFormat, clock) : '—'}</td>
                             )}
