@@ -14,13 +14,28 @@
     return (d.getUTCMonth() + 1) * 100 + d.getUTCDate();
   }
 
-  // 'closed' when the route's date is in season, 'seasonal' when the route is
-  // undated, null when it is dated outside the season.
+  // Whole calendar days from one route date to another, by their UTC dates.
+  function calendarDays(from, to) {
+    const day = (d) => Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate()) / 86400000;
+    return day(to) - day(from);
+  }
+
+  // 'closed' when the route's span overlaps the season, 'seasonal' when the route
+  // is undated, null when it is dated wholly outside the season. Overlap, not "either
+  // end is in season" (#447): a short closure inside a long route counts. Both are
+  // arcs that may wrap the new year, and two arcs meet when either one's start lies
+  // inside the other; a span of a year or more covers every month-day. Mirrors
+  // seasonVerdict() in src/road-reports/policy.ts.
   function seasonVerdict(season, routeStart, routeEnd) {
     if (!routeStart) return "seasonal";
-    const days = [mmddOf(routeStart)];
-    if (routeEnd) days.push(mmddOf(routeEnd));
-    return days.some((d) => inSeason(season.start, season.end, d)) ? "closed" : null;
+    let from = routeStart;
+    let to = routeEnd || routeStart;
+    if (to.getTime() < from.getTime()) [from, to] = [to, from];
+    if (calendarDays(from, to) >= 365) return "closed";
+    const a = mmddOf(from);
+    const b = mmddOf(to);
+    const meets = inSeason(season.start, season.end, a) || inSeason(a, b, season.start);
+    return meets ? "closed" : null;
   }
 
   function fmtMmdd(mmdd) {
