@@ -1587,16 +1587,17 @@
     // on the map — most of the red. The moment dot is not behind it, because where
     // the rider is is not a fuel fact.
     const on = state.ringOn;
-    const reach = on ? RANGE.fuelReachM(route, distM, cum, role, range) : null;
+    const carry = on ? routeCarries()[a.routeIndex] || 0 : 0;
+    const reach = on ? RANGE.fuelReachM(route, distM, cum, role, range, carry) : null;
     // ONE MARKER PER TANKFUL, not just the next one — see dryDistancesM().
     const walls = on
-      ? RANGE.dryDistancesM(route, distM, cum, role, range)
+      ? RANGE.dryDistancesM(route, distM, cum, role, range, carry)
           .map((d) => pointAtDistance(track, d))
           .filter(Boolean)
       : [];
     // The stretch the rider cannot make, from the wall to the next pump — one
     // statement with the wall, so it is drawn on the same condition.
-    const gap = on ? RANGE.dryStretch(route, distM, cum, role, range) : null;
+    const gap = on ? RANGE.dryStretch(route, distM, cum, role, range, carry) : null;
     setMomentOverlay(
       state.map,
       here,
@@ -1606,7 +1607,7 @@
       // GREEN THROUGH THE FIRST HALF OF THE TANK, amber past it, red from three
       // quarters: the ring is the one part of the fuel overlay that is a quantity
       // rather than a verdict. Computed even when the overlay is off.
-      RANGE.ringTone(RANGE.tankUsed(route, distM, cum, role, range)),
+      RANGE.ringTone(RANGE.tankUsed(route, distM, cum, role, range, carry)),
     );
   }
 
@@ -6864,13 +6865,21 @@
   // Everything the rows of one route need to say how far in they are. Computed once
   // per render: each of these walks the whole route, so doing it inside
   // pointRowHtml would make a 400-point route quadratic.
-  function routeDistances(route) {
+  function routeDistances(route, carryM) {
     const role = fuelRole();
     return {
       cum: DIST.cumulativeM(route),
-      since: DIST.sinceRefuelM(route, role),
-      dryAt: DIST.firstDryPoint(route, role, rangeM()),
+      since: DIST.sinceRefuelM(route, role, carryM),
+      dryAt: DIST.firstDryPoint(route, role, rangeM(), carryM),
     };
+  }
+
+  // How far into the tank each route starts (#451): the group carries what it had
+  // left from the route before, so route 2 starts low when route 1 ended low. One
+  // walk over the ride, done once per render or per frame by the caller.
+  function routeCarries() {
+    const active = (r) => !window.TBTime.isLosingAlt(r);
+    return RANGE.carriesM(state.routes, fuelRole(), rangeM(), DIST.cumulativeM, active);
   }
 
   // One route's rows. Takes the route index rather than reading the active one,
@@ -6880,7 +6889,7 @@
     if (!list) return;
     const route = state.routes[r];
     if (!route) return;
-    const dist = routeDistances(route);
+    const dist = routeDistances(route, routeCarries()[r] || 0);
     list.innerHTML =
       orderedRows(route)
         .map(

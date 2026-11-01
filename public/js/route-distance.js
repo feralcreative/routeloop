@@ -86,17 +86,15 @@
    * asking is how far the NEXT one is, and a row that said 180 at the fuel stop
    * would be answering the previous leg's question in the next leg's row.
    *
-   * Before the first refuel it counts from the start of the route, because that is
-   * where the tank was last full — near enough. It is not: a rider joining route 3
-   * on whatever they had left is not starting full, and this module cannot know
-   * that. Stated rather than modeled, because the alternative is asking every
-   * rider what is in their tank at the start of every route.
+   * Before the first refuel it counts from where the tank was last full: `carryM`
+   * back, on the route before this one (TBRange.carriesM(), #451), or the start of
+   * this route when nothing carried. A route that starts at a pump starts full.
    */
-  function sinceRefuelM(route, fuelRole) {
+  function sinceRefuelM(route, fuelRole, carryM) {
     var points = pointsOf(route);
     var cum = cumulativeM(route);
     var out = [];
-    var lastRefuelAt = 0;
+    var lastRefuelAt = carryM > 0 ? -carryM : 0;
     for (var i = 0; i < points.length; i++) {
       if (isRefuel(points[i], fuelRole)) lastRefuelAt = cum[i];
       out.push(cum[i] - lastRefuelAt);
@@ -116,9 +114,9 @@
    * already wrong there, and every later point inherits the error — flagging all
    * of them turns one problem into a column of red.
    */
-  function firstDryPoint(route, fuelRole, rangeM) {
+  function firstDryPoint(route, fuelRole, rangeM, carryM) {
     if (rangeM == null || !(rangeM > 0)) return null;
-    var since = sinceRefuelM(route, fuelRole);
+    var since = sinceRefuelM(route, fuelRole, carryM);
     for (var i = 0; i < since.length; i++) {
       if (since[i] > rangeM) return i;
     }
