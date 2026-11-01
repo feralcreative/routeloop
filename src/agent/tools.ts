@@ -36,11 +36,17 @@ import {
   setRoles,
   type Stale,
 } from './ride-edit'
-import { rideSummary, type Units } from './summary'
+import { rideSummary, type Snapshot, type Units } from './summary'
 import { TOPIC_NAMES, TOPICS, topicText } from './knowledge'
 
 export type AgentContext = {
   ride: RidePayload
+  /** The rider's standing on this ride, checked against each tool's `needs`. */
+  role: 'view' | 'edit' | 'owner'
+  /** WHICH VERSION OF THE RIDE THIS IS, so no answer is about a road the rider has
+   *  already changed: the builder's open copy with its unsaved edits, or what is
+   *  saved at a revision (with any changes proposed on top of it, over MCP). */
+  snapshot: Snapshot
   units: Units
   budget: Budget
   favor: string[]
@@ -68,14 +74,42 @@ const place = {
   lng,
 }
 
+/** The least a rider must be on the ride to call a tool. `none` needs no ride. */
+export type Need = 'none' | 'view' | 'edit' | 'owner'
+const NEED_RANK: Record<Need, number> = { none: 0, view: 1, edit: 2, owner: 3 }
+
+/** Whether a rider holding `role` may call a tool that needs `need`. */
+export const mayCall = (role: Exclude<Need, 'none'>, need: Need): boolean => NEED_RANK[role] >= NEED_RANK[need]
+
+/**
+ * WHAT A TOOL MAY DO, DECLARED ONCE. Who may call it, how an MCP host is told
+ * about it, and how much it may spend in one call all derive from this, so a new
+ * tool cannot get one of them by accident and miss another.
+ */
+export type Capability = {
+  /** Changes the ride. */
+  mutates: boolean
+  /** Overwrites or removes something a rider set. Meaningful only with `mutates`. */
+  destructive?: boolean
+  needs: Need
+  /** The most external calls one call of this tool may make. Absent means none:
+   *  a tool cannot spend what it did not declare. */
+  spends?: { search?: number; leg?: number }
+}
+
 type Tool<S extends z.ZodObject> = {
   name: string
   description: string
   schema: S
+  cap: Capability
   run: (ctx: AgentContext, input: z.infer<S>) => Promise<string>
 }
 
 const tool = <S extends z.ZodObject>(t: Tool<S>) => t
+
+/** The most legs one move_stop may redraw. Its span is every leg between the two
+ *  positions plus the two around them (movePoint in ride-edit.ts). */
+export const MAX_MOVE_LEGS = 12
 
 // After an edit: route what it left straight, then say what happened.
 async function settle(ctx: AgentContext, stale: Stale[], said: string): Promise<string> {
@@ -94,14 +128,17 @@ function routeTitle(ctx: AgentContext, routeUid: string): string {
 export const TOOLS = [
   tool({
     name: 'get_ride',
+    cap: { mutates: false, needs: 'view' },
     description:
       'Read the ride as it stands: every route with its uid, departure and length, and every point in order with its uid, kind (STOP or poi), categories, position, miles from the start of its route and estimated arrival. Call this again after edits if you need the new numbers.',
     schema: z.object({}).strict(),
-    run: async (ctx) => rideSummary(ctx.ride, { units: ctx.units, includeDetails: ctx.includeDetails }),
+    run: async (ctx) =>
+      rideSummary(ctx.ride, { units: ctx.units, includeDetails: ctx.includeDetails, snapshot: ctx.snapshot }),
   }),
 
   tool({
     name: 'guide',
+    cap: { mutates: false, needs: 'none' },
     description: `Read one topic from Routeloop’s guide. Read ready-to-ride before saying a ride is ready, and the matching topic before advising on pacing, fuel, weather, groups, or how a part of Routeloop works. Topics: ${TOPIC_NAMES.map((t) => `${t} (${TOPICS[t]})`).join(' ')}`,
     schema: z.object({ topic: z.enum(TOPIC_NAMES) }).strict(),
     run: async (_ctx, input) => topicText(input.topic),
@@ -109,6 +146,7 @@ export const TOOLS = [
 
   tool({
     name: 'search_places',
+    cap: { mutates: false, needs: 'view', spends: { search: 1 } },
     description:
       'Search Google Places by text ("gas station", "Dunsmuir Lodge", "coffee in Willits"). Results are biased toward `near` when given: a point on the ride by its uid, or a lat/lng. Returns up to 8 places with coordinates you can pass to add_stop or replace_stop. Each search costs real money; search once per place you need, not repeatedly.',
     schema: z
@@ -155,6 +193,7 @@ export const TOOLS = [
 
   tool({
     name: 'add_stop',
+    cap: { mutates: true, needs: 'edit', spends: { leg: 2 } },
     description:
       'Add a place to a route. Position it with `after_point_uid` (insert right after that point), or omit it to add at the end. Give `categories` (e.g. ["gas"], ["food"], ["hotel"]) for somewhere the group will actually stop; with none it is a point they ride past. The road is re-routed automatically.',
     schema: z
@@ -182,6 +221,7 @@ export const TOOLS = [
 
   tool({
     name: 'replace_stop',
+    cap: { mutates: true, destructive: true, needs: 'edit', spends: { leg: 2 } },
     description:
       'Swap a point for a different place, keeping its position, categories, dwell time and notes. Use this instead of remove + add when the rider wants somewhere else at the same spot in the plan.',
     schema: z.object({ route_uid: uid, point_uid: uid, ...place }).strict(),
@@ -194,6 +234,7 @@ export const TOOLS = [
 
   tool({
     name: 'remove_stop',
+    cap: { mutates: true, destructive: true, needs: 'edit', spends: { leg: 2 } },
     description: 'Take a point off a route. A route cannot be left with no points.',
     schema: z.object({ route_uid: uid, point_uid: uid }).strict(),
     run: async (ctx, input) => {
@@ -211,9 +252,20 @@ export const TOOLS = [
 
   tool({
     name: 'move_stop',
-    description: 'Move a point to a new position within its route (0 is the start).',
+    cap: { mutates: true, destructive: true, needs: 'edit', spends: { leg: MAX_MOVE_LEGS } },
+    description: `Move a point to a new position within its route (0 is the start). Every leg between the old and new position is redrawn, so a move spanning more than ${MAX_MOVE_LEGS} legs is refused: move it in steps, or ask the rider to drag it in the builder.`,
     schema: z.object({ route_uid: uid, point_uid: uid, to_index: z.number().int().min(0) }).strict(),
     run: async (ctx, input) => {
+      // REFUSED BEFORE ANYTHING MOVES rather than redrawn partly: movePoint() rebuilds
+      // every leg in the span, and a span past the call's ceiling would leave the rest
+      // straight, which is a half-drawn route waiting to be applied.
+      const route = ctx.ride.routes[routeIndex(ctx.ride, input.route_uid)]
+      const from = pointIndex(route, input.point_uid)
+      const span = Math.abs(from - input.to_index) + 2
+      if (span > MAX_MOVE_LEGS)
+        throw new EditError(
+          `that move would redraw about ${span} legs, more than ${MAX_MOVE_LEGS} in one call; move it in steps`,
+        )
       const stale = movePoint(ctx.ride, input.route_uid, input.point_uid, input.to_index)
       // An empty answer is a point already where it was asked to go: nothing changed.
       if (stale.length === 0) return 'That point is already at that position.'
@@ -224,6 +276,7 @@ export const TOOLS = [
 
   tool({
     name: 'set_categories',
+    cap: { mutates: true, destructive: true, needs: 'edit' },
     description:
       'Set what kind of stop a point is: gas, charge, food, coffee, drinks, grocery, hotel, camp, break, view, meet, split, start, finish, home, poi (a sight), wtf. Any category makes it a stop; an empty list makes it a point they ride past.',
     schema: z.object({ route_uid: uid, point_uid: uid, categories: z.array(role).max(4) }).strict(),
@@ -236,6 +289,7 @@ export const TOOLS = [
 
   tool({
     name: 'set_dwell',
+    cap: { mutates: true, destructive: true, needs: 'edit' },
     description: 'Set how many minutes the group spends at a point. null clears it.',
     schema: z
       .object({ route_uid: uid, point_uid: uid, minutes: z.number().int().min(0).max(43200).nullable() })
@@ -249,6 +303,7 @@ export const TOOLS = [
 
   tool({
     name: 'set_departure',
+    cap: { mutates: true, destructive: true, needs: 'edit' },
     description:
       'Set when a route sets off, as the local wall-clock time where the ride starts, formatted YYYY-MM-DDTHH:MM (e.g. 2026-11-07T08:30). Never convert time zones. null clears it.',
     schema: z.object({ route_uid: uid, local_time: z.string().max(16).nullable() }).strict(),
@@ -261,6 +316,7 @@ export const TOOLS = [
 
   tool({
     name: 'add_route',
+    cap: { mutates: true, needs: 'edit' },
     description:
       'Add a new route at the end of the ride (a ride is a list of routes, usually one per day or stretch), starting at one place. Add the rest of its points with add_stop.',
     schema: z.object({ title: z.string().max(150), ...place }).strict(),
@@ -274,6 +330,7 @@ export const TOOLS = [
 
   tool({
     name: 'rename_route',
+    cap: { mutates: true, destructive: true, needs: 'edit' },
     description: 'Change a route’s title.',
     schema: z.object({ route_uid: uid, title: z.string().max(150) }).strict(),
     run: async (ctx, input) => {
@@ -287,11 +344,28 @@ export const TOOLS = [
 const BY_NAME = new Map(TOOLS.map((t) => [t.name, t]))
 
 /** The tools that never change the ride. Everything else is an edit. */
-export const READS = new Set(['get_ride', 'guide', 'search_places'])
+export const READS = new Set(TOOLS.filter((t) => !t.cap.mutates).map((t) => t.name))
 
 /** The tools that need no ride at all. The MCP server registers these without a
  *  `ride_id`, so a client can read the guide before it has picked one. */
-export const RIDELESS = new Set(['guide'])
+export const RIDELESS = new Set(TOOLS.filter((t) => t.cap.needs === 'none').map((t) => t.name))
+
+/** What an MCP host is told about a tool, from its capability. Read-only means it
+ *  changes nothing AND spends nothing, which is why a place search is not. */
+export function annotationsOf(cap: Capability): {
+  readOnlyHint: boolean
+  destructiveHint?: boolean
+  openWorldHint?: boolean
+} {
+  const spends = !!(cap.spends?.search || cap.spends?.leg)
+  // Every hint is stated, because the specification's defaults are the cautious
+  // ones (open world, destructive): an omitted hint reads as the worst case.
+  return {
+    readOnlyHint: !cap.mutates && !spends,
+    ...(cap.mutates ? { destructiveHint: !!cap.destructive } : {}),
+    openWorldHint: spends,
+  }
+}
 
 /** The JSON Schema the model is shown for one tool's input. */
 export function inputSchemaOf(t: (typeof TOOLS)[number]): Record<string, unknown> {
@@ -317,6 +391,8 @@ export async function runRideless(name: string, rawInput: unknown): Promise<Tool
 export async function runTool(ctx: AgentContext, name: string, rawInput: unknown): Promise<ToolOutcome> {
   const t = BY_NAME.get(name)
   if (!t) return { text: `Unknown tool ${name}.`, isError: true }
+  if (!mayCall(ctx.role, t.cap.needs))
+    return { text: `That needs ${t.cap.needs} access to this ride, and you have ${ctx.role}.`, isError: true }
   const parsed = t.schema.safeParse(rawInput)
   if (!parsed.success)
     return {
@@ -331,6 +407,7 @@ export async function runTool(ctx: AgentContext, name: string, rawInput: unknown
   const changedBefore = ctx.changed
   // Cleared for the call so `changed` afterwards says whether THIS call edited.
   ctx.changed = false
+  ctx.budget.beginCall(t.cap.spends)
   try {
     const text = await (t.run as Tool<z.ZodObject>['run'])(ctx, parsed.data)
     if (ctx.changed) ctx.changes.push(text)

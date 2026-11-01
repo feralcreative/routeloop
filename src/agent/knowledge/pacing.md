@@ -1,3 +1,8 @@
+---
+kind: riding
+reviewed: pending
+---
+
 # Pacing
 
 How to use this: rules of thumb for sizing days, not limits. The group's own stated preferences always outrank these numbers, and no figure here comes from a controlled study.

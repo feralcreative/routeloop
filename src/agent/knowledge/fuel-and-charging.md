@@ -1,3 +1,8 @@
+---
+kind: riding
+reviewed: pending
+---
+
 # Fuel and charging
 
 How to use this: rules of thumb for spacing fuel, charging, and water stops. Never state that a specific station exists, is open, or sells a given grade without checking a live source; small stations close and change hours.

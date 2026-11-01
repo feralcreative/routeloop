@@ -8,6 +8,9 @@ export type Spend = 'search' | 'leg'
 export class Budget {
   searches = 0
   legs = 0
+  /** This tool call's own ceiling and what it has used, set by beginCall(). Null
+   *  before the first call, which leaves direct callers (tests) unbounded by it. */
+  private call: { search: number; leg: number; usedSearch: number; usedLeg: number } | null = null
   /**
    * `perTurn: false` is the MCP server's mode: a remote client has no turn, each
    * tool call is its own request, so only the rider's day (plus that endpoint's
@@ -26,9 +29,28 @@ export class Budget {
     return this.usedToday + this.googleCalls >= DAILY_GOOGLE_CALLS
   }
 
-  /** Claims one call if both the turn and the day allow it. */
+  /** Starts one tool call with the ceiling its capability declares. A tool that
+   *  declared nothing may spend nothing. */
+  beginCall(spends: { search?: number; leg?: number } | undefined): void {
+    this.call = { search: spends?.search ?? 0, leg: spends?.leg ?? 0, usedSearch: 0, usedLeg: 0 }
+  }
+
+  /** Claims one call if the tool call, the turn, and the day all allow it. */
   take(kind: Spend): boolean {
     if (this.dayExhausted) return false
+    if (this.call) {
+      if (kind === 'search' && this.call.usedSearch >= this.call.search) return false
+      if (kind === 'leg' && this.call.usedLeg >= this.call.leg) return false
+    }
+    const ok = this.takeTurn(kind)
+    if (ok && this.call) {
+      if (kind === 'search') this.call.usedSearch++
+      else this.call.usedLeg++
+    }
+    return ok
+  }
+
+  private takeTurn(kind: Spend): boolean {
     if (kind === 'search') {
       if (this.opts.perTurn && this.searches >= TURN_LIMITS.placeSearches) return false
       this.searches++
@@ -44,5 +66,9 @@ export class Budget {
   refund(kind: Spend): void {
     if (kind === 'search' && this.searches > 0) this.searches--
     if (kind === 'leg' && this.legs > 0) this.legs--
+    if (this.call) {
+      if (kind === 'search' && this.call.usedSearch > 0) this.call.usedSearch--
+      if (kind === 'leg' && this.call.usedLeg > 0) this.call.usedLeg--
+    }
   }
 }

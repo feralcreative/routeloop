@@ -1,3 +1,8 @@
+---
+kind: riding
+reviewed: pending
+---
+
 # Borders, laws, and lodging
 
 How to use this: general shape only. Border rules, state laws, park reservations, and fees change often; never state one as current fact without the official source, and always give the year with any dated fact below.

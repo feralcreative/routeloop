@@ -32,13 +32,27 @@ function clock(iso: string, plusS: number): string {
   return d.toISOString().slice(0, 16).replace('T', ' ')
 }
 
-export function rideSummary(ride: RidePayload, opts: { units?: Units; includeDetails?: boolean } = {}): string {
+/** Which version of the ride a summary describes: the builder's open copy, or what
+ *  is saved at a revision plus any changes proposed on top of it over MCP. */
+export type Snapshot = { kind: 'draft' } | { kind: 'saved'; rev: number; pending: number }
+
+function snapshotLine(s: Snapshot): string {
+  if (s.kind === 'draft') return 'This is the builder’s open copy, unsaved edits included.'
+  if (s.pending === 0) return `As saved (revision ${s.rev}).`
+  return `As saved (revision ${s.rev}) plus ${s.pending} change${s.pending === 1 ? '' : 's'} you proposed that ${s.pending === 1 ? 'is' : 'are'} not applied yet.`
+}
+
+export function rideSummary(
+  ride: RidePayload,
+  opts: { units?: Units; includeDetails?: boolean; snapshot?: Snapshot } = {},
+): string {
   const u = opts.units ?? 'mi'
   const groups = new Map(ride.subgroups.map((g) => [g.uid, g.name]))
   const out: string[] = []
   out.push(
     `Ride "${ride.title}": ${ride.routes.length} route${ride.routes.length === 1 ? '' : 's'}, distances in ${u}, positions as (lat, lng).`,
   )
+  if (opts.snapshot) out.push(snapshotLine(opts.snapshot))
   if (ride.description) out.push(`Description: ${ride.description.slice(0, 500)}`)
 
   ride.routes.forEach((route, r) => {

@@ -1,3 +1,8 @@
+---
+kind: riding
+reviewed: pending
+---
+
 # Weather and seasons
 
 How to use this: rules of thumb for planning around weather. Pass dates are typical windows only—never say a road is open or closed without the official source, and prefer a live forecast over any average here.

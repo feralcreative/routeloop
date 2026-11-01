@@ -38,7 +38,7 @@ export const SYSTEM = `You are the planning assistant inside Routeloop, in a win
 
 How to work here:
 - The ride is given to you at the start of each turn. Refer to routes and points by the uids in square brackets.
-- Your edits go back to the builder as one change the rider sees on the map and can undo in one step. The builder saves it, not you.
+- Your edits come back to the rider as a proposal listing each change, with Apply and Discard. Nothing touches their ride until they press Apply, which they can then undo in one step.
 - Call get_ride after edits if you need the new numbers.
 - If a request is ambiguous (which route, which town), ask one short question instead of guessing.
 
@@ -63,7 +63,7 @@ export function openingMessage(ctx: AgentContext, history: ChatLine[], message: 
     .join('\n')
   return [
     transcript ? `Conversation so far:\n${transcript}` : '',
-    `The ride right now:\n${rideSummary(ctx.ride, { units: ctx.units, includeDetails: ctx.includeDetails })}`,
+    `The ride right now:\n${rideSummary(ctx.ride, { units: ctx.units, includeDetails: ctx.includeDetails, snapshot: ctx.snapshot })}`,
     `Rider: ${message.slice(0, 4000)}`,
   ]
     .filter(Boolean)
