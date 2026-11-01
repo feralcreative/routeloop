@@ -36,7 +36,7 @@ import {
   setRoles,
   type Stale,
 } from './ride-edit'
-import { rideSummary, type Snapshot, type Units } from './summary'
+import { rideSummary, type Preset, type Snapshot, type Units } from './summary'
 import { TOPIC_NAMES, TOPICS, topicText } from './knowledge'
 
 export type AgentContext = {
@@ -47,6 +47,8 @@ export type AgentContext = {
    *  already changed: the builder's open copy with its unsaved edits, or what is
    *  saved at a revision (with any changes proposed on top of it, over MCP). */
   snapshot: Snapshot
+  /** The vehicle and power the ride is planned for, resolved by presetOf(). */
+  preset?: Preset
   units: Units
   budget: Budget
   favor: string[]
@@ -114,13 +116,20 @@ const tool = <S extends z.ZodObject>(t: Tool<S>) => t
  *  positions plus the two around them (movePoint in ride-edit.ts). */
 export const MAX_MOVE_LEGS = 12
 
-// After an edit: route what it left straight, then say what happened.
+// After an edit: draw the road it left straight, then say what happened. An edit
+// whose road cannot be drawn is REFUSED, and runTool rolls the ride back: a leg left
+// straight is a line across the map that nothing re-draws later (#445).
 async function settle(ctx: AgentContext, stale: Stale[], said: string): Promise<string> {
   ctx.changed = true
   if (stale.length === 0) return said
   ctx.progress('Drawing the road')
-  const { skipped } = await routeStale(ctx.ride, stale, ctx.budget)
-  return skipped > 0 ? `${said} (${skipped} leg(s) left straight: routing budget for this turn is spent)` : said
+  const { skipped, failed } = await routeStale(ctx.ride, stale, ctx.budget)
+  if (skipped > 0)
+    throw new EditError(
+      'that edit was not made: the road could not be drawn because the routing budget for this turn or today is spent',
+    )
+  if (failed > 0) throw new EditError('that edit was not made: the router could not draw the road just now; try again')
+  return said
 }
 
 function routeTitle(ctx: AgentContext, routeUid: string): string {
@@ -136,7 +145,12 @@ export const TOOLS = [
       'Read the ride as it stands: every route with its uid, departure and length, and every point in order with its uid, kind (STOP or poi), categories, position, miles from the start of its route and estimated arrival. Call this again after edits if you need the new numbers.',
     schema: z.object({}).strict(),
     run: async (ctx) =>
-      rideSummary(ctx.ride, { units: ctx.units, includeDetails: ctx.includeDetails, snapshot: ctx.snapshot }),
+      rideSummary(ctx.ride, {
+        units: ctx.units,
+        includeDetails: ctx.includeDetails,
+        snapshot: ctx.snapshot,
+        preset: ctx.preset,
+      }),
   }),
 
   tool({

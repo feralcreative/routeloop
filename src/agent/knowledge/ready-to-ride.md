@@ -45,9 +45,9 @@ A leg the router never answered stays a straight line between its two points. It
 
 **What the rider sees.** A dead-straight line across the map, and a toast such as "Could not route that leg—drawn straight, its time is estimated" or "No road route for that leg—drawn straight, its time is estimated".
 
-**Detect.** `(part estimated)` on a route line in get_ride means at least one leg is straight. To find which: a straight leg's mileage (the difference between two consecutive "at X mi" values) equals the straight-line distance between the two points' coordinates; a real road is almost always 10 percent or more longer. On a dated route, a straight leg's time is exactly its distance at 50 mph.
+**Detect.** `(part estimated: N legs not drawn yet)` on a route line in get_ride. Every distance and ETA past the first such leg carries `(est.)`, so the first point marked `(est.)` is the far end of the first undrawn leg. An undrawn leg's time is its straight-line distance at about 45 mph.
 
-**Fix.** Your edit tools re-route every leg they leave straight; a tool reply ending "N leg(s) left straight: routing budget for this turn is spent" means try again next turn. You cannot re-route a leg on purpose, and you never move a point to force one: ask the rider to drag the point slightly in the builder, which redraws its legs. If a leg stays straight after that, the point is probably unreachable by road (an island, a trail, a building interior): search_places for the place and replace_stop with a result on a road.
+**Fix.** Your edit tools draw the road for every leg they touch; when they cannot (the routing budget is spent, or the router failed), the edit is refused and nothing changes, so try again later rather than assuming it landed. You cannot re-route an existing leg on purpose, and you never move a point to force one: ask the rider to drag the point slightly in the builder, which redraws its legs. If a leg stays straight after that, the point is probably unreachable by road (an island, a trail, a building interior): search_places for the place and replace_stop with a result on a road.
 
 ## 5. Wrong road, broken links between routes
 

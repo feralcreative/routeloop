@@ -25,7 +25,7 @@ describe('agent eval scenarios', () => {
 
   it('show the defect each readiness scenario is about in what the model reads', () => {
     const summary = (id: string) => rideSummary(SCENARIOS.find((s) => s.id === id)!.ride())
-    expect(summary('readiness-unrouted')).toContain('(part estimated)')
+    expect(summary('readiness-unrouted')).toContain('(part estimated')
     expect(summary('readiness-no-departure')).toContain('(no departure time)')
     const ride = (id: string) => SCENARIOS.find((s) => s.id === id)!.ride()
     expect(maxFuelGapMi(ride('readiness-fuel-gap'))).toBeGreaterThan(150)

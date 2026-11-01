@@ -2,7 +2,13 @@
 // which version of a ride an answer is about, what never reaches a model provider,
 // and the pending-proposal store the MCP server saves through.
 import { readFileSync } from 'node:fs'
-import { beforeEach, describe, expect, it } from 'vitest'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
+
+// NEVER THE REAL ROUTER: config reads .env, so a test that routes a leg would bill
+// Google from any laptop that has a key, and fail in CI, which has none. Each test
+// sets what the next routing pass reports.
+const routing = vi.hoisted(() => ({ next: { routed: 0, skipped: 0, failed: 0 } }))
+vi.mock('../src/agent/legs', () => ({ routeStale: async () => routing.next }))
 import { ridePayload, type RidePayload } from '../src/maps/ride-graph'
 import { Budget } from '../src/agent/budget'
 import { rideSummary } from '../src/agent/summary'
@@ -183,10 +189,29 @@ describe('per-call ceilings match what each edit redraws', () => {
   })
 
   it('lets a short move through', async () => {
+    routing.next = { routed: 5, skipped: 0, failed: 0 }
     const c = ctx({ ride: long() })
     const out = await runTool(c, 'move_stop', { route_uid: 'route0000001', point_uid: 'p00000000003', to_index: 6 })
     expect(out.isError).toBe(false)
   })
+})
+
+describe('an edit whose road cannot be drawn (#445)', () => {
+  for (const [why, next] of [
+    ['budget spent', { routed: 0, skipped: 1, failed: 0 }],
+    ['router failed', { routed: 0, skipped: 0, failed: 1 }],
+  ] as const) {
+    it(`is refused and rolled back (${why})`, async () => {
+      routing.next = next
+      const c = ctx()
+      const before = JSON.stringify(c.ride)
+      const out = await runTool(c, 'add_stop', { route_uid: 'route0000001', name: 'Gilroy', lat: 37.0, lng: -121.57 })
+      expect(out.isError).toBe(true)
+      expect(out.text).toMatch(/not made/)
+      expect(JSON.stringify(c.ride)).toBe(before)
+      expect(c.changes).toEqual([])
+    })
+  }
 })
 
 describe('per-call budget', () => {
