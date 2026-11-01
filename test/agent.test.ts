@@ -465,3 +465,18 @@ describe('oauth policy', () => {
     )
   })
 })
+
+describe('web search sources', () => {
+  it('lists each cited source once, and nothing when there are none', async () => {
+    const { sourcesLine } = await import('../src/agent/loop')
+    expect(sourcesLine([])).toBe('')
+    const out = sourcesLine([
+      { url: 'https://quickmap.dot.ca.gov/', title: 'Caltrans QuickMap' },
+      { url: 'https://quickmap.dot.ca.gov/', title: 'Caltrans QuickMap' },
+      { url: 'https://www.nps.gov/yose/planyourvisit/conditions.htm', title: null },
+    ])
+    expect(out).toBe(
+      '\n\nSources:\n- Caltrans QuickMap: https://quickmap.dot.ca.gov/\n- https://www.nps.gov/yose/planyourvisit/conditions.htm',
+    )
+  })
+})

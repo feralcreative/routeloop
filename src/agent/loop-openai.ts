@@ -17,7 +17,16 @@
 import type OpenAI from 'openai'
 import { costMicros, TURN_LIMITS } from './policy'
 import { inputSchemaOf, runTool, TOOLS } from './tools'
-import { emptyTurn, openingMessage, SYSTEM, type TurnOptions, type TurnResult } from './loop'
+import {
+  emptyTurn,
+  openingMessage,
+  sourcesLine,
+  SYSTEM,
+  WEB_SEARCH_MICROS,
+  WEB_SEARCHES_PER_TURN,
+  type TurnOptions,
+  type TurnResult,
+} from './loop'
 
 type Item = OpenAI.Responses.ResponseInputItem
 
@@ -37,6 +46,8 @@ export async function runTurnOpenAI(opts: TurnOptions<OpenAI>): Promise<TurnResu
   const out: TurnResult = opts.out ?? emptyTurn()
   ctx.progress = (text) => opts.onEvent({ type: 'progress', text })
 
+  let searches = 0
+  const cited: { url: string; title?: string | null }[] = []
   for (let i = 0; i < TURN_LIMITS.iterations; i++) {
     if (opts.maxCostMicros != null && out.costMicros >= opts.maxCostMicros) {
       out.stop = 'budget'
@@ -46,7 +57,10 @@ export async function runTurnOpenAI(opts: TurnOptions<OpenAI>): Promise<TurnResu
       model,
       instructions: SYSTEM,
       input,
-      tools,
+      // The provider's own web search on a rider's key (loop.ts says why only there).
+      // No per-request cap exists here, so the tool is withdrawn once the turn's
+      // searches are spent.
+      tools: opts.webSearch && searches < WEB_SEARCHES_PER_TURN ? [...tools, { type: 'web_search' as const }] : tools,
       reasoning: { effort: opts.effort },
       max_output_tokens: 8000,
       store: false,
@@ -69,10 +83,19 @@ export async function runTurnOpenAI(opts: TurnOptions<OpenAI>): Promise<TurnResu
     out.inputTokens += inputTokens
     out.outputTokens += outputTokens
 
+    const searched = response.output.filter((o) => o.type === 'web_search_call').length
+    searches += searched
+    out.costMicros += searched * WEB_SEARCH_MICROS
+    for (const o of response.output)
+      if (o.type === 'message')
+        for (const c of o.content)
+          if (c.type === 'output_text')
+            for (const a of c.annotations ?? [])
+              if (a.type === 'url_citation') cited.push({ url: a.url, title: a.title })
     const text = response.output_text.trim()
     if (text) {
-      out.reply = text
-      opts.onEvent({ type: 'text', text })
+      out.reply = text + sourcesLine(cited)
+      opts.onEvent({ type: 'text', text: out.reply })
     }
 
     const refused = response.output.some(

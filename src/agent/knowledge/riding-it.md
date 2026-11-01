@@ -158,4 +158,4 @@ Deleting a ride moves it to the bin for 30 days, then it is destroyed (checked h
 14. The wrong alternate is active. Downloads, the roadbook, and Maps legs follow it. Detect in get_ride: "not chosen" on the intended route. Fix: an owner picks the active alternate.
 15. A member sees only their share. Fix: `?group=all` for the whole ride, or correct who rides each route.
 16. Maps settings override the route. Remind the rider to check avoid highways and tolls in Google Maps.
-17. Fuel resets between routes. Every route starts on a full tank in Routeloop's checks. Fix: confirm a real fill-up before each route, tagged Gas.
+17. Fuel carries between routes. A route starts with what was left at the end of the one before unless it starts at a fuel stop. Fix: tag a Gas stop where the group really fills up, at the end of a day or early the next.
