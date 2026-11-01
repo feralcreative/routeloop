@@ -28,7 +28,12 @@ const estimated = (leg: { distanceM: number; durationS: number }) => leg.duratio
 const legS = (leg: { distanceM: number; durationS: number }) =>
   estimated(leg) ? Math.round(leg.distanceM / FALLBACK_MPS) : leg.durationS
 
-const dist = (m: number, u: Units) =>
+/** RIDER-WRITTEN TEXT GOES OUT AS A JSON STRING: a title, a name or a note with a
+ *  newline and a quote in it cannot then start a line that reads like the tool's own
+ *  output (a fake finding, a fake instruction). The model is told it is data. */
+export const quoted = (s: string | null | undefined, fallback = '') => JSON.stringify(s || fallback)
+
+export const dist = (m: number, u: Units) =>
   u === 'mi' ? (m / METERS_PER_MILE).toFixed(1) + ' mi' : (m / 1000).toFixed(1) + ' km'
 
 function dur(s: number): string {
@@ -88,7 +93,28 @@ function presetLine(p: Preset): string {
   return `Planned for a ${what} (${whose}).${fuel}`
 }
 
-const hhmm = (min: number) => `${String(Math.floor(min / 60)).padStart(2, '0')}:${String(min % 60).padStart(2, '0')}`
+/** Seconds from a route's departure until arriving at each point, and whether that
+ *  figure rests on an undrawn leg: elapsedToPointS() in ride-time.js, for every point
+ *  at once. check_ride reads it; test/agent-summary.test.ts pins it. */
+export function arrivalsS(route: RidePayload['routes'][number]): { s: number[]; est: boolean[] } {
+  const s: number[] = []
+  const est: boolean[] = []
+  let t = 0
+  let guess = false
+  route.points.forEach((p, i) => {
+    s.push(t)
+    est.push(guess)
+    const leg = route.legs[i]
+    if (leg) {
+      t += (p.durationMin ?? 0) * 60 + legS(leg)
+      if (estimated(leg)) guess = true
+    }
+  })
+  return { s, est }
+}
+
+export const hhmm = (min: number) =>
+  `${String(Math.floor(min / 60)).padStart(2, '0')}:${String(min % 60).padStart(2, '0')}`
 
 export function rideSummary(
   ride: RidePayload,
@@ -98,13 +124,13 @@ export function rideSummary(
   const groups = new Map(ride.subgroups.map((g) => [g.uid, g.name]))
   const out: string[] = []
   out.push(
-    `Ride "${ride.title}": ${ride.routes.length} route${ride.routes.length === 1 ? '' : 's'}, distances in ${u}, positions as (lat, lng).`,
+    `Ride ${quoted(ride.title)}: ${ride.routes.length} route${ride.routes.length === 1 ? '' : 's'}, distances in ${u}, positions as (lat, lng).`,
   )
   if (opts.snapshot) out.push(snapshotLine(opts.snapshot))
   if (opts.preset) out.push(presetLine(opts.preset))
   if (ride.stopByMin != null)
     out.push(`Stop-by time: the group wants to be looking for a bed by ${hhmm(ride.stopByMin)}, local time.`)
-  if (ride.description) out.push(`Description: ${ride.description.slice(0, 500)}`)
+  if (ride.description) out.push(`Description: ${quoted(ride.description.slice(0, 500))}`)
 
   ride.routes.forEach((route, r) => {
     let meters = 0
@@ -117,11 +143,12 @@ export function rideSummary(
     const tags: string[] = []
     if (route.altGroup != null)
       tags.push(`alternate group ${route.altGroup}${route.altActive ? ', active' : ', not chosen'}`)
-    if (route.subgroupUid && groups.has(route.subgroupUid)) tags.push(`ridden by ${groups.get(route.subgroupUid)}`)
+    if (route.subgroupUid && groups.has(route.subgroupUid))
+      tags.push(`ridden by ${quoted(groups.get(route.subgroupUid))}`)
     const departs = route.startAt ? ` departs ${clock(route.startAt, 0)}` : ' (no departure time)'
     out.push('')
     out.push(
-      `Route ${r + 1} [${route.uid}] "${route.title || 'Untitled'}"${departs} · ${dist(meters, u)} · ${dur(riding)} riding${undrawn ? ` (part estimated: ${undrawn} leg${undrawn === 1 ? '' : 's'} not drawn yet)` : ''}${tags.length ? ' · ' + tags.join('; ') : ''}`,
+      `Route ${r + 1} [${route.uid}] ${quoted(route.title, 'Untitled')}${departs} · ${dist(meters, u)} · ${dur(riding)} riding${undrawn ? ` (part estimated: ${undrawn} leg${undrawn === 1 ? '' : 's'} not drawn yet)` : ''}${tags.length ? ' · ' + tags.join('; ') : ''}`,
     )
     // ONE LINE OF CHARACTER ON EVERY ROUTE, never the geometry it is computed from.
     // Twistiness only when every leg is drawn: a straight placeholder would read as a
@@ -145,12 +172,13 @@ export function rideSummary(
       const est = guess ? ' (est.)' : ''
       const eta = route.startAt ? ` ETA ${clock(route.startAt, t)}${est}` : ''
       const dwell = p.durationMin ? ` dwell ${p.durationMin}m` : ''
-      const addr = p.address ? `, ${p.address}` : ''
+      const addr = p.address ? `, ${quoted(p.address)}` : ''
       out.push(
-        `  ${i}. [${p.uid}] ${kind}${roles} "${p.name || 'Unnamed'}"${addr} (${p.lat.toFixed(4)}, ${p.lng.toFixed(4)}) at ${dist(at, u)}${est}${eta}${dwell}`,
+        `  ${i}. [${p.uid}] ${kind}${roles} ${quoted(p.name, 'Unnamed')}${addr} (${p.lat.toFixed(4)}, ${p.lng.toFixed(4)}) at ${dist(at, u)}${est}${eta}${dwell}`,
       )
-      if (p.description) out.push(`     note: ${p.description.slice(0, 300)}`)
-      if (opts.includeDetails && p.details?.notes) out.push(`     private note: ${p.details.notes.slice(0, 300)}`)
+      if (p.description) out.push(`     note: ${quoted(p.description.slice(0, 300))}`)
+      if (opts.includeDetails && p.details?.notes)
+        out.push(`     private note: ${quoted(p.details.notes.slice(0, 300))}`)
       const leg = route.legs[i]
       if (leg) {
         at += leg.distanceM

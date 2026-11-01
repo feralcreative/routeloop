@@ -43,6 +43,7 @@ import { builderRide, createRide, loadRidePayload, saveRide } from '../routes/bu
 import { userForAccessToken } from '../oauth/service'
 import { Budget } from '../agent/budget'
 import { presetOf } from '../agent/summary'
+import { fuelContextFor } from '../agent/fuel-context'
 import { newPoint } from '../agent/ride-edit'
 import {
   annotationsOf,
@@ -181,8 +182,11 @@ async function onRideHeld(user: UserRow, prefs: Prefs, rideId: number, name: str
     // changes already proposed.
     ride: proposal ? structuredClone(proposal.ride) : l.ride,
     role: l.role,
+    rideId,
+    userId: user.id,
     snapshot: { kind: 'saved', rev: l.rev, pending: proposal?.changes.length ?? 0 },
     preset: presetOf(l.ride, prefs),
+    fuel: await fuelContextFor(rideId, user.id, l.ride, prefs, l.role),
     units: prefs.units,
     budget,
     favor: prefs.favor,
@@ -314,7 +318,7 @@ function buildServer(user: UserRow, prefs: Prefs): McpServer {
           role: 'user' as const,
           content: {
             type: 'text' as const,
-            text: `Check ride ${a.ride_id} in Routeloop. Read the guide topic ready-to-ride, then get_ride, and work through the checklist. List the problems worst first, each with the fix you would make, and tell me which ones I have to look at on the map myself. Change nothing until I say so.`,
+            text: `Check ride ${a.ride_id} in Routeloop. Call check_ride, then get_conditions and get_road_reports for each dated route, and read the guide topic ready-to-ride for anything you need explained. List the problems worst first, each with the fix you would make, then the things only we riders can confirm. Change nothing until I say so.`,
           },
         },
       ],

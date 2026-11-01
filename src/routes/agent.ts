@@ -49,6 +49,7 @@ import {
 import { BYO_ENABLED, freeTierState, googleCallsToday, openKeyOf, recordTurn, storedKeysOf } from '../agent/usage'
 import type { AgentContext } from '../agent/tools'
 import { presetOf } from '../agent/summary'
+import { fuelContextFor } from '../agent/fuel-context'
 import { eq } from 'drizzle-orm'
 import { db } from '../db/index'
 import { userProfiles } from '../db/schema'
@@ -162,8 +163,17 @@ agentRoutes.post(
       const ctx: AgentContext = {
         ride: ride.data,
         role: canAdminister(found.member) ? 'owner' : 'edit',
+        rideId: found.ride.id,
+        userId: user.id,
         snapshot: { kind: 'draft' },
         preset: presetOf(ride.data, profile ?? null),
+        fuel: await fuelContextFor(
+          found.ride.id,
+          user.id,
+          ride.data,
+          profile ?? null,
+          canAdminister(found.member) ? 'owner' : 'edit',
+        ),
         units: units === 'metric' ? 'km' : 'mi',
         budget: new Budget(usedToday),
         favor: parseTerms(lists.favor),
@@ -190,6 +200,7 @@ agentRoutes.post(
             history: body.data.history as ChatLine[],
             message: body.data.message,
             maxCostMicros,
+            webSearch: source === 'byo',
             onEvent: (e: { type: string; text: string }) => void send(e.type, { text: e.text }),
           }
           const out =

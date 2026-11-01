@@ -38,9 +38,21 @@ import {
 } from './ride-edit'
 import { rideSummary, type Preset, type Snapshot, type Units } from './summary'
 import { TOPIC_NAMES, TOPICS, topicText } from './knowledge'
+import type { FuelContext } from './fuel-context'
+import { getFuelPlan, getRiderContext } from './tools/fuel'
+import { getHelp, searchHelp } from './tools/help'
+import { checkRide } from './tools/check-ride'
+import { getConditions } from './tools/conditions'
+import { getRoadReports } from './tools/road-reports'
+import { findAlongRoute } from './tools/along-route'
 
 export type AgentContext = {
   ride: RidePayload
+  /** The stored ride this draft belongs to, and who is asking: what a tool reading
+   *  the database (road reports, bikes) joins on. Absent in tests and evals, where a
+   *  tool that needs them says it cannot answer rather than guessing. */
+  rideId?: number
+  userId?: number
   /** The rider's standing on this ride, checked against each tool's `needs`. */
   role: 'view' | 'edit' | 'owner'
   /** WHICH VERSION OF THE RIDE THIS IS, so no answer is about a road the rider has
@@ -49,6 +61,8 @@ export type AgentContext = {
   snapshot: Snapshot
   /** The vehicle and power the ride is planned for, resolved by presetOf(). */
   preset?: Preset
+  /** The group's tank, resolved by fuelContextFor(). Absent in tests and evals. */
+  fuel?: FuelContext
   units: Units
   budget: Budget
   favor: string[]
@@ -102,7 +116,7 @@ export type Capability = {
   spends?: { search?: number; leg?: number }
 }
 
-type Tool<S extends z.ZodObject> = {
+export type Tool<S extends z.ZodObject = z.ZodObject> = {
   name: string
   description: string
   schema: S
@@ -356,6 +370,14 @@ export const TOOLS = [
       return 'Renamed.'
     },
   }),
+  checkRide,
+  getFuelPlan,
+  getConditions,
+  getRoadReports,
+  findAlongRoute,
+  getRiderContext,
+  searchHelp,
+  getHelp,
 ]
 
 const BY_NAME = new Map(TOOLS.map((t) => [t.name, t]))
@@ -399,8 +421,14 @@ export async function runRideless(name: string, rawInput: unknown): Promise<Tool
   const parsed = t.schema.safeParse(rawInput)
   if (!parsed.success) return { text: 'Invalid arguments.', isError: true }
   // Its run() never touches the context, which is the whole meaning of RIDELESS.
-  const text = await (t.run as Tool<z.ZodObject>['run'])(undefined as unknown as AgentContext, parsed.data)
-  return { text, isError: false }
+  // Never throws, like runTool: a failed read is an error the client can read.
+  try {
+    const text = await (t.run as Tool<z.ZodObject>['run'])(undefined as unknown as AgentContext, parsed.data)
+    return { text, isError: false }
+  } catch (err) {
+    console.error(`[agent] tool ${name} failed:`, err instanceof Error ? err.stack : err)
+    return { text: 'That tool failed on the server.', isError: true }
+  }
 }
 
 /** Runs one tool call. Never throws: a bad argument or a refused edit comes back

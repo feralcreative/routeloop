@@ -12,7 +12,13 @@
 
 export type FuelPoint = { roles: readonly string[]; uid?: string | null; name?: string | null }
 export type FuelLeg = { distanceM: number }
-export type FuelRoute = { points: FuelPoint[]; legs: FuelLeg[]; subgroupUid?: string | null }
+export type FuelRoute = {
+  points: FuelPoint[]
+  legs: FuelLeg[]
+  subgroupUid?: string | null
+  altGroup?: number | null
+  altActive?: boolean
+}
 
 const legMeters = (leg: FuelLeg | undefined) =>
   leg && typeof leg.distanceM === 'number' && isFinite(leg.distanceM) && leg.distanceM > 0 ? leg.distanceM : 0
