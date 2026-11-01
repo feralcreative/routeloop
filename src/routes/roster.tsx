@@ -90,7 +90,7 @@ import { page, wordsOf } from '../views/layout'
 import { Wds, aWd, cap, wd, wds, wn, type Words } from '../views/vocab'
 import { tourAssets } from '../views/tour-assets'
 import { notifyInviteDeclined, notifyRideAdded, notifyRsvp } from '../notifications/senders'
-import { ownRide } from './maps'
+import { administeredRide } from './builder'
 
 export const rosterRoutes = new Hono<AuthEnv>()
 
@@ -776,7 +776,7 @@ type RiderJson = {
   /** Somebody with no account. */
   isPlaceholder: boolean
   /** A placeholder's address, for the organizer and nobody else — this route
-   *  is behind ownRide. Null for everybody with an account. */
+   *  is behind administeredRide. Null for everybody with an account. */
   email: string | null
   /** The subgroup they are on, by id — `ride_members.subgroup_id`. Null is a
    *  real state: unassigned, or a ride with no subgroups at all. */
@@ -787,7 +787,7 @@ type RiderJson = {
 
 rosterRoutes.get('/api/rides/:id/riders', requireActiveApi, async (c) => {
   const user = currentUser(c)
-  const ride = await ownRide(user.id, c.req.param('id'))
+  const ride = await administeredRide(user.id, c.req.param('id'))
   if (!ride) return c.json({ error: 'not found' }, 404)
 
   const [members, groups, range, riding, emails, drafts, friends] = await Promise.all([
@@ -848,7 +848,7 @@ rosterRoutes.get('/api/rides/:id/riders', requireActiveApi, async (c) => {
 
 rosterRoutes.post('/api/rides/:id/riders/group', requireActiveApi, requireSameOrigin, async (c) => {
   const user = currentUser(c)
-  const ride = await ownRide(user.id, c.req.param('id'))
+  const ride = await administeredRide(user.id, c.req.param('id'))
   if (!ride) return c.json({ error: 'not found' }, 404)
 
   const body = (await c.req.json().catch(() => null)) as { rider?: unknown; group?: unknown } | null
@@ -877,7 +877,7 @@ rosterRoutes.post('/api/rides/:id/riders/group', requireActiveApi, requireSameOr
 
 rosterRoutes.post('/api/rides/:id/riders/remove', requireActiveApi, requireSameOrigin, async (c) => {
   const user = currentUser(c)
-  const ride = await ownRide(user.id, c.req.param('id'))
+  const ride = await administeredRide(user.id, c.req.param('id'))
   if (!ride) return c.json({ error: 'not found' }, 404)
 
   const body = (await c.req.json().catch(() => null)) as { rider?: unknown } | null
@@ -893,7 +893,7 @@ rosterRoutes.post('/api/rides/:id/riders/remove', requireActiveApi, requireSameO
 // --- The organizer's flow (#428) ---------------------------------------------
 //
 // ADD, EDIT, SEND. Every addition is a draft that contacts nobody; Send is the
-// one press that does. All three behind ownRide like the rest of this block.
+// one press that does. All three behind administeredRide like the rest of this block.
 
 const ADD_ERRORS: Record<string, string> = {
   'not-owner': 'Only the ride owner can add riders.',
@@ -916,7 +916,7 @@ function emailOrNull(raw: unknown): string | null | false {
 
 rosterRoutes.post('/api/rides/:id/riders/add', requireActiveApi, requireSameOrigin, async (c) => {
   const user = currentUser(c)
-  const ride = await ownRide(user.id, c.req.param('id'))
+  const ride = await administeredRide(user.id, c.req.param('id'))
   if (!ride) return c.json({ error: 'not found' }, 404)
   const body = (await c.req.json().catch(() => null)) as {
     handle?: unknown
@@ -942,7 +942,7 @@ rosterRoutes.post('/api/rides/:id/riders/add', requireActiveApi, requireSameOrig
 
 rosterRoutes.post('/api/rides/:id/riders/placeholder', requireActiveApi, requireSameOrigin, async (c) => {
   const user = currentUser(c)
-  const ride = await ownRide(user.id, c.req.param('id'))
+  const ride = await administeredRide(user.id, c.req.param('id'))
   if (!ride) return c.json({ error: 'not found' }, 404)
   const body = (await c.req.json().catch(() => null)) as { rider?: unknown; name?: unknown; email?: unknown } | null
   const rider = Number(body?.rider)
@@ -967,7 +967,7 @@ rosterRoutes.post('/api/rides/:id/riders/placeholder', requireActiveApi, require
  */
 rosterRoutes.post('/api/rides/:id/riders/send', requireActiveApi, requireSameOrigin, async (c) => {
   const user = currentUser(c)
-  const ride = await ownRide(user.id, c.req.param('id'))
+  const ride = await administeredRide(user.id, c.req.param('id'))
   if (!ride) return c.json({ error: 'not found' }, 404)
 
   const out = await sendInvitations(ride.id, user.id, mintRideInvite, requestFriend)

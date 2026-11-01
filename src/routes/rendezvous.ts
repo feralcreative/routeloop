@@ -27,7 +27,7 @@ import { eq, inArray } from 'drizzle-orm'
 import { db } from '../db/index'
 import { routes as routesTable, points as pointsTable, routeLegs, userProfiles } from '../db/schema'
 import { currentUser, requireActiveApi, requireSameOrigin, type AuthEnv } from '../auth/middleware'
-import { ownRide } from './maps'
+import { administeredRide } from './builder'
 import {
   alongTrackM,
   clampDivert,
@@ -59,7 +59,7 @@ export const rendezvousRoutes = new Hono<AuthEnv>()
 
 rendezvousRoutes.post('/api/rides/:id/rendezvous', requireActiveApi, requireSameOrigin, async (c) => {
   const user = currentUser(c)
-  const ride = await ownRide(user.id, c.req.param('id'))
+  const ride = await administeredRide(user.id, c.req.param('id'))
   if (!ride) return c.json({ error: 'not found' }, 404)
 
   // HOW MUCH FURTHER OUT OF THEIR WAY THAN NECESSARY A JOINING GROUP MAY BE SENT, from

@@ -374,10 +374,14 @@ export async function sendInvitations(
   const role = await roleOf(rideId, viewerId)
   if (!canInvite(role)) return null
   const out: SendOutcome = { invited: [], friendRequested: [], emailed: [], needsEmail: [] }
-  const setState = (riderId: number, state: MemberState) =>
+  // `invitedBy` moves to the sender on a friend request (#443): a co-owner may send
+  // a draft another owner added, the request comes from the co-owner, and
+  // promotePendingFriends() matches the accepted friendship against `invitedBy`.
+  // Left as the adder, the row would wait on a friendship nobody asked for.
+  const setState = (riderId: number, state: MemberState, invitedBy?: number) =>
     db
       .update(rideMembers)
-      .set({ state, updatedAt: new Date() })
+      .set({ state, updatedAt: new Date(), ...(invitedBy === undefined ? {} : { invitedBy }) })
       .where(and(eq(rideMembers.rideId, rideId), eq(rideMembers.riderId, riderId), eq(rideMembers.state, 'draft')))
       .returning({ id: rideMembers.id })
 
@@ -393,7 +397,8 @@ export async function sendInvitations(
         // An already-pending request FROM them is the one case worth taking: they
         // asked first, so accepting it is theirs to do and the row waits on it.
         const res = await request(viewerId, d.riderId)
-        if ((await setState(d.riderId, 'pending_friend')).length && res.ok) out.friendRequested.push(d.riderId)
+        if ((await setState(d.riderId, 'pending_friend', viewerId)).length && res.ok)
+          out.friendRequested.push(d.riderId)
         break
       }
       case 'email': {

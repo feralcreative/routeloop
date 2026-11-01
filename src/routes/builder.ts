@@ -328,8 +328,10 @@ builderRoutes.post('/api/rides/:id/clone', requireActiveApi, requireSameOrigin, 
  * The ride, plus the viewer's own roster row — what all three builder gates ask
  * about now that a ride is editable by somebody who does not own it.
  *
- * NOT `ownRide()`, which filters on `rides.owner_id` and is still correct for
- * every OWNER power. This resolves the ride first and asks the roster second.
+ * NOT `ownRide()`, which filters on `rides.owner_id` and is correct only for what
+ * is the CREATOR'S alone, such as deleting the ride; an owner-role power that a
+ * co-owner shares goes through administeredRide() below. This resolves the ride
+ * first and asks the roster second.
  *
  * **The owner's row is synthesized if it is somehow missing** rather than being a
  * second permission rule beside canEditAsMember(). It should never fire, but the
@@ -351,6 +353,31 @@ export async function builderRide(
   // Two copies of the synthesized owner row is how the link starts offering what
   // this gate refuses.
   return { ride, member: await memberOrOwner(ride, userId) }
+}
+
+/**
+ * The ride, for an OWNER-ROLE member: the creator or any co-owner. The roster and
+ * the meeting-point proposer go through this (#443).
+ *
+ * **NOT `ownRide()`**, which matches `rides.owner_id` and so answered a co-owner
+ * with a 404 behind every control the builder showed them. The creator column
+ * still decides what is the creator's alone: deleting the ride and the private
+ * stop details. Undefined is a 404 at every caller, never a 403, so a guessed id
+ * learns nothing.
+ */
+export async function administeredRide(userId: number, idParam: string): Promise<RideRow | undefined> {
+  const found = await builderRide(userId, idParam)
+  return found && canAdminister(found.member) ? found.ride : undefined
+}
+
+/**
+ * The ride, for a member who may edit it: an owner, a co-owner, or an `edit`-level
+ * rider. Who rides which route is planning, the same trust as moving a stop, so
+ * the route-riders endpoints go through this (#443).
+ */
+export async function editableRide(userId: number, idParam: string): Promise<RideRow | undefined> {
+  const found = await builderRide(userId, idParam)
+  return found && canEditAsMember(found.member) ? found.ride : undefined
 }
 
 /**
@@ -935,7 +962,7 @@ function builderHtml(
   // THE ADD FORM IS SERVER-RENDERED AND OUTSIDE #riders-body (#428), because
   // renderRiders() replaces that body on every read and a field inside it would
   // lose what the organizer was typing the moment the roster refreshed — #188.
-  // Owners only: everything it posts to is behind ownRide.
+  // Owners only: everything it posts to is behind administeredRide, which admits co-owners.
   const ridersAdd = standing.isOwner
     ? `          <form id="riders-add" class="riders-add" autocomplete="off" novalidate>
             <div class="riders-mode" role="group" aria-label="Who you are adding">
