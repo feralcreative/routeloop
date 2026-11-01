@@ -11,6 +11,7 @@
 // trunk running away from everybody has no answer at all. A proposer that
 // always returns something is worse than one that sometimes says no.
 import { describe, expect, it } from 'vitest'
+import { readFileSync } from 'node:fs'
 import {
   alongTrackM,
   clampDivert,
@@ -543,6 +544,16 @@ describe('proposeGroupMeet', () => {
     ])
   })
 
+  // #446: a pedal ride has no fuel role, so a station is never offered as itself.
+  it('offers no station on a pedal ride, only the road', () => {
+    const shell: FuelCandidate = { at: [-119.5, 40.004], roles: ['gas'], name: 'Shell' }
+    const charger: FuelCandidate = { at: [-119.5, 40.004], roles: ['charge'], name: 'Charger' }
+    expect(proposeGroupMeet(north, [south], [shell, charger], { fuelOnly: true, fuelRole: null })).toEqual([])
+    const plain = proposeGroupMeet(north, [south], [shell, charger], { fuelRole: null })
+    expect(plain.length).toBeGreaterThan(0)
+    expect(plain.every((m) => !m.isFuel)).toBe(true)
+  })
+
   it('has no question to answer when nobody is joining', () => {
     expect(proposeGroupMeet(north, [])).toEqual([])
   })
@@ -772,11 +783,49 @@ describe('the avoid and favor lists', () => {
 
 describe('fuelRoleOf', () => {
   it('takes the ride first, then the binding bike, then the rider', () => {
-    expect(fuelRoleOf('electric', 'gas', 'gas')).toBe('charge')
-    expect(fuelRoleOf('gas', 'electric', 'electric')).toBe('gas')
-    expect(fuelRoleOf(null, 'electric', 'gas')).toBe('charge')
-    expect(fuelRoleOf(null, null, 'electric')).toBe('charge')
-    expect(fuelRoleOf(null, null, null)).toBe('gas')
+    expect(fuelRoleOf({ ridePower: 'electric', bikeFuel: 'gas', profilePower: 'gas' })).toBe('charge')
+    expect(fuelRoleOf({ ridePower: 'gas', bikeFuel: 'electric', profilePower: 'electric' })).toBe('gas')
+    expect(fuelRoleOf({ ridePower: null, bikeFuel: 'electric', profilePower: 'gas' })).toBe('charge')
+    expect(fuelRoleOf({ ridePower: null, bikeFuel: null, profilePower: 'electric' })).toBe('charge')
+    expect(fuelRoleOf({})).toBe('gas')
+  })
+
+  // #446: pedal used to fall through to gas with everything else not electric.
+  it('gives a pedal ride no fuel role at all', () => {
+    expect(fuelRoleOf({ ridePower: 'pedal', rideVehicle: 'bicycle' })).toBeNull()
+    expect(fuelRoleOf({ ridePower: 'pedal', rideVehicle: 'bicycle', bikeFuel: 'gas', profilePower: 'gas' })).toBeNull()
+    expect(fuelRoleOf({ profilePower: 'pedal', profileVehicle: 'bicycle' })).toBeNull()
+    // A bicycle on gas is a pedal ride, the same coercion the ride's words make.
+    expect(fuelRoleOf({ rideVehicle: 'bicycle', profilePower: 'gas' })).toBeNull()
+    // An e-bike still charges.
+    expect(fuelRoleOf({ ridePower: 'electric', rideVehicle: 'bicycle' })).toBe('charge')
+    // Nothing but a bicycle pedals: a motorcycle ride is never a pedal ride.
+    expect(fuelRoleOf({ ridePower: 'pedal', rideVehicle: 'motorcycle' })).toBe('gas')
+    // The ride's vehicle outranks the rider's default.
+    expect(fuelRoleOf({ rideVehicle: 'motorcycle', profileVehicle: 'bicycle', profilePower: 'pedal' })).toBe('gas')
+  })
+
+  // THE TWO COPIES MUST AGREE: the builder and the viewer read the client one, the
+  // meeting-point proposer the server one, and a disagreement is an E marker on a
+  // ride whose proposer looked for no station.
+  it('agrees with TBRange.fuelRoleOf in public/js/range-circle.js on every combination', () => {
+    const win: Record<string, any> = {}
+    new Function('window', readFileSync('public/js/range-circle.js', 'utf8'))(win)
+    const client = win.TBRange.fuelRoleOf as (f: object) => string | null
+    const powers = [undefined, null, '', 'gas', 'electric', 'pedal', 'diesel']
+    const fuels = [undefined, null, 'gas', 'electric']
+    const vehicles = [undefined, null, '', 'motorcycle', 'car', 'bicycle', 'boat']
+    let n = 0
+    for (const ridePower of powers)
+      for (const rideVehicle of vehicles)
+        for (const bikeFuel of fuels)
+          for (const profilePower of powers)
+            for (const profileVehicle of vehicles) {
+              const f = { ridePower, rideVehicle, bikeFuel, profilePower, profileVehicle }
+              expect(client(f), JSON.stringify(f)).toBe(fuelRoleOf(f))
+              n++
+            }
+    expect(n).toBe(7 * 7 * 4 * 7 * 7)
   })
 
   it('searches for a place of the same type it keeps', () => {

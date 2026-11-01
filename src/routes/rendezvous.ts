@@ -76,7 +76,7 @@ rendezvousRoutes.post('/api/rides/:id/rendezvous', requireActiveApi, requireSame
   // comes back undefined, which the proposer treats as "use the default".
   const body = (await c.req.json().catch(() => ({}))) as { maxDivertMi?: unknown }
   const [prof] = await db
-    .select({ meetDivertMi: userProfiles.meetDivertMi, power: userProfiles.power })
+    .select({ meetDivertMi: userProfiles.meetDivertMi, power: userProfiles.power, vehicle: userProfiles.vehicle })
     .from(userProfiles)
     .where(eq(userProfiles.userId, user.id))
     .limit(1)
@@ -90,7 +90,7 @@ rendezvousRoutes.post('/api/rides/:id/rendezvous', requireActiveApi, requireSame
     maxDivertMi: number | undefined
     favor: string[]
     avoid: string[]
-    fuelRole?: FuelRole
+    fuelRole?: FuelRole | null
   } = { maxDivertMi: clampDivert(body.maxDivertMi) ?? clampDivert(prof?.meetDivertMi), favor, avoid }
 
   const groups = await subgroupsOf(ride.id)
@@ -215,7 +215,7 @@ rendezvousRoutes.post('/api/rides/:id/rendezvous', requireActiveApi, requireSame
       for (const p of pts) {
         if (p.routeId !== d.id) continue
         if (p.distFromStartM == null) continue
-        if (!p.roles.includes(fuelRole)) continue
+        if (!fuelRole || !p.roles.includes(fuelRole)) continue
         const at = offset + p.distFromStartM
         if (at <= alongM) last = Math.max(last, at)
       }
@@ -286,8 +286,15 @@ rendezvousRoutes.post('/api/rides/:id/rendezvous', requireActiveApi, requireSame
   // fuel plan, because it looks like one. Read ONCE for the whole press rather
   // than per group: it is a fact about the roster, not about who is joining.
   const range = await groupRange(ride.id, { planning: true })
-  // Chargers for an electric ride, gas otherwise (#31).
-  const fuelRole = fuelRoleOf(ride.power, range.fuelType, prof?.power ?? null)
+  // Chargers for an electric ride (#31), nothing at all for a pedal one (#446), gas
+  // otherwise.
+  const fuelRole = fuelRoleOf({
+    ridePower: ride.power,
+    rideVehicle: ride.vehicle,
+    bikeFuel: range.fuelType,
+    profilePower: prof?.power,
+    profileVehicle: prof?.vehicle,
+  })
   divertOpt.fuelRole = fuelRole
 
   // SEQUENTIAL, NOT Promise.all, AND THAT IS DELIBERATE. Each group's pass spends
@@ -324,7 +331,10 @@ rendezvousRoutes.post('/api/rides/:id/rendezvous', requireActiveApi, requireSame
     // around the candidates the geometry liked, and the straight-line geometry can like
     // a backwards point — so the least-extra candidate is searched first and the paper
     // favorite second.
-    const stations = plain.length ? await fuelAlong(frontLoadCheapest(plain), searchAnchors, fuelRole) : []
+    //
+    // A PEDAL RIDE SEARCHES FOR NOTHING (#446): it has no fuel role, so there is no
+    // kind of station to look for and no Text Search is spent.
+    const stations = plain.length && fuelRole ? await fuelAlong(frontLoadCheapest(plain), searchAnchors, fuelRole) : []
     // `fuelOnly` and NOT a filter over the ordinary result: the ranking prefers the
     // earliest viable point and keeps only the best few, so a station a little further
     // along is crowded out by plain vertices before this line could see it.
@@ -353,8 +363,14 @@ rendezvousRoutes.post('/api/rides/:id/rendezvous', requireActiveApi, requireSame
     // `reachable` stops once it has enough — so if the paper ranking put three backwards
     // stations ahead of the one at the convergence, the convergence would never be
     // measured and could never win.
-    const shortlist = frontLoadCheapest(onlyGas)
-    const reach = await reachable(shortlist, primaryGroup.uid, one, range.miles, fillBeforeM, primaryGroup, routed)
+    //
+    // A PEDAL RIDE'S SHORTLIST IS THE ROAD ITSELF, AND NO TANK BOUNDS IT (#446). With no
+    // fuel role there is no station to prefer and no range to check, so the plain
+    // candidates go through the same pass with a null range: their approaches are
+    // still routed, which is what the road re-rank and the drawing need.
+    const shortlist = frontLoadCheapest(fuelRole ? onlyGas : plain)
+    const tankMi = fuelRole ? range.miles : null
+    const reach = await reachable(shortlist, primaryGroup.uid, one, tankMi, fillBeforeM, primaryGroup, routed)
 
     // BOTH FALLBACKS SAY WHICH COMPROMISE WAS MADE. A stretch with no station, or none
     // within a tank, is ordinary on a rural road — answering "nothing works" would be
@@ -379,7 +395,10 @@ rendezvousRoutes.post('/api/rides/:id/rendezvous', requireActiveApi, requireSame
         path: pathOf.get(m.at.join(',')) ?? ([] as Track),
       }),
     )
-    const note = reach.keep.length ? null : onlyGas.length ? 'out-of-range' : plain.length ? 'no-gas' : null
+    // No note on a pedal ride: neither compromise exists there, because nobody asked
+    // for a station and nobody has a tank.
+    const note =
+      reach.keep.length || !fuelRole ? null : onlyGas.length ? 'out-of-range' : plain.length ? 'no-gas' : null
 
     return {
       // The group this answer is FOR, by uid, which is what the panel and the

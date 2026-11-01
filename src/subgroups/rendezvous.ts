@@ -11,6 +11,7 @@
 import { haversineM, METERS_PER_MILE, type Track } from '../maps/kml'
 import { bearing, turn } from '../maps/twist'
 import { matchesAny } from '../places/ranking'
+import { toPower, toVehicle } from '../views/vocab'
 
 /** A candidate the planner could be offered. */
 export type Rendezvous = {
@@ -86,16 +87,41 @@ export type RendezvousOptions = {
    * reported for a road with several.
    */
   fuelOnly?: boolean
-  /** Which role counts as a refill: `charge` for an electric ride (#31). */
-  fuelRole?: FuelRole
+  /** Which role counts as a refill: `charge` for an electric ride (#31), and null
+   *  for a pedal ride (#446), where no stop is a fuel stop. */
+  fuelRole?: FuelRole | null
 }
 
 export type FuelRole = 'gas' | 'charge'
 
-/** What puts fuel back in: the ride's own power when set, then the binding
- *  bike's type, then the rider's default. Mirrors `fuelRole()` in builder.js. */
-export function fuelRoleOf(ridePower: string | null, bikeFuel: string | null, profilePower: string | null): FuelRole {
-  return (ridePower || bikeFuel || profilePower) === 'electric' ? 'charge' : 'gas'
+/** Everything that decides what a ride runs on. Any field may be absent. */
+export type FuelInputs = {
+  ridePower?: string | null
+  rideVehicle?: string | null
+  bikeFuel?: string | null
+  profilePower?: string | null
+  profileVehicle?: string | null
+}
+
+/**
+ * What puts fuel back in: the ride's own power when set, then the binding bike's
+ * type, then the rider's default, coerced by the vehicle the way the ride's words
+ * are (`toPower()` in src/views/vocab.ts), so a bicycle on gas is a pedal ride and
+ * nothing but a bicycle pedals.
+ *
+ * NULL FOR A PEDAL RIDE, AND NULL IS NOT GAS (#446). A bicycle has no tank: no range
+ * ring, no E markers, no stations as meeting points and no reach check. It used to
+ * fall through to `gas` with everything else that was not electric, so every caller
+ * now has to say what it does without a role.
+ *
+ * Mirrors `fuelRoleOf()` in public/js/range-circle.js, which the builder and the
+ * viewer both read; test/rendezvous.test.ts pins the two against each other.
+ */
+export function fuelRoleOf(f: FuelInputs): FuelRole | null {
+  const vehicle = toVehicle(f.rideVehicle || f.profileVehicle)
+  const power = toPower(f.ridePower || f.bikeFuel || f.profilePower, vehicle)
+  if (power === 'pedal') return null
+  return power === 'electric' ? 'charge' : 'gas'
 }
 
 /** The Text Search query and the Places type that make a station of each kind. */
@@ -115,7 +141,7 @@ const DEFAULTS = {
   minSharedFraction: 0.2,
   sampleM: 2000,
   fuelOnly: false,
-  fuelRole: 'gas' as FuelRole,
+  fuelRole: 'gas' as FuelRole | null,
   favor: [] as string[],
   avoid: [] as string[],
 }
@@ -327,7 +353,7 @@ export function proposeRendezvous(
   // them. Snapped to their nearest trunk vertex so `alongM` is comparable and
   // so a stop a hundred meters off the line is still a point on the route.
   for (const stop of fuelStops) {
-    if (!stop.roles.includes(opts.fuelRole)) continue
+    if (!opts.fuelRole || !stop.roles.includes(opts.fuelRole)) continue
     let best = -1
     let bestD = Infinity
     for (let i = 1; i < trunk.length - 1; i++) {
@@ -558,7 +584,7 @@ export function proposeGroupMeet(
   // Existing fuel stops on the main group's road, snapped to it, offered whether
   // or not the sampler landed on them. Same thumb on the scale as above.
   for (const stop of fuelStops) {
-    if (!stop.roles.includes(opts.fuelRole)) continue
+    if (!opts.fuelRole || !stop.roles.includes(opts.fuelRole)) continue
     let best = -1
     let bestD = Infinity
     for (let i = 1; i < primary.track.length - 1; i++) {

@@ -1579,14 +1579,15 @@
     if (!here) return setMomentOverlay(state.map, null);
 
     // Null is the ordinary case: a rider with no bike on file has no range. The dot
-    // is still where they would be.
+    // is still where they would be. A pedal ride has neither a role nor a range
+    // (#446), and draws the dot alone.
     const role = fuelRole();
     const range = rangeM();
     // ONE SWITCH FOR THE WHOLE FUEL OVERLAY. `state.ringOn` gated only the ring
     // until 2026-08-31, so turning it off left the E markers and the closed stretch
     // on the map — most of the red. The moment dot is not behind it, because where
     // the rider is is not a fuel fact.
-    const on = state.ringOn;
+    const on = state.ringOn && role != null;
     const carry = on ? routeCarries()[a.routeIndex] || 0 : 0;
     const reach = on ? RANGE.fuelReachM(route, distM, cum, role, range, carry) : null;
     // ONE MARKER PER TANKFUL, not just the next one — see dryDistancesM().
@@ -4909,7 +4910,9 @@
       const pt = newPoint(lng, lat, d.name || "Meeting point", d.address);
       // `gas` alongside `meet` when it is a forecourt: the fuel overlay reads that role
       // to decide where a tank refills.
-      pt.roles = d.name ? ["meet", fuelRole()] : ["meet"];
+      // A pedal ride is never offered a station, and has no role to add if it were.
+      const role = fuelRole();
+      pt.roles = d.name && role ? ["meet", role] : ["meet"];
       // NEVER BEFORE THE FIRST POINT. A joining group contributes a STARTING POINT and
       // nothing else, so its route is routinely one point long — and `points.length -
       // 1` is 0 there, which put the meeting point ahead of where the group sets off
@@ -6505,7 +6508,7 @@
     // Rounded before comparing, or two figures a mile apart print identically. AND
     // NEVER ZERO: at a fuel stop `since` resets to 0 by design, so the pair differs
     // and would print "0 mi on this tank" under every fuel stop in the ride.
-    if (Math.round(since) > 0 && Math.round(since) !== Math.round(into)) {
+    if (since != null && Math.round(since) > 0 && Math.round(since) !== Math.round(into)) {
       parts.push('<span class="row-dist-fuel">' + esc(fmtDist(since)) + " on this " + esc(W("tank")) + "</span>");
     }
     if (dry) {
@@ -6843,18 +6846,31 @@
 
   // WHICH CATEGORY PUTS FUEL BACK IN (#31): the ride's own power when the planner
   // set one, so the chip's word and its search agree, then the binding bike's,
-  // then the rider's default. Mirrors fuelRoleOf() in src/subgroups/rendezvous.ts.
+  // then the rider's default. The arithmetic is TBRange.fuelRoleOf(), the pinned
+  // twin of fuelRoleOf() in src/subgroups/rendezvous.ts.
+  //
+  // NULL ON A PEDAL RIDE (#446), AND NULL IS NOT GAS: no range, so no ring, no E
+  // markers, no dry stretch, no Range button, no out-of-range flag and no fuel chip.
   function fuelRole() {
-    const bike = window.TB.range && window.TB.range.fuelType;
-    const profile = window.TBVocabData && window.TBVocabData.profile ? window.TBVocabData.profile.power : null;
-    const power = state.meta.power || bike || profile;
-    return power === "electric" ? "charge" : "gas";
+    const range = window.TB.range || {};
+    const profile = (window.TBVocabData && window.TBVocabData.profile) || {};
+    return RANGE.fuelRoleOf({
+      ridePower: state.meta.power,
+      rideVehicle: state.meta.vehicle,
+      bikeFuel: range.fuelType,
+      profilePower: profile.power,
+      profileVehicle: profile.vehicle,
+    });
   }
 
   // The group's binding range in meters, or null when nobody on the ride has one on
   // file. NULL MUST STAY NULL all the way to the renderer — a fuel warning built on
   // an invented number is worse than none because it looks like one.
+  //
+  // NULL ON A PEDAL RIDE TOO, whatever is on file (#446): a bicycle has no tank, and
+  // every fuel surface in this file reads this before it draws anything.
   function rangeM() {
+    if (!fuelRole()) return null;
     const mi = window.TB.range && window.TB.range.miles;
     // window.TB.range.miles is always MILES, whatever the rider's preference:
     // converting it with the display unit here would read a metric rider's 300 km
@@ -6869,8 +6885,9 @@
     const role = fuelRole();
     return {
       cum: DIST.cumulativeM(route),
-      since: DIST.sinceRefuelM(route, role, carryM),
-      dryAt: DIST.firstDryPoint(route, role, rangeM(), carryM),
+      // Empty on a pedal ride: there is no tank for a row to count miles on.
+      since: role ? DIST.sinceRefuelM(route, role, carryM) : [],
+      dryAt: role ? DIST.firstDryPoint(route, role, rangeM(), carryM) : null,
     };
   }
 
@@ -7060,11 +7077,14 @@
     // Each chip carries the ROLE, so a picked result arrives already tagged.
   const stationWord = () => (fuelRole() === "charge" ? "charger" : "gas station");
 
-  // The fuel chip follows fuelRole(), so an electric ride searches chargers.
+  // The fuel chip follows fuelRole(), so an electric ride searches chargers, and a
+  // pedal ride has no fuel chip at all (#446) — its fuel word is blank under pedal.
   function chips() {
-    const charge = fuelRole() === "charge";
+    const role = fuelRole();
+    const charge = role === "charge";
+    const fuel = role ? [{ role, label: Wc("fuel"), query: charge ? "EV charging station" : "gas station" }] : [];
     return [
-      { role: charge ? "charge" : "gas", label: Wc("fuel"), query: charge ? "EV charging station" : "gas station" },
+      ...fuel,
       { role: "food", label: "Food", query: "restaurant" },
       { role: "coffee", label: "Coffee", query: "coffee shop" },
       { role: "hotel", label: "Lodging", query: "hotel" },
