@@ -1,3 +1,8 @@
+---
+kind: app
+checked: 2026-10-31
+---
+
 # Riding it
 
 ## What you can and cannot do here

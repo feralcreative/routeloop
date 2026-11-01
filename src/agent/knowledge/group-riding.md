@@ -1,3 +1,8 @@
+---
+kind: riding
+reviewed: pending
+---
+
 # Group riding
 
 How to use this: practice and etiquette for planning a group ride. These are norms riders agree on, not laws; the group's own agreements always win.

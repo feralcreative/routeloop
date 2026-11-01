@@ -379,6 +379,8 @@ describe('one turn at a time', () => {
 describe('runTool', () => {
   const ctx = (): AgentContext => ({
     ride: fixture(),
+    role: 'edit',
+    snapshot: { kind: 'draft' },
     units: 'mi',
     budget: new Budget(0),
     favor: [],

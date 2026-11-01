@@ -1,3 +1,8 @@
+---
+kind: app
+checked: 2026-10-31
+---
+
 # Account and app
 
 ## What you can and cannot do here

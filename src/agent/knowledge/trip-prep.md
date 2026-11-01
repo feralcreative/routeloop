@@ -1,3 +1,8 @@
+---
+kind: riding
+reviewed: pending
+---
+
 # Trip prep
 
 How to use this: a preparation checklist to offer riders before a multi-day trip. It is practice, not regulation; adapt it to the group and the vehicle.

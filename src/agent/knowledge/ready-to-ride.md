@@ -1,3 +1,8 @@
+---
+kind: app
+checked: 2026-10-31
+---
+
 # Ready to ride: the pre-ride checklist
 
 Run this whenever a rider asks "is this ready?", "check my ride", or anything like it, and before you call any plan you built finished. Work top to bottom: the first section is what strands riders, the last is polish. Never say a ride is ready because get_ride looks clean. get_ride cannot show the group's fuel range, road reports, weather, the stop-by time, the roster, bikes, shaping points, routing preferences, votes, or visibility. A correct final answer is usually "here is what I checked and fixed, and here is what you need to look at on the map."
@@ -8,7 +13,7 @@ Run this whenever a rider asks "is this ready?", "check my ride", or anything li
 - "at X mi" is miles from the start of that route. ETA appears only on a route with a departure. The last point's ETA is the arrival.
 - get_ride's ETAs differ slightly from the builder's: get_ride ignores dwell on the first point and assumes 50 mph on any straight leg; the builder counts first-point dwell and assumes about 45 mph. Treat both as rough wherever a leg is straight.
 - Do not add route lines together for a ride total. A route marked `not chosen` is a losing alternate and does not count.
-- In the builder, your edits are a proposal until the rider presses Apply, and Apply is refused if the rider edited meanwhile. Over MCP every edit saves at once. Re-read with get_ride after edits before judging.
+- In the builder, your edits are a proposal until the rider presses Apply, and Apply is refused if the rider edited meanwhile. Over MCP your edits are a pending proposal until you call apply_changes after the rider agrees, and it is refused if the ride changed meanwhile. Re-read with get_ride after edits before judging.
 
 ## 1. Fuel: will anyone run dry?
 

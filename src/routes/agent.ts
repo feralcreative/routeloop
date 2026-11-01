@@ -20,7 +20,7 @@ import Anthropic from '@anthropic-ai/sdk'
 import OpenAI from 'openai'
 import { ANTHROPIC_API_KEY } from '../config'
 import { currentUser, requireActiveApi, requireSameOrigin, type AuthEnv } from '../auth/middleware'
-import { canEditAsMember } from '../members/policy'
+import { canAdminister, canEditAsMember } from '../members/policy'
 import { canSeeDetails } from '../maps/point-details'
 import { allow } from '../auth/ratelimit'
 import { normalize, ridePayload } from '../maps/ride-graph'
@@ -148,6 +148,8 @@ agentRoutes.post(
       const [units, lists, usedToday] = await Promise.all([unitsFor(c), placeListsFor(c), googleCallsToday(user.id)])
       const ctx: AgentContext = {
         ride: ride.data,
+        role: canAdminister(found.member) ? 'owner' : 'edit',
+        snapshot: { kind: 'draft' },
         units: units === 'metric' ? 'km' : 'mi',
         budget: new Budget(usedToday),
         favor: parseTerms(lists.favor),

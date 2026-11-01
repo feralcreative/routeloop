@@ -1,3 +1,8 @@
+---
+kind: app
+checked: 2026-10-31
+---
+
 # Groups and riders
 
 The people on a ride: groups, meeting points, splits, who rides which route, the roster, permissions, votes, suggestions, comments, visibility, and the Paddock.

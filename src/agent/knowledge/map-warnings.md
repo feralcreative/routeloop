@@ -1,3 +1,8 @@
+---
+kind: app
+checked: 2026-10-31
+---
+
 # Map and timeline warnings
 
 Everything the map, the route list, and the timeline show a rider about whether a plan works. You cannot see any of it: get_ride prints none of these overlays. When a rider describes one, use this to explain it; when you need one checked, name the exact symbol and ask the rider to look. The order of checks is in the ready-to-ride topic.
