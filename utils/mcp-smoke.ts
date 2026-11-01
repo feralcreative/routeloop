@@ -119,6 +119,16 @@ async function main(): Promise<void> {
       const ride = textOf(await client.callTool({ name: 'get_ride', arguments: { ride_id: id } }))
       console.log(`\nget_ride ${id}:\n${first(ride, 4)}`)
       check(/As saved \(revision \d+\)\./.test(ride), 'get_ride names the saved revision')
+      for (const [name, args] of [
+        ['get_fuel_plan', { ride_id: id }],
+        ['get_rider_context', { ride_id: id }],
+      ] as const) {
+        const out = textOf(await client.callTool({ name, arguments: args }))
+        console.log(`\n${name}:\n${first(out, 6)}`)
+        check(out.length > 0 && !out.startsWith('That tool failed'), `${name} answers`)
+      }
+      const help = textOf(await client.callTool({ name: 'search_help', arguments: { query: 'how do I import a GPX file' } }))
+      check(/^[a-z0-9-]+: /m.test(help), 'search_help finds an FAQ entry')
 
       // A proposal that is made and thrown away: the ride itself is never written.
       const route = /^Route 1 \[(\w+)\]/m.exec(ride)?.[1]

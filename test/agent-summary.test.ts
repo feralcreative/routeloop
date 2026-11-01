@@ -4,7 +4,7 @@
 import { readFileSync } from 'node:fs'
 import { beforeAll, describe, expect, it } from 'vitest'
 import { ridePayload, type RidePayload } from '../src/maps/ride-graph'
-import { FALLBACK_MPS, presetOf, rideSummary } from '../src/agent/summary'
+import { arrivalsS, FALLBACK_MPS, presetOf, rideSummary } from '../src/agent/summary'
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 let T: any
@@ -86,6 +86,15 @@ describe('rideSummary agrees with ride-time.js', () => {
       })
     })
   }
+
+  it('gives check_ride the same arrivals the builder computes', () => {
+    for (const drawn of [true, false]) {
+      const r = ride({ drawn })
+      const { s, est } = arrivalsS(r.routes[0])
+      r.routes[0].points.forEach((_, i) => expect(s[i]).toBe(T.elapsedToPointS(r.routes[0], i)))
+      expect(est).toEqual([false, false, !drawn])
+    }
+  })
 
   it('counts the dwell at the first point, as the builder does', () => {
     const line = rideSummary(ride({ drawn: true }))

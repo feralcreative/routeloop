@@ -11,7 +11,12 @@
 // route's `start_at` is: a wall clock at the departure point carried as UTC. The
 // two are compared digit for digit and nothing converts either. A route crossing
 // a zone line reads the next zone's hours in the next zone's clock, which is the
-// honest answer for somebody riding into it.
+// honest answer for somebody riding into it. Each forecast carries Open-Meteo's
+// `utc_offset_seconds` as `utcOffsetS`, so a caller that walks a clock across the
+// line (the planning assistant's `get_conditions`) can convert rather than guess.
+//
+// EVERY FETCH HAS A TIMEOUT (`FETCH_TIMEOUT_MS`): the MCP server holds a per-rider
+// lock while a tool runs, and a hung request must read as "no answer", never hang.
 //
 // NEVER THROWS. A failure is an empty answer: this is a picture beside the plan,
 // and an outage must not take the timeline with it.
@@ -34,9 +39,11 @@ export const MAX_ELEVATION_SAMPLES = 80
 const MIN_ELEVATION_SPACING_M = 500
 /** Forecast points per route, and the spacing that fills them. */
 export const MAX_WEATHER_SAMPLES = 12
-const WEATHER_SPACING_M = 40_000
+export const WEATHER_SPACING_M = 40_000
 /** How far out Open-Meteo forecasts. */
 export const FORECAST_DAYS = 16
+/** How long any Open-Meteo request may take before the answer is "unknown". */
+export const FETCH_TIMEOUT_MS = 8_000
 
 export type Sample = { leg: number; f: number; at: LngLat; d: number }
 /** `d` is meters along the route's own geometry, for grade and nothing else. */
@@ -50,6 +57,8 @@ export type WeatherPoint = {
   rainPct: (number | null)[]
   windKmh: (number | null)[]
   code: (number | null)[]
+  /** Open-Meteo's `utc_offset_seconds` for this spot: how far its `time` runs ahead of UTC. */
+  utcOffsetS: number | null
 }
 
 /**
@@ -78,6 +87,41 @@ export function sampleRoute(legs: Track[], spacingM: number, max: number): Sampl
     base += len
   })
   return out
+}
+
+/**
+ * At most `max` of `samples`, spread evenly by distance along the route, keeping
+ * the first and the last. `sampleRoute()` always emits both ends of every leg, so on
+ * a route of many short legs its own cap is no cap at all; this is the hard one. Pure.
+ */
+export function thinSamples(samples: Sample[], max: number): Sample[] {
+  if (samples.length <= max) return samples
+  if (max <= 1) return samples.slice(0, Math.max(0, max))
+  const total = samples[samples.length - 1].d
+  const out: Sample[] = []
+  let i = 0
+  for (let k = 0; k < max - 1; k++) {
+    const target = (k * total) / (max - 1)
+    while (i < samples.length - 1 && samples[i].d < target) i++
+    if (i >= samples.length - 1) break
+    out.push(samples[i++])
+  }
+  out.push(samples[samples.length - 1])
+  return out
+}
+
+/** `thin` holds the count to the cap however many legs the route has; the map's
+ *  endpoint leaves it off and keeps every leg's ends. */
+export type SampleOpts = { thin?: boolean }
+
+export function elevationSamples(legs: Track[], opts: SampleOpts = {}): Sample[] {
+  const s = sampleRoute(legs, MIN_ELEVATION_SPACING_M, MAX_ELEVATION_SAMPLES)
+  return opts.thin ? thinSamples(s, MAX_ELEVATION_SAMPLES) : s
+}
+
+export function weatherSamples(legs: Track[], opts: SampleOpts = {}): Sample[] {
+  const s = sampleRoute(legs, WEATHER_SPACING_M, MAX_WEATHER_SAMPLES)
+  return opts.thin ? thinSamples(s, MAX_WEATHER_SAMPLES) : s
 }
 
 function legLengths(g: Track): number[] {
@@ -146,7 +190,9 @@ async function elevationsFor(points: LngLat[]): Promise<(number | null)[]> {
     const lat = batch.map((k) => k.split(',')[1]).join(',')
     const lng = batch.map((k) => k.split(',')[0]).join(',')
     try {
-      const res = await fetch(`${ELEVATION_URL}?latitude=${lat}&longitude=${lng}`)
+      const res = await fetch(`${ELEVATION_URL}?latitude=${lat}&longitude=${lng}`, {
+        signal: AbortSignal.timeout(FETCH_TIMEOUT_MS),
+      })
       if (!res.ok) break
       const body = (await res.json()) as { elevation?: number[] }
       body.elevation?.forEach((e, j) => {
@@ -162,8 +208,11 @@ async function elevationsFor(points: LngLat[]): Promise<(number | null)[]> {
 }
 
 /** `complete` is false when the free tier ran out partway, so the client asks again later. */
-export async function routeElevation(legs: Track[]): Promise<{ points: ElevationPoint[]; complete: boolean }> {
-  const samples = sampleRoute(legs, MIN_ELEVATION_SPACING_M, MAX_ELEVATION_SAMPLES)
+export async function routeElevation(
+  legs: Track[],
+  opts: SampleOpts = {},
+): Promise<{ points: ElevationPoint[]; complete: boolean }> {
+  const samples = elevationSamples(legs, opts)
   if (!samples.length) return { points: [], complete: true }
   const ele = await elevationsFor(samples.map((s) => s.at))
   const out: ElevationPoint[] = []
@@ -177,6 +226,7 @@ export async function routeElevation(legs: Track[]): Promise<{ points: Elevation
 // --- Weather ----------------------------------------------------------------
 
 type ForecastBody = {
+  utc_offset_seconds?: number
   hourly?: {
     time?: string[]
     temperature_2m?: (number | null)[]
@@ -219,7 +269,7 @@ async function forecastsFor(points: LngLat[], from: string, to: string): Promise
       end_date: to,
     })
     try {
-      const res = await fetch(`${FORECAST_URL}?${params}`)
+      const res = await fetch(`${FORECAST_URL}?${params}`, { signal: AbortSignal.timeout(FETCH_TIMEOUT_MS) })
       if (res.ok) {
         const body = (await res.json()) as ForecastBody | ForecastBody[]
         const list = Array.isArray(body) ? body : [body]
@@ -238,11 +288,12 @@ export async function routeWeather(
   startIso: string | null,
   endIso: string | null,
   now = new Date(),
+  opts: SampleOpts = {},
 ): Promise<WeatherPoint[]> {
   if (!startIso) return []
   const win = forecastWindow(startIso, endIso, now)
   if (!win) return []
-  const samples = sampleRoute(legs, WEATHER_SPACING_M, MAX_WEATHER_SAMPLES)
+  const samples = weatherSamples(legs, opts)
   if (!samples.length) return []
   const bodies = await forecastsFor(
     samples.map((s) => s.at),
@@ -251,8 +302,10 @@ export async function routeWeather(
   )
   const out: WeatherPoint[] = []
   samples.forEach((s, i) => {
-    const h = bodies[i]?.hourly
+    const body = bodies[i]
+    const h = body?.hourly
     if (!h?.time?.length) return
+    const off = body?.utc_offset_seconds
     out.push({
       leg: s.leg,
       f: round(s.f, 4),
@@ -261,9 +314,62 @@ export async function routeWeather(
       rainPct: h.precipitation_probability ?? [],
       windKmh: h.wind_speed_10m ?? [],
       code: h.weather_code ?? [],
+      utcOffsetS: typeof off === 'number' && Number.isFinite(off) ? off : null,
     })
   })
   return out
 }
 
 const round = (n: number, dp: number) => Math.round(n * 10 ** dp) / 10 ** dp
+
+// --- Sunrise and sunset -----------------------------------------------------
+
+/** `utcOffsetS` is the end point's `utc_offset_seconds`, so a clock from elsewhere
+ *  can be compared with these. */
+export type SunTimes = { sunrise: string | null; sunset: string | null; utcOffsetS?: number | null }
+
+// The sun keeps its own schedule, so a day; keyed on ~1 km and the date. Read from
+// the forecast endpoint's daily block, so only dates inside its window answer.
+const sunCache = new Map<string, { at: number; v: SunTimes }>()
+const SUN_TTL_MS = 24 * 60 * 60_000
+const SUN_CACHE_MAX = 5_000
+
+/**
+ * Local wall-clock sunrise and sunset (`YYYY-MM-DDTHH:MM`, `timezone=auto`) at one
+ * point on one date, or null when the date is outside Open-Meteo's forecast or the
+ * service did not answer. Never throws.
+ */
+export async function sunTimes(at: LngLat, date: string, now = new Date()): Promise<SunTimes | null> {
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(date) || !forecastWindow(date, null, now)) return null
+  const key = `${at[0].toFixed(2)},${at[1].toFixed(2)},${date}`
+  const hit = sunCache.get(key)
+  if (hit && Date.now() - hit.at <= SUN_TTL_MS) return hit.v
+  const params = new URLSearchParams({
+    latitude: at[1].toFixed(3),
+    longitude: at[0].toFixed(3),
+    daily: 'sunrise,sunset',
+    timezone: 'auto',
+    start_date: date,
+    end_date: date,
+  })
+  try {
+    const res = await fetch(`${FORECAST_URL}?${params}`, { signal: AbortSignal.timeout(FETCH_TIMEOUT_MS) })
+    if (!res.ok) return null
+    const body = (await res.json()) as {
+      utc_offset_seconds?: number
+      daily?: { sunrise?: (string | null)[]; sunset?: (string | null)[] }
+    }
+    const off = body.utc_offset_seconds
+    const v: SunTimes = {
+      sunrise: body.daily?.sunrise?.[0] ?? null,
+      sunset: body.daily?.sunset?.[0] ?? null,
+      utcOffsetS: typeof off === 'number' && Number.isFinite(off) ? off : null,
+    }
+    if (v.sunrise == null && v.sunset == null) return null
+    sunCache.set(key, { at: Date.now(), v })
+    while (sunCache.size > SUN_CACHE_MAX) sunCache.delete(sunCache.keys().next().value!)
+    return v
+  } catch {
+    return null
+  }
+}

@@ -5,37 +5,54 @@ checked: 2026-10-31
 
 # Ready to ride: the pre-ride checklist
 
-Run this whenever a rider asks "is this ready?", "check my ride", or anything like it, and before you call any plan you built finished. Work top to bottom: the first section is what strands riders, the last is polish. Never say a ride is ready because get_ride looks clean. get_ride cannot show the group's fuel range, road reports, weather, the stop-by time, the roster, bikes, shaping points, routing preferences, votes, or visibility. A correct final answer is usually "here is what I checked and fixed, and here is what you need to look at on the map."
+Run this whenever a rider asks "is this ready?", "check my ride", or anything like it, and before you call any plan you built finished. Work top to bottom: the first section is what strands riders, the last is polish. Never say a ride is ready because get_ride looks clean. A correct final answer is usually "here is what I checked and fixed, here is what you need to confirm, and here is what you need to look at on the map."
+
+## Start with check_ride
+
+Call check_ride first. It runs the route checks in code and returns them worst first, each with the route, the place, the number, and the fix, then the trip checks only the riders can confirm. It does not look at the weather or road reports: call get_conditions and get_road_reports per dated route for those. Then fix, and run it again. The checks it reports, by id:
+
+- `fuel-dry`: the tank runs dry before the next fill (an E marker on the map). Fix with a fuel stop before that point; get_fuel_plan says between which points, and find_along_route or search_places finds one.
+- `fuel-unreachable-stop`: a planned fuel stop is past where the tank first runs dry. Add a fill before it.
+- `fuel-unknown`: nobody has a range on file, so nothing checks fuel. Ask for the shortest tank, or have riders add bikes in the Paddock and pick them on the Riders tab.
+- `leg-undrawn`: a leg the router never drew, a straight line on the map; everything after it is a guess (section 4).
+- `route-empty`: a route with fewer than two points.
+- `no-departure`: no departure time, so nothing can be checked against the clock (section 6).
+- `after-stop-by`: the route arrives after the ride's stop-by time (section 7).
+- `past-midnight`: the route arrives after midnight.
+- `long-day`: more riding hours than the rule of thumb for the vehicle (8 for a motorcycle); ask how long a day this group likes (section 9).
+- `alternates`: alternates are in play; confirm the active one is the one they mean to ride.
+
+The sections below explain each area in depth and cover what check_ride cannot see.
 
 ## Before you start
 
 - Call get_ride. Each route line reads `Route N [uid] "Title" departs YYYY-MM-DD HH:MM · X mi · Yh riding` (or km: the first line of get_ride says which unit every distance is in, and a bike's range must be converted to match before you compare them), or `(no departure time)` in place of the departure, then optionally `(part estimated)`, `alternate group N, active` or `alternate group N, not chosen`, and `ridden by GROUP`. Each point line reads `i. [uid] STOP|poi categories "Name", address (lat, lng) at X mi ETA YYYY-MM-DD HH:MM dwell Nm`, with `note:` lines under it.
 - "at X mi" is miles from the start of that route. ETA appears only on a route with a departure. The last point's ETA is the arrival.
-- get_ride's ETAs differ slightly from the builder's: get_ride ignores dwell on the first point and assumes 50 mph on any straight leg; the builder counts first-point dwell and assumes about 45 mph. Treat both as rough wherever a leg is straight.
+- get_ride's ETAs are the builder's own: dwell at every point counted, the first included, and about 45 mph over the straight-line distance for a leg the router never drew, with every distance and ETA past such a leg marked `(est.)`.
 - Do not add route lines together for a ride total. A route marked `not chosen` is a losing alternate and does not count.
 - In the builder, your edits are a proposal until the rider presses Apply, and Apply is refused if the rider edited meanwhile. Over MCP your edits are a pending proposal until you call apply_changes after the rider agrees, and it is refused if the ride changed meanwhile. Re-read with get_ride after edits before judging.
 
 ## 1. Fuel: will anyone run dry?
 
-The app plans fuel around the shortest usable range among the riders counted on the ride, from bikes in each rider's Paddock. Each route starts on a full tank. A point refuels only if it carries the gas category (or charge, for an electric plan). You cannot see the range, so ask.
+The app plans fuel around the shortest usable range among the riders counted on the ride, from bikes in each rider's Paddock. The tank carries from one route to the next: a route starts with whatever the group had left at the end of the route before it in that group's sequence, unless it starts at a gas or charge stop. A point refuels only if it carries the gas category (or charge, for an electric plan). get_fuel_plan and get_rider_context tell you the range and whose bike sets it.
 
 **What the rider sees.** A dotted range ring around the timeline's position dot: green through the first half of the tank, orange past half, red from three quarters. A red disc with a white E on the road wherever the tank would run dry, one per tankful. The road drawn solid red with white dashes from the first E to the next fuel stop, or to the end of the route. An amber "out of range" tag on the first row past the tank, with "Past Name's Bike (N mi). Add a fuel stop before here." The Riders tab says "Plan fuel around N miles—Name's Bike." The map shows the fuel overlay for one route at a time, the one being edited; the "out of range" tags show in every route's list at once.
 
-**Detect.** Ask the rider for the number on the Riders tab ("Plan fuel around N miles"), or for the bike's range. If the Riders tab says "No ranges on file", there is no fuel warning anywhere: silence means no data, not enough fuel. If it also says "N riders have no range on file", the number may be optimistic. With a range R, walk each route in get_ride: the route start counts as a fill, and so does every point whose categories include gas (charge for electric). Work in the unit get_ride uses (1 mi = 1.609 km). Any gap between consecutive fills longer than R, or from the last fill to the end of the route of R or more, puts at least one E on the map (one per tankful). A gap of 0.75 × R or more turns the ring red before the next fill; more than 0.5 × R turns it orange. A fuel stop that is itself more than R from the previous fill is unreachable even though its row shows no tag.
+**Detect.** check_ride reports every E as `fuel-dry`; get_fuel_plan gives each route's starting tank, every E and where it falls, and the longest stretch between fills. If nobody has a range on file there is no fuel warning anywhere: silence means no data, not enough fuel. If some riders have none, the real limit may be shorter. The ring turns orange past half a tank and red past three quarters.
 
 **Fix.** For each over-long gap, search_places for "gas station" (or "EV charging station") with near_point_uid set to the last point before the gap gets past about 75 percent of R (you have no road geometry, only the points, so search near a point and check each result's distance along the route by where it falls between points), then add_stop after the right point with categories ["gas"] (or ["charge"]) and a dwell of 10 to 15 minutes. Prefer a station on the road itself. Re-check: the "out of range" tag only flags the first breach, so a fix can reveal the next one. If a place called "Chevron" is on the route without the gas category, set_categories with its existing categories plus "gas" (the call replaces the whole list); the name alone refuels nothing. Without a known range, list the longest gaps between gas stops per route and ask the rider to check them against their tank, and to look for red E discs on each route.
 
 ## 2. Fuel: right kind, and across routes
 
-**Fuel kind.** The refuel category follows the ride's power setting in the ride header, then the binding bike's fuel type, then the rider's default. Electric means charge, gas means gas. A pedal ride has no fuel at all: the app currently still treats it as gas and may draw fuel warnings on it (a known bug), so ignore those and plan water and food instead. When the ride's power is left at the default, a mixed group follows the bike with the shortest range. Detect: ask what the group rides if the categories look wrong for it (gas stops on an electric ride). Fix: set_categories to charge or gas to match.
+**Fuel kind.** The refuel category follows the ride's power setting in the ride header, then the binding bike's fuel type, then the rider's default. Electric means charge, gas means gas. A pedal ride has no fuel at all and the map draws no fuel overlay: plan water and food instead. When the ride's power is left at the default, a mixed group follows the bike with the shortest range. Detect: ask what the group rides if the categories look wrong for it (gas stops on an electric ride). Fix: set_categories to charge or gas to match.
 
-**Across routes.** Each route's fuel walk starts on a full tank, so fuel does not carry across routes. Two routes ridden back to back without a fill, or an electric ride whose overnight stop has no charger, look fine on the map and are not. Detect: a route whose last fill is far from its end, followed by a route that starts there. Fix: tell the rider, and add a gas or charge stop near the end of the first route or the start of the next.
+**Across routes.** The tank carries over: a hotel without a pump refills nobody, and a shared route starts as low as the lowest tank any group arrives with. An electric ride whose overnight stop has no charger starts the next morning where it ended. Fix: a gas or charge stop near the end of the first route, at the hotel, or early on the next.
 
 ## 3. Closed roads
 
-Riders drop road reports on a route: Closed (red diamond with ×), Rough or unpaved, and Hazard (amber diamonds with !). A report counts on any route within 75 m of it and is listed in the panel under "Road reports". A closure lasts 60 days, a hazard 21, a surface report 180. A seasonal closure never expires and is judged against each route's dates: if the route's start or end date falls in the season it reads "Closed Nov 1 – May 31, which includes your date"; if the route is undated, "Closed every year Nov 1 – May 31"; if dated outside the season, the pin goes gray and reads "not on your dates". Only the route's start and end dates are tested, not days between.
+Riders drop road reports on a route: Closed (red diamond with ×), Rough or unpaved, and Hazard (amber diamonds with !). A report counts on any route within 75 m of it and is listed in the panel under "Road reports". A closure lasts 60 days, a hazard 21, a surface report 180. A seasonal closure never expires and is judged against each route's dates: if any date the route spans falls in the season it reads "Closed Nov 1 – May 31, which includes your date"; if the route is undated, "Closed every year Nov 1 – May 31"; if dated outside the season, the pin goes gray and reads "not on your dates".
 
-**Detect.** You cannot read reports. Ask the rider whether the panel shows a Road reports list or the map shows red diamonds on the route, and what each says. An undated route cannot be judged against a seasonal closure, so set departures first (check 6). No report is not evidence a road is open: reports expire, and the app has no official closure feed.
+**Detect.** get_road_reports lists them, with each seasonal closure's verdict for the route's dates; they are rider reports, unverified. An undated route cannot be judged against a seasonal closure, so set departures first (check 6). No report is not evidence a road is open: reports expire, and the app has no official closure feed.
 
 **Fix.** For a live closure on the date: move the route off that road (replace_stop or add_stop a point on another road, or have the rider drag the line onto another road), or change the date. The app never reroutes around a report. Tell the rider to verify with the road authority.
 
