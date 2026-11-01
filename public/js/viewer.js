@@ -128,7 +128,12 @@
     // Every point is on the road now, so they all go through stopMileages in the
     // rider's order and a POI carrying a `gas` role resets the range like any
     // other point would.
-    const mileages = stopMileages(route.points);
+    // A pedal ride has no fuel to count from (#446), so its popups carry no "From
+    // gas" or "From charge" row: undefined is what tells popupHtml to leave one out.
+    const pedal = !fuelRole();
+    const mileages = stopMileages(route.points).map((m) =>
+      pedal ? { ...m, fromGasMi: undefined, fromChargeMi: undefined } : m,
+    );
     route.points.forEach((point, i) => {
       rs.markers.push(place(route, point, point.kind, mileages[i]));
     });
@@ -233,16 +238,15 @@
     // Null for a reader who is not on the roster, and for a member whose group
     // has no bike on file. Both mean no ring, and nothing on the page tells the
     // two apart — see the call site in src/index.tsx.
-    const r = window.TB.range || {};
-    const range = typeof r.miles === "number" && r.miles > 0 ? r.miles * window.TBUnits.METERS_PER_MILE : null;
-    const role = r.fuelType === "electric" ? "charge" : "gas";
+    const range = rangeM();
+    const role = fuelRole();
 
     // ONE SWITCH FOR THE WHOLE FUEL OVERLAY. `state.ringOn` gated only the ring
     // until 2026-08-31, so turning it off left the E markers and the closed
     // stretch on the map — most of the red, and the half a rider is turning off
     // when they want the route back. Everything range-derived is behind it now;
     // the moment dot is not, because where the rider is is not a fuel fact.
-    const on = state.ringOn;
+    const on = state.ringOn && role != null;
     // The tank the group carried in from the route before (#451), losing alternates
     // skipped as the builder skips them.
     const counts = (x) => !(x.altGroup != null && !x.altActive);
@@ -409,6 +413,34 @@
     });
   }
 
+  // What puts fuel back in on this ride: `charge`, `gas`, or null on a pedal ride
+  // (#446). The ride's own power first, as the builder does — this read only the
+  // bike's type until then, so an electric ride on a gas roster drew gas here and
+  // chargers there. TBVocabData carries the ride and this reader's own default,
+  // the same pair the page's words are resolved from.
+  function fuelRole() {
+    const r = window.TB.range || {};
+    const data = window.TBVocabData || {};
+    const ride = data.ride || {};
+    const profile = data.profile || {};
+    return RANGE.fuelRoleOf({
+      ridePower: ride.power,
+      rideVehicle: ride.vehicle,
+      bikeFuel: r.fuelType,
+      profilePower: profile.power,
+      profileVehicle: profile.vehicle,
+    });
+  }
+
+  // The group's binding range in meters. Null for a reader who is not on the
+  // roster, for a member whose group has no bike on file, and on a pedal ride,
+  // which has no tank whatever is on file (#446).
+  function rangeM() {
+    if (!fuelRole()) return null;
+    const r = window.TB.range || {};
+    return typeof r.miles === "number" && r.miles > 0 ? r.miles * window.TBUnits.METERS_PER_MILE : null;
+  }
+
   // #229's fuel ring toggle. Mirrors renderRingToggle() in builder.js.
     //
     // HIDDEN WHEN THERE IS NO RING TO TALK ABOUT — a reader who is not on the roster gets
@@ -420,8 +452,7 @@
   function renderRingToggle() {
     const btn = document.getElementById("range-ring");
     if (!btn) return;
-    const r = window.TB.range || {};
-    btn.hidden = !(typeof r.miles === "number" && r.miles > 0);
+    btn.hidden = rangeM() == null;
     if (btn.hidden) return;
     btn.textContent = "Range";
     btn.title = state.ringOn ? "Hide the " + W("fuel") + " range" : "Show the " + W("fuel") + " range";

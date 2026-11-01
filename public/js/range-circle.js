@@ -65,6 +65,32 @@
     return base + legM(route, at.legIndex) * f;
   }
 
+  /**
+   * Which role puts fuel back in: `charge`, `gas`, or null for a pedal ride (#446).
+   *
+   * The ride's own power when set, then the binding bike's type, then the rider's
+   * default, coerced by the vehicle the way the ride's words are: a bicycle on gas is
+   * a pedal ride, and nothing but a bicycle pedals. `f` carries ridePower,
+   * rideVehicle, bikeFuel, profilePower and profileVehicle, any of them absent.
+   *
+   * NULL IS NOT GAS. A pedal ride has no tank, so every fuel surface asks for a role
+   * and draws nothing without one. Mirrors fuelRoleOf() in src/subgroups/rendezvous.ts,
+   * and test/rendezvous.test.ts pins the two over every combination.
+   */
+  function fuelRoleOf(f) {
+    f = f || {};
+    var vehicles = ["motorcycle", "car", "bicycle"];
+    var powers = ["gas", "electric", "pedal"];
+    var v = f.rideVehicle || f.profileVehicle;
+    var vehicle = vehicles.indexOf(v) !== -1 ? v : "motorcycle";
+    var p = f.ridePower || f.bikeFuel || f.profilePower;
+    var power = powers.indexOf(p) !== -1 ? p : "gas";
+    if (vehicle === "bicycle" && power === "gas") power = "pedal";
+    if (vehicle !== "bicycle" && power === "pedal") power = "gas";
+    if (power === "pedal") return null;
+    return power === "electric" ? "charge" : "gas";
+  }
+
   /** Does this point fill the tank the binding bike actually drinks from?
    *  `gas` and `charge` are the same event seen from two kinds of machine, so
    *  an electric rider passing a Chevron has refuelled nothing. Mirrors
@@ -351,5 +377,6 @@
     tankUsed: tankUsed,
     ringTone: ringTone,
     isRefuel: isRefuel,
+    fuelRoleOf: fuelRoleOf,
   };
 })(typeof window !== "undefined" ? window : this);
