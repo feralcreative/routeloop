@@ -42,6 +42,7 @@ import { parseTerms } from '../places/ranking'
 import { builderRide, createRide, loadRidePayload, saveRide } from '../routes/builder'
 import { userForAccessToken } from '../oauth/service'
 import { Budget } from '../agent/budget'
+import { presetOf } from '../agent/summary'
 import { newPoint } from '../agent/ride-edit'
 import {
   annotationsOf,
@@ -72,15 +73,27 @@ const LOCAL_CAPS: Record<string, Capability> = {
   apply_changes: { mutates: true, destructive: true, needs: 'edit' },
 }
 
-type Prefs = { units: 'mi' | 'km'; favor: string[]; avoid: string[] }
+type Prefs = { units: 'mi' | 'km'; favor: string[]; avoid: string[]; vehicle: string | null; power: string | null }
 
 async function prefsOf(userId: number): Promise<Prefs> {
   const [p] = await db
-    .select({ units: userProfiles.units, favor: userProfiles.favorPlaces, avoid: userProfiles.avoidPlaces })
+    .select({
+      units: userProfiles.units,
+      favor: userProfiles.favorPlaces,
+      avoid: userProfiles.avoidPlaces,
+      vehicle: userProfiles.vehicle,
+      power: userProfiles.power,
+    })
     .from(userProfiles)
     .where(eq(userProfiles.userId, userId))
     .limit(1)
-  return { units: p?.units === 'metric' ? 'km' : 'mi', favor: parseTerms(p?.favor), avoid: parseTerms(p?.avoid) }
+  return {
+    units: p?.units === 'metric' ? 'km' : 'mi',
+    favor: parseTerms(p?.favor),
+    avoid: parseTerms(p?.avoid),
+    vehicle: p?.vehicle ?? null,
+    power: p?.power ?? null,
+  }
 }
 
 const text = (t: string, isError = false) => ({
@@ -169,6 +182,7 @@ async function onRideHeld(user: UserRow, prefs: Prefs, rideId: number, name: str
     ride: proposal ? structuredClone(proposal.ride) : l.ride,
     role: l.role,
     snapshot: { kind: 'saved', rev: l.rev, pending: proposal?.changes.length ?? 0 },
+    preset: presetOf(l.ride, prefs),
     units: prefs.units,
     budget,
     favor: prefs.favor,

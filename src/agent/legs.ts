@@ -2,8 +2,10 @@
 //
 // Through the exported fetchRouteLeg(), which shares the leg cache with the builder
 // and the meeting-point proposer: an agent asking for the leg a rider just drew
-// costs nothing. A failure leaves the straight placeholder in place, which is the
-// builder's own behavior, and the builder re-routes it on the rider's next edit.
+// costs nothing. A leg it could not draw, for want of budget or because Google failed,
+// is reported rather than left quietly straight: the caller refuses the whole edit
+// (#445), because nothing re-routes a stored straight leg later, and one saved that
+// way is a straight line on the map with every number past it a guess.
 import type { RidePayload } from '../maps/ride-graph'
 import { cachedRouteLeg, fetchRouteLeg } from '../routes/routing'
 import type { Stale } from './ride-edit'
@@ -13,9 +15,10 @@ export async function routeStale(
   ride: RidePayload,
   stale: Stale[],
   budget: Budget,
-): Promise<{ routed: number; skipped: number }> {
+): Promise<{ routed: number; skipped: number; failed: number }> {
   let routed = 0
   let skipped = 0
+  let failed = 0
   // Concurrently, because a turn that inserts a stop into five routes is five
   // independent requests and the rider is watching a spinner.
   await Promise.all(
@@ -42,7 +45,10 @@ export async function routeStale(
       // Only a request that reached Google is spent: a cache hit, or a server with no
       // key, was never billed.
       if ((out.ok && out.cached) || (!out.ok && out.error === 'unconfigured')) budget.refund('leg')
-      if (!out.ok) return
+      if (!out.ok) {
+        failed++
+        return
+      }
       // The edit may have moved on while the request was in flight only if a
       // second tool call raced this one, which the loop never does; the identity
       // check is cheap insurance against routing the wrong pair.
@@ -51,5 +57,5 @@ export async function routeStale(
       routed++
     }),
   )
-  return { routed, skipped }
+  return { routed, skipped, failed }
 }

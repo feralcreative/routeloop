@@ -48,6 +48,10 @@ import {
 } from '../agent/policy'
 import { BYO_ENABLED, freeTierState, googleCallsToday, openKeyOf, recordTurn, storedKeysOf } from '../agent/usage'
 import type { AgentContext } from '../agent/tools'
+import { presetOf } from '../agent/summary'
+import { eq } from 'drizzle-orm'
+import { db } from '../db/index'
+import { userProfiles } from '../db/schema'
 
 export const agentRoutes = new Hono<AuthEnv>()
 
@@ -145,11 +149,21 @@ agentRoutes.post(
         maxCostMicros = answer.remainingMicros
       }
 
-      const [units, lists, usedToday] = await Promise.all([unitsFor(c), placeListsFor(c), googleCallsToday(user.id)])
+      const [units, lists, usedToday, [profile]] = await Promise.all([
+        unitsFor(c),
+        placeListsFor(c),
+        googleCallsToday(user.id),
+        db
+          .select({ vehicle: userProfiles.vehicle, power: userProfiles.power })
+          .from(userProfiles)
+          .where(eq(userProfiles.userId, user.id))
+          .limit(1),
+      ])
       const ctx: AgentContext = {
         ride: ride.data,
         role: canAdminister(found.member) ? 'owner' : 'edit',
         snapshot: { kind: 'draft' },
+        preset: presetOf(ride.data, profile ?? null),
         units: units === 'metric' ? 'km' : 'mi',
         budget: new Budget(usedToday),
         favor: parseTerms(lists.favor),

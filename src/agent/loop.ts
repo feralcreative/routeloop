@@ -63,7 +63,7 @@ export function openingMessage(ctx: AgentContext, history: ChatLine[], message: 
     .join('\n')
   return [
     transcript ? `Conversation so far:\n${transcript}` : '',
-    `The ride right now:\n${rideSummary(ctx.ride, { units: ctx.units, includeDetails: ctx.includeDetails, snapshot: ctx.snapshot })}`,
+    `The ride right now:\n${rideSummary(ctx.ride, { units: ctx.units, includeDetails: ctx.includeDetails, snapshot: ctx.snapshot, preset: ctx.preset })}`,
     `Rider: ${message.slice(0, 4000)}`,
   ]
     .filter(Boolean)
