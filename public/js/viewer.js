@@ -243,16 +243,20 @@
     // when they want the route back. Everything range-derived is behind it now;
     // the moment dot is not, because where the rider is is not a fuel fact.
     const on = state.ringOn;
-    const reach = on ? RANGE.fuelReachM(route, distM, cum, role, range) : null;
+    // The tank the group carried in from the route before (#451), losing alternates
+    // skipped as the builder skips them.
+    const counts = (x) => !(x.altGroup != null && !x.altActive);
+    const carry = on ? RANGE.carriesM(state.ride.routes, role, range, DIST.cumulativeM, counts)[at.routeIndex] || 0 : 0;
+    const reach = on ? RANGE.fuelReachM(route, distM, cum, role, range, carry) : null;
     // ONE MARKER PER TANKFUL, not just the next one — see dryDistancesM().
     const walls = on
-      ? RANGE.dryDistancesM(route, distM, cum, role, range)
+      ? RANGE.dryDistancesM(route, distM, cum, role, range, carry)
           .map((d) => pointAtDistance(track, d))
           .filter(Boolean)
       : [];
     // The stretch the rider cannot make, from the wall to the next pump — one
     // statement with the wall, so it is drawn on the same condition.
-    const gap = on ? RANGE.dryStretch(route, distM, cum, role, range) : null;
+    const gap = on ? RANGE.dryStretch(route, distM, cum, role, range, carry) : null;
     setMomentOverlay(
       state.map,
       here,
@@ -263,7 +267,7 @@
       // quarters — the ring is the one part of the fuel overlay that is a
       // quantity rather than a verdict. Computed even when the overlay is off,
       // which costs nothing and keeps the tone right the instant it comes back.
-      RANGE.ringTone(RANGE.tankUsed(route, distM, cum, role, range)),
+      RANGE.ringTone(RANGE.tankUsed(route, distM, cum, role, range, carry)),
     );
   }
 

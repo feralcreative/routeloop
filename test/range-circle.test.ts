@@ -403,3 +403,84 @@ describe('the ring tone', () => {
     expect(R.ringTone(undefined)).toBe('stop')
   })
 })
+
+// #451: the tank carries from one route to the next. Routes here are plain stops
+// with no pumps unless named, and the binding range is 150 miles.
+describe('the tank carries across routes', () => {
+  type R2 = Route & { subgroupUid?: string | null; altGroup?: number | null; altActive?: boolean }
+  const plain = (miles: number[], roles: string[][] = [], extra: Partial<R2> = {}): R2 => ({
+    points: [stop('A', roles[0] ?? []), ...miles.map((_, i) => stop(`P${i}`, roles[i + 1] ?? []))],
+    legs: miles.map(leg),
+    ...extra,
+  })
+  const RANGE = mi(150)
+  const all = (_r?: R2) => true
+  const carries = (routes: R2[], active: (r: R2) => boolean = all) => R.carriesM(routes, 'gas', RANGE, D.cumulativeM, active).map(round)
+
+  it('starts the first route full, and the next one where the last left off', () => {
+    // 130 miles on route 1 with no pump, so route 2 starts 130 into the tank.
+    expect(carries([plain([130]), plain([40])])).toEqual([0, 130])
+  })
+
+  it('starts full at a route that begins at a pump', () => {
+    expect(carries([plain([130]), plain([40], [['gas']])])).toEqual([0, 0])
+  })
+
+  it('measures what is left from the last fill, a pump or a wall', () => {
+    // 100 to a pump, then 30: 30 into the new tank.
+    expect(carries([plain([100, 30], [[], ['gas']]), plain([10])])).toEqual([0, 30])
+    // 200 with no pump: the rider has to find fuel at 150 (the wall), so 50 in.
+    expect(carries([plain([200]), plain([10])])).toEqual([0, 50])
+  })
+
+  it('carries a group’s own sequence, and a shared route takes the lowest tank', () => {
+    const a = plain([120], [], { subgroupUid: 'grpA' })
+    const b = plain([20], [], { subgroupUid: 'grpB' })
+    const shared = plain([10])
+    const aAgain = plain([5], [], { subgroupUid: 'grpA' })
+    // The shared route starts at A's 120, the lower tank of the two feeders; A's next
+    // route follows the shared one, 130 in.
+    expect(carries([a, b, shared, aAgain])).toEqual([0, 0, 120, 130])
+  })
+
+  it('rejoins after a split from the groups’ own tanks, not the shared route before them', () => {
+    const shared = plain([140])
+    const a = plain([10], [['gas']], { subgroupUid: 'grpA' })
+    const b = plain([20], [['gas']], { subgroupUid: 'grpB' })
+    expect(carries([shared, a, b, plain([5])])).toEqual([0, 0, 0, 20])
+  })
+
+  it('leaves a group that arrives exactly empty empty, not full', () => {
+    expect(carries([plain([150]), plain([10])])).toEqual([0, 150])
+  })
+
+  it('skips a losing alternate as a predecessor', () => {
+    const won = plain([60], [], { altGroup: 1, altActive: true })
+    const lost = plain([140], [], { altGroup: 1, altActive: false })
+    const active = (r: R2) => !(r.altGroup != null && !r.altActive)
+    expect(carries([won, lost, plain([10])], active)).toEqual([0, 0, 60])
+  })
+
+  it('carries nothing with no range or no fuel role', () => {
+    expect(R.carriesM([plain([130]), plain([40])], 'gas', null, D.cumulativeM, all)).toEqual([0, 0])
+    expect(R.carriesM([plain([130]), plain([40])], null, RANGE, D.cumulativeM, all)).toEqual([0, 0])
+  })
+
+  it('moves the wall, the ring, and the row count by the carry', () => {
+    const d = plain([40, 60])
+    const c = D.cumulativeM(d)
+    // 130 carried in: dry 20 miles into this route.
+    expect(R.dryDistancesM(d, 0, c, 'gas', RANGE, mi(130)).map(round)).toEqual([20])
+    expect(round(R.fuelReachM(d, 0, c, 'gas', RANGE, mi(130)))).toBe(20)
+    expect(R.tankUsed(d, 0, c, 'gas', RANGE, mi(75))).toBeCloseTo(0.5)
+    expect(D.sinceRefuelM(d, 'gas', mi(130)).map(round)).toEqual([130, 170, 230])
+    expect(D.firstDryPoint(d, 'gas', RANGE, mi(130))).toBe(1)
+    // Without a carry, nothing changes from before.
+    expect(R.dryDistancesM(d, 0, c, 'gas', RANGE).map(round)).toEqual([])
+  })
+
+  it('puts the wall at the start when the tank arrives empty', () => {
+    const d = plain([40])
+    expect(R.dryDistancesM(d, 0, D.cumulativeM(d), 'gas', RANGE, RANGE).map(round)).toEqual([0])
+  })
+})

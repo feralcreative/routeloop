@@ -22,6 +22,14 @@
 //
 // NO RANGE MEANS NO RING. Null is not zero and it is not a default: a ring drawn for a
 // rider whose bike has no range on file implies somebody checked they could make it.
+//
+// THE TANK CARRIES FROM ONE ROUTE TO THE NEXT (#451, Ziad's call, 2026-10-31). Every
+// function below takes an optional last argument, `carryM`: how far into the current
+// tank the group already is when the route begins, worked out by carriesM() from the
+// route before it. Zero, the default, is a full tank, which is what every route
+// assumed until then, so a group that ended route 1 on fumes and set off on route 2
+// without filling up was told nothing. A route that STARTS at a pump starts full,
+// because a refuel at point 0 is a fill at 0; a hotel with no pump refills nobody.
 (function (window) {
   "use strict";
 
@@ -71,13 +79,14 @@
    * How far into the route the last fill was, in meters.
    *
    * AT counts as filled — the tank is full standing at the pump, which is the
-   * same reading sinceRefuelM() gives that row in the route list. Zero when
-   * nothing before this point refuels, which is the start of the route and is the
-   * right answer: the rider set off on a full tank.
+   * same reading sinceRefuelM() gives that row in the route list. When nothing
+   * before this point refuels it is minus the carry: the tank was last full that
+   * far back, on the route before this one, or at this route's start when nothing
+   * carried.
    */
-  function lastFillM(route, distM, cum, fuelRole) {
+  function lastFillM(route, distM, cum, fuelRole, carryM) {
     var points = pointsOf(route);
-    var last = 0;
+    var last = carryM > 0 ? -carryM : 0;
     for (var i = 0; i < points.length; i++) {
       if (isRefuel(points[i], fuelRole) && cum[i] <= distM) last = cum[i];
     }
@@ -98,7 +107,7 @@
       * the wall is what says whether they make it. A ring with no wall inside it means the
       * route is covered.
       */
-  function fuelReachM(route, distM, cum, fuelRole, rangeM) {
+  function fuelReachM(route, distM, cum, fuelRole, rangeM, carryM) {
     // THE TANK THE RIDER IS ON, not the one they run out of — deliberately NOT
     // dryDistanceM(). The ring answers "how far does this fill get me", so it
     // must reset at the next pump rather than looking past it; the wall answers
@@ -106,7 +115,7 @@
     // two are separate functions.
     if (distM == null || !cum || !cum.length) return null;
     if (!(rangeM > 0)) return null;
-    return Math.min(lastFillM(route, distM, cum, fuelRole) + rangeM, cum[cum.length - 1]);
+    return Math.max(0, Math.min(lastFillM(route, distM, cum, fuelRole, carryM) + rangeM, cum[cum.length - 1]));
   }
 
   /**
@@ -119,10 +128,10 @@
       * Null when nothing can say. That is not zero — zero is a full tank, which is a
       * claim, and no bike on file is the common case rather than the edge one.
       */
-  function tankUsed(route, distM, cum, fuelRole, rangeM) {
+  function tankUsed(route, distM, cum, fuelRole, rangeM, carryM) {
     if (distM == null || !cum || !cum.length) return null;
     if (!(rangeM > 0)) return null;
-    var burned = distM - lastFillM(route, distM, cum, fuelRole);
+    var burned = distM - lastFillM(route, distM, cum, fuelRole, carryM);
     if (!(burned > 0)) return 0;
     // Capped, because past the dry point the ring has no radius to draw anyway
     // and a fraction over 1 would only be a number nothing reads.
@@ -185,7 +194,7 @@
    * a caller draws one marker per entry and an empty list is no markers, which
    * is the same code path as every other route.
    */
-  function dryDistancesM(route, distM, cum, fuelRole, rangeM) {
+  function dryDistancesM(route, distM, cum, fuelRole, rangeM, carryM) {
     if (distM == null || !cum || !cum.length) return [];
     if (!(rangeM > 0)) return [];
 
@@ -199,7 +208,7 @@
     }
 
     var out = [];
-    var tank = lastFillM(route, distM, cum, fuelRole);
+    var tank = lastFillM(route, distM, cum, fuelRole, carryM);
     var p = 0;
     for (;;) {
       while (p < pumps.length && pumps[p] <= tank) p++;
@@ -212,7 +221,8 @@
       }
       var dry = tank + rangeM;
       if (dry > total) break;
-      out.push(dry);
+      // A carried tank can already be empty at the start: the wall is the start.
+      out.push(Math.max(0, dry));
       tank = dry;
     }
     return out;
@@ -222,8 +232,8 @@
    * The FIRST point the tank runs dry, or null when it does not run dry before
    * the route ends. What the red stretch starts from — see dryStretch().
    */
-  function dryDistanceM(route, distM, cum, fuelRole, rangeM) {
-    var all = dryDistancesM(route, distM, cum, fuelRole, rangeM);
+  function dryDistanceM(route, distM, cum, fuelRole, rangeM, carryM) {
+    var all = dryDistancesM(route, distM, cum, fuelRole, rangeM, carryM);
     return all.length ? all[0] : null;
   }
 
@@ -240,8 +250,8 @@
    * It moves as the rider refuels, because `dryDistanceM()` does: passing a
    * pump pushes the dry point forward and the stretch with it, or removes both.
    */
-  function dryStretch(route, distM, cum, fuelRole, rangeM) {
-    var from = dryDistanceM(route, distM, cum, fuelRole, rangeM);
+  function dryStretch(route, distM, cum, fuelRole, rangeM, carryM) {
+    var from = dryDistanceM(route, distM, cum, fuelRole, rangeM, carryM);
     if (from == null) return null;
     var points = pointsOf(route);
     var to = cum[cum.length - 1];
@@ -254,7 +264,84 @@
     return to > from ? { from: from, to: to } : null;
   }
 
+  /**
+   * How far into the tank each route of a ride starts, in meters: zero for a full
+   * tank. One entry per route, aligned with `routes` (#451).
+   *
+   * EACH GROUP'S TANK FOLLOWS ITS OWN SEQUENCE: a route tagged with a group follows
+   * the nearest earlier route that group rides, its own or an untagged one; an
+   * untagged route is ridden by everyone, so it starts as low as the LOWEST tank any
+   * group arrives with, which is the one that binds. A losing alternate (`isActive`
+   * false) is skipped as a predecessor and given no carry of its own. A route that
+   * begins at a pump begins full.
+   *
+   * What a route leaves behind is how far past its last fill it ends, where a fill is
+   * a pump the tank reached or a wall, the notional fill dryDistancesM() places
+   * where the rider has to stop. So it is always less than one range: a wall says
+   * the rider must find fuel there, and the next route is measured as though they
+   * did.
+   *
+   * `cumOf(route)` is TBDistance.cumulativeM, passed in so this file stays free of
+   * that one. All zeros with no range or no fuel role: no ring, nothing carried.
+   */
+  function carriesM(routes, fuelRole, rangeM, cumOf, isActive) {
+    var out = [];
+    var left = [];
+    var i;
+    for (i = 0; i < routes.length; i++) out.push(0);
+    if (!(rangeM > 0) || !fuelRole) return out;
+    var tagOf = function (r) {
+      return (r && r.subgroupUid) || null;
+    };
+    for (i = 0; i < routes.length; i++) {
+      var r = routes[i];
+      left.push(null);
+      if (!isActive(r)) continue;
+      var tag = tagOf(r);
+      // The sequences this route sits in: its own group's, or, when it is shared,
+      // every group that has ridden a route of its own so far. The untagged chain on
+      // its own only when no group has split off yet: once groups have their own
+      // routes, the shared one before them is not how anybody arrives.
+      var tags = [tag];
+      if (tag === null) {
+        for (var k = 0; k < i; k++) {
+          var tk = tagOf(routes[k]);
+          if (tk !== null && isActive(routes[k]) && tags.indexOf(tk) === -1) tags.push(tk);
+        }
+        if (tags.length > 1) tags.shift();
+      }
+      var carry = 0;
+      for (var t = 0; t < tags.length; t++) {
+        for (var j = i - 1; j >= 0; j--) {
+          if (left[j] == null) continue;
+          var tj = tagOf(routes[j]);
+          if (tj === null || tj === tags[t]) {
+            carry = Math.max(carry, left[j]);
+            break;
+          }
+        }
+      }
+      if (isRefuel(pointsOf(r)[0], fuelRole)) carry = 0;
+      out[i] = carry;
+      var cum = cumOf(r);
+      if (!cum || !cum.length) {
+        left[i] = carry;
+        continue;
+      }
+      var total = cum[cum.length - 1];
+      // A wall AT the end is not a fill: the group arrives empty and leaves empty.
+      var walls = dryDistancesM(r, 0, cum, fuelRole, rangeM, carry).filter(function (w) {
+        return w < total;
+      });
+      var origin = lastFillM(r, total, cum, fuelRole, carry);
+      if (walls.length) origin = Math.max(origin, walls[walls.length - 1]);
+      left[i] = Math.max(0, total - origin);
+    }
+    return out;
+  }
+
   window.TBRange = {
+    carriesM: carriesM,
     distanceAtMoment: distanceAtMoment,
     lastFillM: lastFillM,
     fuelReachM: fuelReachM,
