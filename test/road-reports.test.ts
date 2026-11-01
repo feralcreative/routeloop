@@ -47,6 +47,51 @@ describe('road report rules', () => {
     expect(seasonVerdict(winter, utc('2027-05-31'), utc('2027-06-01'))).toBe('closed')
   })
 
+  // #447: only the first and last dates were tested, so a closure starting and
+  // ending inside a multi-day route read as open.
+  it('counts a closure that starts and ends inside the route', () => {
+    const fair = { start: 504, end: 506 }
+    expect(seasonVerdict(fair, utc('2027-05-01'), utc('2027-05-10'))).toBe('closed')
+    expect(seasonVerdict(fair, utc('2027-05-01'), utc('2027-05-03'))).toBeNull()
+    expect(seasonVerdict(fair, utc('2027-05-07'), utc('2027-05-10'))).toBeNull()
+    // Either end touching the window still counts.
+    expect(seasonVerdict(fair, utc('2027-05-01'), utc('2027-05-04'))).toBe('closed')
+    expect(seasonVerdict(fair, utc('2027-05-06'), utc('2027-05-10'))).toBe('closed')
+  })
+
+  it('reads a season that wraps the new year against a route', () => {
+    const holidays = { start: 1220, end: 105 }
+    // The route holds the whole season, across the year boundary.
+    expect(seasonVerdict(holidays, utc('2026-12-10'), utc('2027-01-20'))).toBe('closed')
+    // Inside the season on both sides of the boundary.
+    expect(seasonVerdict(holidays, utc('2026-12-26'), utc('2027-01-02'))).toBe('closed')
+    // Wholly between two seasons.
+    expect(seasonVerdict(holidays, utc('2027-01-06'), utc('2027-12-19'))).toBeNull()
+    const winter = { start: 1101, end: 531 }
+    expect(seasonVerdict(winter, utc('2027-06-02'), utc('2027-10-30'))).toBeNull()
+    expect(seasonVerdict(winter, utc('2027-06-02'), utc('2027-11-01'))).toBe('closed')
+  })
+
+  it('reads a route that crosses the new year against a season that does not', () => {
+    const from = utc('2026-12-28')
+    const to = utc('2027-01-04')
+    expect(seasonVerdict({ start: 1231, end: 1231 }, from, to)).toBe('closed')
+    expect(seasonVerdict({ start: 101, end: 102 }, from, to)).toBe('closed')
+    // Starts before the route and ends inside it.
+    expect(seasonVerdict({ start: 1201, end: 1229 }, from, to)).toBe('closed')
+    // Starts inside the route and ends after it.
+    expect(seasonVerdict({ start: 103, end: 228 }, from, to)).toBe('closed')
+    expect(seasonVerdict({ start: 1225, end: 1227 }, from, to)).toBeNull()
+    expect(seasonVerdict({ start: 105, end: 110 }, from, to)).toBeNull()
+  })
+
+  it('counts every season on a route a year or longer, and reads a backwards span forwards', () => {
+    expect(seasonVerdict({ start: 704, end: 705 }, utc('2027-03-01'), utc('2028-03-01'))).toBe('closed')
+    // Just short of a year, and it misses both Fourths.
+    expect(seasonVerdict({ start: 704, end: 705 }, utc('2027-07-10'), utc('2028-07-01'))).toBeNull()
+    expect(seasonVerdict({ start: 504, end: 506 }, utc('2027-05-10'), utc('2027-05-01'))).toBe('closed')
+  })
+
   it('expires by kind, and a seasonal closure never', () => {
     const now = utc('2026-10-02')
     expect(expiresAtFor('hazard', false, now)!.getTime() - now.getTime()).toBe(TTL_DAYS.hazard * 86_400_000)
@@ -103,5 +148,68 @@ describe('road-season.js agrees with the server', () => {
     expect(S.fmtMmdd(1225)).toBe(fmtMmdd(1225))
     expect(S.mmddFromInput('2027-11-01')).toBe(1101)
     expect(S.mmddFromInput('')).toBeNull()
+  })
+
+  // #447: the span test, over seasons that do and do not wrap and spans that do and
+  // do not cross the new year, backwards, and longer than a year.
+  it('on a route span against every season', () => {
+    const marks = [101, 105, 228, 229, 301, 504, 506, 531, 601, 704, 1101, 1220, 1231]
+    const dates = [
+      '2027-01-01',
+      '2027-01-04',
+      '2027-02-28',
+      '2027-05-01',
+      '2027-05-05',
+      '2027-05-10',
+      '2027-07-04',
+      '2027-12-20',
+      '2027-12-31',
+      '2028-01-03',
+      '2028-02-29',
+      '2028-05-05',
+    ]
+    let n = 0
+    for (const start of marks)
+      for (const end of marks) {
+        if (start === end) continue
+        const s = { start, end }
+        for (const a of dates)
+          for (const b of dates) {
+            expect(S.seasonVerdict(s, utc(a), utc(b)), `${start}-${end} ${a}..${b}`).toBe(
+              seasonVerdict(s, utc(a), utc(b)),
+            )
+            n++
+          }
+      }
+    expect(n).toBe(13 * 12 * 12 * 12)
+  })
+})
+
+// An independent check on the span test: walk every day of the route and ask
+// inSeason of each. Slow and obviously right, which is the point.
+describe('seasonVerdict matches a day-by-day walk', () => {
+  const walk = (s: { start: number; end: number }, a: Date, b: Date) => {
+    const [from, to] = a <= b ? [a, b] : [b, a]
+    for (let t = from.getTime(); t <= to.getTime(); t += 86_400_000) {
+      if (inSeason(s.start, s.end, mmddOf(new Date(t)))) return 'closed'
+    }
+    return null
+  }
+  it('on spans up to two years against seasons that do and do not wrap', () => {
+    const seasons = [
+      { start: 504, end: 506 },
+      { start: 1101, end: 531 },
+      { start: 1220, end: 105 },
+      { start: 229, end: 301 },
+      { start: 1231, end: 101 },
+    ]
+    const base = utc('2026-11-15').getTime()
+    for (const s of seasons)
+      for (let i = 0; i < 400; i += 7)
+        for (const len of [0, 1, 3, 9, 30, 120, 300, 364, 365, 366, 700]) {
+          const a = new Date(base + i * 86_400_000)
+          const b = new Date(a.getTime() + len * 86_400_000)
+          expect(seasonVerdict(s, a, b), `${s.start}-${s.end} ${a.toISOString()} +${len}`).toBe(walk(s, a, b))
+        }
   })
 })

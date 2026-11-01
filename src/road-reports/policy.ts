@@ -112,6 +112,17 @@ export function canWithdraw(r: { reporterId: number }, viewer: { id: number; can
  * and null when the route is dated outside the season, which is the whole point of
  * #53: a July trip planned in February must not be warned about a closure that
  * will be long gone.
+ *
+ * "IN SEASON" MEANS THE ROUTE'S SPAN OVERLAPS THE SEASON, NOT THAT EITHER END IS IN IT
+ * (#447). Testing only the first and last date missed a short closure falling wholly
+ * inside a long route: a May 1 to May 10 route with a May 4 to May 6 closure read as
+ * open. Both are arcs on the calendar, either may wrap the new year, and two arcs
+ * meet when either one's start lies inside the other. A span of a year or more
+ * covers every month-day, which the arcs alone cannot say: a span ending on its own
+ * starting month-day a year later would read as a single day.
+ *
+ * Mirrors seasonVerdict() in public/js/road-season.js; test/road-reports.test.ts pins
+ * the two.
  */
 export function seasonVerdict(
   season: { start: number; end: number },
@@ -119,9 +130,21 @@ export function seasonVerdict(
   routeEnd: Date | null,
 ): 'closed' | 'seasonal' | null {
   if (!routeStart) return 'seasonal'
-  const days = [mmddOf(routeStart)]
-  if (routeEnd) days.push(mmddOf(routeEnd))
-  return days.some((d) => inSeason(season.start, season.end, d)) ? 'closed' : null
+  // An end before the start is a span read backwards, not a span of nothing.
+  let from = routeStart
+  let to = routeEnd ?? routeStart
+  if (to.getTime() < from.getTime()) [from, to] = [to, from]
+  if (calendarDays(from, to) >= 365) return 'closed'
+  const a = mmddOf(from)
+  const b = mmddOf(to)
+  const meets = inSeason(season.start, season.end, a) || inSeason(a, b, season.start)
+  return meets ? 'closed' : null
+}
+
+/** Whole calendar days from one route date to another, by their UTC dates. */
+function calendarDays(from: Date, to: Date): number {
+  const day = (d: Date) => Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate()) / 86_400_000
+  return day(to) - day(from)
 }
 
 const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec']
