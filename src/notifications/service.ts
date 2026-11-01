@@ -22,13 +22,10 @@ import { notificationPrefs, notifications, userProfiles, users } from '../db/sch
 import { sendTemplateDetached } from '../auth/mailer'
 import type { EmailTemplate } from '../emails/types'
 import { EVENTS, type Channel, type NotificationEvent } from './catalog'
-import { delivers, isMuted, prefMap, type PrefRow } from './policy'
+import { delivers, isMuted, prefMap, retentionCutoff, type PrefRow } from './policy'
 import { vocabOf, wordsFor } from '../views/vocab'
 
-/** How long a raised notification is kept before the poll prunes it. Long
- *  enough that a rider who left a tab open over a weekend does not lose the
- *  record, short enough that the table is not a log. */
-export const NOTIFICATION_RETENTION_DAYS = 14
+export { NOTIFICATION_RETENTION_DAYS } from './policy'
 
 /** One rider's stored answers, ready for `enabledFor`. */
 export async function prefsOf(userId: number): Promise<Map<string, boolean>> {
@@ -401,15 +398,12 @@ export function notifyMany<P>(
  * `returning()` on the UPDATE is what makes that one statement rather than a
  * select followed by a write with a window between them.
  *
- * **PRUNING RIDES ALONG RATHER THAN ON A TIMER.** It is bounded (one rider's own
- * old rows), it costs no sixth `unref()`d interval beside the five in index.tsx,
- * and a rider who has stopped visiting has no rows pruned — which is correct,
- * because the account purge takes them wholesale and nothing else is looking.
+ * **IT NO LONGER PRUNES.** Old rows were pruned here until #450, and only the
+ * browser poll calls this, so a rider who never granted browser permission kept
+ * every notification forever while the center promised a fortnight. The prune
+ * is `pruneNotifications()` below, on the hourly trash sweep, for everybody.
  */
 export async function claimPending(userId: number, limit = 10) {
-  const cutoff = new Date(Date.now() - NOTIFICATION_RETENTION_DAYS * 86_400_000)
-  await db.delete(notifications).where(and(eq(notifications.userId, userId), lt(notifications.createdAt, cutoff)))
-
   // WHICH EVENTS THIS RIDER WANTS A TOAST FOR, read here rather than at write
   // time — the row is stored for everybody and this is the gate. An event with
   // no stored row takes `defaultFor('browser')`, which is off, so a rider who
@@ -499,4 +493,19 @@ export async function markAllRead(userId: number): Promise<void> {
     .update(notifications)
     .set({ readAt: new Date() })
     .where(and(eq(notifications.userId, userId), isNull(notifications.readAt)))
+}
+
+/**
+ * Deletes every rider's notifications older than the retention window, in one
+ * statement. Runs on the hourly trash sweep (src/trash/purge.ts) so the center's
+ * "kept for a fortnight" holds for everyone, not only riders whose open tab
+ * polls. Unscoped by rider on purpose; there is no index on `created_at` alone,
+ * and on a table pruned hourly to a fortnight a scan is cheaper than one.
+ */
+export async function pruneNotifications(now: Date = new Date()): Promise<number> {
+  const rows = await db
+    .delete(notifications)
+    .where(lt(notifications.createdAt, retentionCutoff(now)))
+    .returning({ id: notifications.id })
+  return rows.length
 }
