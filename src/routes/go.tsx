@@ -44,6 +44,7 @@ import { loadRideForExport, rideStartDate } from '../maps/export'
 import { linkLabel, routeLinks, type GmapsRouteLinks } from '../maps/gmaps-links'
 import { buildExportName } from '../maps/filename'
 import { fmtDuration, routeRows } from '../maps/roadbook-rows'
+import { readerFuelRole } from './roadbook'
 import { ROLE_META, type Role } from '../maps/roles'
 import { fmtClock, fmtDateLong } from '../views/date-format'
 import { page, wordsOf } from '../views/layout'
@@ -174,6 +175,8 @@ goRoutes.get('/m/:slug/go', async (c) => {
   const units = await unitsFor(c)
   const dateFormat = await dateFormatFor(c)
   const clock = await clockFor(c)
+  // Null on a pedal ride, which gets no ⛽ figure on any row (#446).
+  const fuel = await readerFuelRole(m, user)
   const w = wordsOf({ user, ride: m })
 
   // `?density=` still works — it is in riders' bookmarks from the old page —
@@ -389,7 +392,7 @@ goRoutes.get('/m/:slug/go', async (c) => {
               </p>
             )}
             {ride.routes.map((r, i) => {
-              const rows = routeRows(r)
+              const rows = routeRows(r, fuel)
               return (
                 <section class="go-route">
                   <h3>

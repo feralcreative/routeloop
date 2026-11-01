@@ -3415,7 +3415,9 @@
       (members.length === 1 ? " " + esc(W("person")) + " is" : " " + esc(Ws("person")) + " are") +
       " coming.</p>" +
       sendHtml(data.drafts || []) +
-      fuelHtml(data.range) +
+      // NOTHING TO PLAN AROUND ON A PEDAL RIDE (#446), the roster page's rule: the
+      // fuel word is blank there, so the line read "Plan  around 120 miles".
+      (fuelRole() ? fuelHtml(data.range) : "") +
       '<ul class="riders-list">' +
       data.riders.map((r) => riderRowHtml(r, data.groups)).join("") +
       "</ul>" +
@@ -4214,7 +4216,12 @@
 
   /** Take a proposal down: the panel, the state it is drawn from, and the dots and
    *  approach lines it put on the map. */
+  // Bumped by every press and every take-down, so an answer that lands after the
+  // proposal was taken down (the ride switched to a bicycle mid-request) is dropped
+  // rather than drawing gas stations back onto the map (#446).
+  let meetSeq = 0;
   function clearMeet() {
+    meetSeq++;
     state.meet = null;
     state.meetNote = "";
     const out = $("sg-meet-out");
@@ -4526,6 +4533,17 @@
       return;
     }
     out.innerHTML = '<p class="sg-note">Looking…</p>';
+    const seq = ++meetSeq;
+    // SAVE FIRST (#446). The proposer reads the STORED ride, its power included, so a
+    // press made before the autosave lands is answered for the ride as it was: switch
+    // to a bicycle, press, and get gas stations. saveNow() and not save(), which
+    // cannot be awaited.
+    if ((state.dirty || state.saving) && !(await saveNow())) {
+      if (seq !== meetSeq) return;
+      out.innerHTML =
+        '<p class="sg-note">Could not save the ride just now, so there is nothing current to work a meeting point out from.</p>';
+      return;
+    }
     try {
       const res = await fetch("/api/rides/" + state.rideId + "/rendezvous", {
         method: "POST",
@@ -4533,6 +4551,7 @@
         body: JSON.stringify({ maxDivertMi: state.maxDivertMi }),
       });
       const data = await res.json();
+      if (seq !== meetSeq) return;
       // A REFUSAL IS NOT A FAILURE AND MUST NOT READ AS ONE. The catch below used to
       // swallow this: the server answered 400 "unknown group" and the panel said
       // "could not work one out just now", which is what it says when the network
@@ -4549,6 +4568,7 @@
       out.innerHTML = meetAllHtml(data);
       showMeetPreview(out, data);
     } catch (err) {
+      if (seq !== meetSeq) return;
       state.meet = null;
       state.meetNote = "";
       out.innerHTML = '<p class="sg-note">Could not work one out just now.</p>';
@@ -9547,14 +9567,23 @@
     // keep; the whole panel re-renders because the words in it just changed.
     const vehicleChanged = (label) => (e) => {
       beginEdit(label);
+      const roleWas = fuelRole();
       state.meta.vehicle = $("ride-vehicle")?.value || null;
       state.meta.power = $("ride-power")?.value || null;
       if (state.meta.vehicle && window.TBVocab) {
         const p = window.TBVocab.toPower(state.meta.power || window.TBVocabData?.profile?.power, state.meta.vehicle);
         if (state.meta.power && p !== state.meta.power) state.meta.power = p;
       }
+      // A PROPOSAL MADE UNDER THE OLD FUEL IS STALE (#446): its candidates are gas
+      // stations, or chargers, or checked against a tank a bicycle does not have.
+      // Taken down before the re-render, which would otherwise redraw it from state,
+      // and a press still in flight is dropped when it lands.
+      if (fuelRole() !== roleWas) clearMeet();
       renderVehicle();
       renderEverything();
+      // The Riders tab's fuel line follows the role too, and renderEverything() does
+      // not reach that tab; redrawn from the cached roster when it is open.
+      if (ridersCache && $("panel-riders") && !$("panel-riders").hidden) renderRiders(ridersCache);
       markDirty();
     };
     $("ride-vehicle")?.addEventListener("change", vehicleChanged("change what the ride is for"));
