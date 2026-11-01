@@ -251,7 +251,7 @@ export const EVENTS = [
     key: 'account_purge_soon',
     group: 'account',
     label: 'Account deletion',
-    detail: 'Your account is about to be deleted. Only if you asked for it; signing in cancels it.',
+    detail: 'Your account is about to be deleted. Only if you asked for it; to keep it, sign in and press Save Me.',
     optional: true,
     icon: 'storage',
     tone: 'stop',
