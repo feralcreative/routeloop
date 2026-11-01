@@ -140,7 +140,7 @@ The fuel ring, red E markers where a tank runs dry, the red dashed stretch, and 
 - Riders without Range are skipped, so the answer can be optimistic. With none anywhere there is no fuel overlay. The Riders tab says "Plan fuel around N miles—<rider>'s <bike>" or "No ranges on file."
 - If the shortest-range bike is electric, the plan uses chargers.
 - Only the right category refills: Gas for gas, Charge for electric.
-- Every route starts on a full tank, so tag a Gas stop where riders actually fill up between routes.
+- The tank carries from route to route in each group's sequence, and a shared route starts as low as the lowest tank any group arrives with, so tag a Gas stop where riders actually fill up.
 
 Ask the rider for the group's shortest range before judging fuel spacing.
 

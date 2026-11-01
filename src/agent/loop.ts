@@ -46,6 +46,27 @@ Answer in plain, short sentences: say what you changed or found, with the number
 
 ${CORE}`
 
+/** Web searches one builder turn may make on a rider's own key, across every request
+ *  of the turn: max_uses is per request, so the loop passes what is left. */
+export const WEB_SEARCHES_PER_TURN = 5
+
+/** What one web search costs on top of its tokens, on both providers ($10 per
+ *  thousand), so a BYO turn's recorded cost is not understated. */
+export const WEB_SEARCH_MICROS = 10_000
+
+/** The sources behind an answer, as plain lines a rider can follow: the model's own
+ *  citations, which would otherwise be dropped with the structure they arrive in. */
+export function sourcesLine(sources: { url: string; title?: string | null }[]): string {
+  const seen = new Set<string>()
+  const lines: string[] = []
+  for (const s of sources) {
+    if (!s.url || seen.has(s.url)) continue
+    seen.add(s.url)
+    lines.push(`- ${s.title ? `${s.title}: ` : ''}${s.url}`)
+  }
+  return lines.length ? `\n\nSources:\n${lines.join('\n')}` : ''
+}
+
 export const emptyTurn = (): TurnResult => ({
   reply: '',
   stop: 'done',
@@ -80,6 +101,10 @@ export type TurnOptions<Client> = {
   /** Stop starting new iterations once the turn has cost this much. */
   maxCostMicros?: number
   onEvent: (e: TurnEvent) => void
+  /** Let the model search the web (the provider's own server tool). BYO KEYS ONLY,
+   *  Ziad's call 2026-10-31: the rider's key pays for the searches, and the free tier
+   *  gets the official sources the app reads itself. */
+  webSearch?: boolean
   /** The caller's meter, written as each response lands, so a turn that throws on
    *  its third call still reports what the first two cost. */
   out?: TurnResult
@@ -116,6 +141,22 @@ export async function runTurn(opts: TurnOptions<Anthropic>): Promise<TurnResult>
     ...(i === TOOLS.length - 1 ? { cache_control: { type: 'ephemeral' as const } } : {}),
   }))
 
+  // THE SERVER TOOL GOES AFTER THE CACHED FUNCTION TOOLS, so the prefix cached on the
+  // last of those is the same whether or not the turn can search. The dynamic-filtering
+  // version is what Opus 5.5 and Sonnet 5.5 take; Haiku 5.5 takes the basic one.
+  // Results come back in the same response as server-tool blocks, and pause_turn (a
+  // long search) is already continued below.
+  let searchesLeft = opts.webSearch ? WEB_SEARCHES_PER_TURN : 0
+  const search = (): Anthropic.ToolUnion[] =>
+    searchesLeft > 0
+      ? [
+          model.startsWith('claude-haiku')
+            ? { type: 'web_search_20250305', name: 'web_search', max_uses: searchesLeft }
+            : { type: 'web_search_20260209', name: 'web_search', max_uses: searchesLeft },
+        ]
+      : []
+  const cited: { url: string; title?: string | null }[] = []
+
   const opening = openingMessage(ctx, opts.history, opts.message)
   const messages: Anthropic.MessageParam[] = [{ role: 'user', content: opening }]
   const out: TurnResult = opts.out ?? emptyTurn()
@@ -131,26 +172,29 @@ export async function runTurn(opts: TurnOptions<Anthropic>): Promise<TurnResult>
       model,
       max_tokens: 8000,
       system: [{ type: 'text', text: SYSTEM, cache_control: { type: 'ephemeral' } }],
-      tools,
+      tools: [...tools, ...search()],
       output_config: { effort: opts.effort },
       messages,
     })
 
     out.costMicros += costMicros(model, response.usage)
+    const searched = response.usage.server_tool_use?.web_search_requests ?? 0
+    searchesLeft = Math.max(0, searchesLeft - searched)
+    out.costMicros += searched * WEB_SEARCH_MICROS
     out.inputTokens +=
       response.usage.input_tokens +
       (response.usage.cache_read_input_tokens ?? 0) +
       (response.usage.cache_creation_input_tokens ?? 0)
     out.outputTokens += response.usage.output_tokens
 
-    const text = response.content
-      .filter((b): b is Anthropic.TextBlock => b.type === 'text')
-      .map((b) => b.text)
-      .join('')
-      .trim()
+    const textBlocks = response.content.filter((b): b is Anthropic.TextBlock => b.type === 'text')
+    for (const b of textBlocks)
+      for (const c of b.citations ?? [])
+        if (c.type === 'web_search_result_location') cited.push({ url: c.url, title: c.title })
+    const text = textBlocks.map((b) => b.text).join('').trim()
     if (text) {
-      out.reply = text
-      opts.onEvent({ type: 'text', text })
+      out.reply = text + sourcesLine(cited)
+      opts.onEvent({ type: 'text', text: out.reply })
     }
 
     if (response.stop_reason === 'refusal') {

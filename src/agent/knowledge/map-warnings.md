@@ -21,7 +21,7 @@ On the shared ride page, only riders on the roster get the overlay. Someone open
 
 A point refuels only if its categories include the refuel category: Charge when the ride's power is electric, Gas otherwise. The ride's power setting decides first, then the fuel type of the bike with the shortest range, then the rider's default. Pedal rides should have no fuel at all, but the app currently treats them as Gas and may draw fuel warnings on a bicycle ride (a known bug); ignore them. A point named "Shell" without the Gas category refuels nothing; a Gas stop does nothing for an electric plan.
 
-Each route starts on a full tank. Fuel does not carry from one route to the next, so a route that ends nearly empty and a next route ridden straight on from it both look fine. Arriving at a fuel stop counts as filled.
+The tank carries from one route to the next: a route starts with whatever the group had left at the end of the route before it in that group's sequence, unless it starts at a fuel stop, and a shared route starts as low as the lowest tank any group arrives with. A hotel with no pump refills nobody. Arriving at a fuel stop counts as filled.
 
 ### The range ring
 

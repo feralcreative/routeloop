@@ -40,6 +40,10 @@ export const TOPICS = {
     'Riding as a group: pace, regrouping, leader and sweep, passing, separation plans, and setting expectations.',
   'trip-prep':
     'Preparing the bike and the rider: maintenance before a trip, what to carry, papers, keys, and contacts.',
+  contingencies:
+    'What to do when the plan breaks: bailouts, the next fuel, no-signal stretches, help on remote roads, weather fallbacks, slack, and a rider who cannot go on.',
+  'fresh-intel':
+    'How to find out what is true on the road now (passes, closures, fresh pavement, fire, smoke), which sources to trust, and how to cite them.',
   'borders-laws-lodging':
     'Mexico and Canada, state laws that change at the line, national park entry rules, lodging, camping, and rally weeks.',
 } as const
