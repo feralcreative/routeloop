@@ -159,10 +159,12 @@ export function junctions(routes: StrandRoute[]): Junction[] {
  * total, every export and the whole map would be the union of two things with
  * nothing in common, and the rider is better told than shown that.
  *
- * Deliberately NOT enforced by the schema or by the save. It is a warning the
- * builder shows, the same way an unrouted leg is: a rider passes through this
- * shape while building — the trunk is the last thing you add — and refusing the
- * save would refuse the work in progress.
+ * Deliberately NOT enforced by the schema or by the save: a rider passes through
+ * this shape while building—the trunk is the last thing you add—and refusing the
+ * save would refuse the work in progress. It is meant to be a warning instead,
+ * but NOTHING SHOWS IT YET (#448). The builder's Groups panel does not call it;
+ * the only caller is test/subgroup-policy.test.ts. Wiring it into the panel, or
+ * into the planning assistant's ride check, is still to do.
  */
 export function neverConverges(routes: StrandRoute[]): boolean {
   return hasSubgroups(routes) && !routes.some((d) => d.subgroupId === null)
