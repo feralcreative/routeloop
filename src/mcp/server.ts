@@ -42,7 +42,8 @@ import { builderRide, createRide, loadRidePayload, saveRide } from '../routes/bu
 import { userForAccessToken } from '../oauth/service'
 import { Budget } from '../agent/budget'
 import { newPoint } from '../agent/ride-edit'
-import { READS, TOOLS, runTool, type AgentContext } from '../agent/tools'
+import { READS, RIDELESS, TOOLS, runRideless, runTool, type AgentContext } from '../agent/tools'
+import { CORE, TOPIC_NAMES, TOPICS, topicText } from '../agent/knowledge'
 import { googleCallsToday, recordTurn } from '../agent/usage'
 
 export const mcpRoutes = new Hono()
@@ -52,6 +53,7 @@ const RESOURCE_METADATA = `${APP_ORIGIN}/.well-known/oauth-protected-resource`
 // nothing. destructive: overwrites or removes something a rider set.
 const ANNOTATIONS: Record<string, { readOnlyHint: boolean; destructiveHint?: boolean; openWorldHint?: boolean }> = {
   list_rides: { readOnlyHint: true },
+  guide: { readOnlyHint: true },
   get_ride: { readOnlyHint: true },
   search_places: { readOnlyHint: false, destructiveHint: false, openWorldHint: true },
   create_ride: { readOnlyHint: false, destructiveHint: false },
@@ -144,8 +146,85 @@ async function onRideHeld(user: UserRow, prefs: Prefs, rideId: number, name: str
   return text('The ride kept changing under that edit. Read it again and retry.', true)
 }
 
+// What a client reads before it calls anything: the MCP half of the builder
+// assistant's preamble, then the same shared knowledge (src/agent/knowledge.ts).
+const INSTRUCTIONS = `Routeloop’s planning tools, acting as the rider who connected them.
+
+How to work here:
+- Find a ride’s id with list_rides, or start one with create_ride. Read it with get_ride before changing it, and refer to routes and points by the uids in square brackets.
+- EVERY EDIT SAVES AT ONCE to the rider’s real ride, which they and everyone they ride with will see, and there is no undo from here. Before a large change, say what you are about to do and wait for the rider.
+- The guide tool, and the same topics as resources, hold how Routeloop works and how to plan a ride. Read ready-to-ride before saying a ride is ready.
+
+${CORE}`
+
 function buildServer(user: UserRow, prefs: Prefs): McpServer {
-  const server = new McpServer({ name: 'routeloop', version: '1.0.0' })
+  const server = new McpServer({ name: 'routeloop', version: '1.0.0' }, { instructions: INSTRUCTIONS })
+
+  // THE GUIDE AS RESOURCES TOO, for clients that let a rider attach one. The guide
+  // tool is the door every client has; these are the same text.
+  for (const t of TOPIC_NAMES) {
+    server.registerResource(
+      t,
+      `routeloop://guide/${t}`,
+      { title: t, description: TOPICS[t], mimeType: 'text/markdown' },
+      async (uri) => ({ contents: [{ uri: uri.href, mimeType: 'text/markdown', text: topicText(t) }] }),
+    )
+  }
+
+  // TWO PROMPTS, which Claude shows as slash commands: the two things a rider most
+  // often wants from this server, each pointed at the guide topics that make it good.
+  server.registerPrompt(
+    'plan_a_ride',
+    {
+      title: 'Plan a ride',
+      description: 'Plan a new multi-day ride from a start, a destination and dates.',
+      argsSchema: {
+        start: z.string().max(200).optional().describe('Where the ride starts'),
+        destination: z.string().max(200).optional().describe('Where it goes'),
+        dates: z.string().max(200).optional().describe('When, and how many days'),
+        notes: z.string().max(2000).optional().describe('Bikes, group size, style, anything else'),
+      },
+    },
+    (a) => ({
+      messages: [
+        {
+          role: 'user' as const,
+          content: {
+            type: 'text' as const,
+            text: [
+              'Plan a ride with me in Routeloop.',
+              a.start ? `Start: ${a.start}` : '',
+              a.destination ? `Destination: ${a.destination}` : '',
+              a.dates ? `Dates: ${a.dates}` : '',
+              a.notes ? `Notes: ${a.notes}` : '',
+              'First read the guide topics pacing, fuel-and-charging, and weather-and-seasons. Ask me what is missing (start, destination, dates, vehicle and fuel range, how many riders, how far we like to ride in a day, departure and stop times) in one short message. Then propose the days, and only after I agree, build it with create_ride and the editing tools. Finish by running the ready-to-ride checklist and telling me what is left to fix.',
+            ]
+              .filter(Boolean)
+              .join('\n'),
+          },
+        },
+      ],
+    }),
+  )
+  server.registerPrompt(
+    'check_my_ride',
+    {
+      title: 'Check my ride',
+      description: 'Run the pre-ride checklist on one ride and list what to fix before riding it.',
+      argsSchema: { ride_id: z.string().max(12).describe('The ride id from list_rides') },
+    },
+    (a) => ({
+      messages: [
+        {
+          role: 'user' as const,
+          content: {
+            type: 'text' as const,
+            text: `Check ride ${a.ride_id} in Routeloop. Read the guide topic ready-to-ride, then get_ride, and work through the checklist. List the problems worst first, each with the fix you would make, and tell me which ones I have to look at on the map myself. Change nothing until I say so.`,
+          },
+        },
+      ],
+    }),
+  )
 
   server.registerTool(
     'list_rides',
@@ -217,6 +296,18 @@ function buildServer(user: UserRow, prefs: Prefs): McpServer {
   )
 
   for (const t of TOOLS) {
+    if (RIDELESS.has(t.name)) {
+      // No ride to load and nothing to save, so no ride_id and no lock.
+      server.registerTool(
+        t.name,
+        { description: t.description, inputSchema: t.schema.shape, annotations: ANNOTATIONS[t.name] },
+        async (a: Record<string, unknown>) => {
+          const out = await runRideless(t.name, a)
+          return text(out.text, out.isError)
+        },
+      )
+      continue
+    }
     server.registerTool(
       t.name,
       {
