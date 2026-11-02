@@ -19,6 +19,8 @@
 // main group, and it is passed to the proposer as its own argument, so it can never
 // come back as the group being asked to divert.
 //
+// WHO MAY ASK is anybody who may edit the ride, the same trust as moving a stop.
+//
 // A POST rather than a GET although it reads and writes nothing: it is behind
 // requireSameOrigin like every other write-shaped call in the builder, and a GET
 // would be cached by something.
@@ -27,7 +29,7 @@ import { eq, inArray } from 'drizzle-orm'
 import { db } from '../db/index'
 import { routes as routesTable, points as pointsTable, routeLegs, userProfiles } from '../db/schema'
 import { currentUser, requireActiveApi, requireSameOrigin, type AuthEnv } from '../auth/middleware'
-import { administeredRide } from './builder'
+import { editableRide } from './builder'
 import {
   alongTrackM,
   clampDivert,
@@ -59,7 +61,10 @@ export const rendezvousRoutes = new Hono<AuthEnv>()
 
 rendezvousRoutes.post('/api/rides/:id/rendezvous', requireActiveApi, requireSameOrigin, async (c) => {
   const user = currentUser(c)
-  const ride = await administeredRide(user.id, c.req.param('id'))
+  // ANY RIDER WHO MAY EDIT, not only an owner (2026-11-01): the builder shows the
+  // button to an edit-level rider, choosing a meeting point is route editing, and
+  // nothing in the answer is owner-only. It was administeredRide(), so they got a 404.
+  const ride = await editableRide(user.id, c.req.param('id'))
   if (!ride) return c.json({ error: 'not found' }, 404)
 
   // HOW MUCH FURTHER OUT OF THEIR WAY THAN NECESSARY A JOINING GROUP MAY BE SENT, from
