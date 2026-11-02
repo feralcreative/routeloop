@@ -34,11 +34,13 @@ function handlers(file: string, pathPrefix: string): Array<[string, string]> {
   return out
 }
 
-const ADMINISTERED: Array<[string, string]> = [
-  ['src/routes/rendezvous.ts', '/api/rides/:id/rendezvous'],
-  ['src/routes/roster.tsx', '/api/rides/:id/riders'],
+const ADMINISTERED: Array<[string, string]> = [['src/routes/roster.tsx', '/api/rides/:id/riders']]
+// [file, prefix, how many handlers]. Meeting points moved here on 2026-11-01: the
+// builder offers the button to any rider who may edit.
+const EDITABLE: Array<[string, string, number]> = [
+  ['src/routes/route-riders.ts', '/api/rides/:id/route-riders', 2],
+  ['src/routes/rendezvous.ts', '/api/rides/:id/rendezvous', 1],
 ]
-const EDITABLE: Array<[string, string]> = [['src/routes/route-riders.ts', '/api/rides/:id/route-riders']]
 
 describe('the gates are the roster, not the creator column', () => {
   it('administeredRide and editableRide ask builderRide and the policy', () => {
@@ -74,9 +76,9 @@ describe('the gates are the roster, not the creator column', () => {
     )
   })
 
-  for (const [file, prefix] of EDITABLE) {
+  for (const [file, prefix, count] of EDITABLE) {
     const found = handlers(file, prefix)
-    it(`${file} has handlers under ${prefix}`, () => expect(found.length).toBe(2))
+    it(`${file} has handlers under ${prefix}`, () => expect(found.length).toBe(count))
     for (const [name, body] of found) {
       it(`${name} is gated on editableRide, not ownRide`, () => {
         expect(body).not.toContain('ownRide(')

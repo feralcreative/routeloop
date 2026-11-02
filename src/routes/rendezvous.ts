@@ -1,23 +1,15 @@
 // Proposing a meeting point, over HTTP.
 //
-// The whole computation is `src/subgroups/rendezvous.ts`, which is pure and calls no
-// router. This file's only job is to work out WHICH routes to hand it.
+// The whole press is `proposeMeetingPoints()` in src/subgroups/propose.ts, which the
+// planning assistant's propose_meeting_points calls too, so the two cannot drift.
+// This file's only job is to read the stored ride into the payload shape that
+// service takes, and to answer with exactly what the builder's panel reads.
 //
-// ONE PRESS, ONE ANSWER PER JOINING GROUP. The button stays single — that half of
-// #239 was right and is not being reopened — but a press answers the whole question
-// rather than a blended version of it: each satellite gets its own candidates on the
-// main group's road, and the planner knocks the decisions down one at a time. A
-// blended proposal was the part that did not survive contact with three groups: it
-// suited everybody on average and nobody in particular.
-//
-// THE BILL IS A TOTAL, NOT A PER-GROUP RATE: every joining group costs its own Routes
-// requests, so an unbudgeted press on a nine-group ride is 36 of them. ROUTED_BUDGET
-// and ANCHOR_BUDGET are divided by the group count instead, so a big ride buys fewer
-// candidates each rather than a bigger bill.
-//
-// THE MAIN GROUP'S ROAD IS THE ROAD. `rides.primary_subgroup_id` already means the
-// main group, and it is passed to the proposer as its own argument, so it can never
-// come back as the group being asked to divert.
+// BUILT FROM THE ROWS, NOT FROM loadRidePayload(). That function reads every route's
+// points and legs one query at a time and joins the owner's private stop details,
+// none of which a meeting point needs; three queries over the ride's active routes
+// are what this always ran. Each point carries its stored `dist_from_start_m`, so a
+// trackless import's null is still skipped by the fuel walk exactly as before.
 //
 // WHO MAY ASK is anybody who may edit the ride, the same trust as moving a stop.
 //
@@ -30,30 +22,12 @@ import { db } from '../db/index'
 import { routes as routesTable, points as pointsTable, routeLegs, userProfiles } from '../db/schema'
 import { currentUser, requireActiveApi, requireSameOrigin, type AuthEnv } from '../auth/middleware'
 import { editableRide } from './builder'
-import {
-  alongTrackM,
-  clampDivert,
-  fuelRoleOf,
-  FUEL_SEARCH,
-  DEFAULT_DIVERT_MI,
-  nearestVertex,
-  proposeGroupMeet,
-  rankByRoad,
-  worstDivertMi,
-  type FuelCandidate,
-  type FuelRole,
-  type GroupMeet,
-  type GroupRoute,
-  type RoadMeasure,
-} from '../subgroups/rendezvous'
+import { clampDivert, fuelRoleOf } from '../subgroups/rendezvous'
+import { proposeMeetingPoints, type MeetRide } from '../subgroups/propose'
 import { subgroupsOf } from '../subgroups/service'
-import { startRouteOf, strandOf } from '../subgroups/policy'
 import { activeRoutes } from '../maps/alts'
-import { METERS_PER_MILE, haversineM, type Track } from '../maps/kml'
-import { searchPlaces } from '../maps/places'
-import { fetchRouteLeg } from './routing'
+import type { Track } from '../maps/kml'
 import { groupRange } from '../bikes/group-range'
-import { GMAPS_SERVER_KEY } from '../config'
 import { parseTerms } from '../places/ranking'
 import { placeListsFor } from '../views/prefs'
 
@@ -63,15 +37,11 @@ rendezvousRoutes.post('/api/rides/:id/rendezvous', requireActiveApi, requireSame
   const user = currentUser(c)
   // ANY RIDER WHO MAY EDIT, not only an owner (2026-11-01): the builder shows the
   // button to an edit-level rider, choosing a meeting point is route editing, and
-  // nothing in the answer is owner-only. It was administeredRide(), so they got a 404.
+  // nothing in the answer is owner-only. It was the owner-only gate, so they got a 404.
   const ride = await editableRide(user.id, c.req.param('id'))
   if (!ride) return c.json({ error: 'not found' }, 404)
 
-  // HOW MUCH FURTHER OUT OF THEIR WAY THAN NECESSARY A JOINING GROUP MAY BE SENT, from
-  // the planner rather than from a constant. #370 changed what it measures — the extra
-  // over each group's cheapest meet rather than an absolute cap — since the scoring
-  // became a trade and the cap went back to being a guard.
-  //
+  // HOW MUCH FURTHER OUT OF THEIR WAY THAN NECESSARY A JOINING GROUP MAY BE SENT.
   // THE PRESS WINS, THEN THE RIDER'S PREFERENCE, THEN THE APP'S DEFAULT. The builder
   // sends the dial on every press, seeded from the preference, so the second step is
   // for a client that sends nothing.
@@ -85,574 +55,85 @@ rendezvousRoutes.post('/api/rides/:id/rendezvous', requireActiveApi, requireSame
     .from(userProfiles)
     .where(eq(userProfiles.userId, user.id))
     .limit(1)
-  // THE RIDER'S PLACE LISTS RIDE ALONG AS A NUDGE — see RendezvousOptions.
-  // Parsed once here and handed to both passes and the road re-rank, so the
-  // three cannot disagree about what a name matches.
+  // THE RIDER'S PLACE LISTS RIDE ALONG AS A NUDGE — see RendezvousOptions. Parsed once
+  // and handed to both passes and the road re-rank, so the three cannot disagree.
   const lists = await placeListsFor(c)
-  const favor = parseTerms(lists.favor)
-  const avoid = parseTerms(lists.avoid)
-  const divertOpt: {
-    maxDivertMi: number | undefined
-    favor: string[]
-    avoid: string[]
-    fuelRole?: FuelRole | null
-  } = { maxDivertMi: clampDivert(body.maxDivertMi) ?? clampDivert(prof?.meetDivertMi), favor, avoid }
 
   const groups = await subgroupsOf(ride.id)
-  // One group has nobody to meet. A real answer rather than an error.
+  // One group has nobody to meet. Answered before any other read.
   if (groups.length < 2) return c.json({ candidates: [], reason: 'one-group' })
 
   const all = activeRoutes(
     await db.select().from(routesTable).where(eq(routesTable.rideId, ride.id)).orderBy(routesTable.position),
   )
-
   const routeIds = all.map((d) => d.id)
   if (routeIds.length === 0) return c.json({ candidates: [], reason: 'no-routes' })
 
-  // Every leg geometry in the ride, once, keyed by route. ONE QUERY rather than
-  // one per group: a group's strand includes the shared routes, so the same route is
-  // routinely read by several groups and a per-group query would fetch it twice.
+  // Every leg and every point in the ride, once each. ONE QUERY rather than one per
+  // route: a group's strand includes the shared routes, and the old per-group reads
+  // fetched the same route several times.
   const legs = await db
-    .select({ routeId: routeLegs.routeId, geometry: routeLegs.geometry, position: routeLegs.position })
+    .select({ routeId: routeLegs.routeId, geometry: routeLegs.geometry, distanceM: routeLegs.distanceM })
     .from(routeLegs)
     .where(inArray(routeLegs.routeId, routeIds))
     .orderBy(routeLegs.position)
-  const byRoute = new Map<number, Track[]>()
-  // Each route's own routed length, so a point's `dist_from_start_m` — which is
-  // measured from ITS route's start — can be offset onto the whole strand.
-  const routeLengthM = new Map<number, number>()
-  for (const l of legs) {
-    const list = byRoute.get(l.routeId) ?? []
-    list.push(l.geometry as Track)
-    byRoute.set(l.routeId, list)
-    const geom = l.geometry as Track
-    let len = 0
-    for (let i = 1; i < geom.length; i++) {
-      len += haversineM(geom[i - 1][1], geom[i - 1][0], geom[i][1], geom[i][0])
-    }
-    routeLengthM.set(l.routeId, (routeLengthM.get(l.routeId) ?? 0) + len)
-  }
-
-  // Every point in the ride, once, in position order — read for two things at
-  // once. The FIRST point of a group's first route is where they set off (not
-  // their riders' home addresses: this proposes against the ride as planned, and
-  // the planner may not have put anybody in a group yet), and any point tagged
-  // `gas` anywhere is offered as a candidate in its own right.
   const pts = await db
     .select({
       routeId: pointsTable.routeId,
       lat: pointsTable.lat,
       lng: pointsTable.lng,
       roles: pointsTable.roles,
-      // How far into ITS OWN DAY a point is. Offset by the routes before it to get
-      // a distance along a group's whole strand — see fillBeforeM().
       distFromStartM: pointsTable.distFromStartM,
     })
     .from(pointsTable)
     .where(inArray(pointsTable.routeId, routeIds))
     .orderBy(pointsTable.position)
-  const originOf = new Map<number, [number, number]>()
-  const fuel: FuelCandidate[] = []
-  for (const p of pts) {
-    if (!originOf.has(p.routeId)) originOf.set(p.routeId, [p.lng, p.lat])
-    fuel.push({ at: [p.lng, p.lat], roles: p.roles })
+
+  const uidOf = new Map(groups.map((g) => [g.id, g.uid]))
+  const input: MeetRide = {
+    subgroups: groups.map((g) => ({ uid: g.uid, name: g.name })),
+    primarySubgroup: ride.primarySubgroupId ? (uidOf.get(ride.primarySubgroupId) ?? null) : null,
+    routes: all.map((r) => ({
+      subgroupUid: r.subgroupId ? (uidOf.get(r.subgroupId) ?? null) : null,
+      // Already filtered to the active routes above.
+      altGroup: null,
+      altActive: true,
+      points: pts
+        .filter((p) => p.routeId === r.id)
+        .map((p) => ({ lat: p.lat, lng: p.lng, roles: p.roles, distFromStartM: p.distFromStartM })),
+      legs: legs
+        .filter((l) => l.routeId === r.id)
+        .map((l) => ({ geometry: l.geometry as Track, distanceM: l.distanceM })),
+    })),
   }
 
-  // WHAT A GROUP RIDES IS THEIR STRAND — their own routes plus every shared one, in
-  // position order. It also means the two cases fall together: with no shared route a
-  // strand is that group's own route, and with one the strands genuinely overlap,
-  // which the proposer reads as a convergence costing nobody anything.
-  const routeFor = (g: (typeof groups)[number], isPrimary: boolean): GroupRoute | null => {
-    const strand = strandOf(all, g.id)
-    if (strand.length === 0) return null
-    // **A JOINING GROUP'S ROAD IS ITS OWN ROUTES, NOT ITS STRAND.** A strand is a group's
-    // own routes PLUS every shared one — and a shared route is precisely the road they
-    // have not ridden yet. Building their track from the strand hands them the main
-    // group's entire road as though it were theirs, so every candidate on it falls
-    // within ON_ROUTE_M, every divert comes out at zero, and the earliest acceptable
-    // point wins: the start.
-    //
-    // Seen on stage on a ride from Oakland to Ensenada — both satellites were offered
-    // gas stations in Oakland, each labeled "on their way". The same shape worked when
-    // the main group's route happened to be TAGGED rather than shared, which is what
-    // made this look like a data problem rather than a logic one.
-    //
-    // The primary keeps the strand, because for them the shared road IS theirs.
-    const own = isPrimary ? strand : strand.filter((d) => d.subgroupId === g.id)
-    // WHERE THEY SET OFF IS THEIR OWN ROUTE, NOT `strand[0]` — see startRouteOf(). A
-    // shared route sorting ahead of a group's own used to become its origin, which
-    // handed every satellite the same starting point.
-    //
-    // `isPrimary` reverses that: the main group rides the shared road from position 0,
-    // and once a split has tagged their continuation the search would return that
-    // instead of the ride's actual origin.
-    const startRoute = startRouteOf(all, g.id, isPrimary)
-    const origin = startRoute && originOf.get(startRoute.id)
-    if (!origin) return null
-    const track: Track = []
-    for (const d of own) {
-      for (const geom of byRoute.get(d.id) ?? []) {
-        for (const v of geom) {
-          // Drop the duplicate vertex at every joint, the same way the viewer's
-          // per-route concat does — a repeated point is a zero-length segment that
-          // makes the bearing at that vertex undefined.
-          const last = track[track.length - 1]
-          if (!last || last[0] !== v[0] || last[1] !== v[1]) track.push(v)
-        }
+  const out = await proposeMeetingPoints(input, {
+    maxDivertMi: clampDivert(body.maxDivertMi) ?? clampDivert(prof?.meetDivertMi),
+    favor: parseTerms(lists.favor),
+    avoid: parseTerms(lists.avoid),
+    // Read only once the service knows the ride is answerable, as it always was: a
+    // refusal costs no roster read. The range is `groupRange()`'s, the SHORTEST tank on
+    // the planning roster; NULL MEANS NOTHING IS KNOWN and the check does not run.
+    fuel: async () => {
+      const range = await groupRange(ride.id, { planning: true })
+      return {
+        role: fuelRoleOf({
+          ridePower: ride.power,
+          rideVehicle: ride.vehicle,
+          bikeFuel: range.fuelType,
+          profilePower: prof?.power,
+          profileVehicle: prof?.vehicle,
+        }),
+        rangeMi: range.miles,
       }
-    }
-    return { id: g.uid, origin, track }
-  }
-
-  /**
-   * How far along a group's strand they last filled up before `alongM`. Zero when
-   * there is no `gas` point before it, which is the right answer rather than a missing
-   * one: a group sets off with a full tank.
-   *
-   * A POINT WITH NO `dist_from_start_m` IS SKIPPED, not guessed at. That column is null
-   * on a trackless import, and skipping makes the walk think the tank is older than it
-   * is — wrong in the safe direction.
-   */
-  const fillBeforeM = (g: { id: number }, alongM: number): number => {
-    let offset = 0
-    let last = 0
-    for (const d of strandOf(all, g.id)) {
-      for (const p of pts) {
-        if (p.routeId !== d.id) continue
-        if (p.distFromStartM == null) continue
-        if (!fuelRole || !p.roles.includes(fuelRole)) continue
-        const at = offset + p.distFromStartM
-        if (at <= alongM) last = Math.max(last, at)
-      }
-      offset += routeLengthM.get(d.id) ?? 0
-    }
-    return last
-  }
-
-  // THE MAIN GROUP, falling back to the first one created when the column is
-  // null. That fallback is not a guess: the builder sets `primarySubgroup` to
-  // the first group the moment there is one, so a null here means a ride from
-  // before the field existed, and "the first group" is what the planner would
-  // say the main group was anyway.
-  const primaryGroup = groups.find((g) => g.id === ride.primarySubgroupId) ?? groups[0]
-  const primary = routeFor(primaryGroup, true)
-  const joining: GroupRoute[] = []
-  for (const g of groups) {
-    if (g.id === primaryGroup.id) continue
-    const r = routeFor(g, false)
-    if (!r) continue
-    // A GROUP WITH A STARTING POINT AND NO ROAD OF ITS OWN IS GIVEN ITS DIRECT ROAD,
-    // ONCE (#370). "A joining group contributes a starting point and nothing else" left
-    // the on-route test with nothing to read: every candidate was a straight-line dogleg
-    // from their start, so a group leaving San Francisco to join a ride on 580 was never
-    // told that Dublin is on their way. Their direct road to the destination is the road
-    // they would take anyway, and where it first touches the main group's is the
-    // convergence.
-    //
-    // ONE ROUTES REQUEST PER GROUP PER PRESS, cached on its endpoints. Only when they
-    // have no track: a group that drew its own route said which road they are riding.
-    if (r.track.length < 2 && primary && primary.track.length >= 3) {
-      const dest = primary.track[primary.track.length - 1]
-      const road = await fetchRouteLeg(r.origin, dest)
-      // A Routes failure leaves them as they were: straight lines, which is what
-      // this whole module was before today and is still an answer.
-      if (road.ok) {
-        r.track = road.leg.geometry
-        r.direct = true
-      }
-    }
-    joining.push(r)
-  }
-
-  if (!primary || joining.length === 0) return c.json({ candidates: [], reason: 'no-routes' })
-  // THE MAIN GROUP HAS NOT PLANNED A ROAD YET, said as its own reason rather than
-  // folded into "nowhere works": a meeting point is placed ON their road, and "nowhere
-  // works" would send the planner hunting for a geometry problem in a ride whose real
-  // state is that it has not been drawn yet. It names the group.
-  if (primary.track.length < 3) {
-    return c.json({ candidates: [], reason: 'no-routes', group: primaryGroup.name })
-  }
-
-  // The main group's road, end to end, for the road re-rank: what a group rides
-  // after meeting at a candidate is the rest of this.
-  const trunkTotalM = trackLengthM(primary.track)
-
-  // THE BUDGET, DIVIDED. Every joining group costs its own Routes and Text
-  // Search requests, so these are totals for the press rather than a rate per
-  // group: two satellites get four routed candidates each, six get two each, and
-  // the bill does not move. The floor of one is what keeps a nine-group ride
-  // answerable at all — a group offered nothing is the confusion this replaced.
-  const perGroup = Math.max(1, Math.min(MAX_ROUTED_CANDIDATES, Math.floor(ROUTED_BUDGET / joining.length)))
-  const anchors = Math.max(1, Math.min(SEARCH_ANCHORS, Math.floor(ANCHOR_BUDGET / joining.length)))
-
-  // The range is the ride's, from `groupRange()` — the SHORTEST tank on the
-  // roster, which is what #52 is for. NULL MEANS NOTHING IS KNOWN and the check
-  // does not run at all: a fuel plan built on an invented range is worse than no
-  // fuel plan, because it looks like one. Read ONCE for the whole press rather
-  // than per group: it is a fact about the roster, not about who is joining.
-  const range = await groupRange(ride.id, { planning: true })
-  // Chargers for an electric ride (#31), nothing at all for a pedal one (#446), gas
-  // otherwise.
-  const fuelRole = fuelRoleOf({
-    ridePower: ride.power,
-    rideVehicle: ride.vehicle,
-    bikeFuel: range.fuelType,
-    profilePower: prof?.power,
-    profileVehicle: prof?.vehicle,
+    },
   })
-  divertOpt.fuelRole = fuelRole
-
-  // SEQUENTIAL, NOT Promise.all, AND THAT IS DELIBERATE. Each group's pass spends
-  // billed requests, and `fetchRouteLeg` and `searchPlaces` both cache — so groups
-  // setting off from the same town pay once between them only if the second pass runs
-  // after the first has filled the cache.
-  const out = []
-  for (const g of joining) {
-    out.push(await proposeFor(g, perGroup, anchors))
-  }
-
-  return c.json({ groups: out })
-
-  /**
-   * One satellite's answer: where THIS group can join the main group's road.
-   *
-   * The whole pipeline that used to run once for a blended set of joiners, run
-   * for one of them. Nothing in it changed shape — `proposeGroupMeet` always
-   * took a list and a list of one is the honest way to ask this question, which
-   * is why the proposer needed no change at all.
-   */
-  async function proposeFor(g: GroupRoute, routed: number, searchAnchors: number) {
-    const one = [g]
-    const name = groups.find((x) => x.uid === g.id)?.name ?? ''
-    // `fuel` is every point in the ride; proposeGroupMeet keeps only the ones tagged
-    // `gas` AND lying on a candidate spine, so a station on a road nobody is riding is
-    // never offered.
-    // TWO PASSES, AND THE FIRST ONE IS FREE. The plain pass finds WHERE a meet is
-    // viable using nothing but geometry; the search then looks for gas stations in that
-    // window and the second pass re-scores. Searching first would mean guessing where
-    // to look, and looking along the whole route is a Text Search bill that scales.
-    const plain = proposeGroupMeet(primary as GroupRoute, one, fuel, divertOpt)
-    // THE CONVERGENCE IS ALWAYS ONE OF THE SEARCH ANCHORS. The station search looks
-    // around the candidates the geometry liked, and the straight-line geometry can like
-    // a backwards point — so the least-extra candidate is searched first and the paper
-    // favorite second.
-    //
-    // A PEDAL RIDE SEARCHES FOR NOTHING (#446): it has no fuel role, so there is no
-    // kind of station to look for and no Text Search is spent.
-    const stations = plain.length && fuelRole ? await fuelAlong(frontLoadCheapest(plain), searchAnchors, fuelRole) : []
-    // `fuelOnly` and NOT a filter over the ordinary result: the ranking prefers the
-    // earliest viable point and keeps only the best few, so a station a little further
-    // along is crowded out by plain vertices before this line could see it.
-    //
-    // A WIDER SHORTLIST THAN WHAT IS SHOWN, because the fuel-range filter below removes
-    // some. It is what keeps the routing bounded: every survivor costs one request.
-    const onlyGas = stations.length
-      ? proposeGroupMeet(
-          primary as GroupRoute,
-          one,
-          [...fuel, ...stations],
-          { ...divertOpt, fuelOnly: true },
-          GAS_SHORTLIST,
-        )
-      : []
-
-    // A MEETING POINT SHOULD BE A GAS STATION: everyone arrives needing fuel and a
-    // forecourt is somewhere you can actually wait, so when the road offers one it is
-    // the answer.
-    //
-    // AND IT HAS TO BE WITHIN A TANK OF THE LAST FILL, after a proposal landed just
-    // past the main group's empty marker: a meeting point nobody can reach without
-    // stopping for fuel first is not a meeting point, it is a second problem.
-    // THE CHEAPEST STATION IS ROUTED FIRST, WHATEVER THE STRAIGHT-LINE ORDER SAYS. The
-    // road re-rank below can only choose among candidates that were routed, and
-    // `reachable` stops once it has enough — so if the paper ranking put three backwards
-    // stations ahead of the one at the convergence, the convergence would never be
-    // measured and could never win.
-    //
-    // A PEDAL RIDE'S SHORTLIST IS THE ROAD ITSELF, AND NO TANK BOUNDS IT (#446). With no
-    // fuel role there is no station to prefer and no range to check, so the plain
-    // candidates go through the same pass with a null range: their approaches are
-    // still routed, which is what the road re-rank and the drawing need.
-    const shortlist = frontLoadCheapest(fuelRole ? onlyGas : plain)
-    const tankMi = fuelRole ? range.miles : null
-    const reach = await reachable(shortlist, primaryGroup.uid, one, tankMi, fillBeforeM, primaryGroup, routed)
-
-    // BOTH FALLBACKS SAY WHICH COMPROMISE WAS MADE. A stretch with no station, or none
-    // within a tank, is ordinary on a rural road — answering "nothing works" would be
-    // false. `note` is deliberately not `reason`: reason means there are no candidates
-    // at all.
-    // EVERY ROW'S ROAD COMES FROM `reach.routed`, keyed by candidate — a parallel array
-    // cannot survive the sort the re-rank below does.
-    // A FALLBACK ROW GETS ITS ROAD TOO, AND IT COSTS NOTHING: `reachable()` routes a
-    // candidate to find out whether the group can reach it, so an out-of-range shortlist
-    // has ALREADY been routed and the paths were being thrown away — at exactly the
-    // moment the roads are the point. A `no-gas` fallback stays empty: those candidates
-    // are bare vertices the range filter never saw.
-    // RANKED BY THE ROAD, NOW THAT THE ROAD IS KNOWN — see rankByRoad.
-    const list = reach.keep.length ? reach.keep : onlyGas.length ? onlyGas : plain
-    const measures: RoadMeasure[] = list.map((m) => ({ meet: m, toMeetM: roadsTo(m, one, reach.routed.get(m) ?? []) }))
-    // KEYED BY COORDINATE, NOT IDENTITY: the re-rank returns new objects, and a
-    // lookup by the old reference silently drew no roads for one build.
-    const pathOf = new Map(list.map((m) => [m.at.join(','), reach.routed.get(m)?.[0]?.path ?? directApproach(m, one)]))
-    const rows = rankByRoad(measures, trunkTotalM, divertOpt.maxDivertMi ?? DEFAULT_DIVERT_MI, { favor, avoid }).map(
-      (m) => ({
-        m,
-        path: pathOf.get(m.at.join(',')) ?? ([] as Track),
-      }),
+  if (!out.ok) {
+    return c.json(
+      out.group !== undefined
+        ? { candidates: [], reason: out.reason, group: out.group }
+        : { candidates: [], reason: out.reason },
     )
-    // No note on a pedal ride: neither compromise exists there, because nobody asked
-    // for a station and nobody has a tank.
-    const note =
-      reach.keep.length || !fuelRole ? null : onlyGas.length ? 'out-of-range' : plain.length ? 'no-gas' : null
-
-    return {
-      // The group this answer is FOR, by uid, which is what the panel and the
-      // map both address a group by. The name rides along so the panel can head
-      // the section without a lookup that could disagree with the server's idea
-      // of which group this was.
-      group: g.id,
-      name,
-      note,
-      candidates: rows.slice(0, MEET_LIMIT).map(({ m, path }) => ({
-        lng: m.at[0],
-        lat: m.at[1],
-        // Miles, rounded, because that is the only number a planner should read.
-        // `score` is deliberately not sent: it is unitless and putting one in
-        // front of somebody invites them to compare two of them.
-        worstDivertMi: worstDivertMi(m),
-        // METERS ALONG THE MAIN GROUP'S STRAND, which is what lets the builder
-        // put the point where it belongs in the order rather than at the end of
-        // the list. Unrounded miles would lose the precision a leg lookup needs,
-        // and this is never shown to a rider — every number they read is a mile.
-        alongM: Math.round(m.alongM),
-        sharedPct: Math.round(m.sharedFraction * 100),
-        isFuel: m.isFuel,
-        // Empty for a bare point on the road, which has neither.
-        name: m.name ?? '',
-        address: m.address ?? '',
-        // ONE ENTRY NOW, because one group is being asked about — kept as a list
-        // rather than flattened to a number so the panel renders a section the
-        // same way whatever the ride looks like.
-        // THE EXTRA OVER THEIR CHEAPEST WAY OF JOINING, in road miles where the
-        // road was measured and straight-line where it was not — which is what
-        // "out of their way" means to the rider reading it. The absolute
-        // straight-line dogleg it used to be is the number #370 was filed about.
-        diverts: m.diverts.map((d) => ({
-          group: d.id,
-          mi: Math.round((d.extraM / METERS_PER_MILE) * 10) / 10,
-          onRoute: d.onRoute,
-        })),
-        // THE ROAD THIS GROUP WOULD ACTUALLY RIDE TO GET HERE, already fetched.
-        // It was sent per candidate before and drawn from the same response; it
-        // is per candidate still, and it is what makes the choice a comparison
-        // rather than a list of numbers — the long way round a lake and the
-        // short way down the interstate are two shapes on a map before they are
-        // two figures.
-        approach: path,
-      })),
-      reason: rows.length === 0 ? 'none-viable' : null,
-    }
   }
+  return c.json({ groups: out.groups.map((g) => g.proposal) })
 })
-
-/**
- * Gas stations on the main group's road, in the window where a meet is viable.
- *
- * ANCHORED ON THE CANDIDATES THE GEOMETRY ALREADY LIKED, which is what keeps
- * this to a bounded number of billed requests however long the ride is: the
- * plain pass has already ruled out everywhere unreachable, so the only stretch
- * worth searching is the one it named.
- *
- * `SEARCH_ANCHORS` is a money number in the same way `MAX_CORRIDOR_SAMPLES` is.
- * Two anchors covers the earliest viable point and one a little further on,
- * which is the spread a rider is choosing between; a third would be a third
- * Text Search per press for a candidate below the fold.
- *
- * A FAILURE IS AN EMPTY LIST, NOT AN ERROR. The proposal is still good without
- * pumps — see the fallback at the call site — and turning a Places outage into a
- * failed meeting-point request would take away an answer that needs no network
- * at all.
- */
-const SEARCH_ANCHORS = 2
-const STATION_RADIUS_M = 20_000
-
-/** The whole press's Text Search allowance, divided by the joining groups. Six
- *  is two groups at full spread, or six groups at one anchor each. */
-const ANCHOR_BUDGET = 6
-
-/** The whole press's routed-approach allowance, divided the same way. Twelve is
- *  three groups at the old per-group ceiling, and it is the number that stops a
- *  nine-group ride costing 36 Routes requests on one press. */
-const ROUTED_BUDGET = 12
-
-async function fuelAlong(plain: GroupMeet[], anchors: number, role: FuelRole): Promise<FuelCandidate[]> {
-  const { query, type } = FUEL_SEARCH[role]
-  const out: FuelCandidate[] = []
-  const seen = new Set<string>()
-  for (const anchor of plain.slice(0, anchors)) {
-    const res = await searchPlaces(
-      { query, near: anchor.at, radiusM: STATION_RADIUS_M, wide: true },
-      GMAPS_SERVER_KEY,
-    )
-    if (!res.ok) continue
-    for (const p of res.places) {
-      // TYPE, NOT NAME. Text Search answers "gas station" with supermarkets and
-      // repair shops that merely mention fuel, and a meeting point the group
-      // cannot fill up at is the one thing this feature must not produce.
-      if (p.type !== type) continue
-      const key = p.lngLat.join(',')
-      if (seen.has(key)) continue
-      seen.add(key)
-      out.push({ at: p.lngLat, roles: [role], name: p.name, address: p.address })
-    }
-  }
-  // Snapping and the on-route test are proposeGroupMeet's, not repeated here —
-  // a station in the next valley is dropped there by ON_ROUTE_M, with one rule
-  // for both sources of fuel candidate.
-  return out
-}
-
-/** How many gas candidates are shortlisted before the fuel-range filter. Larger
- *  than the three a rider is shown, because the filter removes some — and small,
- *  because every survivor costs a Routes request per joining group. */
-const GAS_SHORTLIST = 6
-
-/** The most candidates whose approaches are routed. A hard stop on the bill: a
- *  ride with four joining groups would otherwise spend 24 Routes requests on one
- *  press of a button. */
-const MAX_ROUTED_CANDIDATES = 4
-
-/** How many the rider is finally offered. */
-const MEET_LIMIT = 3
-
-type Approach = { group: string; path: Track; distanceM: number }
-
-function trackLengthM(track: Track): number {
-  let len = 0
-  for (let i = 1; i < track.length; i++) len += haversineM(track[i - 1][1], track[i - 1][0], track[i][1], track[i][0])
-  return len
-}
-
-/** The shortlist with its least-extra candidate moved to the front, so the
- *  convergence is always among the routed few. Stable for the rest. */
-function frontLoadCheapest(list: GroupMeet[]): GroupMeet[] {
-  if (list.length < 2) return list
-  let best = 0
-  for (let i = 1; i < list.length; i++) if (list[i].worstExtraM < list[best].worstExtraM) best = i
-  return [list[best], ...list.filter((_, i) => i !== best)]
-}
-
-/** The stretch of a start-only group's direct road up to an on-route candidate,
- *  so the rider sees how they get there. Empty for a group whose own route is
- *  already drawn, and for a candidate off their road, which was routed. */
-function directApproach(m: GroupMeet, joining: GroupRoute[]): Track {
-  const g = joining[0]
-  if (!g?.direct) return []
-  if (!m.diverts.find((d) => d.id === g.id)?.onRoute) return []
-  const i = nearestVertex(g.track, m.at)
-  return i < 0 ? [] : g.track.slice(0, i + 1)
-}
-
-/** Each joining group's road to a candidate: the routed approach where one was
- *  fetched, the distance along their own track where it passes through the
- *  point, null where neither exists. */
-function roadsTo(m: GroupMeet, joining: GroupRoute[], approaches: Approach[]): Map<string, number | null> {
-  const out = new Map<string, number | null>()
-  for (const g of joining) {
-    const d = m.diverts.find((x) => x.id === g.id)
-    if (d?.onRoute) {
-      out.set(g.id, alongTrackM(g.track, m.at))
-      continue
-    }
-    const a = approaches.find((x) => x.group === g.id)
-    out.set(g.id, a ? a.distanceM : null)
-  }
-  return out
-}
-
-/**
- * Keep the candidates every group can reach on the tank they arrive with, and
- * route the approaches while finding out.
- *
- * THE TWO JOBS ARE ONE PASS ON PURPOSE. The joining group's distance to a
- * candidate is the length of the road they would ride, not a straight line — and
- * the road is the same thing the builder draws. Fetching it once here answers
- * the range question AND supplies the drawing, where doing them separately would
- * pay Google twice for one road and let the two disagree.
- *
- * The MAIN group is measured along their own route (`alongM` minus their last
- * fill), which needs no request at all: it is the road they were already riding.
- *
- * With no known range the filter does not run and every candidate is kept —
- * `groupRange()` answers null when nothing on the roster has a range on file,
- * and inventing one would produce a fuel plan that looks authoritative and is
- * made up.
- */
-async function reachable(
-  candidates: GroupMeet[],
-  primaryUid: string,
-  joining: GroupRoute[],
-  rangeMi: number | null,
-  fillBeforeM: (g: { id: number }, alongM: number) => number,
-  primaryGroup: { id: number; uid: string },
-  // The routed-approach cap for THIS group, already divided out of the press's
-  // budget by the caller. It bounds the Routes spend; MEET_LIMIT bounds what a
-  // rider is shown, and they are two different numbers whenever a ride has
-  // enough groups for the budget to bite.
-  routed: number,
-): Promise<{ keep: GroupMeet[]; routed: Map<GroupMeet, Approach[]> }> {
-  const keep: GroupMeet[] = []
-  // EVERY CANDIDATE THIS ROUTED, kept or rejected. The requests are spent either
-  // way, so holding them is free — and it is what lets a fallback list be drawn
-  // with the same real roads as an ordinary one.
-  const routedPaths = new Map<GroupMeet, Approach[]>()
-  const rangeM = rangeMi == null ? null : rangeMi * METERS_PER_MILE
-  // THE BUDGET COUNTS REQUESTS, NOT CANDIDATES, AND THE WALK NO LONGER STOPS
-  // AT MEET_LIMIT. #370: the order the rider sees is decided AFTER this by the
-  // road re-rank, so stopping at three kept meant the three the straight line
-  // liked were the only three the road could choose between — and on the
-  // repro the two stations at the convergence were fourth and fifth. A
-  // candidate on the group's own road costs no request and is always measured;
-  // the rest are fetched until `routed` is spent.
-  let fetched = 0
-
-  for (const m of candidates) {
-    if (fetched >= routed) break
-
-    // THE MAIN GROUP FIRST AND FOR FREE. Their distance is arithmetic on a road
-    // that already exists, so a candidate they cannot reach is dropped before
-    // anything is spent routing anybody else to it.
-    if (rangeM != null && m.alongM - fillBeforeM(primaryGroup, m.alongM) > rangeM) continue
-
-    const legs: Approach[] = []
-    let allReach = true
-    for (const g of joining) {
-      if (g.id === primaryUid) continue
-      // A group whose own road already passes through it is not detouring, so
-      // there is nothing to draw and nothing to check — they reach it on the
-      // same tank that carries them along their own route.
-      const onRoute = m.diverts.find((d) => d.id === g.id)?.onRoute
-      if (onRoute) continue
-      fetched++
-      const out = await fetchRouteLeg(g.origin, m.at)
-      if (!out.ok) {
-        // NO ROAD IS NOT OUT OF RANGE. A Routes failure says nothing about fuel,
-        // and dropping a candidate for it would silently narrow the answer
-        // whenever Google was having a bad minute. The approach simply is not
-        // drawn.
-        continue
-      }
-      legs.push({ group: g.id, path: out.leg.geometry, distanceM: out.leg.distanceM })
-      routedPaths.set(m, legs)
-      // A joining group sets off with a full tank — their strand's start is
-      // their last fill — so the whole approach has to fit inside one.
-      if (rangeM != null && out.leg.distanceM > rangeM) {
-        allReach = false
-        break
-      }
-    }
-    if (!allReach) continue
-    keep.push(m)
-  }
-  return { keep, routed: routedPaths }
-}

@@ -50,6 +50,7 @@ import { findAlongRoute } from './tools/along-route'
 import { getOfficialClosures } from './tools/official'
 import { FIX_TOOLS } from './tools/fix'
 import { draftRoadReport, fileRoadReport } from './tools/report-road'
+import { proposeMeetingPointsTool } from './tools/meet'
 
 export type AgentContext = {
   ride: RidePayload
@@ -396,6 +397,7 @@ export const TOOLS = [
   draftRoadReport,
   fileRoadReport,
   setTripBrief,
+  proposeMeetingPointsTool,
 ]
 
 const BY_NAME = new Map(TOOLS.map((t) => [t.name, t]))
