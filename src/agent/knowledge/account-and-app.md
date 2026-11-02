@@ -69,17 +69,17 @@ Saved places: up to 500 places in up to 50 groups, each with a name, location, u
 
 ## Robots tab and the AI features
 
-Three ways to plan with AI:
+Two ways to plan with AI, and the rider pays the model company directly for both; Routeloop charges nothing and pays for no model tokens:
 
-1. The free assistant in the builder, on Claude Haiku 5.5, paid by Routeloop.
-2. The rider's own Anthropic or OpenAI key, with no Routeloop spending cap.
-3. Claude or ChatGPT connected over MCP at `<site>/mcp`, which spends no Routeloop money on the model.
+1. The builder's assistant, on the rider's own Anthropic or OpenAI key, with no Routeloop spending cap.
+2. Claude or ChatGPT connected over MCP at `<site>/mcp`.
+
+There is no free allowance. A rider with no key of their own who opens the assistant is told to add one under Robots or connect Claude or ChatGPT.
 
 The builder assistant is a floating window over the map that minimizes to a button. It proposes changes as one step the rider applies or discards (Undo works after applying); it refuses to apply if the ride changed meanwhile. It only appears for riders who can edit. Each message is up to 4,000 characters; the recent conversation is resent each turn and clears on reload. MCP changes save immediately and appear in an open builder.
 
 Limits:
 
-- Free allowance: $0.50 per rider per calendar month (UTC), resetting on the 1st. There is also an app-wide monthly budget; when it runs out, the free assistant stops for everyone until the 1st. The window and Robots show "$X of $0.50 free this month."
 - In the builder's assistant, every turn: up to 12 model steps, 6 place searches, and 30 routed legs. A turn that hits a limit stops and says to ask it to carry on. Over MCP there is no per-turn limit, because each tool call is its own request; only the daily ceiling applies.
 - Map calls: 300 a day per rider, from any source, own key included, resetting at midnight UTC.
 - Builder: 20 messages a minute, one turn at a time. MCP: 120 calls a minute.
@@ -136,4 +136,4 @@ Routeloop is a free closed beta, no ads, accounts approved by hand. Sign in with
 9. Rides page on the travel phone: On this phone set and downloaded, or Keep pressed on the trip, then tested in airplane mode.
 10. Recycle bin tab: nothing needed is about to be destroyed.
 11. GTFO, Download Me: a full backup before a long trip.
-12. Robots: a key or connector if the rider wants more AI help than $0.50 a month buys.
+12. Robots: their own Anthropic or OpenAI key, or a Claude or ChatGPT connector, to plan with AI.
