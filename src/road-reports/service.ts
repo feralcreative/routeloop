@@ -84,3 +84,59 @@ export async function reportsAlongRide(rideId: number, viewerId: number | null, 
   }))
 }
 
+/** A live report near a spot, nearest first, for spotting a duplicate before filing. */
+export type NearbyReport = {
+  id: number
+  kind: ReportKind
+  note: string
+  at: [number, number]
+  season: { start: number; end: number } | null
+  createdAt: string
+  expiresAt: string | null
+  /** Meters from the spot asked about. */
+  distanceM: number
+}
+
+/**
+ * Every live report of one kind within `radiusM` of a spot, nearest first. Carries no
+ * reporter at all, not even `mine`: a duplicate is the same report whoever filed it.
+ */
+export async function liveReportsNear(
+  kind: ReportKind,
+  at: [number, number],
+  radiusM: number,
+  now = new Date(),
+): Promise<NearbyReport[]> {
+  const spot = sql`ST_SetSRID(ST_MakePoint(${at[0]}, ${at[1]}), 4326)::geography`
+  const rows = await db.execute<{
+    id: string
+    kind: ReportKind
+    note: string
+    lng: number
+    lat: number
+    season_start: number | null
+    season_end: number | null
+    created_at: string | Date
+    expires_at: string | Date | null
+    distance_m: number
+  }>(sql`
+    select rr.id, rr.kind, rr.note, ST_X(rr.at) as lng, ST_Y(rr.at) as lat,
+           rr.season_start, rr.season_end, rr.created_at, rr.expires_at,
+           ST_Distance(rr.at::geography, ${spot}) as distance_m
+    from road_reports rr
+    where rr.kind = ${kind}
+      and (rr.expires_at is null or rr.expires_at > ${now.toISOString()})
+      and ST_DWithin(rr.at::geography, ${spot}, ${radiusM})
+    order by distance_m
+    limit 20`)
+  return rows.rows.map((r) => ({
+    id: Number(r.id),
+    kind: r.kind,
+    note: r.note,
+    at: [Number(r.lng), Number(r.lat)],
+    season: r.season_start != null && r.season_end != null ? { start: r.season_start, end: r.season_end } : null,
+    createdAt: new Date(r.created_at).toISOString(),
+    expiresAt: r.expires_at ? new Date(r.expires_at).toISOString() : null,
+    distanceM: Number(r.distance_m),
+  }))
+}
