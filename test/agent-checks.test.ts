@@ -210,3 +210,18 @@ describe('the registry stays in step', () => {
   })
 })
 
+describe('trip checks as the trip gets close (#457)', () => {
+  const at = (iso: string) => new Date(iso)
+  it('offers the pre-trip checklist only within two weeks of the first departure', () => {
+    const c = ctx(ride())
+    expect(tripQuestions(c, at('2027-06-01T12:00:00Z')).join('\n')).toContain('in 11 days: offer the pre-trip checklist')
+    expect(tripQuestions(c, at('2027-04-01T12:00:00Z')).join('\n')).not.toContain('pre-trip checklist')
+    expect(tripQuestions(c, at('2027-07-01T12:00:00Z')).join('\n')).not.toContain('pre-trip checklist')
+  })
+
+  it('asks for a way out on a long route', () => {
+    expect(tripQuestions(ctx(ride()), at('2027-01-01T00:00:00Z')).join('\n')).toContain('A way out on route 1')
+    const short = ctx(ride({}, { legs: [leg(30, 0.5), leg(30, 0.5)] }))
+    expect(tripQuestions(short, at('2027-01-01T00:00:00Z')).join('\n')).not.toContain('A way out')
+  })
+})

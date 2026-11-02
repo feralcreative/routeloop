@@ -260,8 +260,16 @@ export function runChecks(ctx: AgentContext): Finding[] {
   return out.sort((a, b) => rank(a) - rank(b))
 }
 
-/** What only the riders can confirm. Asked, never assumed. */
-export function tripQuestions(ctx: AgentContext): string[] {
+/** Days before the first departure at which the pre-trip checklist is offered: time
+ *  for a shakedown ride and to order a part, the trip-prep guide's two weeks. */
+export const PREP_DAYS = 14
+
+/** Riding hours on a route past which it is remote enough to want a way out named. */
+const REMOTE_HOURS = 4
+
+/** What only the riders can confirm. Asked, never assumed. `now` is a real instant;
+ *  a departure is a wall clock read as UTC, so "days until" is good to a day. */
+export function tripQuestions(ctx: AgentContext, now: Date = new Date()): string[] {
   const beds = ctx.ride.routes
     .filter(counts)
     .flatMap((r) =>
@@ -277,5 +285,28 @@ export function tripQuestions(ctx: AgentContext): string[] {
   ]
   if (beds.length) q.splice(1, 0, `Beds booked: ${[...new Set(beds)].join(', ')}.`)
 
+  // THE CHECKLIST IS OFFERED AS THE TRIP GETS CLOSE (#457), not on every audit: a
+  // packing list two months out is noise, and two weeks is the shakedown's lead time.
+  const starts = ctx.ride.routes
+    .filter(counts)
+    .flatMap((r) => (r.startAt ? [Date.parse(r.startAt)] : []))
+    .filter(Number.isFinite)
+  if (starts.length) {
+    const days = Math.ceil((Math.min(...starts) - now.getTime()) / 86_400_000)
+    if (days >= 0 && days <= PREP_DAYS)
+      q.push(
+        `The trip starts ${days === 0 ? 'today' : days === 1 ? 'tomorrow' : `in ${days} days`}: offer the pre-trip checklist (guide topic trip-prep): a shakedown ride${days < 3 ? ' if there is still time' : ''}, chain, tires, brakes and oil good for the miles, spare keys on the rider, papers, water, snacks, layers and rain gear, and contacts traded.`,
+      )
+  }
+
+  // CONTINGENCIES, for the long routes only: a way out named for the stretch that
+  // could go wrong, which the contingencies guide says to keep to two or three.
+  const long = ctx.ride.routes.flatMap((r, i) =>
+    counts(r) && r.legs.reduce((n, l) => n + l.durationS, 0) / 3600 >= REMOTE_HOURS ? [i + 1] : [],
+  )
+  if (long.length)
+    q.push(
+      `A way out on route${long.length > 1 ? 's' : ''} ${long.join(', ')}: the bailout road, the next fuel after the planned one, where the signal drops, and who tows a bike out there (guide topic contingencies). Name two or three, not the whole list.`,
+    )
   return q
 }
