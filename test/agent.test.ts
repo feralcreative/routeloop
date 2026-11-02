@@ -110,6 +110,16 @@ describe('ride-edit', () => {
     expect(ride.routes[0].legs[2].viaPoints).toEqual([[-122.05, 37.31]])
   })
 
+  it('a point inserted mid-leg sends each shaping point to the half it lies on (#444)', () => {
+    const past = fixture()
+    addPoint(past, 'route0000001', { name: 'After the via', lng: -122.15, lat: 37.65 }, { at: 1 })
+    expect(past.routes[0].legs.slice(0, 2).map((l) => l.viaPoints)).toEqual([[[-122.21, 37.71]], []])
+    const short = fixture()
+    addPoint(short, 'route0000001', { name: 'Before the via', lng: -122.24, lat: 37.75 }, { at: 1 })
+    expect(short.routes[0].legs.slice(0, 2).map((l) => l.viaPoints)).toEqual([[], [[-122.21, 37.71]]])
+    expect(valid(short)).toBe(true)
+  })
+
   it('removing a middle point carries both legs’ shaping points onto the merged leg', () => {
     const ride = fixture()
     const { stale } = removePoint(ride, 'route0000001', 'bbbbbbbbbbbb')

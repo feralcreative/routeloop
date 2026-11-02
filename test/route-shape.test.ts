@@ -416,3 +416,37 @@ describe('rejoinSpans', () => {
     expect(S.rejoinSpans(0, [])).toEqual([])
   })
 })
+
+describe('splitViasAt (#444)', () => {
+  // A leg running east along a line of latitude, with three shaping points on it.
+  const TRACK: [number, number][] = [
+    [-122, 37],
+    [-121.5, 37],
+    [-121, 37],
+    [-120.5, 37],
+    [-120, 37],
+  ]
+  const VIAS: [number, number][] = [
+    [-121.8, 37.01],
+    [-121.2, 36.99],
+    [-120.3, 37.02],
+  ]
+
+  it('puts each shaping point on the half of the leg it lies on', () => {
+    expect(S.splitViasAt(TRACK, VIAS, [-121, 37.05])).toEqual([VIAS.slice(0, 2), VIAS.slice(2)])
+  })
+
+  it('sends them all one way at either end, and copes with none', () => {
+    expect(S.splitViasAt(TRACK, VIAS, [-122.5, 37])).toEqual([[], VIAS])
+    expect(S.splitViasAt(TRACK, VIAS, [-119, 37])).toEqual([VIAS, []])
+    expect(S.splitViasAt(TRACK, [], [-121, 37])).toEqual([[], []])
+  })
+
+  it('agrees with the assistant’s copy in src/agent/ride-edit.ts', async () => {
+    const { splitViasAt } = await import('../src/agent/ride-edit')
+    for (let lng = -122.6; lng <= -119.4; lng += 0.1) {
+      const at: [number, number] = [lng, 37 + (lng % 0.3) * 0.1]
+      expect(splitViasAt(TRACK, VIAS, at), String(lng)).toEqual(S.splitViasAt(TRACK, VIAS, at))
+    }
+  })
+})

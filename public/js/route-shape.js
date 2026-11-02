@@ -125,6 +125,34 @@
     return best;
   }
 
+  // A stop dropped in the middle of a leg splits it in two: which of the leg's
+    // shaping points go to the first half, and which to the second?
+    //
+    // BY POSITION ALONG THE LEG'S OWN ROAD (#444). Every via keeps the coordinates
+    // the rider gave it; only the half it belongs to is decided. All of them on the
+    // first half was the old answer, and a via past the new stop then sent the first
+    // half beyond the stop and back. The vias are walked in order with each one's
+    // segment as the next one's floor, as snapVias does, because the order IS the
+    // route and a loop can put a later via near an earlier stretch.
+    //
+    // Mirrored by splitViasAt() in src/agent/ride-edit.ts; test/route-shape.test.ts
+    // pins the two together.
+  function splitViasAt(track, vias, lngLat) {
+    if (!vias || !vias.length) return [[], []];
+    const at = snapToTrack(track, lngLat, 0);
+    if (!at) return [vias.slice(), []];
+    const cut = at.segmentIndex + at.t;
+    let floor = 0;
+    let n = 0;
+    for (const v of vias) {
+      const s = snapToTrack(track, v, floor);
+      if (!s || s.segmentIndex + s.t > cut) break;
+      floor = s.segmentIndex;
+      n++;
+    }
+    return [vias.slice(0, n), vias.slice(n)];
+  }
+
   // Where in a leg's existing via list does a newly dropped one belong?
     //
     // Vias are sent to the router in array order, so the order IS the route. Drop a point
@@ -285,6 +313,7 @@
     nearestVertexIndex,
     snapToTrack,
     viaInsertIndex,
+    splitViasAt,
     pointAtDistance,
     sliceBetween,
     circlePath,
