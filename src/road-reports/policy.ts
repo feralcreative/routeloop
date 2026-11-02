@@ -27,6 +27,11 @@ export const REPORT_RADIUS_M = 75
 
 export const MAX_NOTE = 400
 
+/** A live report of the same kind this close to a new one is the same report. Wider
+ *  than REPORT_RADIUS_M on purpose: two riders describing one slide press the road a
+ *  few hundred meters apart, and a second pin for it is noise on everybody's map. */
+export const DUPLICATE_RADIUS_M = 500
+
 export function isKind(v: unknown): v is ReportKind {
   return typeof v === 'string' && (REPORT_KINDS as readonly string[]).includes(v)
 }
@@ -42,6 +47,21 @@ export function validMmdd(v: unknown): number | null {
   const d = n % 100
   if (m < 1 || m > 12 || d < 1 || d > DAYS_IN_MONTH[m - 1]) return null
   return n
+}
+
+/**
+ * Whether a new report says the same thing as a live one of the same kind nearby.
+ * A SEASONAL CLOSURE AND A TEMPORARY ONE ARE DIFFERENT THINGS: a winter closure must
+ * not block a summer slide, which the map would otherwise show nobody outside the
+ * season, and a live slide must not block recording the pass that shuts every year.
+ * Two seasonal closures are the same only when their windows overlap.
+ */
+export function sameReport(
+  a: { season: { start: number; end: number } | null },
+  b: { season: { start: number; end: number } | null },
+): boolean {
+  if (!a.season || !b.season) return !a.season && !b.season
+  return inSeason(a.season.start, a.season.end, b.season.start) || inSeason(b.season.start, b.season.end, a.season.start)
 }
 
 /** Whether a month-day falls inside a season. A season may wrap the new year:

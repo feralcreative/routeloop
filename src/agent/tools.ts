@@ -48,7 +48,8 @@ import { getConditions } from './tools/conditions'
 import { getRoadReports } from './tools/road-reports'
 import { findAlongRoute } from './tools/along-route'
 import { getOfficialClosures } from './tools/official'
-import { setRoutePreferences, setStopByTime } from './tools/fix'
+import { FIX_TOOLS } from './tools/fix'
+import { draftRoadReport, fileRoadReport } from './tools/report-road'
 
 export type AgentContext = {
   ride: RidePayload
@@ -391,8 +392,9 @@ export const TOOLS = [
   searchHelp,
   getHelp,
   getOfficialClosures,
-  setRoutePreferences,
-  setStopByTime,
+  ...FIX_TOOLS,
+  draftRoadReport,
+  fileRoadReport,
   setTripBrief,
 ]
 
