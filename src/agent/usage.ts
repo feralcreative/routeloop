@@ -4,7 +4,7 @@ import { and, eq, like, sql } from 'drizzle-orm'
 import { db } from '../db/index'
 import { aiKeys, aiUsage } from '../db/schema'
 import { AI_FREE_MONTHLY_USD, AI_KEY_ENCRYPTION_KEY, ANTHROPIC_API_KEY } from '../config'
-import { dayOf, isProvider, monthOf, pickProvider, PROVIDERS, type FreeTierState, type Provider, type Source } from './policy'
+import { dayOf, FREE_TIER_ON, isProvider, monthOf, pickProvider, PROVIDERS, type FreeTierState, type Provider, type Source } from './policy'
 import { LOOKS_LIKE, masterKey, open, seal } from './sealed-key'
 
 const MASTER = masterKey(AI_KEY_ENCRYPTION_KEY)
@@ -25,7 +25,7 @@ export async function freeTierState(userId: number, now = new Date()): Promise<F
       .where(and(eq(aiUsage.source, 'free'), like(aiUsage.day, month))),
   ])
   return {
-    configured: ANTHROPIC_API_KEY !== '',
+    configured: FREE_TIER_ON && ANTHROPIC_API_KEY !== '',
     riderSpentMicros: Number(mine[0]?.s ?? 0),
     globalSpentMicros: Number(all[0]?.s ?? 0),
     globalCeilingMicros: Math.max(0, Math.round(AI_FREE_MONTHLY_USD * 1_000_000)),

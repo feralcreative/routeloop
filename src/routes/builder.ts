@@ -34,6 +34,7 @@ import { POWERS, POWER_CHOICES, VEHICLES, VEHICLE_CHOICES, Wd, Wds, aWd, cap, wd
 import { TOUR_HEAD, tourScript } from '../views/tour-assets'
 import { ANTHROPIC_API_KEY, GMAPS_KEY, GMAPS_MAP_ID } from '../config'
 import { BYO_ENABLED } from '../agent/usage'
+import { FREE_TIER_ON } from '../agent/policy'
 import { generateSlug } from '../maps/slug'
 import { canClone } from '../access/policy'
 import { memberOrOwner, seedOwner } from '../members/service'
@@ -861,7 +862,7 @@ function builderHtml(
   // and aria-selected are wired by initTabs().
   // The words for this page (#321): the ride's own pair over the rider's default.
   const words = wordsOf({ user, ride: vehicle })
-  const agentOffered = standing.canEdit && (ANTHROPIC_API_KEY !== '' || BYO_ENABLED)
+  const agentOffered = standing.canEdit && ((FREE_TIER_ON && ANTHROPIC_API_KEY !== '') || BYO_ENABLED)
 
   const tabs = `        <div class="panel-tabs" role="tablist" aria-label="Builder sections">
           <button type="button" class="panel-tab is-active" role="tab" id="tab-routes"

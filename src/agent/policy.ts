@@ -58,6 +58,13 @@ export function pickProvider(
   return PROVIDERS.find((p) => stored.some((k) => k.provider === p)) ?? null
 }
 
+/** THE FREE TIER IS OFF. Ziad's call, 2026-11-01: for the foreseeable future the
+ *  assistant runs on a rider's own Anthropic or OpenAI key, or through Claude or
+ *  ChatGPT over MCP, and Routeloop pays for no model tokens. A code switch rather
+ *  than AI_FREE_MONTHLY_USD=0 so it holds whatever a server's .env says; the
+ *  allowance below and the ceiling stay for the day it comes back. */
+export const FREE_TIER_ON = false
+
 /** Per rider per calendar month (UTC), in micro-dollars. $0.50. */
 export const FREE_MONTHLY_MICROS = 500_000
 
@@ -135,7 +142,7 @@ export function freeTierAllows(s: FreeTierState): FreeTierAnswer {
 }
 
 export const REFUSALS: Record<'off' | 'rider-cap' | 'global-cap' | 'google-cap', string> = {
-  off: 'The free assistant is switched off right now. You can add your own Anthropic or OpenAI key under Robots in your account settings.',
+  off: 'The assistant runs on your own Anthropic or OpenAI key. Add one under Robots in your account settings, or connect Claude or ChatGPT to Routeloop from the same page.',
   'rider-cap':
     'You have used this month’s free assistant allowance. It resets on the 1st, or you can add your own Anthropic or OpenAI key under Robots in your account settings.',
   'global-cap':

@@ -59,7 +59,7 @@ import { tourAssets } from './tour-assets'
 import { asset } from './assets'
 import { ANTHROPIC_API_KEY, APP_ORIGIN } from '../config'
 import { BYO_ENABLED, freeTierState, storedKeysOf } from '../agent/usage'
-import { BYO_MODELS, DEFAULT_BYO_MODEL, dollars, FREE_MONTHLY_MICROS, pickProvider, PROVIDER_NAMES, PROVIDERS } from '../agent/policy'
+import { BYO_MODELS, DEFAULT_BYO_MODEL, dollars, FREE_MONTHLY_MICROS, FREE_TIER_ON, pickProvider, PROVIDER_NAMES, PROVIDERS } from '../agent/policy'
 import { connectedApps } from '../oauth/service'
 
 export type AccountTab = 'preferences' | 'profile' | 'paddock' | 'places' | 'robots'
@@ -266,7 +266,7 @@ export async function accountPage(
     vocab,
   } = await prefsFor(user.id)
   // The assistant's topic renders only where this server offers one at all.
-  const aiOffered = ANTHROPIC_API_KEY !== '' || BYO_ENABLED
+  const aiOffered = (FREE_TIER_ON && ANTHROPIC_API_KEY !== '') || BYO_ENABLED
   const [ownKeys, freeState] = aiOffered
     ? await Promise.all([storedKeysOf(user.id), freeTierState(user.id)])
     : [[], null]
@@ -1450,7 +1450,7 @@ export async function accountPage(
         </section>
 
         {/*
-          THE ASSISTANT (2026-10-27). The free allowance is shown as a sentence
+          THE ASSISTANT (2026-10-27). The free tier is off (FREE_TIER_ON, 2026-11-01); when on, its allowance is shown as a sentence
           rather than a meter: it is a courtesy, not a balance anybody is billed
           against. A rider's own key, Anthropic or OpenAI (2026-10-31), is pasted,
           checked against its provider once, sealed, and only ever shown again as
@@ -1464,21 +1464,24 @@ export async function accountPage(
             <h2>Planning assistant</h2>
             <p>
               The assistant in the builder plans with you: it reads the ride, searches for places, and changes routes as
-              one step you can undo. Its messages go to whoever runs the model (Anthropic on the free allowance, or the
-              provider of your own key) and are not kept by&nbsp;Routeloop.
+              one step you can undo. It runs on your own Anthropic or OpenAI key, charged to your account with that company;
+              Routeloop adds nothing and keeps no copy of the&nbsp;conversation.
             </p>
             {answeringKey ? (
               <p>
                 <b>Using your own {PROVIDER_NAMES[answeringKey.provider]} key</b> (ending {answeringKey.last4}). It is
                 charged to your {PROVIDER_NAMES[answeringKey.provider]} account, with no Routeloop&nbsp;limit.
               </p>
-            ) : freeState && ANTHROPIC_API_KEY !== '' ? (
+            ) : FREE_TIER_ON && freeState && ANTHROPIC_API_KEY !== '' ? (
               <p>
                 Free: {dollars(freeState.riderSpentMicros)} of {dollars(FREE_MONTHLY_MICROS)} used this month. It resets on
                 the 1st. Add your own Anthropic or OpenAI key for more, on any&nbsp;model.
               </p>
             ) : (
-              <p>There is no free allowance on this server. Add your own Anthropic or OpenAI key to use the&nbsp;assistant.</p>
+              <p>
+                Add your own Anthropic or OpenAI key below to use the assistant, or connect Claude or ChatGPT under Plan from
+                Claude or&nbsp;ChatGPT.
+              </p>
             )}
             {BYO_ENABLED && ownKeys.length > 1 ? (
               <section class="setting" id="ai-default">
