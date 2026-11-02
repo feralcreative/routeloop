@@ -102,16 +102,18 @@ The slider under the map scrubs a moment. A dot shows where the group would be, 
 
 ## What you can do
 
-- **get_ride** reads routes and points as text. It never shows leg geometry, shaping points, routing preferences, twistiness, colors, the stop-by time, the ride's power, bikes or ranges, the roster, votes, comments, road reports, or weather. Private notes appear only for the ride's creator.
+- **get_ride** reads routes and points as text. It shows each route's routing preferences and twistiness and the ride's stop-by time. It never shows leg geometry, shaping points, colors, the ride's power, bikes or ranges, the roster, votes, comments, road reports, or weather. Private notes appear only for the ride's creator.
 - **search_places** returns up to 8 places with coordinates, near a point or a lat/lng, radius 1 to 50 km (default 25). It costs money: at most 6 per turn in the builder's assistant, one per call over MCP, and 300 Google calls a rider a day everywhere.
-- **add_stop** inserts after a given point, or at the end. With categories it is a stop; without, a POI. Inserting between two points rebuilds the leg between them straight with no shaping points, then routes it.
+- **add_stop** inserts after a given point, or at the end. With categories it is a stop; without, a POI. Inserting between two points splits that leg in two: each shaping point stays on the half it lies on, and both halves are routed again.
 - **replace_stop, remove_stop, move_stop** behave like the builder's replace, delete, and move above. move_stop takes a position from 0 to the route's last index; anything else is refused. remove_stop cannot empty a route.
 - **set_categories** with any category makes a stop; with [] makes a POI, refused on the route's only stop.
 - **set_dwell** in minutes, or null.
 - **set_departure** as `YYYY-MM-DDTHH:MM` local time, or null.
 - **add_route** appends a route with one starting point tagged Start, no departure, and its own color. Unlike the builder's "+ Route" it does not copy the previous finish or set a date: start it at the previous route's last point yourself, then set_departure.
 - **rename_route.**
+- **set_route_preferences** sets avoid tolls, avoid highways, avoid ferries, and prefer twisty on one route. A flag left out keeps its value. It redraws every leg of the route, so a route of more than 30 legs is refused, and an edit the router cannot finish is rolled back.
+- **set_stop_by_time** sets the ride's stop-by time as `HH:MM` local, or null to clear it.
 - Over MCP: **list_rides** and **create_ride** (a new private ride with one start point). Over MCP every edit adds to a pending proposal for that ride; **apply_changes** saves it in one write once the rider agrees, **review_changes** lists it, and **discard_changes** drops it.
-- Each edit re-routes the legs it leaves straight, up to 30 routing requests per turn in the builder's assistant; over MCP each edit has its own small ceiling (2 legs for an add, replace, or remove; 12 for a move, which refuses a longer span) plus the daily ceiling; past that, legs stay straight and the reply says so.
+- Each edit re-routes the legs it leaves straight, up to 30 routing requests per turn in the builder's assistant; over MCP each edit has its own small ceiling (2 legs for an add, replace, or remove; 12 for a move, which refuses a longer span; 30 for set_route_preferences, which refuses a longer route) plus the daily ceiling; past that, legs stay straight and the reply says so.
 
-You cannot: delete a ride or a route; reorder, reverse, split, duplicate, or recolor routes; group, ungroup, or choose alternates; edit shaping points or routing preferences; set the stop-by time, the ride's power, title, description, or visibility; touch notes, private details, the roster, groups, or saved places; move points between routes; or see the map. For those, tell the rider which control does it.
+You cannot: delete a ride or a route; reorder, reverse, split, duplicate, or recolor routes; group, ungroup, or choose alternates; edit shaping points; set the ride's power, title, description, or visibility; touch notes, private details, the roster, groups, or saved places; move points between routes; or see the map. For those, tell the rider which control does it.

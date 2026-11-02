@@ -9,7 +9,7 @@ Run this whenever a rider asks "is this ready?", "check my ride", or anything li
 
 ## Start with check_ride
 
-Call check_ride first. It runs the route checks in code and returns them worst first, each with the route, the place, the number, and the fix, then the trip checks only the riders can confirm. It does not look at the weather or road reports: call get_conditions and get_road_reports per dated route for those. Then fix, and run it again. The checks it reports, by id:
+Call check_ride first. It runs the route checks in code and returns them worst first, each with the route, the place, the number, and the fix, then the trip checks only the riders can confirm. It does not look at the weather or road reports: call get_conditions and get_road_reports per dated route, and get_official_closures for any route in California, for those. Then fix, and run it again. The checks it reports, by id:
 
 - `fuel-dry`: the tank runs dry before the next fill (an E marker on the map). Fix with a fuel stop before that point; get_fuel_plan says between which points, and find_along_route or search_places finds one.
 - `fuel-unreachable-stop`: a planned fuel stop is past where the tank first runs dry. Add a fill before it.
@@ -52,7 +52,7 @@ The app plans fuel around the shortest usable range among the riders counted on 
 
 Riders drop road reports on a route: Closed (red diamond with ×), Rough or unpaved, and Hazard (amber diamonds with !). A report counts on any route within 75 m of it and is listed in the panel under "Road reports". A closure lasts 60 days, a hazard 21, a surface report 180. A seasonal closure never expires and is judged against each route's dates: if any date the route spans falls in the season it reads "Closed Nov 1 – May 31, which includes your date"; if the route is undated, "Closed every year Nov 1 – May 31"; if dated outside the season, the pin goes gray and reads "not on your dates".
 
-**Detect.** get_road_reports lists them, with each seasonal closure's verdict for the route's dates; they are rider reports, unverified. An undated route cannot be judged against a seasonal closure, so set departures first (check 6). No report is not evidence a road is open: reports expire, and the app has no official closure feed.
+**Detect.** get_road_reports lists them, with each seasonal closure's verdict for the route's dates; they are rider reports, unverified. An undated route cannot be judged against a seasonal closure, so set departures first (check 6). No report is not evidence a road is open: reports expire. get_official_closures reads Caltrans's chain controls and lane closures on California state highways, the only official feed wired in; anywhere else, and for national park and forest roads, check the authority named in the fresh-intel topic. An empty answer from either is not an open road.
 
 **Fix.** For a live closure on the date: move the route off that road (replace_stop or add_stop a point on another road, or have the rider drag the line onto another road), or change the date. The app never reroutes around a report. Tell the rider to verify with the road authority.
 
@@ -86,13 +86,13 @@ Every counted route needs a departure. Without one there are no ETAs, no timelin
 
 "Start looking for a bed at" is a ride-wide time in the ride header. When a dated route is still riding at that clock time, the route list shows an amber band on the row before that moment, reading for example "4:00 PM · 142 mi in · 3h 20m still to go" with a "Find somewhere to stay" button, and the map shows a blue bed disc where the group will be then.
 
-**Detect.** You cannot read the setting. Ask the rider for it, or whether any route shows the amber band. With the time T: a route whose last ETA is later than T on its own date (and that departed before T) shows the band. An undated route never shows it, which is not a pass.
+**Detect.** get_ride prints the stop-by time T when one is set, and check_ride reports `after-stop-by` for a dated route still riding at T (counting the dwell at its last point). With no T set, nothing checks this: ask the rider when they want to be off the road. An undated route never shows the band, which is not a pass.
 
-**Fix.** Leave earlier (set_departure), or end the day at lodging: search_places for "hotel" near the point before the band, add_stop with ["hotel"], then tell the rider to press "Sleeping here? End the route" on that row (or "End the route here" in its row menu), which splits the route there; you have no split tool. Or ask whether T should move. The "Find somewhere to stay" button on the band searches lodging within 45 minutes of riding either side of that moment.
+**Fix.** Leave earlier (set_departure), or end the day at lodging: search_places for "hotel" near the point before the band, add_stop with ["hotel"], then tell the rider to press "Sleeping here? End the route" on that row (or "End the route here" in its row menu), which splits the route there; you have no split tool. Or ask whether T should move, and set it with set_stop_by_time. The "Find somewhere to stay" button on the band searches lodging within 45 minutes of riding either side of that moment.
 
 ## 8. Arriving after dark
 
-Nothing in Routeloop computes sunset. If the rider cares, estimate sunset yourself from the last point's coordinates and the route's date, in local time where the route ends, compare it with the last ETA, and say plainly it is your estimate, good to within about 15 minutes. Flag arrivals within 30 minutes of sunset or after it. Fix as for check 7.
+get_conditions gives sunset at the end of each dated route, in local time there, and compares the arrival with it. The map draws nothing for this. Flag arrivals within 30 minutes of sunset or after it. Fix as for check 7.
 
 ## 9. Day length, stops, and weather
 

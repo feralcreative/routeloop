@@ -45,6 +45,8 @@ import { checkRide } from './tools/check-ride'
 import { getConditions } from './tools/conditions'
 import { getRoadReports } from './tools/road-reports'
 import { findAlongRoute } from './tools/along-route'
+import { getOfficialClosures } from './tools/official'
+import { setRoutePreferences, setStopByTime } from './tools/fix'
 
 export type AgentContext = {
   ride: RidePayload
@@ -110,6 +112,8 @@ export type Capability = {
   mutates: boolean
   /** Overwrites or removes something a rider set. Meaningful only with `mutates`. */
   destructive?: boolean
+  /** Reads an outside service that is not budgeted (Open-Meteo, Caltrans): open world. */
+  network?: boolean
   needs: Need
   /** The most external calls one call of this tool may make. Absent means none:
    *  a tool cannot spend what it did not declare. */
@@ -378,6 +382,9 @@ export const TOOLS = [
   getRiderContext,
   searchHelp,
   getHelp,
+  getOfficialClosures,
+  setRoutePreferences,
+  setStopByTime,
 ]
 
 const BY_NAME = new Map(TOOLS.map((t) => [t.name, t]))
@@ -402,7 +409,7 @@ export function annotationsOf(cap: Capability): {
   return {
     readOnlyHint: !cap.mutates && !spends,
     ...(cap.mutates ? { destructiveHint: !!cap.destructive } : {}),
-    openWorldHint: spends,
+    openWorldHint: spends || !!cap.network,
   }
 }
 

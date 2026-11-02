@@ -408,7 +408,7 @@ export async function conditionsFor(ctx: AgentContext, routeUid: string, now = n
 
 export const getConditions = tool({
   name: 'get_conditions',
-  cap: { mutates: false, needs: 'view' },
+  cap: { mutates: false, network: true, needs: 'view' },
   description:
     'Read the weather, elevation, and daylight along one route, matched to when the group reaches each spot: temperature low and high (with the motorcycle cold bands), worst rain chance, strongest wind, snow, ice or storms, elevation low and high, and sunrise and sunset where the route ends. Works from the ride as you hold it. An UNKNOWN answer is not a clear one: say so to the rider. One route per call.',
   schema: z.object({ route_uid: z.string().min(1).max(12) }).strict(),

@@ -11,7 +11,7 @@ export const checkRide = tool({
   name: 'check_ride',
   cap: { mutates: false, needs: 'view' },
   description:
-    'Audit the ride before anyone rides it. Returns two verdicts, never one “ready”: ROUTE CHECKS, worst first (fuel where the tank runs dry, legs never drawn, empty routes, missing departures, arrivals after the stop-by time or midnight, long days, alternates), each with the route, the place, the number, and the fix; and TRIP CHECKS only the riders can confirm. Weather and road closures are separate tools (get_conditions, get_road_reports). Run it before saying a ride is ready, and again after fixing.',
+    'Audit the ride before anyone rides it. Returns two verdicts, never one “ready”: ROUTE CHECKS, worst first (fuel where the tank runs dry, legs never drawn, empty routes, missing departures, arrivals after the stop-by time or midnight, long days, alternates), each with the route, the place, the number, and the fix; and TRIP CHECKS only the riders can confirm. Weather and road closures are separate tools (get_conditions, get_road_reports, get_official_closures). Run it before saying a ride is ready, and again after fixing.',
   schema: z.object({}).strict(),
   run: async (ctx) => {
     const findings = runChecks(ctx)
@@ -24,7 +24,7 @@ export const checkRide = tool({
       out.push(`  Fix: ${f.fix}`)
     }
     out.push(
-      'Not checked here: the weather (get_conditions, per dated route), rider road reports and seasonal closures (get_road_reports), and sunset (get_conditions).',
+      'Not checked here: the weather (get_conditions, per dated route), rider road reports and seasonal closures (get_road_reports), official closures on California state highways (get_official_closures), and sunset (get_conditions).',
     )
     out.push('', 'TRIP CHECKS (ask the riders; never assume):', ...tripQuestions(ctx).map((q) => `- ${q}`))
     return out.join('\n')

@@ -1,0 +1,242 @@
+{
+  "data": [
+    {
+      "cc": {
+        "index": "3-ED-50-23.16-W-160",
+        "recordTimestamp": {
+          "recordDate": "2026-11-01",
+          "recordTime": "16:47:03"
+        },
+        "location": {
+          "district": "3",
+          "locationName": "Camino Heights",
+          "nearbyPlace": "Placerville",
+          "longitude": "-120.712250",
+          "latitude": "38.736940",
+          "elevation": "2926",
+          "direction": "West",
+          "county": "El Dorado",
+          "route": "US-50",
+          "routeSuffix": "",
+          "postmilePrefix": "",
+          "postmile": "23.16",
+          "alignment": "",
+          "milepost": "51.70"
+        },
+        "inService": "true",
+        "statusData": {
+          "statusTimestamp": {
+            "statusDate": "2026-11-01",
+            "statusTime": "09:57:20"
+          },
+          "status": "R-0",
+          "statusDescription": "No chain controls are in effect at this time."
+        }
+      }
+    },
+    {
+      "cc": {
+        "index": "3-ED-50-38.2-W-167",
+        "recordTimestamp": {
+          "recordDate": "2026-11-01",
+          "recordTime": "16:47:03"
+        },
+        "location": {
+          "district": "3",
+          "locationName": "Riverton",
+          "nearbyPlace": "Pollock Pines",
+          "longitude": "-120.470669",
+          "latitude": "38.774110",
+          "elevation": "3231",
+          "direction": "West",
+          "county": "El Dorado",
+          "route": "US-50",
+          "routeSuffix": "",
+          "postmilePrefix": "",
+          "postmile": "38.20",
+          "alignment": "",
+          "milepost": "66.58"
+        },
+        "inService": "true",
+        "statusData": {
+          "statusTimestamp": {
+            "statusDate": "2026-11-01",
+            "statusTime": "10:15:00"
+          },
+          "status": "R-2",
+          "statusDescription": "Chains or traction devices are required on all vehicles except four wheel / all wheel drive vehicles with snow treaded tires on all wheels."
+        }
+      }
+    },
+    {
+      "cc": {
+        "index": "3-ED-50-57.8-E-172",
+        "recordTimestamp": {
+          "recordDate": "2026-11-01",
+          "recordTime": "16:47:03"
+        },
+        "location": {
+          "district": "3",
+          "locationName": "Strawberry",
+          "nearbyPlace": "Twin Bridges",
+          "longitude": "-120.148410",
+          "latitude": "38.795140",
+          "elevation": "5728",
+          "direction": "East",
+          "county": "El Dorado",
+          "route": "US-50",
+          "routeSuffix": "",
+          "postmilePrefix": "",
+          "postmile": "57.80",
+          "alignment": "",
+          "milepost": "86.06"
+        },
+        "inService": "true",
+        "statusData": {
+          "statusTimestamp": {
+            "statusDate": "2026-11-01",
+            "statusTime": "09:57:20"
+          },
+          "status": "W",
+          "statusDescription": "No Restrictions - Watch for snow on pavement."
+        }
+      }
+    },
+    {
+      "cc": {
+        "index": "3-ED-50-59.7-W-173",
+        "recordTimestamp": {
+          "recordDate": "2026-11-01",
+          "recordTime": "16:47:03"
+        },
+        "location": {
+          "district": "3",
+          "locationName": "Twin Bridges",
+          "nearbyPlace": "Twin Bridges",
+          "longitude": "-120.122810",
+          "latitude": "38.811350",
+          "elevation": "6158",
+          "direction": "West",
+          "county": "El Dorado",
+          "route": "US-50",
+          "routeSuffix": "",
+          "postmilePrefix": "",
+          "postmile": "59.70",
+          "alignment": "",
+          "milepost": "87.97"
+        },
+        "inService": "true",
+        "statusData": {
+          "statusTimestamp": {
+            "statusDate": "2026-11-01",
+            "statusTime": "09:57:20"
+          },
+          "status": "R-1 MODIFIED",
+          "statusDescription": "Trucks and vehicles pulling trailers require chains, traction devices or snow tires on the drive axle of all vehicles except four wheel or all wheel drive vehicles."
+        }
+      }
+    },
+    {
+      "cc": {
+        "index": "3-ED-50-66.82-E-252",
+        "recordTimestamp": {
+          "recordDate": "2026-11-01",
+          "recordTime": "16:47:03"
+        },
+        "location": {
+          "district": "3",
+          "locationName": "Echo Summit (Holding only)",
+          "nearbyPlace": "South Lake Tahoe",
+          "longitude": "-120.029660",
+          "latitude": "38.813110",
+          "elevation": "7401",
+          "direction": "East",
+          "county": "El Dorado",
+          "route": "US-50",
+          "routeSuffix": "",
+          "postmilePrefix": "",
+          "postmile": "66.82",
+          "alignment": "",
+          "milepost": "94.98"
+        },
+        "inService": "true",
+        "statusData": {
+          "statusTimestamp": {
+            "statusDate": "2026-11-01",
+            "statusTime": "09:57:20"
+          },
+          "status": "VM",
+          "statusDescription": "A traffic control is in effect to meter vehicles at the chain check point in order to reduce traffic congestion in the mountain areas."
+        }
+      }
+    },
+    {
+      "cc": {
+        "index": "3-ALP-89-23.6-N-237",
+        "recordTimestamp": {
+          "recordDate": "2026-11-01",
+          "recordTime": "16:47:03"
+        },
+        "location": {
+          "district": "3",
+          "locationName": "Luther Pass",
+          "nearbyPlace": "Markleeville",
+          "longitude": "-119.939680",
+          "latitude": "38.787944",
+          "elevation": "7732",
+          "direction": "North",
+          "county": "Alpine",
+          "route": "SR-89",
+          "routeSuffix": "",
+          "postmilePrefix": "",
+          "postmile": "23.60",
+          "alignment": "",
+          "milepost": "31.03"
+        },
+        "inService": "true",
+        "statusData": {
+          "statusTimestamp": {
+            "statusDate": "2026-11-01",
+            "statusTime": "09:57:20"
+          },
+          "status": "R-0",
+          "statusDescription": "No chain controls are in effect at this time."
+        }
+      }
+    },
+    {
+      "cc": {
+        "index": "7-LA-2-35.3-E-",
+        "recordTimestamp": {
+          "recordDate": "2026-11-01",
+          "recordTime": "16:47:03"
+        },
+        "location": {
+          "district": "7",
+          "locationName": "Ladybug curve",
+          "nearbyPlace": "Not Reported",
+          "longitude": "Not Reported",
+          "latitude": "Not Reported",
+          "elevation": "Not Reported",
+          "direction": "East",
+          "county": "Los Angeles",
+          "route": "SR-2",
+          "routeSuffix": "",
+          "postmilePrefix": "",
+          "postmile": "35.30",
+          "alignment": "",
+          "milepost": "25.03"
+        },
+        "inService": "true",
+        "statusData": {
+          "statusTimestamp": {
+            "statusDate": "2026-03-11",
+            "statusTime": "10:22:15"
+          },
+          "status": "-118.1307759",
+          "statusDescription": ""
+        }
+      }
+    }
+  ]
+}

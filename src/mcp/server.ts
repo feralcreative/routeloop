@@ -318,7 +318,7 @@ function buildServer(user: UserRow, prefs: Prefs): McpServer {
           role: 'user' as const,
           content: {
             type: 'text' as const,
-            text: `Check ride ${a.ride_id} in Routeloop. Call check_ride, then get_conditions and get_road_reports for each dated route, and read the guide topic ready-to-ride for anything you need explained. List the problems worst first, each with the fix you would make, then the things only we riders can confirm. Change nothing until I say so.`,
+            text: `Check ride ${a.ride_id} in Routeloop. Call check_ride, then get_conditions and get_road_reports for each dated route and get_official_closures for any route in California, and read the guide topic ready-to-ride for anything you need explained. List the problems worst first, each with the fix you would make, then the things only we riders can confirm. Change nothing until I say so.`,
           },
         },
       ],
