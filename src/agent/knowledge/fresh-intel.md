@@ -13,7 +13,7 @@ Never say a road is open, closed, repaved, or clear without a source and its dat
 
 ## What to check, in order
 
-1. **Routeloop's own data.** get_road_reports for rider reports on this ride's roads, and get_conditions for the forecast along a dated route. Rider reports are real and unverified; say so.
+1. **Routeloop's own data.** get_road_reports for rider reports on this ride's roads, get_official_closures for Caltrans's chain controls and lane closures on California state highways, and get_conditions for the forecast along a dated route. Rider reports are real and unverified; say so.
 2. **The official source.** If you can search the web, go to the authority first and name it:
    - State highways: the state DOT's road-conditions or 511 page (California: Caltrans QuickMap at quickmap.dot.ca.gov; Washington: WSDOT; Oregon: TripCheck; Colorado: COtrip; Nevada: NVroads; Arizona: AZ511; Utah: UDOT Traffic).
    - National park roads (Tioga, Going-to-the-Sun, Trail Ridge, Beartooth's park sections): the park's own road-status page on nps.gov.

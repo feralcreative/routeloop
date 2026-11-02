@@ -319,7 +319,7 @@ describe('conditionsFor', () => {
   })
 
   it('is a read anyone on the ride may call', () => {
-    expect(getConditions.cap).toEqual({ mutates: false, needs: 'view' })
+    expect(getConditions.cap).toEqual({ mutates: false, network: true, needs: 'view' })
     expect(getConditions.schema.safeParse({ route_uid: 'x', extra: 1 }).success).toBe(false)
   })
 })

@@ -1,0 +1,479 @@
+{
+  "data": [
+    {
+      "lcs": {
+        "index": "C50BA-0002-2026-11-01-19:01:00",
+        "recordTimestamp": {
+          "recordDate": "2026-11-01",
+          "recordTime": "16:43:02",
+          "recordEpoch": "1793576582"
+        },
+        "location": {
+          "travelFlowDirection": "East / West",
+          "begin": {
+            "beginDistrict": "3",
+            "beginLocationName": "31 Milestone Tract",
+            "beginFreeFormDescription": "",
+            "beginNearbyPlace": "Kyburz",
+            "beginLongitude": "-120.319471",
+            "beginLatitude": "38.765872",
+            "beginElevation": "4002",
+            "beginDirection": "",
+            "beginCounty": "El Dorado",
+            "beginRoute": "US-50",
+            "beginRouteSuffix": "",
+            "beginPostmilePrefix": "",
+            "beginPostmile": "47.480",
+            "beginAlignment": "",
+            "beginMilepost": "75.807"
+          },
+          "end": {
+            "endDistrict": "3",
+            "endLocationName": "Forni Tract",
+            "endFreeFormDescription": "",
+            "endNearbyPlace": "Twin Bridges",
+            "endLongitude": "-120.167161",
+            "endLatitude": "38.789049",
+            "endElevation": "5666",
+            "endDirection": "",
+            "endCounty": "El Dorado",
+            "endRoute": "US-50",
+            "endRouteSuffix": "",
+            "endPostmilePrefix": "",
+            "endPostmile": "56.370",
+            "endAlignment": "",
+            "endMilepost": "84.637"
+          }
+        },
+        "closure": {
+          "closureID": "C50BA",
+          "logNumber": "2",
+          "closureTimestamp": {
+            "closureRequestDate": "2026-10-28",
+            "closureRequestTime": "14:16:14",
+            "closureRequestEpoch": "1793222174",
+            "closureStartDate": "2026-11-01",
+            "closureStartTime": "19:01:00",
+            "closureStartEpoch": "1793588460",
+            "closureEndDate": "2026-11-02",
+            "closureEndTime": "05:59:00",
+            "closureEndEpoch": "1793627940",
+            "isClosureEndIndefinite": "false"
+          },
+          "facility": "Conventional Hwy",
+          "typeOfClosure": "One-Way Traffic",
+          "typeOfWork": "Drainage Work",
+          "durationOfClosure": "Standard",
+          "estimatedDelay": "10",
+          "lanesClosed": "1",
+          "totalExistingLanes": "2",
+          "isCHINReportable": "true",
+          "code1097": {
+            "isCode1097": "false",
+            "code1097Timestamp": {
+              "code1097Date": "",
+              "code1097Time": "",
+              "code1097Epoch": ""
+            }
+          },
+          "code1098": {
+            "isCode1098": "false",
+            "code1098Timestamp": {
+              "code1098Date": "",
+              "code1098Time": "",
+              "code1098Epoch": ""
+            }
+          },
+          "code1022": {
+            "isCode1022": "false",
+            "code1022Timestamp": {
+              "code1022Date": "",
+              "code1022Time": "",
+              "code1022Epoch": ""
+            }
+          }
+        }
+      }
+    },
+    {
+      "lcs": {
+        "index": "C50BA-0003-2026-11-02-19:01:00",
+        "recordTimestamp": {
+          "recordDate": "2026-11-01",
+          "recordTime": "16:43:02",
+          "recordEpoch": "1793576582"
+        },
+        "location": {
+          "travelFlowDirection": "East / West",
+          "begin": {
+            "beginDistrict": "3",
+            "beginLocationName": "31 Milestone Tract",
+            "beginFreeFormDescription": "",
+            "beginNearbyPlace": "Kyburz",
+            "beginLongitude": "-120.319471",
+            "beginLatitude": "38.765872",
+            "beginElevation": "4002",
+            "beginDirection": "",
+            "beginCounty": "El Dorado",
+            "beginRoute": "US-50",
+            "beginRouteSuffix": "",
+            "beginPostmilePrefix": "",
+            "beginPostmile": "47.480",
+            "beginAlignment": "",
+            "beginMilepost": "75.807"
+          },
+          "end": {
+            "endDistrict": "3",
+            "endLocationName": "Forni Tract",
+            "endFreeFormDescription": "",
+            "endNearbyPlace": "Twin Bridges",
+            "endLongitude": "-120.167161",
+            "endLatitude": "38.789049",
+            "endElevation": "5666",
+            "endDirection": "",
+            "endCounty": "El Dorado",
+            "endRoute": "US-50",
+            "endRouteSuffix": "",
+            "endPostmilePrefix": "",
+            "endPostmile": "56.370",
+            "endAlignment": "",
+            "endMilepost": "84.637"
+          }
+        },
+        "closure": {
+          "closureID": "C50BA",
+          "logNumber": "3",
+          "closureTimestamp": {
+            "closureRequestDate": "2026-10-28",
+            "closureRequestTime": "14:16:21",
+            "closureRequestEpoch": "1793222181",
+            "closureStartDate": "2026-11-02",
+            "closureStartTime": "19:01:00",
+            "closureStartEpoch": "1793674860",
+            "closureEndDate": "2026-11-03",
+            "closureEndTime": "05:59:00",
+            "closureEndEpoch": "1793714340",
+            "isClosureEndIndefinite": "false"
+          },
+          "facility": "Conventional Hwy",
+          "typeOfClosure": "One-Way Traffic",
+          "typeOfWork": "Drainage Work",
+          "durationOfClosure": "Standard",
+          "estimatedDelay": "10",
+          "lanesClosed": "1",
+          "totalExistingLanes": "2",
+          "isCHINReportable": "true",
+          "code1097": {
+            "isCode1097": "false",
+            "code1097Timestamp": {
+              "code1097Date": "",
+              "code1097Time": "",
+              "code1097Epoch": ""
+            }
+          },
+          "code1098": {
+            "isCode1098": "false",
+            "code1098Timestamp": {
+              "code1098Date": "",
+              "code1098Time": "",
+              "code1098Epoch": ""
+            }
+          },
+          "code1022": {
+            "isCode1022": "false",
+            "code1022Timestamp": {
+              "code1022Date": "",
+              "code1022Time": "",
+              "code1022Epoch": ""
+            }
+          }
+        }
+      }
+    },
+    {
+      "lcs": {
+        "index": "C50KB-0002-2026-11-01-18:01:00",
+        "recordTimestamp": {
+          "recordDate": "2026-11-01",
+          "recordTime": "16:43:02",
+          "recordEpoch": "1793576582"
+        },
+        "location": {
+          "travelFlowDirection": "East",
+          "begin": {
+            "beginDistrict": "3",
+            "beginLocationName": "Bedford Ave",
+            "beginFreeFormDescription": "",
+            "beginNearbyPlace": "Placerville",
+            "beginLongitude": "-120.799059",
+            "beginLatitude": "38.730353",
+            "beginElevation": "1860",
+            "beginDirection": "",
+            "beginCounty": "El Dorado",
+            "beginRoute": "US-50",
+            "beginRouteSuffix": "",
+            "beginPostmilePrefix": "",
+            "beginPostmile": "18.032",
+            "beginAlignment": "",
+            "beginMilepost": "46.571"
+          },
+          "end": {
+            "endDistrict": "3",
+            "endLocationName": "Sly Park Rd",
+            "endFreeFormDescription": "",
+            "endNearbyPlace": "Pollock Pines",
+            "endLongitude": "-120.575954",
+            "endLatitude": "38.761315",
+            "endElevation": "3982",
+            "endDirection": "",
+            "endCounty": "El Dorado",
+            "endRoute": "US-50",
+            "endRouteSuffix": "",
+            "endPostmilePrefix": "R",
+            "endPostmile": "31.299",
+            "endAlignment": "",
+            "endMilepost": "59.834"
+          }
+        },
+        "closure": {
+          "closureID": "C50KB",
+          "logNumber": "2",
+          "closureTimestamp": {
+            "closureRequestDate": "2026-10-27",
+            "closureRequestTime": "15:17:57",
+            "closureRequestEpoch": "1793139477",
+            "closureStartDate": "2026-11-01",
+            "closureStartTime": "18:01:00",
+            "closureStartEpoch": "1793584860",
+            "closureEndDate": "2026-11-02",
+            "closureEndTime": "09:01:00",
+            "closureEndEpoch": "1793638860",
+            "isClosureEndIndefinite": "false"
+          },
+          "facility": "Mainline",
+          "typeOfClosure": "Alternating Lanes",
+          "typeOfWork": "Median Barrier Work",
+          "durationOfClosure": "Standard",
+          "estimatedDelay": "0",
+          "lanesClosed": "Median, LShoulder, 1, 2, Auxiliary, RShoulder",
+          "totalExistingLanes": "2",
+          "isCHINReportable": "true",
+          "code1097": {
+            "isCode1097": "true",
+            "code1097Timestamp": {
+              "code1097Date": "2026-11-01",
+              "code1097Time": "11:05:00",
+              "code1097Epoch": "1793559900"
+            }
+          },
+          "code1098": {
+            "isCode1098": "false",
+            "code1098Timestamp": {
+              "code1098Date": "",
+              "code1098Time": "",
+              "code1098Epoch": ""
+            }
+          },
+          "code1022": {
+            "isCode1022": "false",
+            "code1022Timestamp": {
+              "code1022Date": "",
+              "code1022Time": "",
+              "code1022Epoch": ""
+            }
+          }
+        }
+      }
+    },
+    {
+      "lcs": {
+        "index": "C5BB-0001-2026-11-06-21:01:00",
+        "recordTimestamp": {
+          "recordDate": "2026-11-01",
+          "recordTime": "16:43:02",
+          "recordEpoch": "1793576582"
+        },
+        "location": {
+          "travelFlowDirection": "North",
+          "begin": {
+            "beginDistrict": "3",
+            "beginLocationName": "25th Ave",
+            "beginFreeFormDescription": "",
+            "beginNearbyPlace": "Sacramento",
+            "beginLongitude": "-121.517051",
+            "beginLatitude": "38.533955",
+            "beginElevation": "26",
+            "beginDirection": "",
+            "beginCounty": "Sacramento",
+            "beginRoute": "I-5",
+            "beginRouteSuffix": "",
+            "beginPostmilePrefix": "",
+            "beginPostmile": "19.954",
+            "beginAlignment": "",
+            "beginMilepost": "515.032"
+          },
+          "end": {
+            "endDistrict": "3",
+            "endLocationName": "Broadway",
+            "endFreeFormDescription": "",
+            "endNearbyPlace": "Sacramento",
+            "endLongitude": "-121.512286",
+            "endLatitude": "38.566949",
+            "endElevation": "26",
+            "endDirection": "",
+            "endCounty": "Sacramento",
+            "endRoute": "I-5",
+            "endRouteSuffix": "",
+            "endPostmilePrefix": "",
+            "endPostmile": "22.436",
+            "endAlignment": "",
+            "endMilepost": "517.514"
+          }
+        },
+        "closure": {
+          "closureID": "C5BB",
+          "logNumber": "1",
+          "closureTimestamp": {
+            "closureRequestDate": "2026-10-21",
+            "closureRequestTime": "16:56:07",
+            "closureRequestEpoch": "1792626967",
+            "closureStartDate": "2026-11-06",
+            "closureStartTime": "21:01:00",
+            "closureStartEpoch": "1794027660",
+            "closureEndDate": "2026-11-07",
+            "closureEndTime": "04:59:00",
+            "closureEndEpoch": "1794056340",
+            "isClosureEndIndefinite": "false"
+          },
+          "facility": "Mainline",
+          "typeOfClosure": "Lane",
+          "typeOfWork": "Utility Work",
+          "durationOfClosure": "Standard",
+          "estimatedDelay": "Not Reported",
+          "lanesClosed": "5, RShoulder",
+          "totalExistingLanes": "5",
+          "isCHINReportable": "false",
+          "code1097": {
+            "isCode1097": "false",
+            "code1097Timestamp": {
+              "code1097Date": "",
+              "code1097Time": "",
+              "code1097Epoch": ""
+            }
+          },
+          "code1098": {
+            "isCode1098": "false",
+            "code1098Timestamp": {
+              "code1098Date": "",
+              "code1098Time": "",
+              "code1098Epoch": ""
+            }
+          },
+          "code1022": {
+            "isCode1022": "false",
+            "code1022Timestamp": {
+              "code1022Date": "",
+              "code1022Time": "",
+              "code1022Epoch": ""
+            }
+          }
+        }
+      }
+    },
+    {
+      "lcs": {
+        "index": "C50KB-0003-2026-11-02-18:01:00",
+        "recordTimestamp": {
+          "recordDate": "2026-11-01",
+          "recordTime": "16:43:02",
+          "recordEpoch": "1793576582"
+        },
+        "location": {
+          "travelFlowDirection": "East",
+          "begin": {
+            "beginDistrict": "3",
+            "beginLocationName": "Bedford Ave",
+            "beginFreeFormDescription": "",
+            "beginNearbyPlace": "Placerville",
+            "beginLongitude": "-120.799059",
+            "beginLatitude": "38.730353",
+            "beginElevation": "1860",
+            "beginDirection": "",
+            "beginCounty": "El Dorado",
+            "beginRoute": "US-50",
+            "beginRouteSuffix": "",
+            "beginPostmilePrefix": "",
+            "beginPostmile": "18.032",
+            "beginAlignment": "",
+            "beginMilepost": "46.571"
+          },
+          "end": {
+            "endDistrict": "3",
+            "endLocationName": "Sly Park Rd",
+            "endFreeFormDescription": "",
+            "endNearbyPlace": "Pollock Pines",
+            "endLongitude": "-120.575954",
+            "endLatitude": "38.761315",
+            "endElevation": "3982",
+            "endDirection": "",
+            "endCounty": "El Dorado",
+            "endRoute": "US-50",
+            "endRouteSuffix": "",
+            "endPostmilePrefix": "R",
+            "endPostmile": "31.299",
+            "endAlignment": "",
+            "endMilepost": "59.834"
+          }
+        },
+        "closure": {
+          "closureID": "C50KB",
+          "logNumber": "3",
+          "closureTimestamp": {
+            "closureRequestDate": "2026-10-27",
+            "closureRequestTime": "15:17:57",
+            "closureRequestEpoch": "1793139477",
+            "closureStartDate": "2026-11-02",
+            "closureStartTime": "18:01:00",
+            "closureStartEpoch": "1793671260",
+            "closureEndDate": "2026-11-03",
+            "closureEndTime": "09:01:00",
+            "closureEndEpoch": "1793725260",
+            "isClosureEndIndefinite": "false"
+          },
+          "facility": "Mainline",
+          "typeOfClosure": "Alternating Lanes",
+          "typeOfWork": "Median Barrier Work",
+          "durationOfClosure": "Standard",
+          "estimatedDelay": "0",
+          "lanesClosed": "Median, LShoulder, 1, 2, Auxiliary, RShoulder",
+          "totalExistingLanes": "2",
+          "isCHINReportable": "true",
+          "code1097": {
+            "isCode1097": "false",
+            "code1097Timestamp": {
+              "code1097Date": "",
+              "code1097Time": "",
+              "code1097Epoch": ""
+            }
+          },
+          "code1098": {
+            "isCode1098": "false",
+            "code1098Timestamp": {
+              "code1098Date": "",
+              "code1098Time": "",
+              "code1098Epoch": ""
+            }
+          },
+          "code1022": {
+            "isCode1022": "true",
+            "code1022Timestamp": {
+              "code1022Date": "2026-11-01",
+              "code1022Time": "08:00:00",
+              "code1022Epoch": "1793548800"
+            }
+          }
+        }
+      }
+    }
+  ]
+}
