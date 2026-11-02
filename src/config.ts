@@ -118,7 +118,17 @@ export const OWNER_EMAIL = env('OWNER_EMAIL', 'ziad@feralcreative.co').trim().to
 // so the dev sign-in below and the seeders cannot disagree about what "local"
 // means.
 export function isLocalDatabaseUrl(url: string): boolean {
-  return /@(127\.0\.0\.1|localhost|host\.docker\.internal)[:/]/.test(url)
+  let u: URL
+  try {
+    u = new URL(url)
+  } catch {
+    return false
+  }
+  if (u.protocol !== 'postgres:' && u.protocol !== 'postgresql:') return false
+  // pg connects to a `host` in the query string over the one in the authority, so a
+  // URL carrying one is wherever that names, however local its authority looks.
+  if (u.searchParams.has('host') || u.searchParams.has('hostaddr')) return false
+  return ['127.0.0.1', 'localhost', 'host.docker.internal'].includes(u.hostname)
 }
 
 export const IS_LOCAL_DATABASE = isLocalDatabaseUrl(process.env.DATABASE_URL ?? '')

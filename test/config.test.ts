@@ -23,6 +23,12 @@ describe('isLocalDatabaseUrl', () => {
     expect(isLocalDatabaseUrl('postgres://u:p@prod.example.com/localhost')).toBe(false)
     expect(isLocalDatabaseUrl('postgres://u:p@prod.example.com/db?h=127.0.0.1')).toBe(false)
   })
+
+  it('refuses a local authority whose query string sends the connection elsewhere', () => {
+    expect(isLocalDatabaseUrl('postgres://u:p@localhost/db?host=prod.example.com')).toBe(false)
+    expect(isLocalDatabaseUrl('postgres://u:p@localhost/db?hostaddr=203.0.113.9')).toBe(false)
+    expect(isLocalDatabaseUrl('postgres://u:p@prod.example.com:5432/localhost:5432')).toBe(false)
+  })
 })
 
 describe('redactDatabaseUrl', () => {
