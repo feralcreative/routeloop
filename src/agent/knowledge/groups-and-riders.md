@@ -50,7 +50,7 @@ A group is riders who set off from the same place. Every ride has at least one. 
 
 ## Meeting points
 
-Builder, Groups tab, Find meeting points (shown with two or more groups). Creator only. It reads the saved ride, so wait for Saved first.
+Builder, Groups tab, Find meeting points (shown with two or more groups). Anyone who can edit the ride may use it. It reads the saved ride, so wait for Saved first.
 
 - The destination is where the main group's route ends. Each joining group contributes only its starting point; one with no route gets its direct road to the destination routed for it. The main group never diverts, and no candidate is offered in the last fifth of its road.
 - Each joining group gets up to three candidates with the extra miles each costs them and a numbered map dot.
