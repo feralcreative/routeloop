@@ -17,6 +17,8 @@
 //   - Deleting a point carries its neighbors' shaping points onto the leg that
 //     replaces them (`rejoinRouteLegs`); moving one clears them, because a move
 //     changes an END of the pair and the hint no longer describes anything.
+//   - Inserting a point mid-leg splits that leg's shaping points by where each lies
+//     along its road (`splitViasAt`, #444).
 import {
   MAX_POINTS,
   MAX_ROUTES,
@@ -36,6 +38,51 @@ export type Place = { name: string; address?: string | null; lng: number; lat: n
 
 // The builder's own cap, restated because the client copy is the one it enforces.
 export const MAX_VIAS_PER_LEG = 20
+
+/** The browser's snapToTrack() position on a track, as segment index plus fraction,
+ *  searching from `floor`; null for a track with no segment. */
+function trackPos(track: Track, [lng, lat]: [number, number], floor: number): { seg: number; pos: number } | null {
+  if (track.length < 2) return null
+  const k = Math.cos((lat * Math.PI) / 180)
+  let best: { seg: number; pos: number } | null = null
+  let bestD = Infinity
+  for (let i = Math.max(0, Math.min(floor, track.length - 2)); i < track.length - 1; i++) {
+    const ax = track[i][0] * k
+    const ay = track[i][1]
+    const vx = track[i + 1][0] * k - ax
+    const vy = track[i + 1][1] - ay
+    const len2 = vx * vx + vy * vy
+    const t = len2 === 0 ? 0 : Math.max(0, Math.min(1, ((lng * k - ax) * vx + (lat - ay) * vy) / len2))
+    const dx = ax + t * vx - lng * k
+    const dy = ay + t * vy - lat
+    const d = dx * dx + dy * dy
+    if (d < bestD) {
+      bestD = d
+      best = { seg: i, pos: i + t }
+    }
+  }
+  return best
+}
+
+/**
+ * Which of a leg's shaping points go before a point inserted on it, and which after,
+ * by where each lies along the leg's road (#444). route-shape.js `splitViasAt()` is
+ * the browser's copy; test/route-shape.test.ts pins the two together.
+ */
+export function splitViasAt(track: Track, vias: Track, at: [number, number]): [Track, Track] {
+  if (!vias.length) return [[], []]
+  const cut = trackPos(track, at, 0)
+  if (!cut) return [vias.slice(), []]
+  let floor = 0
+  let n = 0
+  for (const v of vias) {
+    const s = trackPos(track, [v[0], v[1]], floor)
+    if (!s || s.pos > cut.pos) break
+    floor = s.seg
+    n++
+  }
+  return [vias.slice(0, n), vias.slice(n)]
+}
 
 /** A refusal the agent is shown verbatim, so it can say what went wrong. */
 export class EditError extends Error {}
@@ -161,8 +208,16 @@ export function addPoint(
   const point = newPoint(place, opts.roles ?? [])
   if (opts.durationMin != null) point.durationMin = Math.max(0, Math.min(43200, Math.round(opts.durationMin)))
   const at = Math.max(0, Math.min(route.points.length, opts.at ?? route.points.length))
+  // Mid-leg: the old leg's shaping points go to whichever half they lie on.
+  const carry = new Map<string, Track>()
+  const old = at > 0 && at < before.length ? legs[at - 1] : undefined
+  if (old) {
+    const [head, tail] = splitViasAt(old.geometry, old.viaPoints ?? [], [point.lng, point.lat])
+    carry.set(pairKey(before[at - 1], point), head)
+    carry.set(pairKey(point, before[at]), tail)
+  }
   route.points.splice(at, 0, point)
-  return { point, stale: releg(r, route, before, legs) }
+  return { point, stale: releg(r, route, before, legs, carry) }
 }
 
 /** Swap what a point IS for another place, keeping its uid, dwell, notes and
@@ -315,4 +370,38 @@ export function addRoute(ride: RidePayload, title: string, start: Place): RouteP
   }
   ride.routes.push(route)
   return route
+}
+
+/**
+ * Give a route new routing preferences and mark EVERY leg for routing, because a
+ * preference changes the road and the old one drawn under it is a lie on the map
+ * (builder.js `togglePref()` re-routes them all for the same reason).
+ *
+ * `prefs` MUST ALREADY BE NORMALIZED by `normalizePrefs()` in route-prefs.ts, which
+ * is the one place null, `{}` and all-false are decided to be one state; this module
+ * imports nothing from there, so the caller does it. The legs keep their road and
+ * their shaping points until the router answers: a rider's shaping is still their
+ * intent under a new preference, and a leg that cannot be redrawn is refused by
+ * the caller and rolled back rather than left wrong.
+ */
+export function setRoutePrefs(ride: RidePayload, routeUid: string, prefs: RoutePayload['routePrefs']): Stale[] {
+  const r = routeIndex(ride, routeUid)
+  const route = ride.routes[r]
+  route.routePrefs = prefs
+  return route.legs.map((_, leg) => ({ route: r, leg }))
+}
+
+/**
+ * The ride's stop-by time: when the group wants to be looking for a bed, as a WALL
+ * CLOCK where the ride is (`rides.stop_by_min`, minutes from midnight). "16:00"
+ * means four where the bike is, so nothing converts it. null clears it.
+ */
+export function setStopBy(ride: RidePayload, local: string | null): void {
+  if (local == null || local === '') {
+    ride.stopByMin = null
+    return
+  }
+  const m = /^([01]\d|2[0-3]):([0-5]\d)$/.exec(local)
+  if (!m) throw new EditError('a stop-by time must be a 24-hour local time like 16:00')
+  ride.stopByMin = Number(m[1]) * 60 + Number(m[2])
 }

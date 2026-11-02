@@ -1936,6 +1936,13 @@
       // still lands as a POI, which is every map click and plain name search.
       pt.kind = (pt.roles || []).length ? "stop" : "poi";
     }
+    // A STOP LANDING MID-LEG SPLITS ITS SHAPING POINTS BY POSITION (#444), each to
+    // the half of the leg it lies on, read off the old leg before it is replaced.
+    const split =
+      !first && where > 0 && where < oldLen && route.legs[where - 1]
+        ? window.TBShape.splitViasAt(route.legs[where - 1].geometry, route.legs[where - 1].viaPoints, [pt.lng, pt.lat])
+        : null;
+    if (split) route.legs[where - 1].viaPoints = split[0];
     route.points.splice(where, 0, pt);
 
     // ONE NEW LEG, wherever the point landed. A route with N points has N−1 legs, so
@@ -1945,7 +1952,11 @@
         // against an ARRIVAL time and cannot use the straight placeholder.
     let routed = Promise.resolve();
     if (!first) {
-      route.legs.splice(Math.min(where, route.legs.length), 0, straightLeg([pt.lng, pt.lat], [pt.lng, pt.lat]));
+      route.legs.splice(
+        Math.min(where, route.legs.length),
+        0,
+        straightLeg([pt.lng, pt.lat], [pt.lng, pt.lat], split ? split[1] : []),
+      );
       state.legSeq[r] = [];
       routed = computeLegsAround(r, [where - 1, where]);
     }
