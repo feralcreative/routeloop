@@ -265,7 +265,7 @@ export const SCENARIOS: Scenario[] = [
     message: 'Where should we stop for gas on this ride?',
     ride: () => {
       const r = lostCoast()
-      return ridePayload.parse({ ...r, power: 'pedal' })
+      return ridePayload.parse({ ...r, vehicle: 'bicycle', power: 'pedal' })
     },
     check: {
       reply: [/(bicycle|pedal|no (gas|fuel)|(don['’]t|won['’]t|doesn['’]t) need (any )?(gas|fuel))/i],
