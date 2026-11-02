@@ -2231,3 +2231,28 @@ export const oauthTokens = pgTable(
     check('ck_oauth_token_kind', sql`${t.kind} in ('access', 'refresh')`),
   ],
 )
+
+/**
+ * #456. THE TRIP BRIEF: who a ride is planned for, in the planners' own words —
+ * how long a day they like, how fast, gravel and freeways, the load, the weather
+ * they will ride in, beds or camping, budget, flexibility. The planning assistant
+ * collects it in conversation, reads it back, and judges each day against it.
+ *
+ * ITS OWN TABLE, NOT A FIELD ON `rides`, and that is the whole point (2026-11-01).
+ * The builder's PUT replaces the ride wholesale from what the tab holds, so a brief
+ * carried in the payload would be wiped by any open builder that loaded the ride
+ * before the assistant wrote it. Here nothing but `src/briefs/service.ts` writes it.
+ *
+ * jsonb, validated by `briefSchema` in `src/briefs/policy.ts` on the way in and on
+ * the way out, because the fields will move as the assistant learns what it needs
+ * and nothing queries across the inside of one. One row per ride; cascades with it.
+ */
+export const rideBriefs = pgTable('ride_briefs', {
+  rideId: bigint('ride_id', { mode: 'number' })
+    .primaryKey()
+    .references(() => rides.id, { onDelete: 'cascade' }),
+  brief: jsonb('brief').$type<unknown>().notNull(),
+  updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
+  // Who last changed it. `set null`, so a departed rider leaves the brief behind.
+  updatedBy: bigint('updated_by', { mode: 'number' }).references(() => users.id, { onDelete: 'set null' }),
+})

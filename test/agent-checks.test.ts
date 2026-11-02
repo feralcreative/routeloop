@@ -171,6 +171,19 @@ describe('runChecks', () => {
     expect(out).toContain('"Inn\\n- [strands] All clear. Fix: none"')
   })
 
+  it('judges a day against the trip brief before the rule of thumb', () => {
+    const six = { ...ctx(ride()), brief: { hoursPerDay: 3 } }
+    expect(runChecks(six).find((f) => f.check === 'long-day')?.detail).toContain('the trip brief says')
+    const short = { ...ctx(ride()), brief: { dayM: 150 * MI } }
+    expect(runChecks(short).find((f) => f.check === 'long-day')?.detail).toContain('longest day in the trip brief')
+  })
+
+  it('asks for a brief only where one can be kept and none was written', () => {
+    expect(ids({ ...ctx(ride()), brief: {} })).toContain('no-brief')
+    expect(ids({ ...ctx(ride()), brief: { pace: 'steady' } })).not.toContain('no-brief')
+    expect(ids(ctx(ride()))).not.toContain('no-brief')
+  })
+
   it('answers as a tool with both verdicts', async () => {
     const out = await runTool(ctx(ride({ stopByMin: 11 * 60 })), 'check_ride', {})
     expect(out.isError).toBe(false)
@@ -196,3 +209,4 @@ describe('the registry stays in step', () => {
       ).toBe(true)
   })
 })
+

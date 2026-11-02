@@ -39,6 +39,8 @@ import {
 import { rideSummary, type Preset, type Snapshot, type Units } from './summary'
 import { TOPIC_NAMES, TOPICS, topicText } from './knowledge'
 import type { FuelContext } from './fuel-context'
+import type { Brief } from '../briefs/policy'
+import { setTripBrief } from './tools/brief'
 import { getFuelPlan, getRiderContext } from './tools/fuel'
 import { getHelp, searchHelp } from './tools/help'
 import { checkRide } from './tools/check-ride'
@@ -65,6 +67,9 @@ export type AgentContext = {
   preset?: Preset
   /** The group's tank, resolved by fuelContextFor(). Absent in tests and evals. */
   fuel?: FuelContext
+  /** The ride's trip brief (#456), read by briefFor(). Undefined where there is no
+   *  stored ride to keep one on; `{}` when nobody has written one yet. */
+  brief?: Brief
   units: Units
   budget: Budget
   favor: string[]
@@ -112,6 +117,9 @@ export type Capability = {
   mutates: boolean
   /** Overwrites or removes something a rider set. Meaningful only with `mutates`. */
   destructive?: boolean
+  /** Saves something OUTSIDE the ride straight to the database (the trip brief):
+   *  not an edit to the draft, so nothing to roll back or propose, but not read-only. */
+  writes?: boolean
   /** Reads an outside service that is not budgeted (Open-Meteo, Caltrans): open world. */
   network?: boolean
   needs: Need
@@ -385,6 +393,7 @@ export const TOOLS = [
   getOfficialClosures,
   setRoutePreferences,
   setStopByTime,
+  setTripBrief,
 ]
 
 const BY_NAME = new Map(TOOLS.map((t) => [t.name, t]))
@@ -407,7 +416,7 @@ export function annotationsOf(cap: Capability): {
   // Every hint is stated, because the specification's defaults are the cautious
   // ones (open world, destructive): an omitted hint reads as the worst case.
   return {
-    readOnlyHint: !cap.mutates && !spends,
+    readOnlyHint: !cap.mutates && !cap.writes && !spends,
     ...(cap.mutates ? { destructiveHint: !!cap.destructive } : {}),
     openWorldHint: spends || !!cap.network,
   }

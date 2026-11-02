@@ -6,6 +6,7 @@
 // group's tank from ctx.fuel (src/agent/fuel-context.ts). Nothing here reads the
 // database or spends a call.
 import { z } from 'zod'
+import { briefText } from './brief'
 import { carriesM, cumulativeM, routeFuelPlan, type FuelRoute } from '../../maps/fuel'
 import { describePrefs } from '../../maps/route-prefs'
 import { cite } from '../provenance'
@@ -89,7 +90,7 @@ export const getRiderContext = tool({
   name: 'get_rider_context',
   cap: { mutates: false, needs: 'view' },
   description:
-    'Who this ride is planned for, without naming anyone: the vehicle and power, the binding fuel range and bike, how many riders are coming and how many have no range on file, the ride’s groups and which routes each rides, the stop-by time, each route’s routing preferences, the units, and the rider’s favored and avoided brands. Read this before advising on pacing, fuel, or where to stop.',
+    'Who this ride is planned for, without naming anyone: the vehicle and power, the binding fuel range and bike, how many riders are coming and how many have no range on file, the ride’s groups and which routes each rides, the stop-by time, each route’s routing preferences, the units, the rider’s favored and avoided brands, and the trip brief (how these riders like to ride, as the planners told it). Read this before advising on pacing, fuel, or where to stop.',
   schema: z.object({}).strict(),
   run: async (ctx) => {
     const lines: string[] = []
@@ -125,6 +126,7 @@ export const getRiderContext = tool({
     lines.push(`Units: ${ctx.units === 'km' ? 'kilometers' : 'miles'}.`)
     if (ctx.favor.length) lines.push(`Favored brands: ${ctx.favor.join(', ')}.`)
     if (ctx.avoid.length) lines.push(`Avoided brands: ${ctx.avoid.join(', ')}.`)
+    lines.push(briefText(ctx))
     return lines.join('\n')
   },
 })

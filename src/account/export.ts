@@ -17,6 +17,7 @@ import {
   places,
   rideComments,
   rideMembers,
+  rideBriefs,
   rideSuggestions,
   rides,
   roadReports,
@@ -321,7 +322,7 @@ async function everythingElse(userId: number) {
       joinedAt: r.m.createdAt,
     }))
 
-  const [commentRows, suggestionRows, voteRows, reports] = await Promise.all([
+  const [commentRows, suggestionRows, voteRows, reports, briefRows] = await Promise.all([
     db
       .select({ c: rideComments, title: rides.title })
       .from(rideComments)
@@ -338,6 +339,12 @@ async function everythingElse(userId: number) {
       .innerJoin(rides, eq(rides.id, altVotes.rideId))
       .where(eq(altVotes.userId, userId)),
     db.select().from(feedback).where(eq(feedback.authorId, userId)).orderBy(asc(feedback.createdAt)),
+    // #456. The trip brief on each ride they own: how they said they like to ride.
+    db
+      .select({ b: rideBriefs, title: rides.title, slug: rides.slug })
+      .from(rideBriefs)
+      .innerJoin(rides, eq(rides.id, rideBriefs.rideId))
+      .where(eq(rides.ownerId, userId)),
   ])
 
   // Attachment METADATA, in one query for every report rather than one per
@@ -419,6 +426,14 @@ async function everythingElse(userId: number) {
       payload: r.g.payload,
     })),
     votes: voteRows.map((r) => ({ rideTitle: r.title, routeUid: r.v.routeUid, createdAt: r.v.createdAt })),
+    tripBriefs: briefRows.map((r) => ({
+      rideTitle: r.title,
+      rideSlug: r.slug,
+      // AS STORED, not readBrief(): the archive is everything held, including a
+      // field this release no longer reads.
+      brief: r.b.brief,
+      updatedAt: r.b.updatedAt,
+    })),
     feedback: reports.map((f) => ({
       publicId: f.publicId,
       kind: f.kind,
