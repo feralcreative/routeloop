@@ -35,6 +35,7 @@ import {
   setDwell,
   setRoles,
   type Stale,
+  syncEnds,
 } from './ride-edit'
 import { rideSummary, type Preset, type Snapshot, type Units } from './summary'
 import { TOPIC_NAMES, TOPICS, topicText } from './knowledge'
@@ -486,6 +487,9 @@ async function runToolInner(ctx: AgentContext, name: string, rawInput: unknown):
   ctx.budget.beginCall(t.cap.spends)
   try {
     const text = await (t.run as Tool<z.ZodObject>['run'])(ctx, parsed.data)
+    // An edit changes durations, so an end the builder would have derived is
+    // derived again here; an end the rider typed is kept (see syncEnds).
+    if (before && ctx.changed) syncEnds(ctx.ride, before)
     if (ctx.changed) ctx.changes.push(text)
     ctx.changed ||= changedBefore
     return { text, isError: false }

@@ -23,6 +23,7 @@ import {
   MAX_POINTS,
   MAX_ROUTES,
   MAX_STOPS,
+  routePayload,
   type PointInput,
   type RidePayload,
   type RoutePayload,
@@ -31,6 +32,8 @@ import { haversineM, type Track } from '../maps/kml'
 import type { Role } from '../maps/roles'
 import { ROUTE_COLORS } from '../maps/palette'
 import { newUid } from '../maps/uid'
+import { resolveAltGroups } from '../maps/alts'
+import { FALLBACK_MPS } from './summary'
 
 export type Leg = RoutePayload['legs'][number]
 export type Stale = { route: number; leg: number }
@@ -62,6 +65,58 @@ function trackPos(track: Track, [lng, lat]: [number, number], floor: number): { 
     }
   }
   return best
+}
+
+/**
+ * route-shape.js `snapToTrack()`: the foot of the perpendicular from a coordinate
+ * onto a track, searching from segment `fromSegment`, rounded to six places the way
+ * the browser rounds it. test/agent-tool-fix-more.test.ts pins the two together.
+ */
+export function snapToTrack(
+  track: Track,
+  [lng, lat]: [number, number],
+  fromSegment = 0,
+): { lngLat: [number, number]; segmentIndex: number; t: number } | null {
+  if (track.length < 2) return null
+  const k = Math.cos((lat * Math.PI) / 180)
+  let best: { lngLat: [number, number]; segmentIndex: number; t: number } | null = null
+  let bestD = Infinity
+  for (let i = Math.max(0, Math.min(fromSegment, track.length - 2)); i < track.length - 1; i++) {
+    const ax = track[i][0] * k
+    const ay = track[i][1]
+    const vx = track[i + 1][0] * k - ax
+    const vy = track[i + 1][1] - ay
+    const len2 = vx * vx + vy * vy
+    const t = len2 === 0 ? 0 : Math.max(0, Math.min(1, ((lng * k - ax) * vx + (lat - ay) * vy) / len2))
+    const px = ax + t * vx
+    const py = ay + t * vy
+    const d = (px - lng * k) ** 2 + (py - lat) ** 2
+    if (d < bestD) {
+      bestD = d
+      best = { lngLat: [+(px / k).toFixed(6), +py.toFixed(6)], segmentIndex: i, t }
+    }
+  }
+  return best
+}
+
+/**
+ * builder.js `snapVias()`: pull each shaping point onto the road the router
+ * returned, walked in order with each one's segment as the next one's floor so two
+ * cannot snap out of order and double the leg back. A via is dropped wherever it was
+ * put, often off any road; once the road comes back the handle belongs on it.
+ * Returns a NEW array: the old one may still be shared with the leg it replaced.
+ */
+export function snapVias(geometry: Track, vias: Track): Track {
+  if (!vias.length || geometry.length < 2) return vias
+  const out: Track = vias.map((v) => [v[0], v[1]])
+  let floor = 0
+  for (let i = 0; i < out.length; i++) {
+    const hit = snapToTrack(geometry, [out[i][0], out[i][1]], floor)
+    if (!hit) break
+    floor = hit.segmentIndex
+    out[i] = hit.lngLat
+  }
+  return out
 }
 
 /**
@@ -404,4 +459,237 @@ export function setStopBy(ride: RidePayload, local: string | null): void {
   const m = /^([01]\d|2[0-3]):([0-5]\d)$/.exec(local)
   if (!m) throw new EditError('a stop-by time must be a 24-hour local time like 16:00')
   ride.stopByMin = Number(m[1]) * 60 + Number(m[2])
+}
+
+// --- Fix tools (#459) --------------------------------------------------------
+
+/** builder.js ROUTE_START_HOUR: a route split off another sets off at eight. */
+export const ROUTE_START_HOUR = 8
+
+/** ride-time.js `routeElapsedS()`: riding plus every planned stop, a leg the router
+ *  never answered for estimated from its distance. What a route's end derives from. */
+export function routeElapsedS(route: RoutePayload): number {
+  let s = 0
+  for (const l of route.legs)
+    s += l.durationS <= 0 && l.distanceM > 0 ? Math.round(l.distanceM / FALLBACK_MPS) : l.durationS
+  for (const p of route.points) s += (p.durationMin ?? 0) * 60
+  return s
+}
+
+/** route-clock.js `nextMorningAfter()`: the first `hour` o'clock strictly after a
+ *  wall-clock moment carried as UTC. */
+export function nextMorningAfter(iso: string | null, hour = ROUTE_START_HOUR): string | null {
+  if (!iso) return null
+  const end = new Date(iso)
+  if (Number.isNaN(end.getTime())) return null
+  const start = new Date(end)
+  start.setUTCHours(hour, 0, 0, 0)
+  if (start <= end) start.setUTCDate(start.getUTCDate() + 1)
+  return start.toISOString()
+}
+
+/** The end a route's clock derives to, or null with no departure. */
+function derivedEndIso(route: RoutePayload): string | null {
+  return route.startAt ? new Date(new Date(route.startAt).getTime() + routeElapsedS(route) * 1000).toISOString() : null
+}
+
+/** builder.js `inferEndManual()`: an end more than a minute off the derived one was
+ *  typed by the rider. The flag lives only in the builder, so it is inferred here. */
+function endIsManual(route: RoutePayload): boolean {
+  if (!route.startAt || !route.endAt) return false
+  const derived = derivedEndIso(route)
+  if (!derived) return false
+  return Math.abs(new Date(route.endAt).getTime() - new Date(derived).getTime()) > 60000
+}
+
+/**
+ * builder.js `syncEnd()` over a whole ride after an edit: every route with a
+ * departure whose end was AUTOMATIC before the edit gets its end re-derived from
+ * its new shape, and an end the rider typed is kept. Without it an edit that changes
+ * a route's riding time leaves the stored end stale, and the builder's
+ * inferEndManual() then reads the stale value as one the rider typed and freezes it.
+ *
+ * Automatic is inferEndManual()'s rule, applied to the route as it was BEFORE the
+ * edit (`before`, matched by uid), because after it every old end looks typed. A
+ * route new in this edit, or one whose end the edit cleared, is automatic: a null
+ * end is never a rider's answer, and the builder derives one for it on load anyway.
+ * runTool calls it after every edit, with the clone it keeps for rolling back.
+ * Returns how many ends changed.
+ */
+export function syncEnds(ride: RidePayload, before: RidePayload): number {
+  const was = new Map(before.routes.map((r) => [r.uid, r]))
+  let n = 0
+  for (const route of ride.routes) {
+    if (!route.startAt) continue
+    const prior = route.uid ? was.get(route.uid) : undefined
+    // A route with no uid cannot be matched to what it was, so its end is kept.
+    const manual = route.endAt != null && (prior ? endIsManual(prior) : route.uid == null)
+    if (manual) continue
+    const end = derivedEndIso(route)
+    if (end !== route.endAt) {
+      route.endAt = end
+      n++
+    }
+  }
+  return n
+}
+
+/** A color no other route on the ride is drawn in, the rule addRoute() and the
+ *  builder's splitRouteHere() both follow. */
+function freshColor(ride: RidePayload): string {
+  const used = new Set(ride.routes.map((r) => r.color.toLowerCase()))
+  return ROUTE_COLORS.find((c) => !used.has(c.toLowerCase())) ?? ROUTE_COLORS[ride.routes.length % ROUTE_COLORS.length]
+}
+
+/**
+ * Cut a route in two at a point, as the builder's "End the route here" does
+ * (`splitRouteHere` in builder.js, the arithmetic in route-split.js, which
+ * test/agent-tool-fix-more.test.ts pins this against).
+ *
+ * THE POINT BELONGS TO BOTH ROUTES: the last of the first and, as a fresh copy, the
+ * first of the second. NOTHING IS RE-ROUTED: legs 0..i-1 stay on the first route and
+ * i.. move to the second, each on the road it was drawn on. Not at the first or last
+ * point, where one side would be a route that goes nowhere.
+ *
+ * The copy is a stop with no roles (the hotel is recorded once, on the route that
+ * rode to it); it keeps the place's public address, which the builder's copy drops.
+ * The second route has no title, the next unused color, no alternate grouping, and
+ * sets off the morning after the first one ends when the first has a departure,
+ * which is the builder's rule. The first route's end is cleared for the builder to
+ * re-derive unless the rider typed it.
+ */
+export function splitRoute(ride: RidePayload, routeUid: string, pointUid: string): RoutePayload {
+  const r = routeIndex(ride, routeUid)
+  const route = ride.routes[r]
+  const i = pointIndex(route, pointUid)
+  if (ride.routes.length >= MAX_ROUTES) throw new EditError(`a ride holds at most ${MAX_ROUTES} routes`)
+  if (i <= 0 || i >= route.points.length - 1)
+    throw new EditError(
+      'a route can only be split at a point between its first and last, so each side keeps at least one leg',
+    )
+  const manualEnd = endIsManual(route)
+  const at = route.points[i]
+  const first: RoutePayload = { ...route, points: route.points.slice(0, i + 1), legs: route.legs.slice(0, i) }
+  const carried: PointInput = {
+    kind: 'stop',
+    lat: at.lat,
+    lng: at.lng,
+    name: at.name,
+    address: at.address ?? null,
+    description: '',
+    roles: [],
+    durationMin: null,
+    slackMin: null,
+    uid: newUid(),
+    details: null,
+  }
+  const second: RoutePayload = {
+    ...route,
+    uid: newUid(),
+    title: '',
+    color: freshColor(ride),
+    points: [carried, ...route.points.slice(i + 1)],
+    legs: route.legs.slice(i),
+    altGroup: null,
+    altActive: true,
+    startAt: null,
+    endAt: null,
+  }
+  // A copy of the point it promotes, so a split refused below leaves the ride as it was.
+  if (!first.points.some((p) => p.kind === 'stop')) first.points[0] = { ...first.points[0] }
+  ensureRouteHasStop(first)
+  // REFUSED BEFORE THE RIDE CHANGES. The copy is a stop, so a route of MAX_STOPS stops
+  // all after a POI split point comes out one over; and anything else the schema
+  // bounds is checked by the schema itself, so the split cannot hand the save a
+  // route it will 400 forever.
+  const stops = second.points.filter((p) => p.kind === 'stop').length
+  if (stops > MAX_STOPS)
+    throw new EditError(
+      `the new route would hold ${stops} stops, more than the ${MAX_STOPS} a route may; split at a stop, or further along`,
+    )
+  for (const half of [first, second]) {
+    const ok = routePayload.safeParse(half)
+    if (!ok.success)
+      throw new EditError(
+        `that split would leave a route the ride cannot save: ${ok.error.issues[0]?.message ?? 'invalid'}`,
+      )
+  }
+  if (!manualEnd) first.endAt = null
+  if (first.startAt) second.startAt = nextMorningAfter(first.endAt ?? derivedEndIso(first))
+  ride.routes.splice(r, 1, first, second)
+  return second
+}
+
+/**
+ * Ride a route backwards, as builder.js `reverseRoute()` does: the whole list, both
+ * kinds, with `start` and `finish` swapped. EVERY LEG IS REBUILT STRAIGHT AND WITH
+ * NO SHAPING POINTS, because geometry is directional (one-way roads, divided
+ * highways) and a via describes the road the old direction took. All of them are
+ * returned for routing.
+ */
+export function reverseRoute(ride: RidePayload, routeUid: string): Stale[] {
+  const r = routeIndex(ride, routeUid)
+  const route = ride.routes[r]
+  if (route.points.length < 2) throw new EditError('that route has only one point, so there is nothing to reverse')
+  route.points = route.points
+    .slice()
+    .reverse()
+    .map((p) => ({
+      ...p,
+      roles: p.roles.map((role) => (role === 'start' ? 'finish' : role === 'finish' ? 'start' : role)),
+    }))
+  route.legs = []
+  const stale: Stale[] = []
+  for (let k = 0; k < route.points.length - 1; k++) {
+    route.legs.push(straightLeg(route.points[k], route.points[k + 1]))
+    stale.push({ route: r, leg: k })
+  }
+  return stale
+}
+
+/**
+ * Make one route the one ridden in its alternate group, as builder.js `promoteAlt()`
+ * does: every sibling inactive, this one active, then the group resolved by
+ * alts.ts. Returns false when it already was. Order never changes, so no route is
+ * renumbered.
+ */
+export function chooseAlternate(ride: RidePayload, routeUid: string): boolean {
+  const route = ride.routes[routeIndex(ride, routeUid)]
+  const group = route.altGroup
+  if (group == null)
+    throw new EditError('that route is not one of a set of alternatives, so there is nothing to choose')
+  if (route.altActive) return false
+  for (const d of ride.routes) if (d.altGroup === group) d.altActive = false
+  route.altActive = true
+  resolveAltGroups(ride.routes)
+  return true
+}
+
+/**
+ * Add a shaping point to the leg LEAVING `fromPointUid`, in track order: before the
+ * existing vias that lie further along the leg's current road and after the rest,
+ * the same projection `splitViasAt()` uses. Capped at MAX_VIAS_PER_LEG. The leg is
+ * rebuilt straight through its vias and returned for routing.
+ */
+export function addVia(
+  ride: RidePayload,
+  routeUid: string,
+  fromPointUid: string,
+  lngLat: [number, number],
+): { stale: Stale[]; count: number } {
+  const r = routeIndex(ride, routeUid)
+  const route = ride.routes[r]
+  const i = pointIndex(route, fromPointUid)
+  const leg = route.legs[i]
+  if (i >= route.points.length - 1 || !leg)
+    throw new EditError('that is the last point on the route, so no leg leaves it; name the point the leg starts from')
+  const vias: Track = leg.viaPoints ?? []
+  if (vias.length >= MAX_VIAS_PER_LEG)
+    throw new EditError(`that leg already has ${MAX_VIAS_PER_LEG} shaping points, the most a leg may carry`)
+  const at: [number, number] = [r6(lngLat[0]), r6(lngLat[1])]
+  if (vias.some((v) => v[0] === at[0] && v[1] === at[1]))
+    throw new EditError('that leg already has a shaping point there')
+  const [head, tail] = splitViasAt(leg.geometry, vias, at)
+  route.legs[i] = straightLeg(route.points[i], route.points[i + 1], [...head, at, ...tail])
+  return { stale: [{ route: r, leg: i }], count: vias.length + 1 }
 }

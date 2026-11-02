@@ -91,7 +91,7 @@ Every counted route needs a departure. Without one there are no ETAs, no timelin
 
 **Detect.** get_ride prints the stop-by time T when one is set, and check_ride reports `after-stop-by` for a dated route still riding at T (counting the dwell at its last point). With no T set, nothing checks this: ask the rider when they want to be off the road. An undated route never shows the band, which is not a pass.
 
-**Fix.** Leave earlier (set_departure), or end the day at lodging: search_places for "hotel" near the point before the band, add_stop with ["hotel"], then tell the rider to press "Sleeping here? End the route" on that row (or "End the route here" in its row menu), which splits the route there; you have no split tool. Or ask whether T should move, and set it with set_stop_by_time. The "Find somewhere to stay" button on the band searches lodging within 45 minutes of riding either side of that moment.
+**Fix.** Leave earlier (set_departure), or end the day at lodging: search_places for "hotel" near the point before the band, add_stop with ["hotel"], then split_route at that stop (in the builder, "Sleeping here? End the route" on that row does the same). Or ask whether T should move, and set it with set_stop_by_time. The "Find somewhere to stay" button on the band searches lodging within 45 minutes of riding either side of that moment.
 
 ## 8. Arriving after dark
 

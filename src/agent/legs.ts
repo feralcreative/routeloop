@@ -6,9 +6,14 @@
 // is reported rather than left quietly straight: the caller refuses the whole edit
 // (#445), because nothing re-routes a stored straight leg later, and one saved that
 // way is a straight line on the map with every number past it a guess.
+//
+// EVERY ROUTED LEG HAS ITS SHAPING POINTS PULLED ONTO THE ROAD THAT CAME BACK
+// (snapVias, the builder's own rule, AGENTS.md on shaping points): a via the agent
+// carried, split or added sits wherever it was put, and the road returned is what
+// every export is built from.
 import type { RidePayload } from '../maps/ride-graph'
 import { cachedRouteLeg, fetchRouteLeg } from '../routes/routing'
-import type { Stale } from './ride-edit'
+import { snapVias, type Stale } from './ride-edit'
 import type { Budget } from './budget'
 
 export async function routeStale(
@@ -28,12 +33,20 @@ export async function routeStale(
       const b = route?.points[i + 1]
       const leg = route?.legs[i]
       if (!a || !b || !leg) return
+      // Two points in the same place have no road between them: Google refuses the
+      // request, and the straight [v, v] leg the edit left is already right. The
+      // builder's computeLeg skips them the same way (duplicate-a-point puts a copy
+      // on top), and without this a reversed route holding one rolls back whole.
+      if (!leg.viaPoints?.length && a.lng === b.lng && a.lat === b.lat) {
+        routed++
+        return
+      }
       // CACHED LEGS FIRST AND FOR FREE. Claiming before knowing would let three
       // cached legs near the day's limit be skipped for a budget none of them needed,
       // since every claim here is made before any request returns.
       const hit = cachedRouteLeg([a.lng, a.lat], [b.lng, b.lat], leg.viaPoints, route.routePrefs)
       if (hit) {
-        route.legs[i] = { ...hit, viaPoints: leg.viaPoints }
+        route.legs[i] = { ...hit, viaPoints: snapVias(hit.geometry, leg.viaPoints) }
         routed++
         return
       }
@@ -53,7 +66,7 @@ export async function routeStale(
       // second tool call raced this one, which the loop never does; the identity
       // check is cheap insurance against routing the wrong pair.
       if (route.points[i] !== a || route.points[i + 1] !== b) return
-      route.legs[i] = { ...out.leg, viaPoints: leg.viaPoints }
+      route.legs[i] = { ...out.leg, viaPoints: snapVias(out.leg.geometry, leg.viaPoints) }
       routed++
     }),
   )
