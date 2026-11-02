@@ -23,6 +23,8 @@ Call check_ride first. It runs the route checks in code and returns them worst f
 - `no-brief`: nobody has said how these riders like to ride. Ask one short question and record the answer with set_trip_brief.
 - `alternates`: alternates are in play; confirm the active one is the one they mean to ride.
 
+Its trip checks also ask for a way out on every route of four riding hours or more (the contingencies topic), and offer the pre-trip checklist (the trip-prep topic) once the first departure is two weeks away or less.
+
 The sections below explain each area in depth and cover what check_ride cannot see.
 
 ## Before you start
