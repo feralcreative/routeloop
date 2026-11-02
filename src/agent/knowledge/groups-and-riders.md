@@ -52,6 +52,8 @@ A group is riders who set off from the same place. Every ride has at least one. 
 
 Builder, Groups tab, Find meeting points (shown with two or more groups). Anyone who can edit the ride may use it. It reads the saved ride, so wait for Saved first.
 
+You can see the same answer with propose_meeting_points: up to three candidates per joining group on the main group's road, preferring a gas station or charger within one tank, ranked by each group's extra detour beyond its shortest way to join. It needs two or more groups and a drawn road for the main group; pass max_detour_mi only if the rider asks for more or less detour than their setting. It only proposes. To use one, the rider presses Find meeting points in the Groups panel and picks it, which adds it to the main group's route and that one group's, sets that group's departure, and cuts the shared stretch; each joining group is decided on its own. If it says the budget ran out, nothing is known about that stretch: never tell the rider there is nowhere to meet or no station.
+
 - The destination is where the main group's route ends. Each joining group contributes only its starting point; one with no route gets its direct road to the destination routed for it. The main group never diverts, and no candidate is offered in the last fifth of its road.
 - Each joining group gets up to three candidates with the extra miles each costs them and a numbered map dot.
 - Gas stations are preferred; EV chargers on an electric ride (the ride's power setting, then the shortest-range bike's fuel, then the rider's default). With no station on the stretch it offers plain road points and says so.
