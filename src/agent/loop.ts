@@ -84,6 +84,10 @@ export function openingMessage(ctx: AgentContext, history: ChatLine[], message: 
     .join('\n')
   return [
     transcript ? `Conversation so far:\n${transcript}` : '',
+    // Said outright, or a viewer asked for an edit is sent to a builder they cannot use.
+    ctx.role === 'view'
+      ? 'This rider can view this ride but not edit it. You cannot change it for them, and they cannot change it either: say so, and that an owner or an editor of the ride can. Advice is still yours to give.'
+      : '',
     `The ride right now:\n${rideSummary(ctx.ride, { units: ctx.units, includeDetails: ctx.includeDetails, snapshot: ctx.snapshot, preset: ctx.preset })}`,
     `Rider: ${message.slice(0, 4000)}`,
   ]

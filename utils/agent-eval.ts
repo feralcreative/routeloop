@@ -4,6 +4,7 @@
 //
 //   EVAL_ANTHROPIC_KEY=… npx tsx utils/agent-eval.ts --yes
 //   EVAL_OPENAI_KEY=… npx tsx utils/agent-eval.ts --yes --provider openai --model gpt-6.1-sol
+//   npx tsx utils/agent-eval.ts --yes --key-from-dev --model claude-opus-5-5
 //   npx tsx utils/agent-eval.ts --list
 //
 // IT SPENDS MONEY, so it does nothing without --yes, stops starting scenarios once
@@ -14,7 +15,8 @@
 //
 // Flags: --provider anthropic|openai (default anthropic), --model <id> (default the
 // free tier's model, or the provider's BYO default), --only <id,id>, --kind <kind>,
-// --max-usd <n>, --google. Results go to _PLANS/evals/, which is gitignored.
+// --max-usd <n>, --google, --key-from-dev (the key DEV_LOGIN_EMAIL saved on Robots in a
+// local dev database, so it never has to be exported into a shell). Results go to _PLANS/evals/, which is gitignored.
 import { mkdirSync, writeFileSync } from 'node:fs'
 
 const args = process.argv.slice(2)
@@ -43,8 +45,12 @@ async function main(): Promise<void> {
   }
 
   const provider = opt('provider') === 'openai' ? 'openai' : 'anthropic'
-  const key = provider === 'openai' ? process.env.EVAL_OPENAI_KEY : process.env.EVAL_ANTHROPIC_KEY
-  if (!key) throw new Error(`set EVAL_${provider.toUpperCase()}_KEY`)
+  const key = flag('key-from-dev')
+    ? await devKey(provider)
+    : provider === 'openai'
+      ? process.env.EVAL_OPENAI_KEY
+      : process.env.EVAL_ANTHROPIC_KEY
+  if (!key) throw new Error(`set EVAL_${provider.toUpperCase()}_KEY, or pass --key-from-dev`)
   const { FREE_MODEL, DEFAULT_BYO_MODEL } = await import('../src/agent/policy')
   const model = opt('model') ?? (provider === 'anthropic' ? FREE_MODEL : DEFAULT_BYO_MODEL.openai)
   const maxUsd = Number(opt('max-usd') ?? 1)
@@ -57,6 +63,8 @@ async function main(): Promise<void> {
   if (!flag('google') && GMAPS_SERVER_KEY) throw new Error('Google is still configured; refusing without --google')
   const { Budget } = await import('../src/agent/budget')
   const { maxFuelGapMi } = await import('./agent-eval/scenarios')
+  const { presetOf } = await import('../src/agent/summary')
+  const { fuelRoleOf } = await import('../src/subgroups/rendezvous')
   const { runTurn, emptyTurn } = await import('../src/agent/loop')
   const { runTurnOpenAI } = await import('../src/agent/loop-openai')
   const Anthropic = (await import('@anthropic-ai/sdk')).default
@@ -82,6 +90,17 @@ async function main(): Promise<void> {
       favor: [],
       avoid: [],
       includeDetails: true,
+      // What the builder's surface resolves for every turn (src/routes/agent.ts), with
+      // no database: a rider with no defaults and nobody's range on file, so a pedal
+      // ride reads as one rather than as a fuel plan nobody computed.
+      preset: presetOf(before, null),
+      fuel: {
+        rangeM: null,
+        role: fuelRoleOf({ ridePower: before.power, rideVehicle: before.vehicle }),
+        bindingBike: null,
+        riders: 1,
+        unknown: 1,
+      },
       changes: [],
       progress: () => {},
       changed: false,
@@ -146,6 +165,28 @@ async function main(): Promise<void> {
   const file = `_PLANS/evals/${new Date().toISOString().replace(/[:.]/g, '-')}-${provider}-${model}.json`
   writeFileSync(file, JSON.stringify({ provider, model, google: flag('google'), spentMicros: spent, results }, null, 2))
   console.log(`Results: ${file}`)
+  if (flag('key-from-dev')) await (await import('../src/db')).pool.end()
+}
+
+/** The dev rider's own stored key, read only from a local database: a key saved on a
+ *  real deployment is a rider's, never the eval's. */
+async function devKey(provider: 'anthropic' | 'openai'): Promise<string> {
+  const { IS_LOCAL_DATABASE, DEV_LOGIN_EMAIL } = await import('../src/config')
+  if (!IS_LOCAL_DATABASE) throw new Error('--key-from-dev reads a local dev database only')
+  if (!DEV_LOGIN_EMAIL) throw new Error('--key-from-dev needs DEV_LOGIN_EMAIL')
+  const { db, schema } = await import('../src/db')
+  const { eq } = await import('drizzle-orm')
+  const { openKeyOf } = await import('../src/agent/usage')
+  const [user] = await db
+    .select({ id: schema.users.id })
+    .from(schema.users)
+    .where(eq(schema.users.email, DEV_LOGIN_EMAIL))
+  if (!user) throw new Error(`no account for ${DEV_LOGIN_EMAIL}`)
+  const got = await openKeyOf(user.id, provider)
+  if (!got || got.provider !== provider) throw new Error(`no usable ${provider} key saved for ${DEV_LOGIN_EMAIL}`)
+  // The pool stays open for the run, since a scenario's tool may read the database;
+  // main() ends it.
+  return got.key
 }
 
 main().catch((err) => {
