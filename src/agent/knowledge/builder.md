@@ -113,6 +113,7 @@ The slider under the map scrubs a moment. A dot shows where the group would be, 
 - **rename_route.**
 - **set_route_preferences** sets avoid tolls, avoid highways, avoid ferries, and prefer twisty on one route. A flag left out keeps its value. It redraws every leg of the route, so a route of more than 30 legs is refused, and an edit the router cannot finish is rolled back.
 - **set_stop_by_time** sets the ride's stop-by time as `HH:MM` local, or null to clear it.
+- **set_trip_brief** records how these riders like to ride: experience, riding hours a day, longest day, pace, gravel, freeways, load, weather limits, beds or camping, budget, flexibility, contingencies, and notes. It saves at once and is not a ride edit, so there is nothing to apply. The builder shows it read-only under Trip brief in the ride's header; riders cannot edit it there yet.
 - Over MCP: **list_rides** and **create_ride** (a new private ride with one start point). Over MCP every edit adds to a pending proposal for that ride; **apply_changes** saves it in one write once the rider agrees, **review_changes** lists it, and **discard_changes** drops it.
 - Each edit re-routes the legs it leaves straight, up to 30 routing requests per turn in the builder's assistant; over MCP each edit has its own small ceiling (2 legs for an add, replace, or remove; 12 for a move, which refuses a longer span; 30 for set_route_preferences, which refuses a longer route) plus the daily ceiling; past that, legs stay straight and the reply says so.
 

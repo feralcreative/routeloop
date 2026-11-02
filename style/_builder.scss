@@ -3200,6 +3200,24 @@
   }
 }
 
+// The trip brief (#456): a read-only label and value list in the same fold as Export.
+.builder-brief-list {
+  display: grid;
+  grid-template-columns: max-content 1fr;
+  gap: 0.2rem 0.75rem;
+  margin: 0.5rem 0;
+  font-size: 0.85em;
+
+  dt {
+    color: $neutral-57;
+  }
+
+  dd {
+    margin: 0;
+    overflow-wrap: anywhere;
+  }
+}
+
 .builder-export-body {
   padding-top: 0.5rem;
 

@@ -90,6 +90,8 @@ const input = (over: Partial<AccountArchiveInput> = {}): AccountArchiveInput => 
   votes: [],
   feedback: [],
   survey: [],
+  assistantUsage: [],
+  tripBriefs: [],
   exportedAt: AT,
   ...over,
 })
@@ -405,5 +407,22 @@ describe('bikes', () => {
 
   it('is an empty list for a rider with no bikes', () => {
     expect(buildAccountJson(input()).bikes).toEqual([])
+  })
+})
+
+describe('sections that were gathered and dropped', () => {
+  it('carries what the assistant spent and each trip brief into account.json', () => {
+    const a = buildAccountJson(
+      input({
+        assistantUsage: [
+          { day: '2026-11-01', source: 'byo', costMicros: 1200, inputTokens: 900, outputTokens: 80, googleCalls: 2, turns: 1 },
+        ],
+        tripBriefs: [{ rideTitle: 'Big Sur run', rideSlug: 'aB3xY7kLmN9pQrS2tUvWxY', brief: { pace: 'relaxed' }, updatedAt: AT }],
+      }),
+    )
+    expect(a.assistantUsage).toHaveLength(1)
+    expect(a.tripBriefs).toEqual([
+      { ride: 'Big Sur run', slug: 'aB3xY7kLmN9pQrS2tUvWxY', brief: { pace: 'relaxed' }, updatedAt: AT.toISOString() },
+    ])
   })
 })

@@ -50,6 +50,7 @@ import { BYO_ENABLED, freeTierState, googleCallsToday, openKeyOf, recordTurn, st
 import type { AgentContext } from '../agent/tools'
 import { presetOf } from '../agent/summary'
 import { fuelContextFor } from '../agent/fuel-context'
+import { briefFor } from '../briefs/service'
 import { eq } from 'drizzle-orm'
 import { db } from '../db/index'
 import { userProfiles } from '../db/schema'
@@ -174,6 +175,7 @@ agentRoutes.post(
           profile ?? null,
           canAdminister(found.member) ? 'owner' : 'edit',
         ),
+        brief: await briefFor(found.ride.id),
         units: units === 'metric' ? 'km' : 'mi',
         budget: new Budget(usedToday),
         favor: parseTerms(lists.favor),

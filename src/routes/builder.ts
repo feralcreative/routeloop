@@ -35,6 +35,8 @@ import { TOUR_HEAD, tourScript } from '../views/tour-assets'
 import { ANTHROPIC_API_KEY, GMAPS_KEY, GMAPS_MAP_ID } from '../config'
 import { BYO_ENABLED } from '../agent/usage'
 import { FREE_TIER_ON } from '../agent/policy'
+import { briefFor } from '../briefs/service'
+import { briefLines } from '../briefs/policy'
 import { generateSlug } from '../maps/slug'
 import { canClone } from '../access/policy'
 import { memberOrOwner, seedOwner } from '../members/service'
@@ -770,7 +772,11 @@ builderRoutes.get('/builder/:id', requireActive, async (c) => {
   // suggestions both hang off the row list and the stop details.
   if (!found || !canViewAsMember(found.member)) return c.text('Not found', 404)
   const { ride, member } = found
-  const [prefs, range] = await Promise.all([builderPrefs(user.id), groupRange(ride.id, { planning: true })])
+  const [prefs, range, brief] = await Promise.all([
+    builderPrefs(user.id),
+    groupRange(ride.id, { planning: true }),
+    briefFor(ride.id),
+  ])
   return c.html(
     builderHtml(
       ride.id,
@@ -787,6 +793,7 @@ builderRoutes.get('/builder/:id', requireActive, async (c) => {
       },
       range,
       { vehicle: ride.vehicle, power: ride.power },
+      briefLines(brief, prefs.units === 'metric' ? 'km' : 'mi'),
     ),
   )
 })
@@ -818,6 +825,9 @@ function builderHtml(
   // The ride's own vehicle and power (#321), for the words on this page and the two
   // selects in the ride band. Null on either means unset — the rider's own default.
   vehicle: { vehicle: string | null; power: string | null } | null = null,
+  // The ride's trip brief (#456), already turned into label and value pairs. Empty
+  // on a new ride, or one nobody has described, and then nothing is drawn.
+  brief: { label: string; value: string }[] = [],
 ): string {
   // The route slider is a focus control, not a navigation one: every route stays
   // drawn on the map at all times. Seeing the whole ride on one map is the product.
@@ -1127,6 +1137,20 @@ ${
   // View link is — see showViewLink() in builder.js. A ride with no slug has
   // nothing to export yet, so the block renders hidden and reveals itself the
   // moment there is something behind it.
+  // THE TRIP BRIEF (#456), READ-ONLY FOR NOW: the planning assistant writes it
+  // (set_trip_brief) and nothing on this page edits it yet. Rendered at load, so a
+  // brief the assistant saves this session shows on the next one. Every value is a
+  // rider's words or the assistant's, so every one is escaped.
+  (brief.length
+    ? `        <details class="builder-export builder-brief" id="builder-brief">
+          <summary>Trip brief</summary>
+          <dl class="builder-brief-list">
+${brief.map((b) => `            <dt>${esc(b.label)}</dt><dd>${esc(b.value)}</dd>`).join('\n')}
+          </dl>
+          <p class="field-hint">Kept by the planning assistant: tell it what has changed.</p>
+        </details>
+`
+    : '') +
   `        <details class="builder-export" id="builder-export"${slug ? '' : ' hidden'}>
           <summary>Export this ${wd(words, 'journey')}</summary>
           <div class="builder-export-body">

@@ -81,8 +81,23 @@ export type AccountArchiveInput = {
   votes: ArchiveVoteInput[]
   feedback: ArchiveFeedbackInput[]
   survey: ArchiveSurveyInput[]
+  /** What the planning assistant spent for them, a day per row. */
+  assistantUsage: ArchiveAssistantUsageInput[]
+  /** #456. The trip brief on each ride they own. */
+  tripBriefs: ArchiveTripBriefInput[]
   exportedAt: Date
 }
+
+export type ArchiveAssistantUsageInput = {
+  day: string
+  source: string
+  costMicros: number
+  inputTokens: number
+  outputTokens: number
+  googleCalls: number
+  turns: number
+}
+export type ArchiveTripBriefInput = { rideTitle: string; rideSlug: string; brief: unknown; updatedAt: Date }
 
 export type ArchivePlaceGroupInput = {
   id: number
@@ -251,6 +266,8 @@ export type AccountArchive = {
   votes: Array<{ ride: string; routeUid: string; createdAt: string | null }>
   feedback: Array<Record<string, unknown>>
   survey: Array<{ surveyVersion: number; answers: unknown; submittedAt: string | null }>
+  assistantUsage: ArchiveAssistantUsageInput[]
+  tripBriefs: Array<{ ride: string; slug: string; brief: unknown; updatedAt: string | null }>
 }
 
 /**
@@ -501,6 +518,18 @@ export function buildAccountJson(input: AccountArchiveInput): AccountArchive {
       answers: r.answers,
       submittedAt: iso(r.submittedAt),
     })),
+
+    // WHAT THE ASSISTANT SPENT, a day per row, which it tells them as it runs.
+    // It was gathered and then dropped here until 2026-11-01: a field the gather
+    // returns and this function does not name never reaches the zip.
+    assistantUsage: input.assistantUsage,
+    // #456. How they said they like to ride, on each ride they own.
+    tripBriefs: input.tripBriefs.map((b) => ({
+      ride: b.rideTitle,
+      slug: b.rideSlug,
+      brief: b.brief,
+      updatedAt: iso(b.updatedAt),
+    })),
   }
 }
 
@@ -597,7 +626,8 @@ export function readmeText(archive: AccountArchive): string {
     '               have held, how you asked to be notified, your saved places,',
     '               your friends and follows, the rides you own and the rides you',
     '               were on, every comment, suggestion and vote you made, the',
-    '               reports you filed, and your survey answers.',
+    '               reports you filed, your survey answers, what the planning',
+    '               assistant spent, and the trip brief on each ride you own.',
     '',
     'rides/         One directory per ride. Each holds the same ride in five',
     '               formats. The .routeloop.json is the lossless one and the only',

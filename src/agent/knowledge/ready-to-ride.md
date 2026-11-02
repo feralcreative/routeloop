@@ -19,7 +19,8 @@ Call check_ride first. It runs the route checks in code and returns them worst f
 - `no-departure`: no departure time, so nothing can be checked against the clock (section 6).
 - `after-stop-by`: the route arrives after the ride's stop-by time (section 7).
 - `past-midnight`: the route arrives after midnight.
-- `long-day`: more riding hours than the rule of thumb for the vehicle (8 for a motorcycle); ask how long a day this group likes (section 9).
+- `long-day`: more riding hours than the trip brief says these riders like, or a route longer than its longest day; with no brief, more than the rule of thumb for the vehicle (8 hours for a motorcycle). Ask how long a day this group likes (section 9).
+- `no-brief`: nobody has said how these riders like to ride. Ask one short question and record the answer with set_trip_brief.
 - `alternates`: alternates are in play; confirm the active one is the one they mean to ride.
 
 The sections below explain each area in depth and cover what check_ride cannot see.

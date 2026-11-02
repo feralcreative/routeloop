@@ -44,6 +44,7 @@ import { userForAccessToken } from '../oauth/service'
 import { Budget } from '../agent/budget'
 import { presetOf } from '../agent/summary'
 import { fuelContextFor } from '../agent/fuel-context'
+import { briefFor } from '../briefs/service'
 import { newPoint } from '../agent/ride-edit'
 import {
   annotationsOf,
@@ -187,6 +188,7 @@ async function onRideHeld(user: UserRow, prefs: Prefs, rideId: number, name: str
     snapshot: { kind: 'saved', rev: l.rev, pending: proposal?.changes.length ?? 0 },
     preset: presetOf(l.ride, prefs),
     fuel: await fuelContextFor(rideId, user.id, l.ride, prefs, l.role),
+    brief: await briefFor(rideId),
     units: prefs.units,
     budget,
     favor: prefs.favor,

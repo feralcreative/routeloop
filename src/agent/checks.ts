@@ -20,6 +20,7 @@
 import { carriesM, routeFuelPlan, type FuelRoute } from '../maps/fuel'
 import { arrivalsS, dist, FALLBACK_MPS, hhmm, quoted } from './summary'
 import type { AgentContext } from './tools'
+import { isEmptyBrief } from '../briefs/policy'
 
 export type Severity = 'strands' | 'timing' | 'group' | 'polish'
 export const SEVERITY_ORDER: Severity[] = ['strands', 'timing', 'group', 'polish']
@@ -87,6 +88,12 @@ export const CHECKS = [
     severity: 'timing',
     mapSymbol: null,
     title: 'A long day in the saddle',
+  },
+  {
+    id: 'no-brief',
+    severity: 'polish',
+    mapSymbol: null,
+    title: 'Nobody has said how these riders like to ride',
   },
   {
     id: 'alternates',
@@ -173,13 +180,29 @@ export function runChecks(ctx: AgentContext): Finding[] {
       (n, l) => n + (l.durationS > 0 ? l.durationS : l.distanceM > 0 ? l.distanceM / FALLBACK_MPS : 0),
       0,
     )
-    const limit = LONG_DAY_HOURS[ctx.preset?.vehicle ?? 'motorcycle'] ?? 8
+    // THE BRIEF OUTRANKS THE RULE OF THUMB: what these riders said they like is the
+    // limit, and the per-vehicle figure is only for a ride nobody has described.
+    const brief = ctx.brief
+    const vehicle = ctx.preset?.vehicle ?? 'motorcycle'
+    const limit = brief?.hoursPerDay ?? LONG_DAY_HOURS[vehicle] ?? 8
+    const routeM = route.legs.reduce((n, l) => n + l.distanceM, 0)
     if (ridingS / 3600 > limit)
       out.push({
         check: 'long-day',
         route: r,
-        detail: `Route ${r + 1} is about ${(ridingS / 3600).toFixed(1)} hours of riding, past the ${limit}-hour rule of thumb for a ${ctx.preset?.vehicle ?? 'motorcycle'}.`,
-        fix: 'Ask how long a day this group actually likes; split it if that is shorter.',
+        detail: brief?.hoursPerDay
+          ? `Route ${r + 1} is about ${(ridingS / 3600).toFixed(1)} hours of riding, past the ${limit} hours a day the trip brief says these riders like.`
+          : `Route ${r + 1} is about ${(ridingS / 3600).toFixed(1)} hours of riding, past the ${limit}-hour rule of thumb for a ${vehicle}.`,
+        fix: brief?.hoursPerDay
+          ? 'Split it, end the day sooner, or confirm with the rider that this one day is meant to be long.'
+          : 'Ask how long a day this group actually likes (and record it with set_trip_brief); split it if that is shorter.',
+      })
+    else if (brief?.dayM != null && routeM > brief.dayM)
+      out.push({
+        check: 'long-day',
+        route: r,
+        detail: `Route ${r + 1} is ${dist(routeM, u)}, past the longest day in the trip brief (${dist(brief.dayM, u)}).`,
+        fix: 'Split it, end the day sooner, or confirm with the rider that this one day is meant to be long.',
       })
 
     if (!route.startAt) {
@@ -215,6 +238,15 @@ export function runChecks(ctx: AgentContext): Finding[] {
       })
   })
 
+  // Only where a brief can be kept (a saved ride) and nobody has written one.
+  if (ctx.brief && isEmptyBrief(ctx.brief))
+    out.push({
+      check: 'no-brief',
+      route: null,
+      detail: 'There is no trip brief, so the days are judged against rules of thumb rather than what these riders like.',
+      fix: 'Ask, in one short question, how long a day they like, how fast, and whether gravel or freeways are fine; record it with set_trip_brief.',
+    })
+
   const alts = new Set(routes.flatMap((r) => (r.altGroup != null ? [r.altGroup] : [])))
   if (alts.size)
     out.push({
@@ -244,5 +276,6 @@ export function tripQuestions(ctx: AgentContext): string[] {
     'Emergency contacts traded, and papers (license, registration, insurance; a passport for Mexico or Canada) on everyone.',
   ]
   if (beds.length) q.splice(1, 0, `Beds booked: ${[...new Set(beds)].join(', ')}.`)
+
   return q
 }
